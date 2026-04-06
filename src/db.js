@@ -104,23 +104,28 @@ function dataUrlToBlob(dataUrl) {
 }
 
 export async function uploadPhoto(dataUrl) {
+  console.log("[Storage] uploadPhoto called, dataUrl length:", dataUrl?.length);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) { console.log("[Storage] No user, aborting"); return null; }
+  console.log("[Storage] User:", user.id);
 
   const ext = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
   const path = `${user.id}/photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const blob = dataUrlToBlob(dataUrl);
+  console.log("[Storage] Uploading to:", path, "size:", blob.size);
 
-  const { error } = await supabase.storage
+  const { data, error } = await supabase.storage
     .from("project-files")
     .upload(path, blob, { contentType: blob.type, upsert: false });
 
-  if (error) { console.error("uploadPhoto error:", error); return null; }
+  if (error) { console.error("[Storage] Upload error:", error); return null; }
+  console.log("[Storage] Upload success:", data);
 
   const { data: urlData } = supabase.storage
     .from("project-files")
     .getPublicUrl(path);
 
+  console.log("[Storage] Public URL:", urlData.publicUrl);
   return { storagePath: path, url: urlData.publicUrl };
 }
 
