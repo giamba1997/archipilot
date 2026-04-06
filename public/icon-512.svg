@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#D97B0D"/>
+  <text x="256" y="380"
+    font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
+    font-size="330" font-weight="700" fill="white"
+    text-anchor="middle">A</text>
+</svg>
