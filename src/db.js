@@ -65,6 +65,9 @@ export async function loadProfile() {
     pdfFont: data.pdf_font || "helvetica",
     apiKey: data.api_key || "",
     lang: data.lang || "fr",
+    postTemplate: data.post_template || "general",
+    pvTemplate: data.pv_template || "standard",
+    remarkNumbering: data.remark_numbering || "none",
   };
 }
 
@@ -86,6 +89,9 @@ export async function saveProfile(profile) {
       pdf_font: profile.pdfFont,
       api_key: profile.apiKey,
       lang: profile.lang,
+      post_template: profile.postTemplate,
+      pv_template: profile.pvTemplate,
+      remark_numbering: profile.remarkNumbering,
     })
     .eq("id", user.id);
 
@@ -145,4 +151,323 @@ export function getPhotoUrl(photo) {
     return data.publicUrl;
   }
   return photo.dataUrl || "";
+}
+
+// ── Collaboration ──────────────────────────────────────────
+
+export async function inviteMember(projectId, ownerId, email, role, projectName, inviterName) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // Check if already invited
+  const { data: existing } = await supabase
+    .from("project_members")
+    .select("id, status")
+    .eq("project_id", String(projectId))
+    .eq("owner_id", ownerId)
+    .eq("invited_email", email.toLowerCase())
+    .single();
+
+  if (existing) return { error: "already_invited" };
+
+  // Find if user exists in profiles
+  const { data: targetProfile } = await supabase
+    .from("profiles")
+    .select("id, name")
+    .eq("email", email.toLowerCase())
+    .single();
+
+  const { data, error } = await supabase
+    .from("project_members")
+    .insert({
+      project_id: String(projectId),
+      owner_id: ownerId,
+      user_id: targetProfile?.id || null,
+      role,
+      invited_by: user.id,
+      invited_email: email.toLowerCase(),
+      invited_name: targetProfile?.name || "",
+      status: "pending",
+    })
+    .select()
+    .single();
+
+  if (error) return { error: error.message };
+
+  // Create notification for target user if they exist
+  if (targetProfile?.id) {
+    await supabase.from("notifications").insert({
+      user_id: targetProfile.id,
+      type: "invite",
+      project_id: String(projectId),
+      project_name: projectName,
+      actor_id: user.id,
+      actor_name: inviterName,
+      data: { role, member_id: data.id },
+    });
+  }
+
+  // Send invitation email via Edge Function
+  try {
+    await supabase.functions.invoke("send-invite-email", {
+      body: { email: email.toLowerCase(), projectName, inviterName, role },
+    });
+  } catch (e) {
+    console.error("Failed to send invite email:", e);
+    // Non-blocking — invitation is still created
+  }
+
+  return { data };
+}
+
+export async function loadProjectMembers(projectId, ownerId) {
+  const { data, error } = await supabase
+    .from("project_members")
+    .select("*")
+    .eq("project_id", String(projectId))
+    .eq("owner_id", ownerId)
+    .order("created_at", { ascending: true });
+
+  if (error) { console.error("loadProjectMembers error:", error); return []; }
+  return data || [];
+}
+
+export async function updateMemberRole(memberId, role) {
+  const { error } = await supabase
+    .from("project_members")
+    .update({ role })
+    .eq("id", memberId);
+  if (error) console.error("updateMemberRole error:", error);
+  return !error;
+}
+
+export async function removeMember(memberId) {
+  const { error } = await supabase
+    .from("project_members")
+    .delete()
+    .eq("id", memberId);
+  if (error) console.error("removeMember error:", error);
+  return !error;
+}
+
+export async function loadMyInvitations() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("project_members")
+    .select("*")
+    .eq("invited_email", user.email.toLowerCase())
+    .eq("status", "pending");
+
+  if (error) { console.error("loadMyInvitations error:", error); return []; }
+  return data || [];
+}
+
+export async function respondToInvitation(memberId, accept) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data, error } = await supabase
+    .from("project_members")
+    .update({
+      status: accept ? "accepted" : "declined",
+      user_id: user.id,
+      accepted_at: accept ? new Date().toISOString() : null,
+    })
+    .eq("id", memberId)
+    .select()
+    .single();
+
+  if (error) { console.error("respondToInvitation error:", error); return false; }
+
+  // Notify the project owner
+  if (accept && data) {
+    const profile = await loadProfile();
+    await supabase.from("notifications").insert({
+      user_id: data.owner_id,
+      type: "invite_accepted",
+      project_id: data.project_id,
+      project_name: "",
+      actor_id: user.id,
+      actor_name: profile?.name || user.email,
+      data: { member_id: data.id },
+    });
+  }
+
+  return true;
+}
+
+export async function loadSharedProjects() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // Get all accepted memberships
+  const { data: memberships, error: mErr } = await supabase
+    .from("project_members")
+    .select("project_id, owner_id, role")
+    .eq("user_id", user.id)
+    .eq("status", "accepted");
+
+  if (mErr || !memberships?.length) return [];
+
+  // Group by owner
+  const ownerIds = [...new Set(memberships.map(m => m.owner_id))];
+  const shared = [];
+
+  for (const ownerId of ownerIds) {
+    const { data: ownerData } = await supabase
+      .from("user_data")
+      .select("projects")
+      .eq("user_id", ownerId)
+      .single();
+
+    if (!ownerData?.projects) continue;
+
+    const ownerMemberships = memberships.filter(m => m.owner_id === ownerId);
+    for (const mem of ownerMemberships) {
+      const project = ownerData.projects.find(p => String(p.id) === String(mem.project_id));
+      if (project) {
+        shared.push({ ...project, _shared: true, _ownerId: ownerId, _role: mem.role });
+      }
+    }
+  }
+
+  return shared;
+}
+
+// ── Notifications ──────────────────────────────────────────
+
+export async function loadNotifications() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) { console.error("loadNotifications error:", error); return []; }
+  return data || [];
+}
+
+export async function markNotificationRead(id) {
+  await supabase.from("notifications").update({ read: true }).eq("id", id);
+}
+
+export async function markAllNotificationsRead() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+}
+
+export function subscribeToNotifications(userId, callback) {
+  const channel = supabase
+    .channel(`notifications:${userId}`)
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "notifications",
+      filter: `user_id=eq.${userId}`,
+    }, (payload) => callback(payload.new))
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
+}
+
+// ── Comments ───────────────────────────────────────────────
+
+export async function loadComments(projectId, ownerId, postId) {
+  const { data, error } = await supabase
+    .from("comments")
+    .select("*")
+    .eq("project_id", String(projectId))
+    .eq("owner_id", ownerId)
+    .eq("post_id", String(postId))
+    .order("created_at", { ascending: true });
+
+  if (error) { console.error("loadComments error:", error); return []; }
+  return data || [];
+}
+
+export async function createComment(projectId, ownerId, postId, remarkIndex, body) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const profile = await loadProfile();
+
+  const { data, error } = await supabase
+    .from("comments")
+    .insert({
+      project_id: String(projectId),
+      owner_id: ownerId,
+      post_id: String(postId),
+      remark_index: remarkIndex,
+      author_id: user.id,
+      author_name: profile?.name || "",
+      author_picture: profile?.picture || null,
+      body,
+    })
+    .select()
+    .single();
+
+  if (error) { console.error("createComment error:", error); return null; }
+  return data;
+}
+
+export async function deleteComment(commentId) {
+  const { error } = await supabase.from("comments").delete().eq("id", commentId);
+  if (error) console.error("deleteComment error:", error);
+  return !error;
+}
+
+// ── PV Distribution ────────────────────────────────────────
+
+export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName }) {
+  const pvId = `${projectName.replace(/\s+/g, "_")}-${pvNumber}`;
+
+  const { data, error } = await supabase.functions.invoke("send-pv-email", {
+    body: { to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName, pvId },
+  });
+
+  if (error) { console.error("sendPvByEmail error:", error); return { error: error.message }; }
+
+  // Record the send
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    await supabase.from("pv_sends").insert({
+      project_id: projectName,
+      pv_number: pvNumber,
+      sent_by: user.id,
+      sent_to: to,
+      resend_id: data?.id || "",
+    });
+  }
+
+  return { success: true, sentTo: to };
+}
+
+export async function loadPvSends(projectId, pvNumber) {
+  const { data, error } = await supabase
+    .from("pv_sends")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("pv_number", pvNumber)
+    .order("sent_at", { ascending: false });
+
+  if (error) { console.error("loadPvSends error:", error); return []; }
+  return data || [];
+}
+
+export async function loadPvReads(pvId) {
+  const { data, error } = await supabase
+    .from("pv_reads")
+    .select("*")
+    .eq("pv_id", pvId)
+    .order("read_at", { ascending: false });
+
+  if (error) { console.error("loadPvReads error:", error); return []; }
+  return data || [];
 }

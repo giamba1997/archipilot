@@ -1,10 +1,34 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { AuthProvider, useAuth, AuthPage } from './Auth.jsx'
+import { AuthProvider, useAuth, AuthPage, ResetPasswordPage, MfaVerifyPage } from './Auth.jsx'
 import App from './App.jsx'
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null, info: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { this.setState({ info }); console.error("ErrorBoundary caught:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 40, fontFamily: "monospace", maxWidth: 700, margin: "0 auto" }}>
+          <h2 style={{ color: "#C4392A" }}>Erreur de rendu</h2>
+          <pre style={{ background: "#FEF2F2", padding: 16, borderRadius: 8, overflow: "auto", fontSize: 12, lineHeight: 1.6 }}>
+            {this.state.error.toString()}
+            {"\n\n"}
+            {this.state.info?.componentStack}
+          </pre>
+          <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 24px", background: "#D97B0D", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+            Recharger
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function Root() {
-  const { user, loading } = useAuth();
+  const { user, loading, recovery, mfaRequired } = useAuth();
 
   if (loading) {
     return (
@@ -18,9 +42,13 @@ function Root() {
     );
   }
 
+  if (recovery) return <ResetPasswordPage />;
+
   if (!user) return <AuthPage />;
 
-  return <App />;
+  if (mfaRequired) return <MfaVerifyPage />;
+
+  return <ErrorBoundary><App /></ErrorBoundary>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

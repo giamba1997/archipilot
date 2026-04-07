@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { jsPDF } from "jspdf";
 import { LangContext, useT, useTP } from "./i18n";
 import { supabase } from "./supabase";
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, subscribeToNotifications, sendPvByEmail, loadPvSends } from "./db";
 
 const AC = "#D97B0D";
 const ACL = "#FDF4E7";
@@ -48,6 +48,66 @@ const STATUSES = [
 
 const getStatus = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
+// ── Offline Queue ──────────────────────────────────────────
+const OFFLINE_QUEUE_KEY = "archipilot_offline_queue";
+const OFFLINE_DRAFTS_KEY = "archipilot_pv_drafts";
+
+function getOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]"); } catch { return []; }
+}
+function addToOfflineQueue(item) {
+  const queue = getOfflineQueue();
+  queue.push({ ...item, id: Date.now() + Math.random(), createdAt: new Date().toISOString() });
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+}
+function clearOfflineQueue() {
+  localStorage.setItem(OFFLINE_QUEUE_KEY, "[]");
+}
+
+function getPvDrafts() {
+  try { return JSON.parse(localStorage.getItem(OFFLINE_DRAFTS_KEY) || "[]"); } catch { return []; }
+}
+function savePvDraft(draft) {
+  const drafts = getPvDrafts();
+  drafts.push({ ...draft, id: Date.now(), savedAt: new Date().toISOString() });
+  localStorage.setItem(OFFLINE_DRAFTS_KEY, JSON.stringify(drafts));
+}
+function removePvDraft(draftId) {
+  const drafts = getPvDrafts().filter(d => d.id !== draftId);
+  localStorage.setItem(OFFLINE_DRAFTS_KEY, JSON.stringify(drafts));
+}
+
+// Build display address from structured fields (or fallback to legacy string)
+const formatAddress = (p) => {
+  if (p.street || p.city) {
+    const line1 = [p.street, p.number].filter(Boolean).join(" ");
+    const line2 = [p.postalCode, p.city].filter(Boolean).join(" ");
+    return [line1, line2, p.country !== "Belgique" ? p.country : ""].filter(Boolean).join(", ");
+  }
+  return p.address || "";
+};
+
+// Parse legacy address string into structured fields (best-effort)
+const parseAddress = (addr) => {
+  if (!addr) return { street: "", number: "", postalCode: "", city: "", country: "Belgique" };
+  // Try pattern: "Street Number, PostalCode City" or "Street Number, City"
+  const parts = addr.split(",").map(s => s.trim());
+  if (parts.length >= 2) {
+    const streetPart = parts[0];
+    const cityPart = parts[parts.length - 1];
+    const streetMatch = streetPart.match(/^(.+?)\s+(\d+\w*)$/);
+    const cityMatch = cityPart.match(/^(\d{4,5})?\s*(.+)$/);
+    return {
+      street: streetMatch ? streetMatch[1] : streetPart,
+      number: streetMatch ? streetMatch[2] : "",
+      postalCode: cityMatch?.[1] || "",
+      city: cityMatch?.[2] || cityPart,
+      country: "Belgique",
+    };
+  }
+  return { street: "", number: "", postalCode: "", city: addr, country: "Belgique" };
+};
+
 const RECURRENCES = [
   { id: "none", label: "Pas de récurrence" },
   { id: "weekly", label: "1x par semaine" },
@@ -75,6 +135,9 @@ const INIT_PROFILE = {
   pdfFont: "helvetica",
   apiKey: "",
   lang: "fr",
+  postTemplate: "general",
+  pvTemplate: "standard",
+  remarkNumbering: "none",
 };
 
 const COLOR_PRESETS = [
@@ -95,6 +158,117 @@ const DOC_CATEGORIES = [
   { id: "plans",  label: "Plans",           color: BL,  bg: BLB  },
   { id: "admin",  label: "Administratif",   color: VI,  bg: VIB  },
   { id: "photos", label: "Photos chantier", color: GR,  bg: GRBG },
+];
+
+// ── Post Templates by project type ──────────────────────────
+const POST_TEMPLATES = [
+  {
+    id: "general",
+    label: "Réunion de chantier (standard)",
+    icon: "building",
+    posts: [
+      { id: "01", label: "Situation du chantier" }, { id: "02", label: "Généralités" },
+      { id: "03", label: "Planning" },
+    ],
+  },
+  {
+    id: "renovation",
+    label: "Rénovation",
+    icon: "edit",
+    posts: [
+      { id: "01", label: "Situation du chantier" }, { id: "02", label: "Généralités" },
+      { id: "03", label: "Planning" }, { id: "10", label: "Démolition" },
+      { id: "20", label: "Gros œuvre" }, { id: "30", label: "Toiture" },
+      { id: "40", label: "Menuiseries extérieures" }, { id: "50", label: "Parachèvements" },
+      { id: "60", label: "HVAC" }, { id: "70", label: "Électricité" },
+      { id: "80", label: "Sanitaire" },
+    ],
+  },
+  {
+    id: "newbuild",
+    label: "Construction neuve",
+    icon: "building",
+    posts: [
+      { id: "01", label: "Situation du chantier" }, { id: "02", label: "Généralités" },
+      { id: "03", label: "Planning" }, { id: "10", label: "Terrassement" },
+      { id: "20", label: "Fondations" }, { id: "21", label: "Gros œuvre" },
+      { id: "30", label: "Toiture & étanchéité" }, { id: "35", label: "Façades" },
+      { id: "40", label: "Châssis & vitrages" }, { id: "45", label: "Portes intérieures" },
+      { id: "50", label: "Chapes & sols" }, { id: "55", label: "Peinture & finitions" },
+      { id: "60", label: "HVAC" }, { id: "65", label: "Électricité" },
+      { id: "70", label: "Sanitaire" }, { id: "80", label: "Abords" },
+    ],
+  },
+  {
+    id: "interior",
+    label: "Aménagement intérieur",
+    icon: "edit",
+    posts: [
+      { id: "01", label: "Situation du chantier" }, { id: "02", label: "Généralités" },
+      { id: "03", label: "Planning" }, { id: "10", label: "Cloisons" },
+      { id: "20", label: "Faux-plafonds" }, { id: "30", label: "Menuiseries intérieures" },
+      { id: "40", label: "Revêtements sols" }, { id: "50", label: "Peinture" },
+      { id: "60", label: "Mobilier fixe" }, { id: "70", label: "Électricité & éclairage" },
+      { id: "80", label: "HVAC & ventilation" },
+    ],
+  },
+  {
+    id: "public",
+    label: "Bâtiment public / tertiaire",
+    icon: "building",
+    posts: [
+      { id: "01", label: "Situation du chantier" }, { id: "02", label: "Généralités" },
+      { id: "03", label: "Planning" }, { id: "04", label: "Documents & conformité" },
+      { id: "10", label: "Gros œuvre" }, { id: "20", label: "Façades & isolation" },
+      { id: "30", label: "Toiture" }, { id: "40", label: "Menuiseries" },
+      { id: "50", label: "Parachèvements" }, { id: "60", label: "HVAC" },
+      { id: "65", label: "Électricité HT/BT" }, { id: "70", label: "Sanitaire" },
+      { id: "75", label: "Détection incendie" }, { id: "80", label: "Ascenseurs" },
+      { id: "90", label: "Abords & signalétique" },
+    ],
+  },
+  {
+    id: "custom",
+    label: "Personnalisé (vide)",
+    icon: "plus",
+    posts: [],
+  },
+];
+
+// ── PV Structure Templates ──────────────────────────────────
+const PV_TEMPLATES = [
+  {
+    id: "standard",
+    label: "Standard (belge)",
+    desc: "3ème personne, factuel, terminologie belge",
+    prompt: "Tu es un assistant pour rédiger des PV de chantier pour architectes belges. Notes en PV professionnel. 3ème personne, factuel. '- ' points, '> ' importants. 'Le MO demande...', 'Il est demandé de...'. Terminologie belge. Garde la numérotation. Max 1200 mots. Corps uniquement.",
+  },
+  {
+    id: "detailed",
+    label: "Détaillé",
+    desc: "Plus long, avec actions et échéances",
+    prompt: "Tu es un assistant pour rédiger des PV de chantier détaillés pour architectes belges. Notes en PV professionnel. 3ème personne, factuel. '- ' pour les constats, '> ' pour les points urgents. Ajoute des ACTIONS REQUISES à la fin de chaque section avec responsable et échéance. Terminologie belge. Garde la numérotation. Max 2000 mots. Corps uniquement.",
+  },
+  {
+    id: "concise",
+    label: "Concis",
+    desc: "Court et synthétique, points clés uniquement",
+    prompt: "Tu es un assistant pour rédiger des PV de chantier concis pour architectes belges. Notes en PV synthétique. 3ème personne, factuel. Seulement les points essentiels. '- ' pour les points, '> ' pour les urgences. Max 600 mots. Corps uniquement.",
+  },
+  {
+    id: "french",
+    label: "Français (France)",
+    desc: "Terminologie française, vouvoiement",
+    prompt: "Tu es un assistant pour rédiger des comptes-rendus de chantier pour architectes français. Notes en CR professionnel. 3ème personne, factuel, vouvoiement. '- ' pour les observations, '> ' pour les points importants. Terminologie française. Garde la numérotation. Max 1200 mots. Corps uniquement.",
+  },
+];
+
+// ── Remark Numbering Modes ──────────────────────────────────
+const REMARK_NUMBERING = [
+  { id: "none", label: "Sans numérotation" },
+  { id: "sequential", label: "Séquentielle (1, 2, 3...)" },
+  { id: "post-seq", label: "Par poste (01.1, 01.2, 02.1...)" },
+  { id: "global", label: "Globale continue (1, 2, ... tous postes)" },
 ];
 
 const CHECKLIST_TEMPLATES = [
@@ -643,6 +817,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     search: "M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12z M21 21l-4.35-4.35",
     history: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v6l4 2",
     mic: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8",
+    logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
     "chevron-down": "M6 9l6 6 6-6",
     "chevron-up":   "M18 15l-6-6-6 6",
     undo:           "M3 7v6h6 M3 13a9 9 0 1 0 2.64-6.36",
@@ -678,7 +853,7 @@ function Modal({ open, onClose, title, children, wide }) {
   if (!open) return null;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: WH, borderRadius: 14, width: "100%", maxWidth: wide ? 640 : 520, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease" }}>
+      <div className="ap-modal-card" onClick={(e) => e.stopPropagation()} style={{ background: WH, borderRadius: 14, width: "100%", maxWidth: wide ? 640 : 520, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: `1px solid ${SBB}`, position: "sticky", top: 0, background: WH, borderRadius: "14px 14px 0 0", zIndex: 1 }}>
           <span style={{ fontSize: 16, fontWeight: 600, color: TX }}>{title}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6 }}>
@@ -803,7 +978,7 @@ const INIT_PROJECTS = [
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
-function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall }) {
+function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats }) {
   const [sortBy, setSortBy] = useState("recency");
   const [archivedOpen, setArchivedOpen] = useState(false);
   const t = useT();
@@ -833,11 +1008,16 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
       {/* ── Scrollable body ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 10px 10px" }}>
 
-        {/* Action principale */}
-        <button onClick={onNewProject} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 }}>
-          <Ico name="plus" size={13} color="#fff" />
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
-        </button>
+        {/* Actions principales */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+          <button onClick={onNewProject} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="plus" size={13} color="#fff" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
+          </button>
+          <button onClick={onStats} style={{ padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Tableau de bord">
+            <Ico name="chart" size={15} color={TX2} />
+          </button>
+        </div>
 
         {/* Label section + tri */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px", marginBottom: 6 }}>
@@ -894,6 +1074,27 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
           })}
         </div>
 
+        {/* Section Partagés */}
+        {sharedProjects && sharedProjects.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("collab.sharedWithMe")}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: TX3, background: SB2, padding: "1px 6px", borderRadius: 10 }}>{sharedProjects.length}</span>
+            </div>
+            {sharedProjects.map((p) => (
+              <button key={`shared-${p._ownerId}-${p.id}`} onClick={() => { onSelectShared(p); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="users" size={13} color={AC} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{p.name}</span>
+                  <span style={{ fontSize: 10, color: TX3 }}>{t(`collab.role${p._role.charAt(0).toUpperCase() + p._role.slice(1)}`)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Section Archivés */}
         <div style={{ marginTop: 16 }}>
           <button
@@ -944,10 +1145,11 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
       <div style={{ padding: "0 10px 12px", flexShrink: 0 }}>
         <button
           onClick={() => supabase.auth.signOut()}
-          style={{ width: "100%", padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit" }}
+          className="sidebar-logout"
+          style={{ width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit", transition: "all 0.15s" }}
         >
-          <Ico name="back" size={13} color={TX3} />
-          <span style={{ fontSize: 11, fontWeight: 500, color: TX3 }}>{t("sidebar.logout")}</span>
+          <Ico name="logout" size={14} color={TX2} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>{t("sidebar.logout")}</span>
         </button>
       </div>
 
@@ -955,7 +1157,195 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
   );
 }
 
-function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPlan, onViewDocs, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects }) {
+// ── Collab Modal Wrapper (gets userId) ─────────────────────
+function CollabModalWrapper({ project, onClose, showToast }) {
+  const [ownerId, setOwnerId] = useState(project._ownerId || null);
+  useEffect(() => {
+    if (!ownerId) {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) setOwnerId(user.id);
+      });
+    }
+  }, [ownerId]);
+  if (!ownerId) return null;
+  return <CollabModal project={project} ownerId={ownerId} onClose={onClose} showToast={showToast} />;
+}
+
+// ── Invite / Members Modal ─────────────────────────────────
+function CollabModal({ project, ownerId, onClose, showToast }) {
+  const t = useT();
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("contributor");
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadProjectMembers(String(project.id), ownerId).then(setMembers);
+  }, [project.id, ownerId]);
+
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setError(""); setLoading(true);
+    const res = await inviteMember(String(project.id), ownerId, email.trim(), role, project.name, "");
+    setLoading(false);
+    if (res.error === "already_invited") { setError(t("collab.alreadyInvited")); return; }
+    if (res.error) { setError(res.error); return; }
+    setEmail("");
+    showToast(t("collab.inviteSent"));
+    loadProjectMembers(String(project.id), ownerId).then(setMembers);
+  };
+
+  const handleRemove = async (id) => {
+    await removeMember(id);
+    setMembers(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleRoleChange = async (id, newRole) => {
+    await updateMemberRole(id, newRole);
+    setMembers(prev => prev.map(m => m.id === id ? { ...m, role: newRole } : m));
+  };
+
+  const ROLES = [
+    { id: "admin", label: t("collab.roleAdmin"), desc: t("collab.roleAdminDesc") },
+    { id: "contributor", label: t("collab.roleContributor"), desc: t("collab.roleContributorDesc") },
+    { id: "reader", label: t("collab.roleReader"), desc: t("collab.roleReaderDesc") },
+  ];
+
+  const statusColors = { pending: "#E8A317", accepted: GR, declined: RD };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500 }} onClick={onClose}>
+      <div style={{ background: WH, borderRadius: 16, width: "100%", maxWidth: 500, maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.2s ease-out" }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${SBB}` }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: TX, marginBottom: 4 }}>{t("collab.inviteTitle")}</div>
+          <div style={{ fontSize: 12, color: TX3 }}>{t("collab.inviteDesc")}</div>
+        </div>
+
+        {/* Invite form */}
+        <form onSubmit={handleInvite} style={{ padding: "16px 24px", borderBottom: `1px solid ${SBB}` }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input
+              type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder={t("collab.email")}
+              required
+              style={{ flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX }}
+            />
+            <select value={role} onChange={e => setRole(e.target.value)} style={{ padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX, cursor: "pointer" }}>
+              {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </div>
+          {error && <div style={{ fontSize: 12, color: RD, marginBottom: 8 }}>{error}</div>}
+          <button type="submit" disabled={loading} style={{ padding: "9px 20px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: "inherit" }}>
+            {loading ? "..." : t("collab.send")}
+          </button>
+        </form>
+
+        {/* Members list */}
+        <div style={{ padding: "12px 24px 20px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("collab.members")} ({members.length})</div>
+          {members.length === 0 && (
+            <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>{t("collab.noMembers")}</div>
+          )}
+          {members.map(m => (
+            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${SBB}` }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: AC, flexShrink: 0 }}>
+                {(m.invited_name || m.invited_email || "?").charAt(0).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.invited_name || m.invited_email}</div>
+                <div style={{ fontSize: 11, color: TX3 }}>{m.invited_email}</div>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 600, color: statusColors[m.status] || TX3, textTransform: "uppercase" }}>
+                {t(`collab.${m.status}`)}
+              </span>
+              <select value={m.role} onChange={e => handleRoleChange(m.id, e.target.value)} style={{ padding: "4px 8px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: SB, color: TX2, cursor: "pointer" }}>
+                {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+              </select>
+              <button onClick={() => handleRemove(m.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                <Ico name="x" size={14} color={TX3} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Weather Widget (OpenMeteo — free, no API key) ───────────
+function WeatherWidget({ address }) {
+  const [weather, setWeather] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!address) { setLoading(false); return; }
+    (async () => {
+      try {
+        // Extract city from address — try last parts (e.g. "Rue X 12, 1000 Bruxelles" → "Bruxelles")
+        const parts = address.split(",").map(s => s.trim());
+        const searchTerms = [
+          parts[parts.length - 1],  // last part (usually city)
+          parts.length > 1 ? parts[parts.length - 1].replace(/^\d+\s*/, "") : null, // remove postal code
+          address, // full address as fallback
+        ].filter(Boolean);
+
+        let loc = null;
+        for (const term of searchTerms) {
+          const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(term)}&count=1&language=fr`);
+          const geoData = await geoRes.json();
+          loc = geoData?.results?.[0];
+          if (loc) break;
+        }
+        if (!loc) { setLoading(false); return; }
+
+        // Get weather
+        const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m&timezone=auto`);
+        const wData = await wRes.json();
+        const c = wData?.current;
+        if (!c) { setLoading(false); return; }
+
+        const codes = { 0: "Ciel dégagé", 1: "Principalement dégagé", 2: "Partiellement nuageux", 3: "Couvert", 45: "Brouillard", 48: "Brouillard givrant", 51: "Bruine légère", 53: "Bruine modérée", 55: "Bruine forte", 61: "Pluie légère", 63: "Pluie modérée", 65: "Pluie forte", 71: "Neige légère", 73: "Neige modérée", 75: "Neige forte", 80: "Averses légères", 81: "Averses modérées", 82: "Averses fortes", 95: "Orage", 96: "Orage grêle" };
+        const icons = { 0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️", 45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌧️", 55: "🌧️", 61: "🌧️", 63: "🌧️", 65: "🌧️", 71: "🌨️", 73: "🌨️", 75: "🌨️", 80: "🌦️", 81: "🌧️", 82: "🌧️", 95: "⛈️", 96: "⛈️" };
+
+        setWeather({
+          temp: Math.round(c.temperature_2m),
+          desc: codes[c.weather_code] || "—",
+          icon: icons[c.weather_code] || "🌡️",
+          wind: Math.round(c.wind_speed_10m),
+          humidity: c.relative_humidity_2m,
+          lat: loc.latitude,
+          lon: loc.longitude,
+          city: loc.name,
+        });
+      } catch (e) { console.error("Weather fetch error:", e); }
+      setLoading(false);
+    })();
+  }, [address]);
+
+  if (loading || !weather) return null;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: WH, border: `1px solid ${SBB}`, borderRadius: 10 }}>
+      <span style={{ fontSize: 28 }}>{weather.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: TX }}>{weather.temp}°C</span>
+          <span style={{ fontSize: 11, color: TX3 }}>{weather.desc}</span>
+        </div>
+        <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>
+          Vent {weather.wind} km/h · Humidité {weather.humidity}% · {weather.city}
+        </div>
+      </div>
+      <a href={`https://www.google.com/maps?q=${weather.lat},${weather.lon}`} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 7, background: SB, border: `1px solid ${SBB}`, textDecoration: "none" }} title="Voir sur Google Maps">
+        <Ico name="mappin" size={13} color={TX3} />
+      </a>
+    </div>
+  );
+}
+
+function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPlan, onViewDocs, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab }) {
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
   const urgent = project.actions.filter((a) => a.urgent && a.open);
   const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
@@ -989,6 +1379,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
           <StatusBadge statusId={project.statusId} />
           {project.client     && <span style={{ fontSize: 12, color: TX3 }}>MO <strong style={{ color: TX2, fontWeight: 600 }}>{project.client}</strong></span>}
           {project.contractor && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}>Entr. <strong style={{ color: TX2, fontWeight: 600 }}>{project.contractor}</strong></span></>}
+          {(project.city || project.address) && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}><Ico name="mappin" size={10} color={TX3} /> {project.city || project.address}</span></>}
           {project.startDate  && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}>{project.startDate}{project.endDate ? ` → ${project.endDate}` : ""}</span></>}
         </div>
       </div>
@@ -1006,14 +1397,52 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
         </div>
       )}
 
+      {/* ── Brouillons hors-ligne en attente ── */}
+      {(() => {
+        const drafts = getPvDrafts().filter(d => d.projectId === project.id);
+        if (drafts.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 14, padding: "12px 16px", background: "#FDF4E7", border: `1px solid ${ACL2}`, borderRadius: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ico name="clock" size={14} color={AC} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{drafts.length} brouillon{drafts.length > 1 ? "s" : ""} en attente de génération</span>
+            </div>
+            {drafts.map(d => (
+              <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 0", borderTop: `1px solid ${ACL2}` }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>{d.pvTitle || `PV n°${d.pvNumber}`}</div>
+                  <div style={{ fontSize: 10, color: TX3 }}>Sauvegardé le {new Date(d.savedAt).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {navigator.onLine && (
+                    <button onClick={() => {
+                      removePvDraft(d.id);
+                      onStartNotes();
+                    }} style={{ padding: "5px 12px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 10 }}>✦</span> Générer
+                    </button>
+                  )}
+                  <button onClick={() => { removePvDraft(d.id); }} style={{ padding: "5px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX3, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                    <Ico name="x" size={10} color={TX3} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* ── Météo du jour ── */}
+      {(project.city || project.address) && <div style={{ marginBottom: 14 }}><WeatherWidget address={project.city || formatAddress(project)} /></div>}
+
       {/* ── Layout 2 colonnes ── */}
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div className="ap-overview-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
 
         {/* ═══ Colonne principale ═══ */}
         <div style={{ flex: "1 1 360px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
 
           {/* CTA Nouveau PV */}
-          <button onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
+          <button className="ap-touch-btn" onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Ico name="edit" size={16} color="#fff" />
             </div>
@@ -1199,6 +1628,18 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 <Ico name="edit" size={13} color={AC} />
               </button>
             </div>
+            {project.nextMeeting && (
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                {getGoogleCalendarUrl(project) && (
+                  <a href={getGoogleCalendarUrl(project)} target="_blank" rel="noopener noreferrer" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, textDecoration: "none", cursor: "pointer" }}>
+                    <Ico name="calendar" size={11} color={AC} />Google Calendar
+                  </a>
+                )}
+                <button onClick={() => downloadICS(project)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
+                  <Ico name="download" size={11} color={AC} />Outlook / iCal
+                </button>
+              </div>
+            )}
           </Card>
 
           {/* Participants */}
@@ -1219,6 +1660,25 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 </div>
               </div>
             ))}
+            {/* Actions: Export + Import + Invite */}
+            <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+              <button onClick={() => exportParticipantsCSV(project)} style={{ flex: 1, padding: "7px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontFamily: "inherit", fontSize: 10, fontWeight: 500, color: TX3 }}>
+                <Ico name="download" size={10} color={TX3} />Export CSV
+              </button>
+              <label style={{ flex: 1, padding: "7px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 10, fontWeight: 500, color: TX3 }}>
+                <Ico name="upload" size={10} color={TX3} />Import CSV
+                <input type="file" accept=".csv" style={{ display: "none" }} onChange={async (e) => {
+                  const file = e.target.files[0]; if (!file) return;
+                  const imported = await importParticipantsCSV(file);
+                  if (imported.length > 0) setProjects(prev => prev.map(p => p.id === project.id ? { ...p, participants: [...p.participants, ...imported] } : p));
+                  e.target.value = "";
+                }} />
+              </label>
+            </div>
+            <button onClick={onCollab} style={{ width: "100%", marginTop: 6, padding: "8px 12px", border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: AC, transition: "all 0.15s" }}>
+              <Ico name="plus" size={12} color={AC} />
+              Inviter des collaborateurs
+            </button>
           </Card>
 
           {/* Informations projet */}
@@ -1227,9 +1687,10 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
             {[
               [t("project.client"), project.client],
               [t("project.enterprise"),       project.contractor],
-              [t("project.address"),          project.address],
+              [t("project.address"),          formatAddress(project)],
               [t("project.startDate"),            project.startDate],
               [t("project.endDate"),       project.endDate || "—"],
+              ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => [cf.label, cf.value]),
             ].filter(([, v]) => v).map(([k, v], i, arr) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
                 <span style={{ fontSize: 11, color: TX3, flexShrink: 0 }}>{k}</span>
@@ -2138,6 +2599,16 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
   const t = useT();
   const tp = useTP();
 
+  // ── Attendance tracking ──
+  const [attendance, setAttendance] = useState(
+    () => project.participants.map(p => ({ ...p, present: true }))
+  );
+  const toggleAttendance = (idx) => setAttendance(prev => prev.map((a, i) => i === idx ? { ...a, present: !a.present } : a));
+
+  // ── Visit timestamp ──
+  const [visitStart] = useState(() => new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }));
+  const [visitEnd, setVisitEnd] = useState("");
+
   // Arrêter la reconnaissance vocale quand on change de poste
   useEffect(() => {
     return () => { recognitionRef.current?.stop(); };
@@ -2260,13 +2731,18 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
           } : po)
         } : p));
         // Upload to Storage in background, then replace dataUrl with URL
-        const result = await uploadPhoto(dataUrl);
-        if (result) {
-          setProjects((prev) => prev.map((p) => p.id === project.id ? {
-            ...p, posts: p.posts.map((po) => po.id === postId ? {
-              ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath, dataUrl: undefined } : ph)
-            } : po)
-          } : p));
+        if (navigator.onLine) {
+          const result = await uploadPhoto(dataUrl);
+          if (result) {
+            setProjects((prev) => prev.map((p) => p.id === project.id ? {
+              ...p, posts: p.posts.map((po) => po.id === postId ? {
+                ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath, dataUrl: undefined } : ph)
+              } : po)
+            } : p));
+          }
+        } else {
+          // Queue for upload when back online — photo stays as dataUrl locally
+          addToOfflineQueue({ type: "photo_upload", projectId: project.id, postId, photoId, dataUrl: dataUrl.slice(0, 50) + "..." });
         }
       };
       reader.readAsDataURL(file);
@@ -2933,6 +3409,41 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
             ))}
           </div>
 
+          {/* Attendance */}
+          <div style={{ padding: "12px 20px 0" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 8 }}>Présences</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              {attendance.map((a, i) => (
+                <button key={i} onClick={() => toggleAttendance(i)} style={{
+                  display: "flex", alignItems: "center", gap: 5, padding: "5px 10px",
+                  border: `1px solid ${a.present ? GR : SBB}`, borderRadius: 20,
+                  background: a.present ? "#EAF3DE" : SB, cursor: "pointer", fontFamily: "inherit",
+                  transition: "all 0.15s",
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: a.present ? GR : TX3 }} />
+                  <span style={{ fontSize: 11, fontWeight: 500, color: a.present ? GR : TX3 }}>{a.name}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: TX3, marginBottom: 6 }}>
+              {attendance.filter(a => a.present).length} présent{attendance.filter(a => a.present).length > 1 ? "s" : ""} · {attendance.filter(a => !a.present).length} absent{attendance.filter(a => !a.present).length > 1 ? "s" : ""}
+            </div>
+          </div>
+
+          {/* Visit timestamp */}
+          <div style={{ padding: "6px 20px 12px", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <Ico name="clock" size={12} color={TX3} />
+              <span style={{ fontSize: 11, color: TX3 }}>Début : <strong style={{ color: TX2 }}>{visitStart}</strong></span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11, color: TX3 }}>Fin :</span>
+              <button onClick={() => setVisitEnd(new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }))} style={{ padding: "3px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: visitEnd ? "#EAF3DE" : WH, cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", color: visitEnd ? GR : AC }}>
+                {visitEnd || "Marquer la fin"}
+              </button>
+            </div>
+          </div>
+
           {/* CTA area */}
           <div style={{ padding: "12px 20px 16px" }}>
             {recipientFilters.length > 0 && (
@@ -2959,23 +3470,62 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
               ))}
             </div>
 
-            {/* Button */}
-            <button
-              onClick={() => onGenerate(recipientFilters, pvTitle)}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                padding: "13px 24px", border: "none", borderRadius: 10,
-                background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
-                color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                letterSpacing: "-0.1px", transition: "box-shadow 0.3s, transform 0.15s",
-                boxShadow: "0 3px 14px rgba(217,123,13,0.28)",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 5px 20px rgba(217,123,13,0.38)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 3px 14px rgba(217,123,13,0.28)"; e.currentTarget.style.transform = "translateY(0)"; }}
-            >
-              <span style={{ fontSize: 15, opacity: 0.9 }}>✦</span>
-              {t("notes.generateBtn")}
-            </button>
+            {/* Buttons */}
+            {navigator.onLine ? (
+              <button
+                onClick={() => {
+                  if (!visitEnd) setVisitEnd(new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }));
+                  onGenerate(recipientFilters, pvTitle, { attendance, visitStart, visitEnd: visitEnd || new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }) });
+                }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+                  padding: "13px 24px", border: "none", borderRadius: 10,
+                  background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+                  color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  letterSpacing: "-0.1px", transition: "box-shadow 0.3s, transform 0.15s",
+                  boxShadow: "0 3px 14px rgba(217,123,13,0.28)",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 5px 20px rgba(217,123,13,0.38)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 3px 14px rgba(217,123,13,0.28)"; e.currentTarget.style.transform = "translateY(0)"; }}
+              >
+                <span style={{ fontSize: 15, opacity: 0.9 }}>✦</span>
+                {t("notes.generateBtn")}
+              </button>
+            ) : (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, marginBottom: 10, fontSize: 11, color: RD }}>
+                  <Ico name="wifioff" size={13} color={RD} />
+                  Pas de connexion — la génération IA nécessite internet
+                </div>
+                <button
+                  onClick={() => {
+                    const end = visitEnd || new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" });
+                    if (!visitEnd) setVisitEnd(end);
+                    savePvDraft({
+                      projectId: project.id,
+                      projectName: project.name,
+                      pvNumber: project.pvHistory.length + 1,
+                      pvTitle,
+                      recipientFilters,
+                      attendance,
+                      visitStart,
+                      visitEnd: end,
+                      posts: project.posts.map(po => ({ id: po.id, label: po.label, remarks: po.remarks || [], photos: (po.photos || []).length })),
+                    });
+                    onBack();
+                  }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+                    padding: "13px 24px", border: "none", borderRadius: 10,
+                    background: TX, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
+                    fontFamily: "inherit", letterSpacing: "-0.1px",
+                  }}
+                >
+                  <Ico name="save" size={15} color="#fff" />
+                  Sauvegarder le brouillon (hors-ligne)
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -3019,7 +3569,481 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
   );
 }
 
-function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecipients, pvTitle }) {
+// ── Send PV by Email Modal ─────────────────────────────────
+function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, onSent }) {
+  const t = useT();
+  const [recipients, setRecipients] = useState(
+    project.participants.filter(p => p.email).map(p => ({ email: p.email, name: p.name, role: p.role, checked: true }))
+  );
+  const [extraEmail, setExtraEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const [includePdf, setIncludePdf] = useState(true);
+
+  const toggleRecipient = (email) => setRecipients(prev => prev.map(r => r.email === email ? { ...r, checked: !r.checked } : r));
+
+  const addExtra = () => {
+    const em = extraEmail.trim().toLowerCase();
+    if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) return;
+    if (recipients.some(r => r.email === em)) return;
+    setRecipients(prev => [...prev, { email: em, name: em, role: "", checked: true }]);
+    setExtraEmail("");
+  };
+
+  const handleSend = async () => {
+    const to = recipients.filter(r => r.checked).map(r => r.email);
+    if (to.length === 0) return;
+    setSending(true); setError("");
+
+    let pdfBase64 = null;
+    let pdfFileName = null;
+    if (includePdf) {
+      try {
+        const { jsPDF } = await import("jspdf");
+        // Generate a simple text PDF
+        const doc = new jsPDF({ unit: "mm", format: "a4" });
+        const margin = 15;
+        const pageW = doc.internal.pageSize.getWidth();
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(217, 123, 13);
+        doc.text(`PV n°${pvNumber} — ${project.name}`, margin, 20);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 30, 27);
+        doc.text(`Date : ${pvDate}  |  Rédigé par : ${profile.name}`, margin, 28);
+        doc.line(margin, 32, pageW - margin, 32);
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(pvContent || "", pageW - margin * 2);
+        let y = 38;
+        for (const line of lines) {
+          if (y > 280) { doc.addPage(); y = 15; }
+          doc.text(line, margin, y);
+          y += 5;
+        }
+        pdfBase64 = doc.output("datauristring").split(",")[1];
+        pdfFileName = `PV-${pvNumber}-${project.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      } catch (e) {
+        console.error("PDF generation for email failed:", e);
+      }
+    }
+
+    const res = await sendPvByEmail({
+      to,
+      projectName: project.name,
+      pvNumber,
+      pvDate,
+      pvContent,
+      authorName: profile.name,
+      structureName: profile.structure,
+      pdfBase64,
+      pdfFileName,
+    });
+
+    setSending(false);
+    if (res.error) { setError(res.error); return; }
+    setSent(true);
+    if (onSent) onSent(to);
+  };
+
+  const checkedCount = recipients.filter(r => r.checked).length;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500 }} onClick={onClose}>
+      <div style={{ background: WH, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.2s ease-out" }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "20px 24px 14px", borderBottom: `1px solid ${SBB}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <Ico name="send" size={16} color={AC} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: TX }}>Envoyer le PV n°{pvNumber}</span>
+          </div>
+          <div style={{ fontSize: 12, color: TX3 }}>{project.name} — {pvDate}</div>
+        </div>
+
+        {sent ? (
+          <div style={{ padding: "32px 24px", textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#EAF3DE", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <Ico name="check" size={22} color={GR} />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: TX, marginBottom: 6 }}>PV envoyé !</div>
+            <div style={{ fontSize: 13, color: TX3, marginBottom: 20 }}>
+              Envoyé à {checkedCount} destinataire{checkedCount > 1 ? "s" : ""}
+            </div>
+            <button onClick={onClose} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Fermer</button>
+          </div>
+        ) : (
+          <>
+            {/* Recipients list */}
+            <div style={{ padding: "14px 24px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>
+                Liste de diffusion ({checkedCount} sélectionné{checkedCount > 1 ? "s" : ""})
+              </div>
+              {recipients.map((r, i) => (
+                <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${SB}`, cursor: "pointer" }}>
+                  <input type="checkbox" checked={r.checked} onChange={() => toggleRecipient(r.email)} style={{ accentColor: AC, width: 16, height: 16 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                    <div style={{ fontSize: 11, color: TX3 }}>{r.email}{r.role ? ` · ${r.role}` : ""}</div>
+                  </div>
+                </label>
+              ))}
+
+              {/* Add extra recipient */}
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                <input
+                  type="email" value={extraEmail} onChange={e => setExtraEmail(e.target.value)}
+                  placeholder="Ajouter un email..."
+                  onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addExtra())}
+                  style={{ flex: 1, padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: SB, color: TX }}
+                />
+                <button onClick={addExtra} style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: TX2 }}>+</button>
+              </div>
+            </div>
+
+            {/* Options */}
+            <div style={{ padding: "0 24px 14px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 0" }}>
+                <input type="checkbox" checked={includePdf} onChange={e => setIncludePdf(e.target.checked)} style={{ accentColor: AC, width: 16, height: 16 }} />
+                <span style={{ fontSize: 12, color: TX2 }}>Joindre le PV en PDF</span>
+              </label>
+            </div>
+
+            {error && (
+              <div style={{ margin: "0 24px 14px", padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 12, color: RD }}>{error}</div>
+            )}
+
+            {/* Actions */}
+            <div style={{ padding: "0 24px 20px", display: "flex", gap: 8 }}>
+              <button onClick={onClose} style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2 }}>Annuler</button>
+              <button onClick={handleSend} disabled={sending || checkedCount === 0} style={{ flex: 2, padding: 11, border: "none", borderRadius: 8, background: sending || checkedCount === 0 ? "#D3D1C7" : AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: sending || checkedCount === 0 ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                {sending ? <><div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "sp .6s linear infinite" }} />Envoi en cours...</> : <><Ico name="send" size={14} color="#fff" />Envoyer à {checkedCount} personne{checkedCount > 1 ? "s" : ""}</>}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Stats Dashboard ─────────────────────────────────────────
+// ── Export Utilities ─────────────────────────────────────────
+function downloadCSV(filename, headers, rows) {
+  const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [headers.map(escape).join(";"), ...rows.map(r => r.map(escape).join(";"))].join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportProjectsCSV(projects) {
+  const headers = ["Projet", "Client", "Entreprise", "Adresse", "Phase", "Avancement %", "PV générés", "Actions ouvertes", "Actions urgentes", "Date début", "Prochaine réunion"];
+  const rows = projects.filter(p => !p.archived).map(p => {
+    const st = getStatus(p.statusId);
+    const open = (p.actions || []).filter(a => a.open).length;
+    const urgent = (p.actions || []).filter(a => a.open && a.urgent).length;
+    return [p.name, p.client, p.contractor, p.address, st.label, p.progress || 0, p.pvHistory?.length || 0, open, urgent, p.startDate, p.nextMeeting];
+  });
+  downloadCSV("archipilot-projets.csv", headers, rows);
+}
+
+function exportActionsCSV(projects) {
+  const headers = ["Projet", "Action", "Responsable", "Urgent", "Statut", "Depuis"];
+  const rows = [];
+  projects.forEach(p => {
+    (p.actions || []).forEach(a => {
+      rows.push([p.name, a.text, a.who, a.urgent ? "Oui" : "Non", a.open ? "Ouverte" : "Fermée", a.since]);
+    });
+  });
+  downloadCSV("archipilot-actions.csv", headers, rows);
+}
+
+function exportRemarksCSV(projects) {
+  const headers = ["Projet", "Poste", "Remarque", "Urgent", "Statut", "Destinataires"];
+  const rows = [];
+  projects.forEach(p => {
+    (p.posts || []).forEach(po => {
+      (po.remarks || []).forEach(r => {
+        rows.push([p.name, `${po.id}. ${po.label}`, r.text, r.urgent ? "Oui" : "Non", r.status, (r.recipients || []).join(", ")]);
+      });
+    });
+  });
+  downloadCSV("archipilot-remarques.csv", headers, rows);
+}
+
+function exportParticipantsCSV(project) {
+  const headers = ["Rôle", "Nom", "Email", "Téléphone"];
+  const rows = (project.participants || []).map(p => [p.role, p.name, p.email, p.phone]);
+  downloadCSV(`participants-${project.name.replace(/[^a-zA-Z0-9]/g, "_")}.csv`, headers, rows);
+}
+
+function importParticipantsCSV(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const lines = text.split("\n").filter(l => l.trim());
+      if (lines.length < 2) { resolve([]); return; }
+      const participants = lines.slice(1).map(line => {
+        const cols = line.split(";").map(c => c.replace(/^"|"$/g, "").trim());
+        return { role: cols[0] || "", name: cols[1] || "", email: cols[2] || "", phone: cols[3] || "" };
+      }).filter(p => p.name);
+      resolve(participants);
+    };
+    reader.readAsText(file);
+  });
+}
+
+function generateICS(project) {
+  if (!project.nextMeeting) return null;
+  const parts = project.nextMeeting.split("/");
+  let dateStr;
+  if (parts.length === 3) {
+    dateStr = `${parts[2]}${parts[1]}${parts[0]}`;
+  } else {
+    return null;
+  }
+  const uid = `archipilot-${project.id}-${dateStr}@archipilot.app`;
+  const summary = `Réunion de chantier — ${project.name}`;
+  const location = project.address || "";
+  const description = `PV n°${(project.pvHistory?.length || 0) + 1}\\nClient: ${project.client}\\nEntreprise: ${project.contractor}`;
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//ArchiPilot//FR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTART;VALUE=DATE:${dateStr}`,
+    `DTEND;VALUE=DATE:${dateStr}`,
+    `SUMMARY:${summary}`,
+    `LOCATION:${location}`,
+    `DESCRIPTION:${description}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  return ics;
+}
+
+function downloadICS(project) {
+  const ics = generateICS(project);
+  if (!ics) return;
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `reunion-${project.name.replace(/[^a-zA-Z0-9]/g, "_")}.ics`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function getGoogleCalendarUrl(project) {
+  if (!project.nextMeeting) return null;
+  const parts = project.nextMeeting.split("/");
+  if (parts.length !== 3) return null;
+  const dateStr = `${parts[2]}${parts[1]}${parts[0]}`;
+  const title = encodeURIComponent(`Réunion de chantier — ${project.name}`);
+  const location = encodeURIComponent(project.address || "");
+  const details = encodeURIComponent(`PV n°${(project.pvHistory?.length || 0) + 1}\nClient: ${project.client}\nEntreprise: ${project.contractor}`);
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateStr}/${dateStr}&location=${location}&details=${details}`;
+}
+
+function StatsView({ projects, onBack, onSelectProject }) {
+  const t = useT();
+  const active = projects.filter(p => !p.archived);
+  const archived = projects.filter(p => p.archived);
+
+  // Global stats
+  const totalPV = projects.reduce((s, p) => s + (p.pvHistory?.length || 0), 0);
+  const totalActions = projects.reduce((s, p) => s + (p.actions?.length || 0), 0);
+  const openActions = projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open).length, 0);
+  const urgentActions = projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open && a.urgent).length, 0);
+  const closedActions = totalActions - openActions;
+  const totalRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).length, 0), 0);
+  const openRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).filter(r => r.status === "open" || r.status === "progress").length, 0), 0);
+  const doneRemarks = totalRemarks - openRemarks;
+  const totalLots = projects.reduce((s, p) => s + (p.lots?.length || 0), 0);
+  const delayedLots = projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length, 0);
+  const doneLots = projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "done").length, 0);
+
+  // Per-status breakdown
+  const byStatus = STATUSES.map(st => ({ ...st, count: active.filter(p => p.statusId === st.id).length })).filter(s => s.count > 0);
+
+  // Per-project stats
+  const projectStats = active.map(p => {
+    const open = (p.actions || []).filter(a => a.open).length;
+    const urgent = (p.actions || []).filter(a => a.open && a.urgent).length;
+    const lots = p.lots || [];
+    const delayed = lots.filter(l => calcLotStatus(l).id === "delayed").length;
+    const st = getStatus(p.statusId);
+    return { ...p, openActions: open, urgentActions: urgent, delayedLots: delayed, status: st, pvCount: p.pvHistory?.length || 0 };
+  }).sort((a, b) => b.urgentActions - a.urgentActions || b.openActions - a.openActions);
+
+  // Contractor performance
+  const contractors = {};
+  projects.forEach(p => {
+    (p.actions || []).forEach(a => {
+      const who = a.who?.trim();
+      if (!who) return;
+      if (!contractors[who]) contractors[who] = { total: 0, open: 0, urgent: 0, closed: 0 };
+      contractors[who].total++;
+      if (a.open) { contractors[who].open++; if (a.urgent) contractors[who].urgent++; }
+      else contractors[who].closed++;
+    });
+  });
+  const contractorList = Object.entries(contractors).map(([name, s]) => ({ name, ...s })).sort((a, b) => b.open - a.open);
+
+  const StatCard = ({ label, value, sub, color }) => (
+    <div style={{ flex: 1, minWidth: 110, padding: "14px 16px", background: WH, border: `1px solid ${SBB}`, borderRadius: 12 }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: color || TX, letterSpacing: "-0.5px" }}>{value}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginTop: 2 }}>{label}</div>
+      {sub && <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+
+  const Bar = ({ value, max, color }) => (
+    <div style={{ flex: 1, height: 6, background: SB2, borderRadius: 3, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${max > 0 ? (value / max) * 100 : 0}%`, background: color || AC, borderRadius: 3, transition: "width 0.3s" }} />
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" color={TX2} /></button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Tableau de bord</div>
+          <div style={{ fontSize: 12, color: TX3 }}>{active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""} · {archived.length} archivé{archived.length > 1 ? "s" : ""}</div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="ap-kpi-row" style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <StatCard label="Projets actifs" value={active.length} sub={`${archived.length} archivés`} />
+        <StatCard label="PV générés" value={totalPV} sub="tous projets" />
+        <StatCard label="Actions ouvertes" value={openActions} sub={`${urgentActions} urgente${urgentActions > 1 ? "s" : ""}`} color={urgentActions > 0 ? RD : TX} />
+        <StatCard label="Lots en retard" value={delayedLots} sub={`${doneLots} terminé${doneLots > 1 ? "s" : ""} / ${totalLots}`} color={delayedLots > 0 ? RD : GR} />
+      </div>
+
+      {/* Status breakdown */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Répartition par phase</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {byStatus.map(s => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: s.bg, borderRadius: 8 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.count}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Remarks stats */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Remarques globales</div>
+        <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: TX }}>{totalRemarks}</span>
+            <span style={{ fontSize: 12, color: TX3, marginLeft: 6 }}>remarques</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{doneRemarks} résolues</span>
+              <span style={{ fontSize: 11, color: AC, fontWeight: 600 }}>{openRemarks} ouvertes</span>
+            </div>
+            <div style={{ height: 8, background: SB2, borderRadius: 4, overflow: "hidden", display: "flex" }}>
+              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (doneRemarks / totalRemarks) * 100 : 0}%`, background: GR, transition: "width 0.3s" }} />
+              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (openRemarks / totalRemarks) * 100 : 0}%`, background: AC, transition: "width 0.3s" }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-project table */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Projets — Vue d'ensemble</div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: `2px solid ${SBB}` }}>
+                <th style={{ textAlign: "left", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Projet</th>
+                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Phase</th>
+                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>PV</th>
+                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Actions</th>
+                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Avancement</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectStats.map(p => (
+                <tr key={p.id} onClick={() => onSelectProject(p.id)} style={{ borderBottom: `1px solid ${SB}`, cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = SB} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  <td style={{ padding: "10px 6px" }}>
+                    <div style={{ fontWeight: 600, color: TX }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: TX3 }}>{p.client}</div>
+                  </td>
+                  <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: p.status.color, background: p.status.bg, padding: "3px 8px", borderRadius: 6 }}>{p.status.label}</span>
+                  </td>
+                  <td style={{ textAlign: "center", padding: "10px 6px", fontWeight: 600, color: TX }}>{p.pvCount}</td>
+                  <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                    <span style={{ fontWeight: 600, color: p.urgentActions > 0 ? RD : p.openActions > 0 ? AC : GR }}>
+                      {p.openActions}{p.urgentActions > 0 ? ` (${p.urgentActions}!)` : ""}
+                    </span>
+                  </td>
+                  <td style={{ padding: "10px 6px", width: 120 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Bar value={p.progress || 0} max={100} color={p.delayedLots > 0 ? RD : GR} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: TX2, minWidth: 30 }}>{p.progress || 0}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Contractor performance */}
+      {/* Export buttons */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Exporter les données</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => exportProjectsCSV(projects)} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 6 }}>
+            <Ico name="download" size={13} color={TX3} />Projets (CSV)
+          </button>
+          <button onClick={() => exportActionsCSV(projects)} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 6 }}>
+            <Ico name="download" size={13} color={TX3} />Actions (CSV)
+          </button>
+          <button onClick={() => exportRemarksCSV(projects)} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 6 }}>
+            <Ico name="download" size={13} color={TX3} />Remarques (CSV)
+          </button>
+        </div>
+      </div>
+
+      {contractorList.length > 0 && (
+        <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Performance par intervenant</div>
+          {contractorList.map(c => (
+            <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${SB}` }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
+              </div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 11 }}>
+                <span style={{ color: GR, fontWeight: 600 }}>{c.closed} fermée{c.closed > 1 ? "s" : ""}</span>
+                <span style={{ color: AC, fontWeight: 600 }}>{c.open} ouverte{c.open > 1 ? "s" : ""}</span>
+                {c.urgent > 0 && <span style={{ color: RD, fontWeight: 700 }}>{c.urgent} urgente{c.urgent > 1 ? "s" : ""}!</span>}
+              </div>
+              <div style={{ width: 80 }}>
+                <Bar value={c.closed} max={c.total} color={GR} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecipients, pvTitle, pvFieldData }) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -3028,6 +4052,7 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
   const [saved, setSaved] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfErr, setPdfErr] = useState("");
+  const [showSendModal, setShowSendModal] = useState(false);
   const timer = useRef(null);
   const ctrl = useRef(null);
   const pvNum = project.pvHistory.length + 1;
@@ -3054,12 +4079,20 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
       // keep remarks with no recipients (= common) OR assigned to any chosen recipient
       return all.filter((r) => !(r.recipients || []).length || pvRecipients.some(rec => (r.recipients || []).includes(rec)));
     };
+    let globalRemarkIdx = 0;
+    const numMode = project.remarkNumbering || "none";
     const notes = project.posts
       .filter((p) => toRemarks(p).length > 0 || (p.photos || []).length > 0 || (project.planMarkers || []).some((m) => m.postId === p.id))
       .map((p) => {
         const remarks = toRemarks(p);
+        let postRemarkIdx = 0;
         const byStatus = (id) => remarks.filter((r) => r.status === id);
-        const fmtLine  = (r) => (r.urgent ? "> " : "- ") + r.text;
+        const fmtLine  = (r) => {
+          globalRemarkIdx++; postRemarkIdx++;
+          const prefix = r.urgent ? "> " : "- ";
+          const num = numMode === "sequential" ? `${postRemarkIdx}. ` : numMode === "post-seq" ? `${p.id}.${postRemarkIdx} ` : numMode === "global" ? `${globalRemarkIdx}. ` : "";
+          return prefix + num + r.text;
+        };
         const sections = [];
         if (byStatus("open").length)     sections.push(t("result.toProcess") + "\n" + byStatus("open").map(fmtLine).join("\n"));
         if (byStatus("progress").length) sections.push("En cours :\n" + byStatus("progress").map(fmtLine).join("\n"));
@@ -3072,12 +4105,13 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
         return `${p.id}. ${p.label}\n${sections.join("\n")}${extra ? "\n" + extra : ""}`;
       })
       .join("\n\n");
-    const SYS = t("ai.systemPrompt");
+    const pvTpl = PV_TEMPLATES.find(t => t.id === project.pvTemplate);
+    const SYS = pvTpl?.prompt || t("ai.systemPrompt");
     const recipientCtx = pvRecipients && pvRecipients.length > 0 ? "\n" + t("ai.recipientFilter", { recipients: pvRecipients.join(", ") }) : "";
     try {
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${profile.apiKey}` }, signal: ctrl.current.signal,
-        body: JSON.stringify({ model: "gpt-4o", max_tokens: 2000, messages: [{ role: "system", content: SYS }, { role: "user", content: `PROJET: ${project.name}\nCLIENT: ${project.client}\nENTREPRISE: ${project.contractor}\nPV N${pvNum}${recipientCtx}\n\nNOTES:\n${notes}\n\nTransforme en PV.` }] }),
+        body: JSON.stringify({ model: "gpt-4o", max_tokens: pvTpl?.id === "detailed" ? 3000 : 2000, messages: [{ role: "system", content: SYS }, { role: "user", content: `PROJET: ${project.name}\nCLIENT: ${project.client}\nENTREPRISE: ${project.contractor}\nADRESSE: ${formatAddress(project)}${(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => `\n${cf.label.toUpperCase()}: ${cf.value}`).join("")}\nPV N${pvNum} — ${date}${pvFieldData?.visitStart ? `\nVISITE: ${pvFieldData.visitStart}${pvFieldData.visitEnd ? ` → ${pvFieldData.visitEnd}` : ""}` : ""}${pvFieldData?.attendance ? `\nPRÉSENTS: ${pvFieldData.attendance.filter(a => a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${pvFieldData?.attendance?.some(a => !a.present) ? `\nABSENTS: ${pvFieldData.attendance.filter(a => !a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${recipientCtx}\n\nNOTES:\n${notes}\n\nTransforme en PV.` }] }),
       });
       if (!r.ok) throw new Error("Erreur " + r.status);
       const d = await r.json();
@@ -3090,7 +4124,10 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
   const date = new Date().toLocaleDateString("fr-BE");
   const parts = project.participants.map((p) => `  ${p.role.padEnd(14)} ${p.name}`).join("\n");
   const displayTitle = pvTitle || `PV n°${pvNum}`;
-  const full = result ? `${displayTitle.toUpperCase()}\nde la REUNION du ${date}\n\nMaitre d'ouvrage : ${project.client}\nChantier : ${project.name}\n${project.desc}\n\nPresents :\n${parts}\n\n${"=".repeat(50)}\n\n${result}\n\n${"=".repeat(50)}\nArchitecte, ${project.bureau}` : "";
+  const presentList = pvFieldData?.attendance ? pvFieldData.attendance.filter(a => a.present).map(p => `  ${p.role.padEnd(14)} ${p.name}`).join("\n") : parts;
+  const absentList = pvFieldData?.attendance?.filter(a => !a.present) || [];
+  const visitInfo = pvFieldData?.visitStart ? `\nVisite : ${pvFieldData.visitStart}${pvFieldData.visitEnd ? ` → ${pvFieldData.visitEnd}` : ""}` : "";
+  const full = result ? `${displayTitle.toUpperCase()}\nde la REUNION du ${date}${visitInfo}\n\nMaitre d'ouvrage : ${project.client}\nChantier : ${project.name}\n${project.desc}\n\nPrésents :\n${presentList}${absentList.length > 0 ? `\n\nAbsents :\n${absentList.map(p => `  ${p.role.padEnd(14)} ${p.name}`).join("\n")}` : ""}\n\n${"=".repeat(50)}\n\n${result}\n\n${"=".repeat(50)}\nArchitecte, ${project.bureau}` : "";
   const filledCount = project.posts.filter((p) => {
     const remarks = (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
     return remarks.length > 0 || (p.photos || []).length > 0 || (project.planMarkers || []).some((m) => m.postId === p.id);
@@ -3239,7 +4276,37 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
             }
           </button>
           {pdfErr && <div style={{ marginTop: 6, padding: 10, background: REDBG, borderRadius: 8, color: RD, fontSize: 12 }}>{pdfErr}</div>}
+
+          {/* Send by email button */}
+          {saved && (
+            <button
+              onClick={() => setShowSendModal(true)}
+              style={{ width: "100%", marginTop: 8, padding: 13, border: `1px solid ${AC}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: AC, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            >
+              <Ico name="send" size={15} color={AC} />Envoyer par email
+            </button>
+          )}
+
           {saved && <button onClick={onBackHome} style={{ width: "100%", marginTop: 8, padding: 12, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2 }}>Retour au projet</button>}
+
+          {/* Send PV Modal */}
+          {showSendModal && (
+            <SendPvModal
+              project={project}
+              pvNumber={pvNum}
+              pvDate={date}
+              pvContent={result}
+              profile={profile}
+              onClose={() => setShowSendModal(false)}
+              onSent={(to) => {
+                // Update PV status to "sent"
+                setProjects(prev => prev.map(p => p.id === project.id ? {
+                  ...p,
+                  pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: "sent" } : pv),
+                } : p));
+              }}
+            />
+          )}
           {project.posts.some((p) => (p.photos || []).length > 0) && (
             <div style={{ marginTop: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginBottom: 12 }}>Photos jointes</div>
@@ -4756,10 +5823,184 @@ function PDFPreview({ form }) {
   );
 }
 
+function MfaSection() {
+  const t = useT();
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [qrCode, setQrCode] = useState("");
+  const [factorId, setFactorId] = useState("");
+  const [verifyCode, setVerifyCode] = useState("");
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.mfa.listFactors().then(({ data, error: err }) => {
+      if (!err && data?.totp) {
+        const verified = data.totp.filter((f) => f.status === "verified");
+        setMfaEnabled(verified.length > 0);
+        if (verified.length > 0) setFactorId(verified[0].id);
+      }
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const startEnroll = async () => {
+    setError(""); setMsg("");
+    const { data, error: err } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "ArchiPilot" });
+    if (err) { setError(err.message); return; }
+    setQrCode(data.totp.qr_code);
+    setFactorId(data.id);
+    setEnrolling(true);
+  };
+
+  const confirmEnroll = async () => {
+    setError("");
+    if (verifyCode.length !== 6) return;
+    const { data: challenge, error: chErr } = await supabase.auth.mfa.challenge({ factorId });
+    if (chErr) { setError(chErr.message); return; }
+    const { error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code: verifyCode });
+    if (vErr) {
+      setError(t("mfa.invalidCode"));
+      return;
+    }
+    setMfaEnabled(true);
+    setEnrolling(false);
+    setVerifyCode("");
+    setMsg(t("mfa.activated"));
+  };
+
+  const disableMfa = async () => {
+    setError(""); setMsg("");
+    const { error: err } = await supabase.auth.mfa.unenroll({ factorId });
+    if (err) { setError(err.message); return; }
+    setMfaEnabled(false);
+    setFactorId("");
+    setMsg(t("mfa.deactivated"));
+  };
+
+  if (loading) return null;
+
+  return (
+    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>{t("mfa.title")}</div>
+      <div style={{ fontSize: 12, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>{t("mfa.desc")}</div>
+
+      {msg && <div style={{ marginBottom: 12, padding: "8px 12px", background: "#EAF3DE", border: "1px solid #C6E9B4", borderRadius: 6, fontSize: 12, color: GR }}>{msg}</div>}
+      {error && <div style={{ marginBottom: 12, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, fontSize: 12, color: RD }}>{error}</div>}
+
+      {mfaEnabled && !enrolling ? (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 4, background: GR }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: GR }}>{t("mfa.enabled")}</span>
+          </div>
+          <button onClick={disableMfa} style={{ padding: "9px 18px", border: `1px solid #FECACA`, borderRadius: 8, background: "#FEF2F2", color: RD, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            {t("mfa.disable")}
+          </button>
+        </div>
+      ) : enrolling ? (
+        <div>
+          <div style={{ fontSize: 13, color: TX2, marginBottom: 14, lineHeight: 1.6 }}>{t("mfa.scanQR")}</div>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <img src={qrCode} alt="QR Code MFA" style={{ width: 180, height: 180, borderRadius: 8, border: `1px solid ${SBB}` }} />
+          </div>
+          <div style={{ fontSize: 13, color: TX2, marginBottom: 8 }}>{t("mfa.enterCode")}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="text" value={verifyCode} onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="000000" maxLength={6} autoComplete="one-time-code" inputMode="numeric" autoFocus
+              style={{ flex: 1, padding: "11px 14px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 18, fontWeight: 700, fontFamily: "inherit", background: SB, color: TX, textAlign: "center", letterSpacing: "0.3em", boxSizing: "border-box" }}
+            />
+            <button
+              onClick={confirmEnroll} disabled={verifyCode.length !== 6}
+              style={{ padding: "11px 18px", border: "none", borderRadius: 8, background: verifyCode.length === 6 ? AC : "#D3D1C7", color: "#fff", fontSize: 13, fontWeight: 600, cursor: verifyCode.length === 6 ? "pointer" : "not-allowed", fontFamily: "inherit", whiteSpace: "nowrap" }}
+            >
+              {t("mfa.verify")}
+            </button>
+          </div>
+          <button onClick={() => { setEnrolling(false); setVerifyCode(""); setError(""); }} style={{ marginTop: 12, background: "none", border: "none", cursor: "pointer", color: TX3, fontSize: 12, fontFamily: "inherit", padding: 0 }}>
+            {t("mfa.cancel")}
+          </button>
+        </div>
+      ) : (
+        <button onClick={startEnroll} style={{ padding: "9px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          {t("mfa.enable")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const PROFILE_SECTIONS = [
+  { id: "avatar", icon: "users", label: "Profil" },
+  { id: "account", icon: "mail", label: "Compte" },
+  { id: "security", icon: "eye", label: "Sécurité" },
+  { id: "info", icon: "file", label: "Informations" },
+  { id: "lang", icon: "building", label: "Langue" },
+  { id: "api", icon: "edit", label: "API Claude" },
+  { id: "appearance", icon: "chart", label: "Apparence PV" },
+  { id: "preview", icon: "eye", label: "Aperçu" },
+];
+
 function ProfileView({ profile, onSave }) {
   const [form, setForm] = useState({ ...profile });
   const fileRef = useRef();
   const t = useT();
+  const [authEmail, setAuthEmail] = useState("");
+  const [newAuthEmail, setNewAuthEmail] = useState("");
+  const [emailMsg, setEmailMsg] = useState("");
+  const [emailErr, setEmailErr] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState("avatar");
+  const sectionRefs = useRef({});
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const em = data?.user?.email || "";
+      setAuthEmail(em);
+      setNewAuthEmail(em);
+    });
+  }, []);
+
+  // Track active section on scroll
+  useEffect(() => {
+    const onScroll = () => {
+      let current = "avatar";
+      for (const s of PROFILE_SECTIONS) {
+        const el = sectionRefs.current[s.id];
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 120) current = s.id;
+        }
+      }
+      setActiveSection(current);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollTo = (id) => {
+    const el = sectionRefs.current[id];
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+  };
+
+  const handleChangeAuthEmail = async () => {
+    setEmailErr(""); setEmailMsg("");
+    if (!newAuthEmail.trim() || newAuthEmail === authEmail) return;
+    setEmailLoading(true);
+    const { error } = await supabase.auth.updateUser({ email: newAuthEmail });
+    setEmailLoading(false);
+    if (error) {
+      setEmailErr(error.message);
+    } else {
+      setEmailMsg("Un email de confirmation a été envoyé à " + newAuthEmail);
+    }
+  };
 
   const initials = form.name.trim().split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 
@@ -4775,15 +6016,85 @@ function ProfileView({ profile, onSave }) {
 
   const set = (key) => (v) => setForm((p) => ({ ...p, [key]: v }));
 
+  const refFor = (id) => (el) => { sectionRefs.current[id] = el; };
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px 0" }}>
+    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: 780, margin: "0 auto", padding: 0, gap: 0 }}>
+      {/* ── Navigation ── */}
+      {isMobile ? (
+        <nav style={{
+          display: "flex", gap: 4, overflowX: "auto", scrollbarWidth: "none",
+          padding: "10px 12px", borderBottom: `1px solid ${SBB}`, background: WH,
+          position: "sticky", top: 0, zIndex: 10, flexShrink: 0,
+        }}>
+          {PROFILE_SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => scrollTo(s.id)}
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "6px 12px", border: "none", borderRadius: 20,
+                background: activeSection === s.id ? ACL : "transparent",
+                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                transition: "all 0.15s", flexShrink: 0,
+              }}
+            >
+              <Ico name={s.icon} size={12} color={activeSection === s.id ? AC : TX3} />
+              <span style={{
+                fontSize: 11, fontWeight: activeSection === s.id ? 600 : 500,
+                color: activeSection === s.id ? AC : TX2,
+              }}>{s.label}</span>
+            </button>
+          ))}
+        </nav>
+      ) : (
+        <nav style={{
+          width: 180, flexShrink: 0, alignSelf: "flex-start",
+          paddingRight: 20, borderRight: `1px solid ${SBB}`, marginRight: 24,
+          position: "sticky", top: 80,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 12, paddingLeft: 10 }}>
+            {t("profile.title")}
+          </div>
+          {PROFILE_SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => scrollTo(s.id)}
+              className="profile-nav-item"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 10px", border: "none", borderRadius: 8,
+                background: activeSection === s.id ? ACL : "transparent",
+                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                transition: "all 0.15s", marginBottom: 2,
+              }}
+            >
+              <Ico name={s.icon} size={14} color={activeSection === s.id ? AC : TX3} />
+              <span style={{
+                fontSize: 12, fontWeight: activeSection === s.id ? 600 : 500,
+                color: activeSection === s.id ? AC : TX2,
+              }}>{s.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {/* ── Content ── */}
+      <div ref={scrollRef} style={{ flex: 1, minWidth: 0, padding: isMobile ? "16px 16px 0" : "0 4px 0 0" }}>
       <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: TX, marginBottom: 4 }}>{t("profile.title")}</div>
         <div style={{ fontSize: 13, color: TX3 }}>{t("profile.subtitle")}</div>
       </div>
 
       {/* Avatar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 28, padding: 20, background: WH, border: `1px solid ${SBB}`, borderRadius: 14 }}>
+      <div ref={refFor("avatar")} style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 28, padding: 20, background: WH, border: `1px solid ${SBB}`, borderRadius: 14 }}>
         <div style={{ position: "relative", flexShrink: 0 }}>
           {form.picture ? (
             <img src={form.picture} alt="profil" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `2px solid ${SBB}` }} />
@@ -4806,8 +6117,35 @@ function ProfileView({ profile, onSave }) {
         </div>
       </div>
 
+      {/* Compte — Email de connexion */}
+      <div ref={refFor("account")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>{t("profile.account")}</div>
+        <div style={{ fontSize: 12, color: TX3, marginBottom: 12, lineHeight: 1.5 }}>{t("profile.accountDesc")}</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 5 }}>{t("profile.loginEmail")}</label>
+            <input
+              type="email" value={newAuthEmail} onChange={(e) => setNewAuthEmail(e.target.value)}
+              placeholder={authEmail} style={{ width: "100%", padding: "11px 14px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }}
+            />
+          </div>
+          <button
+            onClick={handleChangeAuthEmail}
+            disabled={emailLoading || !newAuthEmail.trim() || newAuthEmail === authEmail}
+            style={{ padding: "11px 18px", border: "none", borderRadius: 8, background: newAuthEmail !== authEmail && newAuthEmail.trim() ? AC : "#D3D1C7", color: "#fff", fontSize: 13, fontWeight: 600, cursor: newAuthEmail !== authEmail && newAuthEmail.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", whiteSpace: "nowrap" }}
+          >
+            {emailLoading ? "..." : t("profile.changeEmail")}
+          </button>
+        </div>
+        {emailMsg && <div style={{ marginTop: 10, padding: "8px 12px", background: "#EAF3DE", border: "1px solid #C6E9B4", borderRadius: 6, fontSize: 12, color: GR }}>{emailMsg}</div>}
+        {emailErr && <div style={{ marginTop: 10, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, fontSize: 12, color: RD }}>{emailErr}</div>}
+      </div>
+
+      {/* Sécurité — MFA */}
+      <div ref={refFor("security")}><MfaSection /></div>
+
       {/* Form — Informations */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
+      <div ref={refFor("info")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>{t("profile.personalInfo")}</div>
         <Field label={t("profile.fullName")} value={form.name} onChange={set("name")} placeholder="ex: Gaëlle CNOP" />
         <div style={{ display: "flex", gap: 10 }}>
@@ -4822,7 +6160,7 @@ function ProfileView({ profile, onSave }) {
       </div>
 
       {/* Langue */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("lang")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>Langue / Language</div>
         <div style={{ display: "flex", gap: 8 }}>
           {[
@@ -4839,7 +6177,7 @@ function ProfileView({ profile, onSave }) {
       </div>
 
       {/* Clé API Claude */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
+      <div ref={refFor("api")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>{t("profile.apiTitle")}</div>
         <div style={{ fontSize: 12, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
           {t("profile.apiDesc")}
@@ -4853,8 +6191,9 @@ function ProfileView({ profile, onSave }) {
         )}
       </div>
 
+      {/* Templates */}
       {/* Apparence du PV */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("appearance")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 16 }}>{t("profile.pdfAppearance")}</div>
 
         {/* Couleur principale */}
@@ -4898,7 +6237,7 @@ function ProfileView({ profile, onSave }) {
       </div>
 
       {/* Aperçu */}
-      <div style={{ marginBottom: 16 }}>
+      <div ref={refFor("preview")} style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("profile.templatePreview")}</div>
         <PDFPreview form={form} />
       </div>
@@ -4910,6 +6249,7 @@ function ProfileView({ profile, onSave }) {
       >
         {t("profile.saveSettings")}
       </button>
+      </div>{/* end scroll container */}
     </div>
   );
 }
@@ -5237,17 +6577,22 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
-  const [newP, setNewP] = useState({ name: "", client: "", contractor: "", address: "", desc: "", startDate: "", recurrence: "none", statusId: "sketch" });
+  const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none" });
   const [editInfo, setEditInfo] = useState({});
   const [editParts, setEditParts] = useState([]);
   const [profile, setProfile] = useState(INIT_PROFILE);
   const [profileSaved, setProfileSaved] = useState(false);
+  // Sync newP template defaults when profile loads
+  useEffect(() => {
+    setNewP(p => ({ ...p, postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none" }));
+  }, [profile.postTemplate, profile.pvTemplate, profile.remarkNumbering]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [storageWarning, setStorageWarning] = useState(false);
   const [pvRecipients, setPvRecipients] = useState([]); // [] = tous
   const [pvTitle, setPvTitle] = useState("");
+  const [pvFieldData, setPvFieldData] = useState({}); // attendance, visitStart, visitEnd
   const [showSearch, setShowSearch] = useState(false);
   const [importPV, setImportPV] = useState({ number: "", date: "", author: "", pdfDataUrl: null, fileName: "" });
   const [toast, setToast] = useState(null);
@@ -5258,23 +6603,53 @@ export default function App() {
   const importPVRef = useRef(null);
   const t = useT();
 
+  // ── Collaboration state ──
+  const [sharedProjects, setSharedProjects] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [invitations, setInvitations] = useState([]);
+
   // Load data from Supabase on mount
   useEffect(() => {
     (async () => {
-      const [cloudData, cloudProfile] = await Promise.all([dbLoadProjects(), dbLoadProfile()]);
-      if (cloudData) {
-        if (cloudData.projects && cloudData.projects.length > 0) setProjects(cloudData.projects);
-        if (cloudData.activeId) setActiveId(cloudData.activeId);
-      }
-      if (cloudProfile) setProfile(cloudProfile);
+      try {
+        const [cloudData, cloudProfile] = await Promise.all([
+          dbLoadProjects().catch(e => { console.error("loadProjects failed:", e); return null; }),
+          dbLoadProfile().catch(e => { console.error("loadProfile failed:", e); return null; }),
+        ]);
+        if (cloudData) {
+          if (cloudData.projects && cloudData.projects.length > 0) setProjects(cloudData.projects);
+          if (cloudData.activeId) setActiveId(cloudData.activeId);
+        }
+        if (cloudProfile) setProfile(cloudProfile);
+      } catch (e) { console.error("Initial load error:", e); }
       setDbLoaded(true);
+      // Load collaboration data (non-blocking)
+      loadSharedProjects().then(setSharedProjects).catch(() => {});
+      loadNotifications().then(setNotifications).catch(() => {});
+      loadMyInvitations().then(setInvitations).catch(() => {});
     })();
+  }, []);
+
+  // Subscribe to realtime notifications
+  useEffect(() => {
+    let unsub;
+    try {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return;
+        unsub = subscribeToNotifications(user.id, (notif) => {
+          setNotifications(prev => [notif, ...prev]);
+          if (notif.type === "invite") loadMyInvitations().then(setInvitations).catch(() => {});
+        });
+      }).catch(() => {});
+    } catch (e) { console.error("Notification subscription error:", e); }
+    return () => { try { unsub?.(); } catch {} };
   }, []);
 
   // Save projects to Supabase (debounced) + localStorage fallback
   useEffect(() => {
     if (!dbLoaded) return;
-    try { localStorage.setItem("archipilot_projects", JSON.stringify(projects)); } catch { setStorageWarning(true); }
+    try { localStorage.setItem("archipilot_projects", JSON.stringify(projects)); } catch { setStorageWarning(true); setTimeout(() => setStorageWarning(false), 5000); }
     dbSaveProjects(projects, activeId);
   }, [projects, dbLoaded]);
 
@@ -5285,14 +6660,42 @@ export default function App() {
     dbSaveProjects(projects, activeId);
   }, [activeId, dbLoaded]);
 
-  // Détection online/offline
+  // Détection online/offline + sync au retour
   useEffect(() => {
-    const goOnline = () => { setIsOnline(true); setShowReconnected(true); setTimeout(() => setShowReconnected(false), 3000); };
+    const processOfflineQueue = async () => {
+      const queue = getOfflineQueue();
+      if (queue.length === 0) return;
+      let processed = 0;
+      for (const item of queue) {
+        try {
+          if (item.type === "photo_upload") {
+            // Photos with dataUrl are already saved in projects via localStorage
+            // They'll be synced to Supabase via the normal dbSaveProjects flow
+            processed++;
+          }
+        } catch (e) { console.error("Offline queue process error:", e); }
+      }
+      if (processed > 0) {
+        clearOfflineQueue();
+        // Force a full sync
+        dbSaveProjects(projects, activeId);
+      }
+    };
+
+    const goOnline = () => {
+      setIsOnline(true);
+      setShowReconnected(true);
+      setTimeout(() => setShowReconnected(false), 3000);
+      // Sync queued items
+      processOfflineQueue();
+      // Re-sync projects to Supabase
+      if (dbLoaded) dbSaveProjects(projects, activeId);
+    };
     const goOffline = () => setIsOnline(false);
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
-  }, []);
+  }, [projects, activeId, dbLoaded]);
 
   // Prompt d'installation PWA
   useEffect(() => {
@@ -5327,13 +6730,16 @@ export default function App() {
 
   const project = projects.find((p) => p.id === activeId);
   const updateProject = (id, u) => setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...u } : p));
-  const canCreate = newP.name.trim() && newP.client.trim() && newP.contractor.trim() && newP.address.trim() && newP.startDate.trim();
+  const canCreate = newP.name.trim() && newP.client.trim() && newP.contractor.trim() && newP.city?.trim() && newP.startDate.trim();
 
   const createProject = () => {
     const id = Math.max(...projects.map((p) => p.id), 0) + 1;
-    setProjects((prev) => [...prev, { id, ...newP, progress: 0, bureau: profile.structure, endDate: "", nextMeeting: "", archived: false, participants: [{ role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone }], posts: [{ id: "01", label: "Situation du chantier", notes: "" }, { id: "02", label: "Généralités", notes: "" }, { id: "03", label: "Planning", notes: "" }], pvHistory: [], actions: [], planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [] }]);
+    const address = formatAddress(newP);
+    const tpl = POST_TEMPLATES.find(t => t.id === newP.postTemplate) || POST_TEMPLATES[0];
+    const posts = tpl.posts.map(p => ({ id: p.id, label: p.label, notes: "", remarks: [] }));
+    setProjects((prev) => [...prev, { id, ...newP, address, progress: 0, bureau: profile.structure, endDate: "", nextMeeting: "", archived: false, participants: [{ role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone }], posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }], pvHistory: [], actions: [], planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [], customFields: [] }]);
     setActiveId(id); setView("overview"); setModal(null);
-    setNewP({ name: "", client: "", contractor: "", address: "", desc: "", startDate: "", recurrence: "none", statusId: "sketch" });
+    setNewP({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none" });
   };
 
   const duplicateProject = () => {
@@ -5343,7 +6749,7 @@ export default function App() {
     showToast("Projet dupliqué avec succès");
   };
 
-  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: t("view.plan"), docs: t("view.docs"), planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile") };
+  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: t("view.plan"), docs: t("view.docs"), planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Tableau de bord" };
 
   return (
     <LangContext.Provider value={profile.lang || "fr"}>
@@ -5358,14 +6764,77 @@ export default function App() {
         input::placeholder, textarea::placeholder { color: #767672 }
         * { scrollbar-width: thin; scrollbar-color: #E2E1DD transparent }
         button { transition: filter 0.15s, transform 0.1s; }
-        button:not([disabled]):hover { filter: brightness(0.92); }
+        button:not([disabled]):not(.sidebar-logout):hover { filter: brightness(0.92); }
         button:not([disabled]):active { transform: scale(0.97); }
+        .sidebar-logout:hover { background: ${SB} !important; }
+        .sidebar-logout:hover span { color: ${TX} !important; }
+        .sidebar-logout:active { transform: scale(0.97); }
+        .profile-nav-item:hover { background: ${SB} !important; }
         a[href]:hover { opacity: 0.85; }
-      `}</style>
-      <Sidebar projects={projects} activeId={activeId} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); setSidebarOpen(false); }} installable={!!installPrompt} onInstall={handleInstall} />
 
-      <div style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
-        <div style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
+        /* ── Tablet & Mobile Responsive ── */
+        @media (max-width: 1024px) {
+          /* Sidebar as overlay on tablet */
+          .ap-sidebar-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+            z-index: 99; display: none;
+          }
+          .ap-sidebar-overlay.open { display: block; }
+
+          /* Main content never offset by sidebar */
+          .ap-main { margin-left: 0 !important; }
+        }
+
+        @media (max-width: 768px) {
+          /* Bigger touch targets */
+          button, a, select, label { min-height: 44px; }
+          input, textarea, select { font-size: 16px !important; } /* prevent iOS zoom */
+
+          /* Header compact */
+          .ap-header { padding: 8px 12px !important; gap: 8px !important; }
+          .ap-header .ap-search-pill { display: none !important; }
+          .ap-header .ap-profile-text { display: none !important; }
+
+          /* Content area tighter padding */
+          .ap-content { padding: 12px !important; }
+
+          /* Overview: single column */
+          .ap-overview-grid { flex-direction: column !important; }
+          .ap-overview-grid > div { flex: 1 1 100% !important; min-width: 0 !important; }
+
+          /* Stats KPI: 2 columns */
+          .ap-kpi-row { flex-wrap: wrap !important; }
+          .ap-kpi-row > div { flex: 1 1 45% !important; min-width: 120px !important; }
+
+          /* Modals full-screen on mobile */
+          .ap-modal-card {
+            max-width: 100% !important; max-height: 100% !important;
+            border-radius: 0 !important; height: 100% !important;
+          }
+
+          /* NoteEditor: full width post list */
+          .ap-note-layout { flex-direction: column !important; }
+          .ap-note-layout > div { flex: 1 1 100% !important; max-width: 100% !important; width: 100% !important; }
+        }
+
+        @media (max-width: 480px) {
+          /* Extra small: stack everything */
+          .ap-kpi-row > div { flex: 1 1 100% !important; }
+        }
+
+        /* Touch-friendly: larger active area */
+        @media (pointer: coarse) {
+          button:not([disabled]):active { transform: scale(0.95); }
+          .ap-touch-btn { min-height: 48px; padding: 12px 16px !important; }
+        }
+      `}</style>
+      <Sidebar projects={projects} activeId={activeId} onSelect={(id) => { setActiveId(id); setView("overview"); if (window.innerWidth <= 1024) setSidebarOpen(false); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); setSidebarOpen(false); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { /* TODO: open shared project */ }} onStats={() => { setView("stats"); setSidebarOpen(false); }} />
+
+      {/* Sidebar overlay for tablet/mobile */}
+      {sidebarOpen && <div className="ap-sidebar-overlay open" onClick={() => setSidebarOpen(false)} />}
+
+      <div className="ap-main" style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
+        <div className="ap-header" style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
           {/* Gauche — hamburger + contexte projet */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto", minWidth: 0 }}>
             <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
@@ -5389,15 +6858,60 @@ export default function App() {
           </div>
 
           {/* Centre — barre de recherche pilule */}
-          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+          <div className="ap-search-pill" style={{ flex: 1, display: "flex", justifyContent: "center" }}>
             <button onClick={() => setShowSearch(true)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#F2F2F0", border: "none", borderRadius: 999, padding: "8px 18px", cursor: "text", width: "100%", maxWidth: 400, fontFamily: "inherit" }}>
               <Ico name="search" size={15} color="#A3A39D" />
               <span style={{ fontSize: 13, color: "#A3A39D", fontWeight: 400 }}>Search for anything here...</span>
             </button>
           </div>
 
-          {/* Droite — profil */}
-          <button onClick={() => { setView("profile"); setSidebarOpen(false); }} title="Mon profil" style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8, flex: "0 0 auto" }}>
+          {/* Droite — notifications + profil */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "0 0 auto" }}>
+          {/* Notification bell */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowNotifications(p => !p)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+              <Ico name="mail" size={18} color={TX2} />
+              {notifications.filter(n => !n.read).length > 0 && (
+                <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: RD, border: "2px solid #fff" }} />
+              )}
+            </button>
+            {showNotifications && (
+              <div style={{ position: "absolute", top: "100%", right: 0, width: 340, maxHeight: 400, overflowY: "auto", background: WH, border: `1px solid ${SBB}`, borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", zIndex: 200, animation: "fadeIn 0.15s ease-out" }}>
+                <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${SBB}` }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>{t("notif.title")}</span>
+                  {notifications.some(n => !n.read) && (
+                    <button onClick={() => { markAllNotificationsRead(); setNotifications(prev => prev.map(n => ({ ...n, read: true }))); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: AC, fontWeight: 600, fontFamily: "inherit" }}>{t("notif.markAllRead")}</button>
+                  )}
+                </div>
+                {/* Pending invitations */}
+                {invitations.length > 0 && invitations.map(inv => (
+                  <div key={inv.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${SBB}`, background: ACL }}>
+                    <div style={{ fontSize: 12, color: TX, marginBottom: 8 }}>
+                      {t("notif.invite", { actor: inv.invited_name || "Quelqu'un", project: inv.project_id })}
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={async () => { await respondToInvitation(inv.id, true); setInvitations(prev => prev.filter(i => i.id !== inv.id)); loadSharedProjects().then(setSharedProjects); showToast("Invitation acceptée"); }} style={{ padding: "5px 14px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.accept")}</button>
+                      <button onClick={async () => { await respondToInvitation(inv.id, false); setInvitations(prev => prev.filter(i => i.id !== inv.id)); }} style={{ padding: "5px 14px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX2, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.decline")}</button>
+                    </div>
+                  </div>
+                ))}
+                {notifications.length === 0 && invitations.length === 0 && (
+                  <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: TX3 }}>{t("notif.empty")}</div>
+                )}
+                {notifications.map(n => (
+                  <div key={n.id} onClick={() => { if (!n.read) { markNotificationRead(n.id); setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x)); } }} style={{ padding: "10px 16px", borderBottom: `1px solid ${SBB}`, cursor: "pointer", background: n.read ? "transparent" : "#FAFAF5" }}>
+                    <div style={{ fontSize: 12, color: TX, lineHeight: 1.5 }}>
+                      {n.type === "invite" && t("notif.invite", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                      {n.type === "invite_accepted" && t("notif.inviteAccepted", { actor: n.actor_name })}
+                      {n.type === "comment" && t("notif.comment", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                    </div>
+                    <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>{new Date(n.created_at).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => { setView("profile"); setSidebarOpen(false); }} title="Mon profil" style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
             {profile.picture ? (
               <img src={profile.picture} alt="profil" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
             ) : (
@@ -5405,13 +6919,14 @@ export default function App() {
                 {profile.name.trim().split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"}
               </div>
             )}
-            <div style={{ textAlign: "left" }}>
+            <div className="ap-profile-text" style={{ textAlign: "left" }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{profile.name}</div>
               <div style={{ fontSize: 9, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{profile.structure}</div>
             </div>
           </button>
+          </div>{/* end right section */}
         </div>
-        <div style={{ padding: 20, maxWidth: 920, margin: "0 auto" }}>
+        <div className="ap-content" style={{ padding: 20, maxWidth: 920, margin: "0 auto" }}>
           {view === "profile" && (
             <div>
               <button onClick={() => setView("overview")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontSize: 13, color: TX3, padding: "8px 0 16px", fontFamily: "inherit", minHeight: 40 }}>
@@ -5421,15 +6936,21 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, address: project.address, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none" }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPlan={() => setView("plan")} onViewDocs={() => setView("docs")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} />}
-          {view !== "profile" && project && view === "notes" && <NoteEditor project={project} setProjects={setProjects} onBack={() => setView("overview")} onGenerate={(recipients, title) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setView("result"); }} />}
-          {view !== "profile" && project && view === "result" && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPlan={() => setView("plan")} onViewDocs={() => setView("docs")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} />}
+          {view !== "profile" && project && view === "notes" && <NoteEditor project={project} setProjects={setProjects} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
+          {view !== "profile" && project && view === "result" && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
           {view !== "profile" && project && view === "plan" && <PlanViewer project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "docs" && <DocumentsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
+          {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
         </div>
       </div>
+
+      {/* Collaboration modal */}
+      {modal === "collab" && project && (
+        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} />
+      )}
 
       <Modal open={modal === "new"} onClose={() => setModal(null)} title="Nouveau projet">
         <Field label="Nom du projet *" value={newP.name} onChange={(v) => setNewP((p) => ({ ...p, name: v }))} placeholder="ex: Rénovation Maison Dupont" />
@@ -5437,12 +6958,34 @@ export default function App() {
           <Field half label="Maître d'ouvrage *" value={newP.client} onChange={(v) => setNewP((p) => ({ ...p, client: v }))} placeholder="ex: M. Dupont" />
           <Field half label="Entreprise *" value={newP.contractor} onChange={(v) => setNewP((p) => ({ ...p, contractor: v }))} placeholder="ex: BESIX" />
         </div>
-        <Field label="Adresse *" value={newP.address} onChange={(v) => setNewP((p) => ({ ...p, address: v }))} placeholder="ex: Ixelles, Bruxelles" />
+        <div style={{ display: "flex", gap: 10 }}>
+          <Field half label="Rue" value={newP.street} onChange={(v) => setNewP((p) => ({ ...p, street: v }))} placeholder="ex: Rue de la Loi" />
+          <div style={{ flex: "0 0 80px" }}><Field label="N°" value={newP.number} onChange={(v) => setNewP((p) => ({ ...p, number: v }))} placeholder="12" /></div>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: "0 0 100px" }}><Field label="Code postal" value={newP.postalCode} onChange={(v) => setNewP((p) => ({ ...p, postalCode: v }))} placeholder="1000" /></div>
+          <Field half label="Ville *" value={newP.city} onChange={(v) => setNewP((p) => ({ ...p, city: v }))} placeholder="Bruxelles" />
+          <Field half label="Pays" value={newP.country} onChange={(v) => setNewP((p) => ({ ...p, country: v }))} placeholder="Belgique" />
+        </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Field half label="Date de début *" value={newP.startDate} onChange={(v) => setNewP((p) => ({ ...p, startDate: v }))} placeholder="ex: 01/04/2026" />
           <Field half label="Récurrence" value={newP.recurrence} onChange={(v) => setNewP((p) => ({ ...p, recurrence: v }))} select options={RECURRENCES} />
         </div>
         <Field label="Phase du projet" value={newP.statusId} onChange={(v) => setNewP((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
+
+        {/* Template summary from profile defaults */}
+        <div style={{ padding: "10px 14px", background: SB, borderRadius: 10, border: `1px solid ${SBB}`, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 3 }}>Templates par défaut</div>
+            <div style={{ fontSize: 10, color: TX3, lineHeight: 1.5 }}>
+              Postes : <strong style={{ color: TX2 }}>{(POST_TEMPLATES.find(t => t.id === newP.postTemplate) || POST_TEMPLATES[0]).label}</strong> ·
+              Style PV : <strong style={{ color: TX2 }}>{(PV_TEMPLATES.find(t => t.id === newP.pvTemplate) || PV_TEMPLATES[0]).label}</strong> ·
+              Numérotation : <strong style={{ color: TX2 }}>{(REMARK_NUMBERING.find(t => t.id === newP.remarkNumbering) || REMARK_NUMBERING[0]).label}</strong>
+            </div>
+          </div>
+          <span style={{ fontSize: 10, color: TX3, fontStyle: "italic", flexShrink: 0 }}>Configurable dans Mon profil</span>
+        </div>
+
         <Field label="Description (optionnel)" value={newP.desc} onChange={(v) => setNewP((p) => ({ ...p, desc: v }))} placeholder="Rénovation complète..." area />
         <button onClick={createProject} disabled={!canCreate} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: canCreate ? AC : DIS, color: canCreate ? "#fff" : DIST, fontSize: 15, fontWeight: 600, cursor: canCreate ? "pointer" : "not-allowed", fontFamily: "inherit", marginTop: 4, transition: "all 0.2s" }}>Créer le projet</button>
       </Modal>
@@ -5453,7 +6996,15 @@ export default function App() {
           <Field half label="Maître d'ouvrage" value={editInfo.client || ""} onChange={(v) => setEditInfo((p) => ({ ...p, client: v }))} />
           <Field half label="Entreprise" value={editInfo.contractor || ""} onChange={(v) => setEditInfo((p) => ({ ...p, contractor: v }))} />
         </div>
-        <Field label="Adresse" value={editInfo.address || ""} onChange={(v) => setEditInfo((p) => ({ ...p, address: v }))} />
+        <div style={{ display: "flex", gap: 10 }}>
+          <Field half label="Rue" value={editInfo.street || ""} onChange={(v) => setEditInfo((p) => ({ ...p, street: v }))} placeholder="ex: Rue de la Loi" />
+          <div style={{ flex: "0 0 80px" }}><Field label="N°" value={editInfo.number || ""} onChange={(v) => setEditInfo((p) => ({ ...p, number: v }))} placeholder="12" /></div>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: "0 0 100px" }}><Field label="Code postal" value={editInfo.postalCode || ""} onChange={(v) => setEditInfo((p) => ({ ...p, postalCode: v }))} placeholder="1000" /></div>
+          <Field half label="Ville" value={editInfo.city || ""} onChange={(v) => setEditInfo((p) => ({ ...p, city: v }))} placeholder="Bruxelles" />
+          <Field half label="Pays" value={editInfo.country || "Belgique"} onChange={(v) => setEditInfo((p) => ({ ...p, country: v }))} placeholder="Belgique" />
+        </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Field half label="Phase" value={editInfo.statusId || "sketch"} onChange={(v) => setEditInfo((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
           <Field half label="Avancement (%)" value={editInfo.progress || ""} onChange={(v) => setEditInfo((p) => ({ ...p, progress: parseInt(v) || 0 }))} type="number" />
@@ -5466,7 +7017,39 @@ export default function App() {
           <Field half label="Prochaine réunion" value={editInfo.nextMeeting || ""} onChange={(v) => setEditInfo((p) => ({ ...p, nextMeeting: v }))} />
           <Field half label="Récurrence" value={editInfo.recurrence || "none"} onChange={(v) => setEditInfo((p) => ({ ...p, recurrence: v }))} select options={RECURRENCES} />
         </div>
-        <button onClick={() => { updateProject(activeId, editInfo); setModal(null); }} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginTop: 4 }}>Enregistrer</button>
+
+        {/* PV template + numbering */}
+        <div style={{ borderTop: `1px solid ${SBB}`, marginTop: 12, paddingTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>Paramètres PV</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Field half label="Style de PV" value={editInfo.pvTemplate || "standard"} onChange={(v) => setEditInfo(p => ({ ...p, pvTemplate: v }))} select options={PV_TEMPLATES} />
+            <Field half label="Numérotation remarques" value={editInfo.remarkNumbering || "none"} onChange={(v) => setEditInfo(p => ({ ...p, remarkNumbering: v }))} select options={REMARK_NUMBERING} />
+          </div>
+        </div>
+
+        {/* Custom fields */}
+        <div style={{ borderTop: `1px solid ${SBB}`, marginTop: 12, paddingTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>Champs personnalisés</span>
+            <button onClick={() => setEditInfo(p => ({ ...p, customFields: [...(p.customFields || []), { id: Date.now(), label: "", value: "" }] }))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: AC, fontWeight: 600, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 3 }}>
+              <Ico name="plus" size={10} color={AC} />Ajouter
+            </button>
+          </div>
+          {(editInfo.customFields || []).map((cf, i) => (
+            <div key={cf.id} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+              <input value={cf.label} onChange={e => setEditInfo(p => ({ ...p, customFields: p.customFields.map((f, j) => j === i ? { ...f, label: e.target.value } : f) }))} placeholder="Label" style={{ flex: 1, padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: SB, color: TX }} />
+              <input value={cf.value} onChange={e => setEditInfo(p => ({ ...p, customFields: p.customFields.map((f, j) => j === i ? { ...f, value: e.target.value } : f) }))} placeholder="Valeur" style={{ flex: 1, padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: SB, color: TX }} />
+              <button onClick={() => setEditInfo(p => ({ ...p, customFields: p.customFields.filter((_, j) => j !== i) }))} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                <Ico name="x" size={12} color={TX3} />
+              </button>
+            </div>
+          ))}
+          {(!editInfo.customFields || editInfo.customFields.length === 0) && (
+            <div style={{ fontSize: 11, color: TX3, fontStyle: "italic" }}>Ex: N° permis, Référence cadastrale, Budget...</div>
+          )}
+        </div>
+
+        <button onClick={() => { updateProject(activeId, { ...editInfo, address: formatAddress(editInfo) }); setModal(null); }} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginTop: 12 }}>Enregistrer</button>
       </Modal>
 
       <Modal open={modal === "parts"} onClose={() => setModal(null)} title="Modifier les participants" wide>
@@ -5562,7 +7145,7 @@ export default function App() {
         </button>
       </Modal>
 
-      <Modal open={modal === "viewpv"} onClose={() => setModal(null)} title={modalData ? `PV n°${modalData.number} — ${modalData.date}` : ""} wide>
+      <Modal open={modal === "viewpv"} onClose={() => { setModal(null); setModalData(d => d ? { ...d, _showSend: false } : d); }} title={modalData ? `PV n°${modalData.number} — ${modalData.date}` : ""} wide>
         {modalData && (
           <div>
             <div style={{ display: "flex", gap: 12, marginBottom: 14, fontSize: 12, color: TX3, flexWrap: "wrap", alignItems: "center" }}>
@@ -5577,17 +7160,42 @@ export default function App() {
                   <a href={modalData.pdfDataUrl} download={modalData.fileName || `PV-${modalData.number}.pdf`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", background: AC, color: "#fff", borderRadius: 8, fontWeight: 600, fontSize: 13, textDecoration: "none" }}>
                     <Ico name="download" size={14} color="#fff" />Télécharger
                   </a>
+                  <button onClick={() => setModalData(d => ({ ...d, _showSend: true }))} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", border: `1px solid ${AC}`, background: WH, color: AC, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                    <Ico name="send" size={14} color={AC} />Envoyer par email
+                  </button>
                 </div>
               </div>
             ) : (
               <div>
                 <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "60vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
-                <button onClick={() => { navigator.clipboard.writeText(modalData.content); }} style={{ marginTop: 12, padding: "10px 20px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 4 }}>
-                  <Ico name="copy" size={14} color={TX3} />Copier le contenu
-                </button>
+                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                  <button onClick={() => { navigator.clipboard.writeText(modalData.content); }} style={{ padding: "10px 20px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Ico name="copy" size={14} color={TX3} />Copier le contenu
+                  </button>
+                  <button onClick={() => setModalData(d => ({ ...d, _showSend: true }))} style={{ padding: "10px 20px", border: `1px solid ${AC}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: AC, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Ico name="send" size={14} color={AC} />Envoyer par email
+                  </button>
+                </div>
               </div>
             )}
           </div>
+        )}
+        {modalData?._showSend && project && (
+          <SendPvModal
+            project={project}
+            pvNumber={modalData.number}
+            pvDate={modalData.date}
+            pvContent={modalData.content || ""}
+            profile={profile}
+            onClose={() => setModalData(d => ({ ...d, _showSend: false }))}
+            onSent={(to) => {
+              setProjects(prev => prev.map(p => p.id === project.id ? {
+                ...p,
+                pvHistory: p.pvHistory.map(pv => pv.number === modalData.number ? { ...pv, status: "sent" } : pv),
+              } : p));
+              showToast(`PV envoyé à ${to.length} destinataire${to.length > 1 ? "s" : ""}`);
+            }}
+          />
         )}
       </Modal>
 
@@ -5601,9 +7209,13 @@ export default function App() {
       )}
 
       {!isOnline && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: TX, color: "#fff", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 13, zIndex: 999 }}>
-          <Ico name="wifioff" size={15} color="#fff" />
-          Mode hors-ligne — Vos données sont sauvegardées localement
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: TX, color: "#fff", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 12, zIndex: 999 }}>
+          <Ico name="wifioff" size={14} color="#fff" />
+          <span>Mode hors-ligne</span>
+          <span style={{ opacity: 0.6 }}>·</span>
+          <span style={{ opacity: 0.7 }}>Notes et photos sauvegardées localement</span>
+          <span style={{ opacity: 0.6 }}>·</span>
+          <span style={{ opacity: 0.7 }}>Sync automatique au retour du réseau</span>
         </div>
       )}
 
@@ -5616,8 +7228,8 @@ export default function App() {
 
       {/* Avertissement stockage plein */}
       {storageWarning && (
-        <div style={{ position: "fixed", top: 60, right: 16, background: REDBG, border: `1px solid ${REDBRD}`, color: RD, padding: "10px 14px", borderRadius: 10, fontSize: 12, maxWidth: 260, zIndex: 999 }}>
-          Espace de stockage limité. Les photos volumineuses peuvent ne pas être conservées hors-ligne.
+        <div style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: RD, color: "#fff", padding: "10px 18px", borderRadius: 10, fontSize: 12, fontWeight: 600, zIndex: 1001, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", whiteSpace: "nowrap", animation: "fadeIn .3s ease-out" }}>
+          <Ico name="alert" size={14} color="#fff" />Stockage limité — Photos hors-ligne non garanties
         </div>
       )}
       {toast && (
