@@ -886,6 +886,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     plus: "M12 5v14 M5 12h14",
     send: "M22 2L11 13 M22 2l-7 20-4-9-9-4z",
     users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+    user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
     clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v6l4 2",
     alert: "M12 9v4 M12 17h.01",
     building: "M3 21h18 M5 21V7l8-4v18 M19 21V11l-6-4",
@@ -902,6 +903,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z",
     repeat: "M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3",
     camera: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+    image: "M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21",
     mappin: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
     folder: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z",
     download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3",
@@ -912,6 +914,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     listcheck: "M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
     checksq:   "M9 11l3 3 5-5 M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
     arrowr: "M5 12h14 M12 5l7 7-7 7",
+    arrowd: "M12 5v14 M5 12l7 7 7-7",
     rectc:  "M3 3h18v18H3z",
     circlec:"M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
     pen2:   "M12 20h9 M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z",
@@ -1119,6 +1122,80 @@ const INIT_PROJECTS = [
 ];
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
+
+// ── Mobile Bottom Tab Bar ──────────────────────────────────
+function MobileBottomBar({ view, onNavigate, onCapture }) {
+  const isActive = (id) => view === id || (id === "overview" && view === "overview") || (id === "notes" && (view === "notes" || view === "result")) || (id === "plan" && (view === "plan" || view === "planning" || view === "checklists"));
+  const TAB_MUTED = "#B5B5B0";
+  const Tab = ({ id, icon, label }) => {
+    const active = isActive(id);
+    return (
+      <button onClick={() => onNavigate(id)} aria-label={label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", padding: "8px 0 6px", borderRadius: 0, transition: "color 0.15s", minHeight: 48, position: "relative" }}>
+        {active && <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 20, height: 3, borderRadius: 2, background: AC }} />}
+        <Ico name={icon} size={20} color={active ? AC : TAB_MUTED} />
+        <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? AC : TAB_MUTED, lineHeight: 1, textAlign: "center", width: "100%" }}>{label}</span>
+      </button>
+    );
+  };
+  return (
+    <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      {/* Background shape — full width, deep bump hugging the 56px circle */}
+      <svg style={{ position: "absolute", top: -28, left: 0, width: "100%", height: "calc(100% + 28px)", pointerEvents: "none", filter: "drop-shadow(0 -1px 3px rgba(0,0,0,0.06))" }} viewBox="0 0 400 90" preserveAspectRatio="none">
+        <path d="M0,28 L155,28 C162,28 166,27 170,23 C175,17 181,6 200,6 C219,6 225,17 230,23 C234,27 238,28 245,28 L400,28 L400,90 L0,90 Z" fill={WH} />
+        <path d="M0,28 L155,28 C162,28 166,27 170,23 C175,17 181,6 200,6 C219,6 225,17 230,23 C234,27 238,28 245,28 L400,28" fill="none" stroke={SBB} strokeWidth="0.7" />
+      </svg>
+      <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: 60, padding: "0 4px" }}>
+        {/* Left tabs */}
+        <Tab id="overview" icon="building" label="Projet" />
+        <Tab id="notes" icon="file" label="PV" />
+        {/* Center FAB — raised into the bump */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
+          <button onClick={onCapture} aria-label="Photo" style={{ width: 56, height: 56, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #C06A08 100%)`, border: "none", boxShadow: `0 0 20px rgba(217,123,13,0.4), 0 0 40px rgba(217,123,13,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 16 }}>
+            <Ico name="camera" size={22} color="#fff" />
+            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Photo</span>
+          </button>
+        </div>
+        {/* Right tabs */}
+        <Tab id="plan" icon="folder" label="Docs" />
+        <Tab id="profile" icon="user" label="Profil" />
+      </div>
+    </nav>
+  );
+}
+
+// ── Mobile Capture Sheet ──────────────────────────────────
+function CaptureSheet({ open, onClose, onPhoto, onGallery, photoCount }) {
+  if (!open) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={onClose}>
+      <div style={{ background: "rgba(0,0,0,0.3)", position: "absolute", inset: 0 }} />
+      <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", padding: `${SP.xl}px ${SP.lg}px`, paddingBottom: `max(${SP.xl}px, env(safe-area-inset-bottom, 20px))`, animation: "sheetUp 0.25s ease-out" }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: "0 auto 20px" }} />
+        <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.xs, textAlign: "center" }}>Photos</div>
+        <div style={{ fontSize: FS.base, color: TX3, marginBottom: SP.xl, textAlign: "center" }}>Capturez ou consultez les photos du chantier</div>
+        <div style={{ display: "flex", gap: SP.md }}>
+          {/* Prendre une photo */}
+          <button onClick={onPhoto} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: SP.sm, padding: `${SP.xl}px ${SP.md}px`, border: `2px solid ${AC}`, borderRadius: RAD.xxl, background: `linear-gradient(180deg, ${ACL} 0%, #FFF8F0 100%)`, cursor: "pointer", fontFamily: "inherit" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(217,123,13,0.3)" }}>
+              <Ico name="camera" size={24} color="#fff" />
+            </div>
+            <div style={{ fontSize: FS.md + 1, fontWeight: 700, color: TX }}>Prendre</div>
+            <div style={{ fontSize: FS.sm, color: TX2, lineHeight: LH.relaxed }}>Ouvrir la caméra</div>
+          </button>
+          {/* Voir les photos */}
+          <button onClick={onGallery} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: SP.sm, padding: `${SP.xl}px ${SP.md}px`, border: `1.5px solid ${SBB}`, borderRadius: RAD.xxl, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: SB, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Ico name="image" size={24} color={TX2} />
+            </div>
+            <div style={{ fontSize: FS.md + 1, fontWeight: 700, color: TX }}>Galerie</div>
+            <div style={{ fontSize: FS.sm, color: TX3, lineHeight: LH.relaxed }}>{photoCount > 0 ? `${photoCount} photo${photoCount > 1 ? "s" : ""}` : "Aucune photo"}</div>
+          </button>
+        </div>
+        <button onClick={onClose} style={{ width: "100%", marginTop: SP.lg, padding: `${SP.sm + 2}px`, border: `1px solid ${SBB}`, borderRadius: RAD.lg, background: WH, cursor: "pointer", fontSize: FS.md, color: TX3, fontFamily: "inherit" }}>Annuler</button>
+      </div>
+    </div>
+  );
+}
 
 function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats }) {
   const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
@@ -1773,6 +1850,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
   const t = useT();
   const [showAllPV, setShowAllPV] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
+  const [mobileSheet, setMobileSheet] = useState(null); // "pv" | "actions" | "team" | "meeting"
 
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
@@ -1795,8 +1873,8 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
 
-      {/* ── Barre contexte projet ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      {/* ── Barre contexte projet — masquée sur mobile (redondant avec header) ── */}
+      <div className="ap-context-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <StatusBadge statusId={project.statusId} />
           {project.client     && <span style={{ fontSize: 12, color: TX3 }}>MO <strong style={{ color: TX2, fontWeight: 600 }}>{project.client}</strong></span>}
@@ -1858,10 +1936,89 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
       <div className="ap-overview-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
 
         {/* ═══ Colonne principale ═══ */}
-        <div style={{ flex: "1 1 360px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+        <div className="ap-col-main" style={{ flex: "1 1 360px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+
+          {/* ── Mobile Dashboard — compact, 1 screen, tap to expand ── */}
+          <div className="ap-mobile-dashboard" style={{ display: "none", flexDirection: "column", gap: SP.sm }}>
+            {/* Grid 2x2 — tappable summary cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SP.sm }}>
+              {/* PV card */}
+              <button onClick={() => setMobileSheet("pv")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
+                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="file" size={16} color={AC} />
+                </div>
+                <div>
+                  <div style={{ fontSize: FS.xl, fontWeight: 700, color: TX, lineHeight: 1 }}>{project.pvHistory.length}</div>
+                  <div style={{ fontSize: FS.xs, color: TX3 }}>PV rédigés</div>
+                </div>
+              </button>
+              {/* Actions card */}
+              <button onClick={() => setMobileSheet("actions")} style={{ background: WH, border: `1px solid ${openActions.length > 0 ? "#FECACA" : SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
+                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: openActions.length > 0 ? "#FEF2F2" : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="alert" size={16} color={openActions.length > 0 ? RD : GR} />
+                </div>
+                <div>
+                  <div style={{ fontSize: FS.xl, fontWeight: 700, color: openActions.length > 0 ? RD : TX, lineHeight: 1 }}>{openActions.length}</div>
+                  <div style={{ fontSize: FS.xs, color: TX3 }}>Actions</div>
+                </div>
+              </button>
+              {/* Équipe card */}
+              <button onClick={() => setMobileSheet("team")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
+                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="users" size={16} color={AC} />
+                </div>
+                <div>
+                  <div style={{ fontSize: FS.xl, fontWeight: 700, color: TX, lineHeight: 1 }}>{project.participants.length}</div>
+                  <div style={{ fontSize: FS.xs, color: TX3 }}>Équipe</div>
+                </div>
+              </button>
+              {/* Réunion card */}
+              <button onClick={() => setMobileSheet("meeting")} style={{ background: WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
+                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: project.nextMeeting ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="calendar" size={16} color={project.nextMeeting ? AC : TX3} />
+                </div>
+                <div>
+                  <div style={{ fontSize: project.nextMeeting ? FS.base : FS.sm, fontWeight: 700, color: TX, lineHeight: 1 }}>{project.nextMeeting || "—"}</div>
+                  <div style={{ fontSize: FS.xs, color: TX3 }}>Réunion</div>
+                </div>
+              </button>
+            </div>
+            {/* Dernier PV — preview compact */}
+            {lastPV && (
+              <button onClick={() => onViewPV(lastPV)} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.md, width: "100%" }}>
+                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="file" size={16} color={TX3} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: FS.base, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastPV.title || `PV n°${lastPV.number}`}</div>
+                  <div style={{ fontSize: FS.xs, color: TX3 }}>{relativeDate(lastPV.date)} · {lastPV.author}</div>
+                </div>
+                <Ico name="chevron-right" size={14} color={TX3} />
+              </button>
+            )}
+            {/* Captures section */}
+            {(() => {
+              const allPhotos = project.posts.flatMap(p => (p.photos || []).map(ph => ({ ...ph, postId: p.id, postLabel: p.label })));
+              const unclassified = project.posts.filter(p => (p.photos || []).length > 0 && (p.remarks || []).length === 0).reduce((acc, p) => acc + (p.photos || []).length, 0);
+              if (allPhotos.length === 0) return null;
+              return (
+                <button onClick={() => onStartNotes()} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.md, width: "100%" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name="camera" size={16} color={AC} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS.base, fontWeight: 600, color: TX }}>{allPhotos.length} capture{allPhotos.length > 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: FS.xs, color: unclassified > 0 ? AC : TX3 }}>{unclassified > 0 ? `${unclassified} non classée${unclassified > 1 ? "s" : ""}` : "Toutes classées"}</div>
+                  </div>
+                  <span style={{ fontSize: FS.xs, fontWeight: 600, color: AC }}>Voir</span>
+                  <Ico name="chevron-right" size={14} color={AC} />
+                </button>
+              );
+            })()}
+          </div>
 
           {/* CTA Nouveau PV */}
-          <button className="ap-touch-btn" onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
+          <button className="ap-touch-btn ap-cta-newpv" onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Ico name="edit" size={16} color="#fff" />
             </div>
@@ -1874,8 +2031,8 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
             <Ico name="arrowr" size={16} color="rgba(255,255,255,0.7)" style={{ marginLeft: "auto" }} />
           </button>
 
-          {/* Outils rapides */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {/* Outils rapides — masqués sur mobile (bottom bar remplace) */}
+          <div className="ap-quick-tools" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[
               { label: "Documents",            icon: "folder",    color: BL,  bg: BLB,  count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
               { label: t("project.planning"),  icon: "gantt",     color: GR,  bg: GRBG, count: (project.lots||[]).length,        onClick: onViewPlanning },
@@ -1889,8 +2046,25 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
             ))}
           </div>
 
+          {/* Mobile: Accès rapides (Documents, Planning, Listes) */}
+          <div className="ap-mobile-shortcuts" style={{ display: "none", gap: SP.sm }}>
+            {[
+              { label: "Documents", icon: "folder", color: BL, bg: BLB, count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
+              { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
+              { label: "Listes",    icon: "listcheck", color: TE, bg: TEB, count: (project.checklists||[]).length, onClick: onViewChecklists },
+            ].map(s => (
+              <button key={s.label} onClick={s.onClick} style={{ flex: 1, padding: `${SP.sm + 2}px ${SP.sm}px`, border: `1px solid ${s.color}20`, borderRadius: RAD.lg, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: SP.sm, minHeight: 44 }}>
+                <Ico name={s.icon} size={16} color={s.color} />
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontSize: FS.sm, fontWeight: 600, color: s.color }}>{s.label}</div>
+                  {s.count > 0 && <div style={{ fontSize: FS.xs - 1, color: s.color, opacity: 0.7 }}>{s.count} élément{s.count > 1 ? "s" : ""}</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+
           {/* Dernier PV */}
-          <Card>
+          <div className="ap-section-pv"><Card>
             <CardHeader
               title={t("project.pvHistory")}
               action={<SmallBtn onClick={onImportPV} icon="upload" label={t("import")} />}
@@ -1956,10 +2130,10 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 )}
               </>
             )}
-          </Card>
+          </Card></div>
 
           {/* Actions */}
-          <Card>
+          <div className="ap-section-actions"><Card>
             <CardHeader
               title={t("project.actions")}
               action={openActions.length > 0
@@ -2014,77 +2188,213 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 ))}
               </div>
             )}
-          </Card>
+          </Card></div>
 
         </div>
 
         {/* ═══ Colonne secondaire ═══ */}
-        <div className={`ap-overview-side${sideOpen ? " open" : ""}`} style={{ flex: "0 1 272px", display: "flex", flexDirection: "column", gap: SP.lg - 2, minWidth: 220 }}>
-          {/* Toggle mobile — visible uniquement < 768px */}
-          <button className="ap-side-toggle" onClick={() => setSideOpen(v => !v)} style={{ display: "none", width: "100%", padding: `${SP.sm + 2}px ${SP.md}px`, border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, cursor: "pointer", fontFamily: "inherit", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: FS.md, fontWeight: 600, color: TX }}>Infos projet</span>
-            <Ico name={sideOpen ? "chevron-up" : "chevron-down"} size={12} color={TX3} />
-          </button>
-          <div className="ap-side-content" style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
+        <div className="ap-overview-side" style={{ flex: "0 1 272px", display: "flex", flexDirection: "column", gap: SP.lg - 2, minWidth: 220 }}>
 
-          {/* Prochaine réunion */}
-          <MeetingCard project={project} setProjects={setProjects} rec={rec} />
-
-          {/* Météo du jour */}
-          {(project.city || project.address) && <WeatherWidget address={project.city || formatAddress(project)} />}
-
-          {/* Participants */}
-          <Card>
-            <CardHeader
-              title={`Participants (${project.participants.length})`}
-              action={<button onClick={onEditParticipants} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>}
-            />
-            {project.participants.length === 0 && <div style={{ fontSize: 13, color: TX3 }}>Aucun participant.</div>}
-            {project.participants.map((p, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 0", borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: AC, flexShrink: 0 }}>
-                  {p.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: TX3 }}>{p.role}{p.phone ? ` · ${p.phone}` : ""}</div>
-                </div>
+          {/* ── Mobile: Participants inline (avatars cliquables) ── */}
+          <div className="ap-mobile-participants" style={{ display: "none" }}>
+            <Card>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.sm }}>
+                <span style={{ fontSize: FS.sm, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>Équipe</span>
+                <button onClick={onEditParticipants} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", gap: SP.xs }}>
+                  <Ico name="edit" size={11} color={TX3} /><span style={{ fontSize: FS.xs, color: TX3 }}>Modifier</span>
+                </button>
               </div>
-            ))}
-            <button onClick={onCollab} style={{ width: "100%", marginTop: 10, padding: "8px 12px", border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: AC, transition: "all 0.15s" }}>
-              <Ico name="plus" size={12} color={AC} />
-              Inviter des collaborateurs
-            </button>
-          </Card>
-
-          {/* Informations projet */}
-          <Card>
-            <CardHeader title={t("project.info")} action={<button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>} />
-            {[
-              [t("project.client"), project.client],
-              [t("project.enterprise"),       project.contractor],
-              [t("project.address"),          formatAddress(project)],
-              [t("project.startDate"),            project.startDate],
-              [t("project.endDate"),       project.endDate || "—"],
-              ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => [cf.label, cf.value]),
-            ].filter(([, v]) => v).map(([k, v], i, arr) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
-                <span style={{ fontSize: 11, color: TX3, flexShrink: 0 }}>{k}</span>
-                <span style={{ fontSize: 11, color: TX, fontWeight: 500, textAlign: "right" }}>{v}</span>
+              <div style={{ display: "flex", gap: SP.sm, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 2 }}>
+                {project.participants.map((p, i) => (
+                  <a key={i} href={p.phone ? `tel:${p.phone.replace(/\s/g, "")}` : undefined} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56, textDecoration: "none", flexShrink: 0 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: AC, border: p.phone ? `2px solid ${AC}` : `2px solid ${SBB}` }}>
+                      {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <span style={{ fontSize: 9, color: TX, fontWeight: 500, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 56 }}>{p.name.split(" ")[0]}</span>
+                    <span style={{ fontSize: 8, color: TX3, marginTop: -2 }}>{p.role}</span>
+                  </a>
+                ))}
+                <button onClick={onCollab} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px dashed ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="plus" size={14} color={TX3} />
+                  </div>
+                  <span style={{ fontSize: 9, color: TX3 }}>Inviter</span>
+                </button>
               </div>
-            ))}
-          </Card>
-
-          {/* Actions projet */}
-          <div style={{ display: "flex", gap: 6 }}>
-            <SmallBtn onClick={onEditInfo} icon="edit" label={t("edit")} />
-            <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
-            <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
+              {project.participants.some(p => p.phone) && (
+                <div style={{ fontSize: FS.xs - 1, color: TX3, marginTop: SP.sm, textAlign: "center", fontStyle: "italic" }}>Appuyez sur un contact pour appeler</div>
+              )}
+            </Card>
           </div>
 
-          </div>{/* end ap-side-content */}
+          {/* ── Mobile: Infos projet compactes ── */}
+          <div className="ap-mobile-infos" style={{ display: "none" }}>
+            <Card>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.sm }}>
+                <span style={{ fontSize: FS.sm, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>Projet</span>
+                <button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", gap: SP.xs }}>
+                  <Ico name="edit" size={11} color={TX3} /><span style={{ fontSize: FS.xs, color: TX3 }}>Modifier</span>
+                </button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${SP.sm}px ${SP.md}px` }}>
+                {[
+                  { icon: "users",    label: "MO",       value: project.client },
+                  { icon: "building", label: "Entreprise", value: project.contractor },
+                  { icon: "mappin",   label: "Lieu",     value: project.city || formatAddress(project) },
+                  { icon: "calendar", label: "Début",    value: project.startDate },
+                ].filter(item => item.value).map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: SP.sm - 2, padding: `${SP.sm - 2}px 0` }}>
+                    <Ico name={item.icon} size={12} color={TX3} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 8, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>{item.label}</div>
+                      <div style={{ fontSize: FS.sm, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.value}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          {/* ── Desktop: full cards (hidden on mobile) ── */}
+          <div className="ap-desktop-side">
+            <div style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
+              <MeetingCard project={project} setProjects={setProjects} rec={rec} />
+
+              {(project.city || project.address) && <WeatherWidget address={project.city || formatAddress(project)} />}
+
+              <Card>
+                <CardHeader
+                  title={`Participants (${project.participants.length})`}
+                  action={<button onClick={onEditParticipants} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>}
+                />
+                {project.participants.length === 0 && <div style={{ fontSize: 13, color: TX3 }}>Aucun participant.</div>}
+                {project.participants.map((p, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 0", borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
+                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: AC, flexShrink: 0 }}>
+                      {p.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                      <div style={{ fontSize: 11, color: TX3 }}>{p.role}{p.phone ? ` · ${p.phone}` : ""}</div>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={onCollab} style={{ width: "100%", marginTop: 10, padding: "8px 12px", border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: AC, transition: "all 0.15s" }}>
+                  <Ico name="plus" size={12} color={AC} />
+                  Inviter des collaborateurs
+                </button>
+              </Card>
+
+              <Card>
+                <CardHeader title={t("project.info")} action={<button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>} />
+                <div className="ap-info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${SP.md}px ${SP.lg}px` }}>
+                  {[
+                    { icon: "users",   label: t("project.client"),     value: project.client },
+                    { icon: "building", label: t("project.enterprise"), value: project.contractor },
+                    { icon: "mappin",  label: t("project.address"),     value: formatAddress(project) },
+                    { icon: "calendar", label: t("project.startDate"),  value: project.startDate },
+                    { icon: "calendar", label: t("project.endDate"),    value: project.endDate || "—" },
+                    ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => ({ icon: "file", label: cf.label, value: cf.value })),
+                  ].filter(item => item.value).map((item, i) => (
+                    <div key={i} style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 2 }}>
+                        <Ico name={item.icon} size={11} color={TX3} />
+                        <span style={{ fontSize: FS.xs, color: TX3, fontWeight: 500 }}>{item.label}</span>
+                      </div>
+                      <div style={{ fontSize: FS.base, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <div className="ap-admin-actions" style={{ display: "flex", gap: 6 }}>
+                <SmallBtn onClick={onEditInfo} icon="edit" label={t("edit")} />
+                <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
+                <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
+
+      {/* ── Mobile Sheets ── */}
+      {mobileSheet && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={() => setMobileSheet(null)}>
+          <div style={{ background: "rgba(0,0,0,0.3)", position: "absolute", inset: 0 }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "sheetUp 0.25s ease-out", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `${SP.md}px auto ${SP.sm}px` }} />
+
+            {/* Sheet: PV History */}
+            {mobileSheet === "pv" && (
+              <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, overflowY: "auto" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.md }}>
+                  <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Historique PV</span>
+                  <SmallBtn onClick={onImportPV} icon="upload" label="Importer" />
+                </div>
+                {project.pvHistory.length === 0 ? (
+                  <div style={{ padding: `${SP.xl}px 0`, textAlign: "center", color: TX3, fontSize: FS.md }}>Aucun PV rédigé</div>
+                ) : project.pvHistory.map((pv, i) => (
+                  <PvRow key={i} pv={pv} onViewPV={(p) => { setMobileSheet(null); onViewPV(p); }} onViewPdf={(p) => { setMobileSheet(null); onViewPdf(p); }} updatePvStatus={updatePvStatus} t={t} />
+                ))}
+              </div>
+            )}
+
+            {/* Sheet: Actions */}
+            {mobileSheet === "actions" && (
+              <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, overflowY: "auto" }}>
+                <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, display: "block", marginBottom: SP.md }}>Actions ({openActions.length} ouverte{openActions.length > 1 ? "s" : ""})</span>
+                {openActions.length === 0 && <div style={{ padding: `${SP.xl}px 0`, textAlign: "center", color: TX3, fontSize: FS.md }}>Aucune action ouverte</div>}
+                {openActions.map(a => (
+                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: SP.sm, padding: `${SP.sm}px 0`, borderTop: `1px solid ${SB2}` }}>
+                    <button onClick={() => toggleAction(a.id)} style={{ width: 24, height: 24, borderRadius: RAD.sm, border: `2px solid ${a.urgent ? RD : SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }} />
+                    <span style={{ fontSize: FS.md, color: TX, flex: 1 }}>{a.text}</span>
+                    {a.urgent && <span style={{ fontSize: FS.xs, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "2px 6px", borderRadius: 4 }}>Urgent</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Sheet: Team */}
+            {mobileSheet === "team" && (
+              <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, overflowY: "auto" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.md }}>
+                  <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Équipe</span>
+                  <button onClick={() => { setMobileSheet(null); onEditParticipants(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, color: AC, fontWeight: 600, fontFamily: "inherit" }}>Modifier</button>
+                </div>
+                {project.participants.map((p, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 2}px 0`, borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
+                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.base, fontWeight: 700, color: AC, flexShrink: 0 }}>
+                      {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS.md, fontWeight: 600, color: TX }}>{p.name}</div>
+                      <div style={{ fontSize: FS.sm, color: TX3 }}>{p.role}</div>
+                    </div>
+                    {p.phone && (
+                      <a href={`tel:${p.phone.replace(/\s/g, "")}`} style={{ width: 36, height: 36, borderRadius: "50%", background: GRBG, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", flexShrink: 0 }}>
+                        <Ico name="phone" size={16} color={GR} />
+                      </a>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => { setMobileSheet(null); onCollab(); }} style={{ width: "100%", marginTop: SP.md, padding: `${SP.sm + 2}px`, border: `1px dashed ${SBB}`, borderRadius: RAD.md, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.base, color: AC }}>
+                  <Ico name="plus" size={14} color={AC} />Inviter
+                </button>
+              </div>
+            )}
+
+            {/* Sheet: Meeting */}
+            {mobileSheet === "meeting" && (
+              <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px` }}>
+                <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, display: "block", marginBottom: SP.md }}>Prochaine réunion</span>
+                <MeetingCard project={project} setProjects={setProjects} rec={rec} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -3139,6 +3449,15 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
     setContErr("");
     try {
       const posts = project.posts.map(p => ({ id: p.id, label: p.label }));
+      console.log("dispatch-remarks payload:", { transcript: transcript?.slice(0, 100), transcriptLength: transcript?.length, postsCount: posts.length, posts });
+      if (!transcript?.trim()) {
+        throw new Error("La transcription est vide. Parlez dans le microphone avant de répartir.");
+      }
+      if (!posts?.length) {
+        // Auto-create a default post if none exist
+        setProjects(prev => prev.map(p => p.id === project.id && (!p.posts || p.posts.length === 0) ? { ...p, posts: [{ id: "01", label: "Situation du chantier", notes: "", remarks: [] }] } : p));
+        throw new Error("Aucun poste défini — un poste par défaut a été créé. Réessayez.");
+      }
       const { data, error } = await supabase.functions.invoke("dispatch-remarks", {
         body: { transcript, posts },
       });
@@ -3556,11 +3875,46 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
   const totalPhotos  = project.posts.reduce((acc, p) => acc + (p.photos || []).length, 0);
   const readyToGenerate = filledCount > 0 && recipientFilters !== null;
 
+  // Steps data (shared between desktop and mobile)
+  const stepsData = [
+    { step: 1, label: "Saisie", sub: `${filledCount}/${project.posts.length} postes`, icon: "listcheck", done: filledCount > 0 },
+    { step: 2, label: "Destinataires", sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? "Tous" : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
+    { step: 3, label: "Générer", sub: readyToGenerate ? "Prêt" : "En attente", icon: "send", done: false },
+  ];
+  const activeStepIdx = stepsData.findIndex(s => !s.done);
+  const currentStep = activeStepIdx === -1 ? stepsData.length - 1 : activeStepIdx;
+
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", paddingBottom: 32 }}>
 
-      {/* ── Header ── */}
-      <div style={{ background: WH, borderRadius: 12, padding: "16px 20px 14px", marginBottom: 14, border: `1px solid ${SBB}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      {/* ── Mobile stepper — clean 3-step indicator ── */}
+      <div className="ap-note-mobile-stepper" style={{ display: "none", padding: `${SP.md}px ${SP.lg}px ${SP.sm}px`, marginBottom: SP.sm }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
+          {stepsData.map((s, i) => {
+            const isDone = s.done;
+            const isActive = i === currentStep;
+            return (
+              <div key={s.step} style={{ display: "flex", alignItems: "center" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 64 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: isDone ? AC : isActive ? WH : SB2, border: `2px solid ${isDone ? AC : isActive ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s" }}>
+                    {isDone ? <Ico name="check" size={14} color="#fff" /> : <span style={{ fontSize: FS.md, fontWeight: 700, color: isActive ? AC : TX3 }}>{s.step}</span>}
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: FS.sm, fontWeight: isActive || isDone ? 700 : 500, color: isActive ? TX : isDone ? AC : TX3 }}>{s.label}</div>
+                    <div style={{ fontSize: FS.xs - 1, color: isDone ? GR : isActive ? AC : TX3 }}>{isDone ? "Fait" : s.sub}</div>
+                  </div>
+                </div>
+                {i < stepsData.length - 1 && (
+                  <div style={{ width: 32, height: 2, background: isDone ? AC : SBB, borderRadius: 1, marginBottom: 20 }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Desktop Header ── */}
+      <div className="ap-note-desktop-header" style={{ background: WH, borderRadius: 12, padding: "16px 20px 14px", marginBottom: 14, border: `1px solid ${SBB}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0, marginTop: 1 }}>
             <Ico name="back" color={TX2} size={16} />
@@ -5300,7 +5654,8 @@ function DocumentsView({ project, setProjects, onBack }) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+      {/* Desktop header with back button */}
+      <div className="ap-docs-header" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}><Ico name="back" color={TX2} /></button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 17, fontWeight: 600, color: TX }}>{t("docs.title")}</div>
@@ -5308,8 +5663,8 @@ function DocumentsView({ project, setProjects, onBack }) {
         </div>
       </div>
 
-      {/* Zone d'upload */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      {/* Zone d'upload — desktop only */}
+      <div className="ap-docs-upload" style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 160px" }}>
             <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 6 }}>{t("docs.category")}</div>
@@ -5326,8 +5681,16 @@ function DocumentsView({ project, setProjects, onBack }) {
         <div style={{ fontSize: 11, color: TX3, marginTop: 8 }}>{t("docs.formats")}</div>
       </div>
 
-      {/* Onglets catégories */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      {/* Mobile title */}
+      <div className="ap-docs-mobile-title" style={{ display: "none", alignItems: "center", justifyContent: "space-between", marginBottom: SP.md }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>Documents</div>
+          <div style={{ fontSize: FS.sm, color: TX3 }}>{docs.length} document{docs.length !== 1 ? "s" : ""}</div>
+        </div>
+      </div>
+
+      {/* Onglets catégories — scrollable on mobile */}
+      <div className="ap-docs-tabs" style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {[{ id: "all", label: t("all"), count: docs.length }, ...DOC_CATEGORIES.map((c) => ({ id: c.id, label: c.label, count: docs.filter((d) => d.category === c.id).length }))].map((tab) => (
           <button key={tab.id} onClick={() => setActiveCategory(tab.id)} style={{ padding: "5px 14px", border: `1px solid ${activeCategory === tab.id ? AC : SBB}`, borderRadius: 20, background: activeCategory === tab.id ? ACL : WH, color: activeCategory === tab.id ? AC : TX2, fontWeight: activeCategory === tab.id ? 600 : 400, fontSize: 12, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
             {tab.label} <span style={{ opacity: 0.65 }}>({tab.count})</span>
@@ -5353,7 +5716,7 @@ function DocumentsView({ project, setProjects, onBack }) {
             const cat = catInfo(doc.category);
             const cur = getDocCurrent(doc);
             return (
-              <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: WH, border: `1px solid ${SBB}`, borderRadius: 10 }}>
+              <div key={doc.id} className="ap-doc-row" onClick={() => { if (window.innerWidth <= 768) setViewDoc({ name: doc.name, dataUrl: cur.dataUrl, type: cur.type }); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: WH, border: `1px solid ${SBB}`, borderRadius: 10, cursor: window.innerWidth <= 768 ? "pointer" : "default" }}>
                 {cur.type === "image" ? (
                   <img src={cur.dataUrl} alt="" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: `1px solid ${SBB}` }} />
                 ) : (
@@ -5828,9 +6191,9 @@ function PlanManager({ project, setProjects, onBack }) {
     );
   };
 
-  // Action buttons shared component
+  // Action buttons shared component — hidden on mobile
   const ItemActions = ({ item }) => (
-    <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+    <div className="ap-plan-item-actions" style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
       {/* Annotate — only for images & PDFs */}
       {(item.type === "image" || item.type === "pdf") && (
         <button onClick={() => setActivePlanId(item.id)} title="Annoter le plan" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${AC}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
@@ -5881,8 +6244,8 @@ function PlanManager({ project, setProjects, onBack }) {
             <div key={folder.id}>
               <div className="plan-folder-row" onClick={() => toggleExpand(folder.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 2 }}>
                 <Ico name={isOpen ? "chevron-up" : "chevron-down"} size={11} color={TX3} />
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="folder" size={14} color={AC} />
+                <div style={{ width: 32, height: 32, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="folder" size={16} color={AC} />
                 </div>
                 {renaming === folder.id ? (
                   <input value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
@@ -5892,11 +6255,11 @@ function PlanManager({ project, setProjects, onBack }) {
                   />
                 ) : (
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: TX }}>{folder.name}</span>
-                    <span style={{ fontSize: 10, color: TX3, marginLeft: 6 }}>{childCount}</span>
+                    <span style={{ fontSize: FS.md, fontWeight: 600, color: TX }}>{folder.name}</span>
+                    <span style={{ fontSize: FS.sm, color: TX3, marginLeft: 6 }}>{childCount}</span>
                   </div>
                 )}
-                <div style={{ display: "flex", gap: 1, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                <div className="ap-plan-folder-actions" style={{ display: "flex", gap: 1, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                   <button onClick={() => { setUploadTarget(folder.id); uploadRef.current?.click(); }} title="Importer ici" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="plus" size={11} color={TX3} />
                   </button>
@@ -5915,7 +6278,7 @@ function PlanManager({ project, setProjects, onBack }) {
                 </div>
               </div>
               {/* New subfolder inline */}
-              {newFolderParent === folder.id && (
+              {newFolderParent === folder.id && (/* ap-plan-new-folder — hidden on mobile */
                 <div style={{ display: "flex", gap: 4, padding: "4px 10px 4px 52px", marginBottom: 4, animation: "fadeIn 0.12s ease-out" }}>
                   <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nom du sous-dossier..." autoFocus
                     onKeyDown={e => { if (e.key === "Enter") createFolder(folder.id); if (e.key === "Escape") setNewFolderParent(null); }}
@@ -5961,8 +6324,8 @@ function PlanManager({ project, setProjects, onBack }) {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+      {/* Header — desktop only */}
+      <div className="ap-plan-header" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Ico name="back" color={TX2} />
         </button>
@@ -5972,8 +6335,8 @@ function PlanManager({ project, setProjects, onBack }) {
         </div>
       </div>
 
-      {/* Actions bar */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      {/* Actions bar — desktop only */}
+      <div className="ap-plan-actions-bar" style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         <button onClick={() => { setUploadTarget(null); uploadRef.current?.click(); }} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
           <Ico name="upload" size={13} color="#fff" />Importer
         </button>
@@ -5982,7 +6345,7 @@ function PlanManager({ project, setProjects, onBack }) {
         </button>
         <input ref={uploadRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.dwg,.dxf,.skp,.rvt,.rfa,.ifc,.psd,.ai,.indd,.fig,.sketch,.3dm,.step,.stp,.odt,.ods,.odp,.rtf,.txt" multiple style={{ display: "none" }} onChange={(e) => { handleUpload(e.target.files, uploadTarget); e.target.value = ""; }} />
       </div>
-      <div style={{ fontSize: 10, color: TX3, marginBottom: 14, lineHeight: 1.6, padding: "0 2px" }}>
+      <div className="ap-plan-formats" style={{ fontSize: 10, color: TX3, marginBottom: 14, lineHeight: 1.6, padding: "0 2px" }}>
         Formats acceptés : <strong>Images</strong> (JPG, PNG, SVG, TIFF) · <strong>PDF</strong> · <strong>CAO</strong> (DWG, DXF, SketchUp, Revit, IFC) · <strong>Documents</strong> (Word, Excel, PowerPoint, CSV) · <strong>Design</strong> (PSD, AI, InDesign, Figma)
       </div>
 
@@ -7911,42 +8274,190 @@ function ProfileView({ profile, onSave }) {
   const refFor = (id) => (el) => { sectionRefs.current[id] = el; };
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
+  const [mobileSection, setMobileSection] = useState(null); // which section sheet is open
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 700);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  return (
-    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: 780, margin: "0 auto", padding: 0, gap: 0 }}>
-      {/* ── Navigation ── */}
-      {isMobile ? (
-        <nav style={{
-          display: "flex", gap: 4, overflowX: "auto", scrollbarWidth: "none",
-          padding: "10px 12px", borderBottom: `1px solid ${SBB}`, background: WH,
-          position: "sticky", top: 0, zIndex: 10, flexShrink: 0,
-        }}>
-          {PROFILE_SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => scrollTo(s.id)}
-              style={{
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "6px 12px", border: "none", borderRadius: 20,
-                background: activeSection === s.id ? ACL : "transparent",
-                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                transition: "all 0.15s", flexShrink: 0,
-              }}
-            >
-              <Ico name={s.icon} size={12} color={activeSection === s.id ? AC : TX3} />
-              <span style={{
-                fontSize: 11, fontWeight: activeSection === s.id ? 600 : 500,
-                color: activeSection === s.id ? AC : TX2,
-              }}>{s.label}</span>
+  // Mobile profile — completely different layout
+  if (isMobile) {
+    const MOBILE_SECTIONS = [
+      { id: "info", icon: "file", label: "Informations personnelles", desc: `${form.name} · ${form.structure}` },
+      { id: "account", icon: "mail", label: "Compte & email", desc: authEmail || "Email de connexion" },
+      { id: "security", icon: "eye", label: "Sécurité", desc: "Authentification à deux facteurs" },
+      { id: "signature", icon: "edit", label: "Signature email", desc: form.emailSignature ? "Configurée" : "Non configurée" },
+      { id: "lang", icon: "building", label: "Langue", desc: form.lang === "fr" ? "Français" : "English" },
+      { id: "appearance", icon: "chart", label: "Apparence du PV", desc: `${(form.pdfColor || "#D97B0D").toUpperCase()} · ${form.pdfFont || "helvetica"}` },
+    ];
+    const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
+    return (
+      <div className="ap-profile-mobile" style={{ maxWidth: 480, margin: "0 auto", padding: `${SP.md}px ${SP.lg}px 68px`, display: "flex", flexDirection: "column", height: "calc(100vh - 68px)", justifyContent: "center", overflow: "hidden" }}>
+        {/* Avatar + Name — compact */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: SP.md }}>
+          <div style={{ position: "relative", marginBottom: SP.sm }}>
+            {form.picture ? (
+              <img src={form.picture} alt="profil" style={{ width: 76, height: 76, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
+            ) : (
+              <div style={{ width: 76, height: 76, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
+            )}
+            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: AC, border: `2px solid ${WH}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              <Ico name="camera" size={11} color="#fff" />
+            </button>
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{form.name || "Votre nom"}</div>
+          <div style={{ fontSize: FS.base, color: TX3 }}>{form.structure || "Votre bureau"}</div>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePicture} />
+        </div>
+
+        {/* Section list — compact rows */}
+        <div style={{ background: WH, borderRadius: RAD.xxl, border: `1px solid ${SBB}`, overflow: "hidden", marginBottom: SP.sm, flex: "0 0 auto" }}>
+          {MOBILE_SECTIONS.map((s, i) => (
+            <button key={s.id} onClick={() => setMobileSection(s.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 3}px ${SP.lg}px`, border: "none", borderTop: i > 0 ? `1px solid ${SB2}` : "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: 44 }}>
+              <Ico name={s.icon} size={18} color={TX3} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: FS.base, fontWeight: 500, color: TX }}>{s.label}</div>
+              </div>
+              <span style={{ fontSize: FS.xs, color: TX3, maxWidth: 100, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
+              <Ico name="chevron-right" size={12} color={SBB} />
             </button>
           ))}
-        </nav>
-      ) : (
+        </div>
+
+        {/* Logout — integrated, subtle */}
+        <div style={{ background: WH, borderRadius: RAD.xxl, border: `1px solid ${SBB}`, overflow: "hidden" }}>
+          <button onClick={() => supabase.auth.signOut()} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 3}px ${SP.lg}px`, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: 44 }}>
+            <Ico name="logout" size={18} color={RD} />
+            <span style={{ fontSize: FS.base, fontWeight: 500, color: RD }}>Se déconnecter</span>
+          </button>
+        </div>
+
+        {/* ── Section Sheets ── */}
+        {mobileSection && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={() => setMobileSection(null)}>
+            <div style={{ background: "rgba(0,0,0,0.3)", position: "absolute", inset: 0 }} />
+            <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "85vh", overflowY: "auto", animation: "sheetUp 0.25s ease-out", padding: `${SP.xl}px ${SP.lg}px`, paddingBottom: `max(${SP.xl}px, env(safe-area-inset-bottom, 20px))` }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `0 auto ${SP.lg}px` }} />
+
+              {mobileSection === "info" && (
+                <>
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.lg }}>Informations</div>
+                  <Field label={t("profile.fullName")} value={form.name} onChange={set("name")} placeholder="ex: Gaëlle CNOP" required />
+                  <Field half={false} label={t("profile.structureName")} value={form.structure} onChange={set("structure")} placeholder="ex: DEWIL architecten" required />
+                  <Field label={t("profile.structureType")} value={form.structureType} onChange={set("structureType")} select options={STRUCTURE_TYPES} />
+                  <Field label={t("profile.address")} value={form.address} onChange={set("address")} placeholder="ex: Rue de la Loi 12, 1000 Bruxelles" />
+                  <Field label={t("profile.phone")} value={form.phone} onChange={set("phone")} placeholder="ex: 0474 50 85 80" type="tel" />
+                  <Field label={t("profile.email")} value={form.email} onChange={set("email")} placeholder="ex: contact@cabinet.be" type="email" />
+                </>
+              )}
+
+              {mobileSection === "account" && (
+                <>
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.sm }}>Compte</div>
+                  <div style={{ fontSize: FS.base, color: TX3, marginBottom: SP.lg, lineHeight: LH.relaxed }}>{t("profile.accountDesc")}</div>
+                  <label style={{ display: "block", fontSize: FS.base, fontWeight: 600, color: TX2, marginBottom: SP.xs }}>{t("profile.loginEmail")}</label>
+                  <input type="email" value={newAuthEmail} onChange={e => setNewAuthEmail(e.target.value)} placeholder={authEmail} style={{ width: "100%", padding: `${SP.sm + 1}px ${SP.md}px`, border: `1px solid ${SBB}`, borderRadius: RAD.md, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", marginBottom: SP.md }} />
+                  <button onClick={handleChangeAuthEmail} disabled={emailLoading || !newAuthEmail.trim() || newAuthEmail === authEmail} style={{ width: "100%", padding: SP.sm + 2, border: "none", borderRadius: RAD.md, background: newAuthEmail !== authEmail && newAuthEmail.trim() ? AC : DIS, color: "#fff", fontSize: FS.md, fontWeight: 600, cursor: newAuthEmail !== authEmail ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                    {emailLoading ? "..." : t("profile.changeEmail")}
+                  </button>
+                  {emailMsg && <div style={{ marginTop: SP.sm, fontSize: FS.sm, color: GR }}>{emailMsg}</div>}
+                  {emailErr && <div style={{ marginTop: SP.sm, fontSize: FS.sm, color: RD }}>{emailErr}</div>}
+                </>
+              )}
+
+              {mobileSection === "security" && (
+                <>
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.lg }}>Sécurité</div>
+                  <MfaSection />
+                </>
+              )}
+
+              {mobileSection === "signature" && (
+                <>
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.sm }}>Signature email</div>
+                  <div style={{ fontSize: FS.sm, color: TX3, marginBottom: SP.md }}>Ajoutée automatiquement à la fin de vos emails. Collez une image directement.</div>
+                  <div
+                    contentEditable suppressContentEditableWarning
+                    role="textbox" aria-label="Signature email" aria-multiline="true"
+                    onInput={e => set("emailSignature")(e.currentTarget.innerHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/\bon\w+\s*=/gi, "data-removed="))}
+                    onPaste={e => {
+                      const items = e.clipboardData?.items;
+                      if (!items) return;
+                      for (const item of items) {
+                        if (item.type.startsWith("image/")) {
+                          e.preventDefault();
+                          const file = item.getAsFile();
+                          if (!file || file.size > 500000) { if (file?.size > 500000) alert("Image trop lourde (max 500 Ko)"); return; }
+                          const reader = new FileReader();
+                          reader.onload = (ev) => { document.execCommand("insertImage", false, ev.target.result); set("emailSignature")(e.currentTarget.innerHTML); };
+                          reader.readAsDataURL(file);
+                          return;
+                        }
+                      }
+                    }}
+                    dangerouslySetInnerHTML={{ __html: form.emailSignature || "" }}
+                    style={{ width: "100%", minHeight: 120, padding: SP.md, border: `1px solid ${SBB}`, borderRadius: RAD.lg, fontSize: FS.base, lineHeight: LH.relaxed, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", outline: "none" }}
+                  />
+                  {!form.emailSignature && (
+                    <button onClick={() => set("emailSignature")(`Cordialement,<br>${form.name || "Votre nom"}<br>${form.structure || "Votre bureau"}${form.phone ? "<br>Tél : " + form.phone : ""}${form.email ? "<br>" + form.email : ""}`)} style={{ marginTop: SP.sm, padding: `${SP.sm - 1}px ${SP.md}px`, border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, cursor: "pointer", fontSize: FS.sm, fontFamily: "inherit", color: AC, fontWeight: 600 }}>
+                      Générer depuis mon profil
+                    </button>
+                  )}
+                </>
+              )}
+
+              {mobileSection === "lang" && (
+                <>
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.lg }}>Langue</div>
+                  <div style={{ display: "flex", gap: SP.sm }}>
+                    {[{ id: "fr", label: "Français", flag: "🇫🇷" }, { id: "en", label: "English", flag: "🇬🇧" }].map(l => (
+                      <button key={l.id} onClick={() => set("lang")(l.id)} style={{ flex: 1, padding: `${SP.md}px ${SP.lg}px`, border: `2px solid ${form.lang === l.id ? AC : SBB}`, borderRadius: RAD.lg, background: form.lang === l.id ? ACL : WH, cursor: "pointer", textAlign: "center", fontFamily: "inherit" }}>
+                        <span style={{ fontSize: 28, display: "block", marginBottom: SP.xs }}>{l.flag}</span>
+                        <span style={{ fontSize: FS.md, fontWeight: 700, color: form.lang === l.id ? AC : TX }}>{l.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {mobileSection === "appearance" && (
+                <>
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: SP.lg }}>Apparence du PV</div>
+                  <div style={{ fontSize: FS.md, fontWeight: 500, color: TX2, marginBottom: SP.sm }}>Couleur principale</div>
+                  <div style={{ display: "flex", gap: SP.sm, flexWrap: "wrap", marginBottom: SP.xl }}>
+                    {COLOR_PRESETS.map(c => (
+                      <button key={c.value} onClick={() => set("pdfColor")(c.value)} style={{ width: 40, height: 40, borderRadius: RAD.md, background: c.value, border: form.pdfColor === c.value ? `3px solid ${TX}` : "3px solid transparent", cursor: "pointer", padding: 0 }} />
+                    ))}
+                  </div>
+                  <div style={{ fontSize: FS.md, fontWeight: 500, color: TX2, marginBottom: SP.sm }}>Police</div>
+                  <div style={{ display: "flex", gap: SP.sm }}>
+                    {FONT_OPTIONS.map(f => (
+                      <button key={f.id} onClick={() => set("pdfFont")(f.id)} style={{ flex: 1, padding: `${SP.sm + 2}px ${SP.md}px`, border: `2px solid ${form.pdfFont === f.id ? AC : SBB}`, borderRadius: RAD.lg, background: form.pdfFont === f.id ? ACL : WH, cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>
+                        <div style={{ fontSize: FS.md, fontWeight: 700, color: form.pdfFont === f.id ? AC : TX, fontFamily: f.id === "times" ? "Georgia,serif" : "inherit" }}>{f.label}</div>
+                        <div style={{ fontSize: FS.xs, color: TX3 }}>{f.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Close / Done + auto-save */}
+              <button onClick={() => { doSave(); setMobileSection(null); }} style={{ width: "100%", marginTop: SP.xl, padding: SP.md, border: "none", borderRadius: RAD.lg, background: AC, color: "#fff", fontSize: FS.md, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Desktop layout
+  return (
+    <div style={{ display: "flex", maxWidth: 780, margin: "0 auto", padding: 0, gap: 0 }}>
+      {/* ── Navigation ── */}
+      {(
         <nav style={{
           width: 180, flexShrink: 0, alignSelf: "flex-start",
           paddingRight: 20, borderRight: `1px solid ${SBB}`, marginRight: 24,
@@ -8507,6 +9018,9 @@ export default function App() {
   const [dbLoaded, setDbLoaded] = useState(false);
   const [view, setView] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [captureSheet, setCaptureSheet] = useState(false);
+  const [projectPicker, setProjectPicker] = useState(false);
+  const mobilePhotoRef = useRef(null);
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
   const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none" });
@@ -8769,14 +9283,29 @@ export default function App() {
           .ap-header .ap-project-name { max-width: 140px !important; font-size: 14px !important; }
           .ap-header .ap-project-meta { max-width: 160px !important; }
 
-          /* Overview secondary column — collapsible on mobile */
-          .ap-side-toggle { display: flex !important; }
-          .ap-side-content { display: none !important; }
-          .ap-overview-side.open .ap-side-content { display: flex !important; }
+          /* Hide header on profile page — profile has its own header */
+          body:has(.ap-profile-mobile) .ap-header { display: none !important; }
 
-          /* Documents — menu contextuel sur mobile */
+          /* Overview secondary column — handled by mobile cards */
+
+          /* Documents — mobile: consultation only */
+          .ap-docs-header { display: none !important; }
+          .ap-docs-upload { display: none !important; }
+          .ap-docs-mobile-title { display: flex !important; }
+          .ap-docs-tabs { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none !important; padding-bottom: 2px !important; }
           .ap-doc-actions-desktop { display: none !important; }
-          .ap-doc-actions-mobile { display: block !important; }
+          .ap-doc-actions-mobile { display: none !important; }
+          .ap-doc-row { cursor: pointer !important; }
+          .ap-doc-row:active { background: ${SB} !important; }
+
+          /* PlanManager — consultation only on mobile */
+          .ap-plan-header { display: none !important; }
+          .ap-plan-actions-bar { display: none !important; }
+          .ap-plan-formats { display: none !important; }
+          .ap-plan-item-actions { display: none !important; }
+          .ap-plan-folder-actions { display: none !important; }
+          .plan-file-row { cursor: pointer !important; }
+          .plan-file-row:active { background: ${SB} !important; }
 
           /* Content area tighter padding */
           .ap-content { padding: 12px !important; }
@@ -8823,8 +9352,55 @@ export default function App() {
           .ap-header { padding: 4px 12px !important; }
           .ap-modal-card { max-height: 100% !important; height: 100% !important; border-radius: 0 !important; }
         }
+
+        /* ── Mobile: bottom tab bar replaces sidebar ── */
+        @media (max-width: 768px) {
+          .ap-mobile-bar { display: block !important; }
+          .ap-sidebar-desktop { display: none !important; }
+          .ap-sidebar-overlay { display: none !important; }
+          .ap-hamburger { display: none !important; }
+          .ap-back-btn { display: none !important; }
+
+          /* NoteEditor — mobile stepper */
+          .ap-note-mobile-stepper { display: block !important; }
+          .ap-note-desktop-header { display: none !important; }
+          .ap-main { margin-left: 0 !important; padding-bottom: 72px !important; }
+          .ap-project-name-desktop { display: none !important; }
+          .ap-project-switcher { display: block !important; }
+          .ap-header > div:first-child { flex: 1 1 0 !important; min-width: 0 !important; }
+
+          /* Overview mobile optimizations */
+          .ap-context-bar { display: none !important; }
+          .ap-quick-tools { display: none !important; }
+          .ap-mobile-quickstats { display: none !important; }
+          .ap-cta-newpv { padding: 12px 16px !important; font-size: 13px !important; border-radius: 10px !important; }
+          .ap-info-grid { grid-template-columns: 1fr !important; gap: ${SP.md}px !important; }
+          .ap-admin-actions { flex-direction: column !important; }
+          .ap-admin-actions button { width: 100% !important; justify-content: center !important; padding: ${SP.sm + 2}px ${SP.lg}px !important; }
+
+          /* Mobile: flatten both columns into a single flow */
+          .ap-col-main { display: contents !important; }
+          .ap-overview-side { display: contents !important; }
+
+          /* Mobile: show dashboard, hide desktop secondary column */
+          .ap-mobile-dashboard { display: flex !important; }
+          .ap-overview-side { display: none !important; }
+
+          /* Mobile: hide desktop-only sections */
+          .ap-section-pv { display: none !important; }
+          .ap-section-actions { display: none !important; }
+          .ap-quick-tools { display: none !important; }
+
+          /* Mobile priority order: CTA → Dashboard */
+          .ap-cta-newpv { order: 1 !important; }
+          .ap-mobile-dashboard { order: 2 !important; }
+        }
+
+        @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
-      <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); if (window.innerWidth <= 1024) setSidebarOpen(false); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); setSidebarOpen(false); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { /* TODO: open shared project */ }} onStats={() => { setView("stats"); setSidebarOpen(false); }} />
+      <div className="ap-sidebar-desktop">
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); if (window.innerWidth <= 1024) setSidebarOpen(false); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); setSidebarOpen(false); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { /* TODO: open shared project */ }} onStats={() => { setView("stats"); setSidebarOpen(false); }} />
+      </div>
 
       {/* Sidebar overlay for tablet/mobile */}
       {sidebarOpen && <div className="ap-sidebar-overlay open" onClick={() => setSidebarOpen(false)} />}
@@ -8833,12 +9409,12 @@ export default function App() {
         <div className="ap-header" style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
           {/* Gauche — hamburger + retour + contexte projet */}
           <div style={{ display: "flex", alignItems: "center", gap: SP.sm, flex: "0 0 auto", minWidth: 0 }}>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"} style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.md }}>
+            <button className="ap-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"} style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.md }}>
               <Ico name={sidebarOpen ? "x" : "menu"} color={TX2} />
             </button>
             {/* Bouton retour — visible dans les vues profondes */}
             {view !== "overview" && view !== "stats" && view !== "profile" && (
-              <button onClick={() => setView("overview")} aria-label="Retour à l'aperçu" className="sb-nav" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.xs, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
+              <button onClick={() => setView("overview")} aria-label="Retour à l'aperçu" className="sb-nav ap-back-btn" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.xs, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
                 <Ico name="back" size={16} color={TX2} />
               </button>
             )}
@@ -8849,12 +9425,29 @@ export default function App() {
                 <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Tableau de bord</div>
               ) : (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
-                    <span role="heading" aria-level="1" className="ap-project-name" style={{ fontSize: FS.lg, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{project?.name}</span>
-                    {project && <StatusBadge statusId={project.statusId} small />}
-                  </div>
-                  <div className="ap-project-meta" style={{ fontSize: FS.sm, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>
-                    {VIEW_LABELS[view] ? <><span style={{ color: AC, fontWeight: 600 }}>{VIEW_LABELS[view]}</span> · </> : ""}{project?.client}
+                  <button className="ap-project-switcher" onClick={() => setProjectPicker(v => !v)} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span role="heading" aria-level="1" style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project?.name}</span>
+                      </div>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: projectPicker ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                        <Ico name="chevron-down" size={12} color={projectPicker ? AC : TX3} />
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginTop: 3, flexWrap: "wrap" }}>
+                      {project && <span style={{ fontSize: FS.xs, fontWeight: 600, color: getStatus(project.statusId).color, background: getStatus(project.statusId).bg, padding: "1px 6px", borderRadius: 4 }}>{getStatus(project.statusId).label}</span>}
+                      <span style={{ fontSize: FS.xs, color: TX3 }}>{project?.client}</span>
+                      {VIEW_LABELS[view] ? <><span style={{ fontSize: FS.xs, color: TX3 }}>·</span><span style={{ fontSize: FS.xs, color: AC, fontWeight: 600 }}>{VIEW_LABELS[view]}</span></> : null}
+                    </div>
+                  </button>
+                  <div className="ap-project-name-desktop" style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
+                      <span role="heading" aria-level="1" className="ap-project-name" style={{ fontSize: FS.lg, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{project?.name}</span>
+                      {project && <StatusBadge statusId={project.statusId} small />}
+                    </div>
+                    <div className="ap-project-meta" style={{ fontSize: FS.sm, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>
+                      {VIEW_LABELS[view] ? <><span style={{ color: AC, fontWeight: 600 }}>{VIEW_LABELS[view]}</span> · </> : ""}{project?.client}
+                    </div>
                   </div>
                 </>
               )}
@@ -9279,6 +9872,100 @@ export default function App() {
           {toast.msg}
         </div>
       )}
+      {/* ── Mobile Bottom Bar ── */}
+      <MobileBottomBar
+        view={view}
+        onNavigate={(tab) => { setView(tab); setSidebarOpen(false); }}
+        onCapture={() => setCaptureSheet(true)}
+      />
+
+      {/* ── Mobile Capture Sheet ── */}
+      <CaptureSheet
+        open={captureSheet}
+        onClose={() => setCaptureSheet(false)}
+        photoCount={project ? project.posts.reduce((acc, p) => acc + (p.photos || []).length, 0) : 0}
+        onPhoto={() => {
+          setCaptureSheet(false);
+          if (view !== "notes") setView("notes");
+          setTimeout(() => mobilePhotoRef.current?.click(), 200);
+        }}
+        onGallery={() => {
+          setCaptureSheet(false);
+          setView("notes");
+        }}
+      />
+
+      {/* ── Mobile Project Picker ── */}
+      {projectPicker && (() => {
+        const activeProjects = projects.filter(p => !p.archived);
+        const [pickerSearch, setPickerSearch] = [window._pickerSearch || "", (v) => { window._pickerSearch = v; setProjectPicker(true); }];
+        const filtered = pickerSearch ? activeProjects.filter(p => p.name.toLowerCase().includes(pickerSearch.toLowerCase()) || (p.client || "").toLowerCase().includes(pickerSearch.toLowerCase())) : activeProjects;
+        return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={() => { window._pickerSearch = ""; setProjectPicker(false); }}>
+          <div style={{ background: "rgba(0,0,0,0.3)", position: "absolute", inset: 0 }} />
+          <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "75vh", display: "flex", flexDirection: "column", animation: "sheetUp 0.25s ease-out", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+            {/* Handle */}
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `${SP.md}px auto ${SP.sm}px` }} />
+            {/* Header */}
+            <div style={{ padding: `0 ${SP.lg}px ${SP.md}px`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Mes projets</span>
+              <span style={{ fontSize: FS.sm, fontWeight: 600, color: TX3, background: SB2, padding: "2px 8px", borderRadius: 10 }}>{activeProjects.length}</span>
+            </div>
+            {/* Search — visible with 4+ projects */}
+            {activeProjects.length >= 4 && (
+              <div style={{ padding: `0 ${SP.lg}px ${SP.md}px` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: SP.sm, background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.sm}px ${SP.md}px` }}>
+                  <Ico name="search" size={14} color={TX3} />
+                  <input
+                    value={pickerSearch} onChange={e => setPickerSearch(e.target.value)}
+                    placeholder="Rechercher un projet..."
+                    autoFocus
+                    style={{ flex: 1, border: "none", background: "transparent", fontSize: FS.md, color: TX, fontFamily: "inherit", outline: "none", padding: 0 }}
+                  />
+                  {pickerSearch && <button onClick={() => setPickerSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Ico name="x" size={14} color={TX3} /></button>}
+                </div>
+              </div>
+            )}
+            {/* Project list */}
+            <div style={{ flex: 1, overflowY: "auto", padding: `0 ${SP.sm}px ${SP.lg}px` }}>
+              {filtered.length === 0 && (
+                <div style={{ padding: `${SP.xl}px ${SP.lg}px`, textAlign: "center", color: TX3, fontSize: FS.md }}>Aucun projet trouvé</div>
+              )}
+              {filtered.map(p => {
+                const st = getStatus(p.statusId);
+                const isCurrent = p.id === activeId;
+                return (
+                  <button key={p.id} onClick={() => { window._pickerSearch = ""; setActiveId(p.id); setProjectPicker(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.sm + 2, padding: `${SP.sm + 2}px ${SP.md}px`, border: isCurrent ? `1.5px solid ${AC}` : "1.5px solid transparent", borderRadius: RAD.lg, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: isCurrent ? ACL : "transparent", marginBottom: 2, transition: "all 0.12s" }}>
+                    <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: isCurrent ? st.bg : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Ico name="building" size={16} color={isCurrent ? st.color : TX3} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS.md, fontWeight: isCurrent ? 650 : 500, color: isCurrent ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                      <div style={{ fontSize: FS.sm, color: TX3, display: "flex", alignItems: "center", gap: SP.xs }}>
+                        <span style={{ fontSize: FS.xs, fontWeight: 600, color: st.color, background: st.bg, padding: "1px 6px", borderRadius: 4 }}>{st.label}</span>
+                        {p.client && <span>{p.client}</span>}
+                      </div>
+                    </div>
+                    {isCurrent && <Ico name="check" size={16} color={AC} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* Hidden file input for mobile photo capture */}
+      <input ref={mobilePhotoRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => {
+        // Photos will be handled by the NoteEditor once it's in view
+        if (e.target.files?.[0]) {
+          // Store temporarily for NoteEditor to pick up
+          window._mobilePhotoPending = e.target.files[0];
+          e.target.value = "";
+        }
+      }} />
+
     </div>
     </LangContext.Provider>
     </ErrorBoundary>

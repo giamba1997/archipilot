@@ -52,8 +52,12 @@ serve(async (req) => {
       });
     }
 
-    const { transcript, posts } = await req.json();
+    let body = await req.json();
+    // Handle double-stringified body from some SDK versions
+    if (typeof body === "string") { try { body = JSON.parse(body); } catch {} }
+    const { transcript, posts } = body;
     if (!transcript?.trim() || !posts?.length) {
+      console.error("dispatch-remarks: invalid body", { hasTranscript: !!transcript, postsLength: posts?.length, bodyType: typeof body });
       throw new Error("Missing required fields: transcript, posts");
     }
 

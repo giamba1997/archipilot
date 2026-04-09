@@ -52,7 +52,9 @@ serve(async (req) => {
       });
     }
 
-    const { systemPrompt, userPrompt, maxTokens } = await req.json();
+    let body = await req.json();
+    if (typeof body === "string") { try { body = JSON.parse(body); } catch {} }
+    const { systemPrompt, userPrompt, maxTokens } = body;
     if (!userPrompt?.trim()) {
       throw new Error("Missing required field: userPrompt");
     }
