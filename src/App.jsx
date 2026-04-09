@@ -1,9 +1,45 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Component } from "react";
 import { jsPDF } from "jspdf";
 import { LangContext, useT, useTP } from "./i18n";
 import { supabase } from "./supabase";
+
+// ── Error Boundary ────────────────────────────────────────
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error("ArchiPilot crash:", error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#FAFAF9", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+          <div style={{ textAlign: "center", maxWidth: 400, padding: 32 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4392A" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4 M12 17h.01 M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg>
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1D1D1B", marginBottom: 8 }}>Quelque chose s'est mal passé</h2>
+            <p style={{ fontSize: 13, color: "#6B6B66", lineHeight: 1.6, marginBottom: 24 }}>
+              Une erreur inattendue est survenue. Vos données sont en sécurité. Rechargez la page pour continuer.
+            </p>
+            <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: "#D97B0D", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Recharger la page
+            </button>
+            {this.state.error && (
+              <details style={{ marginTop: 20, textAlign: "left" }}>
+                <summary style={{ fontSize: 11, color: "#767672", cursor: "pointer" }}>Détails techniques</summary>
+                <pre style={{ fontSize: 10, color: "#C4392A", background: "#FEF2F2", padding: 12, borderRadius: 8, marginTop: 8, overflow: "auto", maxHeight: 120 }}>{this.state.error.toString()}</pre>
+              </details>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, subscribeToNotifications, sendPvByEmail, loadPvSends } from "./db";
 
+// ── Design Tokens ──────────────────────────────────────────
+// Colors
 const AC = "#D97B0D";
 const ACL = "#FDF4E7";
 const ACL2 = "#FAE9CF";
@@ -12,11 +48,21 @@ const SB2 = "#EEEDEA";
 const SBB = "#E2E1DD";
 const TX = "#1D1D1B";
 const TX2 = "#6B6B66";
-const TX3 = "#767672";
+const TX3 = "#656560";  // rehaussé pour WCAG AA (4.5:1 sur SB)
 const BG = "#FAFAF9";
 const WH = "#FFFFFF";
 const RD = "#C4392A";
 const GR = "#2D8A4E";
+
+// Spacing scale (base 4px)
+const SP = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 };
+
+// Typography scale
+const FS = { xs: 10, sm: 11, base: 12, md: 13, lg: 15, xl: 18, xxl: 22 };
+const LH = { tight: "1.2", normal: "1.4", relaxed: "1.6" };
+
+// Radius scale
+const RAD = { sm: 6, md: 8, lg: 10, xl: 12, xxl: 14, full: "50%" };
 
 const BL   = "#2B6CB0";   // Bleu (permis, versions)
 const BLB  = "#E6F1FB";   // Bleu clair fond
@@ -34,7 +80,7 @@ const REDBG  = "#FEF2F2"; // Fond rouge clair
 const REDBRD = "#FECACA"; // Bordure rouge clair
 const GRBG   = "#EAF3DE"; // Fond vert clair
 const DIS    = "#D3D1C7"; // Désactivé fond
-const DIST   = "#A3A39D"; // Désactivé texte
+const DIST   = "#8A8A85"; // Désactivé texte (rehaussé contraste)
 
 const STATUSES = [
   { id: "sketch",       label: "Esquisse",      color: PU,  bg: PUB  },
@@ -78,6 +124,23 @@ function removePvDraft(draftId) {
 }
 
 // Build display address from structured fields (or fallback to legacy string)
+// Relative date helper (dd/mm/yyyy → "il y a X jours")
+const relativeDate = (dateStr) => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("/");
+  if (parts.length !== 3) return dateStr;
+  const d = new Date(parts[2], parts[1] - 1, parts[0]);
+  if (isNaN(d)) return dateStr;
+  const diff = Math.floor((Date.now() - d) / 86400000);
+  if (diff < 0) return `dans ${-diff}j`;
+  if (diff === 0) return "aujourd'hui";
+  if (diff === 1) return "hier";
+  if (diff < 7) return `il y a ${diff}j`;
+  if (diff < 30) return `il y a ${Math.floor(diff / 7)} sem.`;
+  if (diff < 365) return `il y a ${Math.floor(diff / 30)} mois`;
+  return `il y a ${Math.floor(diff / 365)} an${Math.floor(diff / 365) > 1 ? "s" : ""}`;
+};
+
 const formatAddress = (p) => {
   if (p.street || p.city) {
     const line1 = [p.street, p.number].filter(Boolean).join(" ");
@@ -375,7 +438,7 @@ const nextStatus = (s) => s === "open" ? "progress" : s === "progress" ? "done" 
 const getRemarkStatus = (id) => REMARK_STATUSES.find((s) => s.id === id) || REMARK_STATUSES[0];
 
 const PV_STATUSES = [
-  { id: "draft",     label: "Brouillon", color: GRY,      bg: GRYB,  dot: "#B0AFA9" },
+  { id: "draft",     label: "Brouillon", color: GRY,      bg: GRYB,  dot: "#8A8A85" },
   { id: "review",    label: "À relire",  color: "#92400E", bg: "#FFFBEB", dot: AC },
   { id: "validated", label: "Validé",    color: "#166534", bg: "#F0FDF4", dot: GR },
   { id: "sent",      label: "Envoyé",    color: BL,       bg: BLB,   dot: BL },
@@ -882,6 +945,10 @@ function Ico({ name, size = 18, color = TX3 }) {
   );
 }
 
+function Skeleton({ w = "100%", h = 14, r = 6, mb = 0 }) {
+  return <div style={{ width: w, height: h, borderRadius: r, background: SB2, marginBottom: mb, animation: "skeleton 1.2s ease infinite" }} />;
+}
+
 function PB({ value }) {
   return (
     <div style={{ width: "100%", height: 7, borderRadius: 4, background: SB2, overflow: "hidden" }}>
@@ -891,36 +958,70 @@ function PB({ value }) {
 }
 
 function Modal({ open, onClose, title, children, wide }) {
+  const modalRef = useRef(null);
+
+  // Escape to close
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // Focus trap
+  useEffect(() => {
+    if (!open || !modalRef.current) return;
+    const el = modalRef.current;
+    const focusable = el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length) focusable[0].focus();
+    const trap = (e) => {
+      if (e.key !== "Tab" || !focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey) { if (document.activeElement === first) { e.preventDefault(); last.focus(); } }
+      else { if (document.activeElement === last) { e.preventDefault(); first.focus(); } }
+    };
+    el.addEventListener("keydown", trap);
+    return () => el.removeEventListener("keydown", trap);
+  }, [open]);
+
   if (!open) return null;
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
-      <div className="ap-modal-card" onClick={(e) => e.stopPropagation()} style={{ background: WH, borderRadius: 14, width: "100%", maxWidth: wide ? 640 : 520, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: `1px solid ${SBB}`, position: "sticky", top: 0, background: WH, borderRadius: "14px 14px 0 0", zIndex: 1 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: TX }}>{title}</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6 }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: SP.lg }} onClick={onClose}>
+      <div ref={modalRef} className="ap-modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title} style={{ background: WH, borderRadius: RAD.xxl, width: "100%", maxWidth: wide ? 640 : 520, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: `${SP.md}px ${SP.lg + 2}px`, borderBottom: `1px solid ${SBB}`, position: "sticky", top: 0, background: WH, borderRadius: `${RAD.xxl}px ${RAD.xxl}px 0 0`, zIndex: 1 }}>
+          <span style={{ fontSize: FS.lg + 1, fontWeight: 600, color: TX, lineHeight: LH.tight }}>{title}</span>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
             <Ico name="x" color={TX3} />
           </button>
         </div>
-        <div style={{ padding: "16px 18px 18px" }}>{children}</div>
+        <div style={{ padding: `${SP.lg}px ${SP.lg + 2}px ${SP.lg + 2}px` }}>{children}</div>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange, area, half, type = "text", placeholder, select, options }) {
-  const base = { width: "100%", padding: area ? 12 : "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" };
+function Field({ label, value, onChange, area, half, type = "text", placeholder, select, options, required }) {
+  const base = { width: "100%", padding: area ? SP.md : `${SP.sm + 1}px ${SP.md}px`, border: `1px solid ${SBB}`, borderRadius: RAD.md, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", lineHeight: LH.normal };
+  // Inline validation
+  const hasValue = value && value.trim();
+  let error = null;
+  if (hasValue && type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim())) error = "Email invalide";
+  if (hasValue && type === "tel" && value.trim().length > 0 && value.trim().length < 8) error = "Numéro trop court";
+  if (required && !hasValue) error = null; // don't show required error while empty (only on save)
+  const borderColor = error ? RD : SBB;
   return (
-    <div style={{ flex: half ? 1 : undefined, marginBottom: 12 }}>
-      {label && <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>{label}</div>}
+    <div style={{ flex: half ? 1 : undefined, marginBottom: SP.md }}>
+      {label && <div style={{ fontSize: FS.base, fontWeight: 500, color: TX2, marginBottom: SP.xs }}>{label}{required ? <span style={{ color: RD, marginLeft: 2 }}>*</span> : ""}</div>}
       {select ? (
         <select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...base, appearance: "auto" }}>
           {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
       ) : area ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={4} placeholder={placeholder} style={{ ...base, resize: "vertical", lineHeight: 1.6 }} />
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={4} placeholder={placeholder} style={{ ...base, resize: "vertical", lineHeight: LH.relaxed, borderColor }} />
       ) : (
-        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={base} />
+        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...base, borderColor }} />
       )}
+      {error && <div style={{ fontSize: FS.xs, color: RD, marginTop: SP.xs - 1 }}>{error}</div>}
     </div>
   );
 }
@@ -1019,7 +1120,7 @@ const INIT_PROJECTS = [
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
-function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats }) {
+function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats }) {
   const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
@@ -1044,11 +1145,20 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
   }, {}) : null;
   const toggleClient = (client) => setCollapsedClients(prev => ({ ...prev, [client]: !prev[client] }));
 
-  // Shared color for muted text (better contrast than #A3A39D)
-  const TX4 = "#8A8A85";
+  const TX4 = "#8A8A85"; // muted text (sidebar only)
+
+  // Swipe to dismiss
+  const touchRef = useRef(null);
+  const handleTouchStart = (e) => { touchRef.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchRef.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchRef.current;
+    if (diff < -60) onClose(); // swipe left > 60px = close
+    touchRef.current = null;
+  };
 
   return (
-    <div style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 264, background: SB, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", zIndex: 100, transform: open ? "translateX(0)" : "translateX(-264px)", transition: "transform 0.25s ease" }}>
+    <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 264, background: SB, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", zIndex: 100, transform: open ? "translateX(0)" : "translateX(-264px)", transition: "transform 0.25s ease" }}>
 
       {/* ── Branding ── */}
       <div style={{ padding: "16px 18px 14px", borderBottom: `1px solid ${SBB}`, flexShrink: 0 }}>
@@ -1071,22 +1181,35 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
         </button>
 
         {/* Navigation — Tableau de bord */}
-        <button onClick={onStats} className="sb-nav" style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", border: "none", borderRadius: 6, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginBottom: 12, transition: "background 0.15s" }}>
-          <Ico name="chart" size={14} color={TX3} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>Tableau de bord</span>
+        {(() => { const isAct = view === "stats"; return (
+        <button onClick={onStats} className="sb-nav" style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, padding: `${SP.sm - 2}px ${SP.sm}px`, border: "none", borderRadius: RAD.sm, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: isAct ? WH : "transparent", boxShadow: isAct ? "0 1px 3px rgba(0,0,0,0.06)" : "none", marginBottom: SP.md, transition: "background 0.15s" }}>
+          <Ico name="chart" size={14} color={isAct ? AC : TX3} />
+          <span style={{ fontSize: FS.base, fontWeight: isAct ? 600 : 500, color: isAct ? AC : TX2 }}>Tableau de bord</span>
         </button>
+        ); })()}
 
         {/* Section header + mode de vue */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px", marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("sidebar.projects")}</span>
-          <div style={{ display: "flex", background: SB2, borderRadius: 6, padding: 2, gap: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${SP.xs}px`, marginBottom: SP.sm }}>
+          <div style={{ display: "flex", alignItems: "center", gap: SP.xs }}>
+            <span style={{ fontSize: FS.xs, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("sidebar.projects")}</span>
+            {/* Collapse all — visible en mode client avec 2+ groupes */}
+            {sortBy === "client" && clientGroups && Object.keys(clientGroups).length > 1 && (
+              <button onClick={() => {
+                const allCollapsed = Object.keys(clientGroups).every(c => collapsedClients[c]);
+                setCollapsedClients(allCollapsed ? {} : Object.keys(clientGroups).reduce((a, c) => ({ ...a, [c]: true }), {}));
+              }} title={Object.keys(clientGroups).every(c => collapsedClients[c]) ? "Tout déplier" : "Tout replier"} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: SP.xs }}>
+                <Ico name={Object.keys(clientGroups).every(c => collapsedClients[c]) ? "chevron-down" : "chevron-up"} size={10} color={TX3} />
+              </button>
+            )}
+          </div>
+          <div style={{ display: "flex", background: SB2, borderRadius: RAD.sm, padding: 2, gap: 1 }}>
             {[
               { id: "client", icon: "folder", label: "Client" },
               { id: "recency", icon: "clock", label: "R\u00E9cents" },
               { id: "name", icon: null, label: "A\u2192Z" },
             ].map(s => (
-              <button key={s.id} onClick={() => setSortBy(s.id)} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 6px", border: "none", borderRadius: 5, background: sortBy === s.id ? WH : "transparent", cursor: "pointer", fontFamily: "inherit", boxShadow: sortBy === s.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
-                {s.icon && <Ico name={s.icon} size={10} color={sortBy === s.id ? AC : TX3} />}
+              <button key={s.id} onClick={() => setSortBy(s.id)} style={{ display: "flex", alignItems: "center", gap: 3, padding: `3px ${RAD.sm}px`, border: "none", borderRadius: 5, background: sortBy === s.id ? WH : "transparent", cursor: "pointer", fontFamily: "inherit", boxShadow: sortBy === s.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
+                {s.icon && <Ico name={s.icon} size={FS.xs} color={sortBy === s.id ? AC : TX3} />}
                 <span style={{ fontSize: 9, fontWeight: 600, color: sortBy === s.id ? AC : TX3 }}>{s.label}</span>
               </button>
             ))}
@@ -1121,7 +1244,7 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
                         const isAct = activeId === p.id;
                         const pvCount = (p.pvHistory || []).length;
                         return (
-                          <button key={p.id} onClick={() => { onSelect(p.id); onClose(); }} className="sb-project" style={{
+                          <button key={p.id} onClick={() => { onSelect(p.id); onClose(); }} title={`${p.name} · ${st.label}${pvCount ? ` · ${pvCount} PV` : ""}`} className="sb-project" style={{
                             width: "100%", display: "flex", alignItems: "center", gap: 8,
                             padding: "7px 10px 7px 12px",
                             border: "none",
@@ -1158,6 +1281,7 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
                 <button
                   key={p.id}
                   onClick={() => { onSelect(p.id); onClose(); }}
+                  title={`${p.name} · ${p.client || ""} · ${st.label}${pvCount ? ` · ${pvCount} PV` : ""}`}
                   className="sb-project"
                   style={{
                     width: "100%", display: "flex", alignItems: "center", gap: 9,
@@ -1255,7 +1379,7 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
       <div style={{ padding: "10px 10px 12px", flexShrink: 0, borderTop: `1px solid ${SBB}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 4px" }}>
           {/* Avatar — cliquable vers profil */}
-          <button onClick={onProfile} className="sb-avatar" style={{ width: 32, height: 32, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 11, fontWeight: 700, color: AC, border: `2px solid transparent`, cursor: "pointer", transition: "border-color 0.15s", padding: 0, fontFamily: "inherit" }}>
+          <button onClick={onProfile} aria-label="Mon profil" className="sb-avatar" style={{ width: 32, height: 32, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 11, fontWeight: 700, color: AC, border: `2px solid transparent`, cursor: "pointer", transition: "border-color 0.15s", padding: 0, fontFamily: "inherit" }}>
             {(profile?.name || "?").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()}
           </button>
           {/* Nom + structure — cliquable vers profil */}
@@ -1264,7 +1388,7 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
             <div style={{ fontSize: 10, color: TX4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "14px" }}>{profile?.structure || ""}</div>
           </button>
           {/* Logout — icône, toggle confirm */}
-          <button onClick={() => setLogoutConfirm(v => !v)} className="sb-logout-icon" title={t("sidebar.logout")} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: logoutConfirm ? SB2 : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "background 0.15s" }}>
+          <button onClick={() => setLogoutConfirm(v => !v)} aria-label="Se déconnecter" className="sb-logout-icon" title={t("sidebar.logout")} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: logoutConfirm ? SB2 : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "background 0.15s" }}>
             <Ico name="logout" size={14} color={logoutConfirm ? RD : TX3} />
           </button>
         </div>
@@ -1623,7 +1747,7 @@ function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
             : <PvStatusBadge status={pv.status} onClick={(e) => { e.stopPropagation(); updatePvStatus(pv.number, nextPvStatus(pv.status || "draft")); }} />
           }
         </div>
-        <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>{pv.date} · {pv.author}</div>
+        <div style={{ fontSize: FS.xs, color: TX3, marginTop: 1 }}><span title={pv.date}>{relativeDate(pv.date)}</span> · {pv.author}</div>
       </div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         {/* Bouton Rédaction — ouvre le contenu texte/notes */}
@@ -1648,22 +1772,23 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
   const rec = RECURRENCES.find((r) => r.id === project.recurrence);
   const t = useT();
   const [showAllPV, setShowAllPV] = useState(false);
+  const [sideOpen, setSideOpen] = useState(false);
 
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
   const lastPV        = project.pvHistory[0] || null;
   const Card = ({ children, style = {} }) => (
-    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "16px 18px", ...style }}>{children}</div>
+    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.xl, padding: `${SP.lg}px ${SP.lg + 2}px`, ...style }}>{children}</div>
   );
   const CardHeader = ({ title, action }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-      <span style={{ fontSize: 13, fontWeight: 700, color: TX, letterSpacing: "-0.1px" }}>{title}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SP.md }}>
+      <span role="heading" aria-level="2" style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{title}</span>
       {action}
     </div>
   );
   const SmallBtn = ({ onClick, icon, label }) => (
-    <button onClick={onClick} style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 7, cursor: "pointer", padding: "5px 10px", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
-      <Ico name={icon} size={12} color={TX3} /><span style={{ fontSize: 11, color: TX2, fontWeight: 500 }}>{label}</span>
+    <button onClick={onClick} style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.sm + 1, cursor: "pointer", padding: `${SP.xs + 1}px ${SP.sm + 2}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
+      <Ico name={icon} size={FS.base} color={TX3} /><span style={{ fontSize: FS.sm, color: TX2, fontWeight: 500 }}>{label}</span>
     </button>
   );
 
@@ -1792,14 +1917,21 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                           }
                         </div>
                         <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 6 }}>{lastPV.excerpt}</div>
-                        <div style={{ display: "flex", gap: 10, fontSize: 11, color: TX3 }}>
-                          <span>{lastPV.date}</span><span>{lastPV.author}</span>
+                        <div style={{ display: "flex", gap: 10, fontSize: FS.sm, color: TX3 }}>
+                          <span title={lastPV.date}>{relativeDate(lastPV.date)}</span><span>{lastPV.author}</span>
                           {!lastPV.imported && <span>{lastPV.postsCount} poste{lastPV.postsCount > 1 ? "s" : ""}</span>}
                         </div>
                       </div>
-                      <button onClick={() => onViewPV(lastPV)} style={{ background: WH, border: `1px solid ${ACL2}`, borderRadius: 7, cursor: "pointer", padding: "6px 12px", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                        <Ico name="eye" size={12} color={AC} /><span style={{ fontSize: 11, color: AC, fontWeight: 600 }}>{t("view")}</span>
-                      </button>
+                      <div style={{ display: "flex", gap: SP.xs, flexShrink: 0 }}>
+                        <button onClick={() => onViewPV(lastPV)} style={{ background: WH, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.xs + 2}px ${SP.sm + 1}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
+                          <Ico name="edit" size={11} color={TX3} /><span style={{ fontSize: FS.sm, color: TX2, fontWeight: 500 }}>Rédaction</span>
+                        </button>
+                        {(lastPV.content || lastPV.pdfDataUrl) && (
+                          <button onClick={() => onViewPdf(lastPV)} style={{ background: ACL, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.xs + 2}px ${SP.sm + 1}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
+                            <Ico name="file" size={11} color={AC} /><span style={{ fontSize: FS.sm, color: AC, fontWeight: 600 }}>PDF</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1873,7 +2005,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
             {closedActions.length > 0 && (
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${SB2}` }}>
                 {closedActions.map((a) => (
-                  <div key={a.id} style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "center", opacity: 0.45 }}>
+                  <div key={a.id} style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "center", opacity: 0.55 }}>
                     <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${GR}`, background: "#F0FDF4", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
                       <Ico name="check" size={11} color={GR} />
                     </button>
@@ -1887,7 +2019,13 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
         </div>
 
         {/* ═══ Colonne secondaire ═══ */}
-        <div style={{ flex: "0 1 272px", display: "flex", flexDirection: "column", gap: 14, minWidth: 220 }}>
+        <div className={`ap-overview-side${sideOpen ? " open" : ""}`} style={{ flex: "0 1 272px", display: "flex", flexDirection: "column", gap: SP.lg - 2, minWidth: 220 }}>
+          {/* Toggle mobile — visible uniquement < 768px */}
+          <button className="ap-side-toggle" onClick={() => setSideOpen(v => !v)} style={{ display: "none", width: "100%", padding: `${SP.sm + 2}px ${SP.md}px`, border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, cursor: "pointer", fontFamily: "inherit", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: FS.md, fontWeight: 600, color: TX }}>Infos projet</span>
+            <Ico name={sideOpen ? "chevron-up" : "chevron-down"} size={12} color={TX3} />
+          </button>
+          <div className="ap-side-content" style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
 
           {/* Prochaine réunion */}
           <MeetingCard project={project} setProjects={setProjects} rec={rec} />
@@ -1944,6 +2082,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
             <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
           </div>
 
+          </div>{/* end ap-side-content */}
         </div>
       </div>
     </div>
@@ -2583,9 +2722,9 @@ function AnnotationEditor({ photo, onSave, onClose }) {
                   return (
                     <button key={t.id} title={t.label}
                       onClick={() => { setTool(t.id); if (t.id!=="select") { setSelectedId(null); selectedIdRef.current=null; redrawCanvas(strokesRef.current); } }}
-                      style={{ padding:"8px 4px 6px", border:`1.5px solid ${active?AC:SBB}`, borderRadius:8, background:active?ACL:WH, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:4, fontFamily:"inherit", boxShadow:active?"none":"0 1px 2px rgba(0,0,0,0.04)" }}>
-                      <Ico name={t.icon} size={14} color={active?AC:TX2} />
-                      <span style={{ fontSize:9, fontWeight:active?700:500, color:active?AC:TX3, letterSpacing:"0.01em", lineHeight:1 }}>{t.label}</span>
+                      style={{ padding:`${SP.sm+2}px ${SP.xs}px ${SP.sm}px`, border:`1.5px solid ${active?AC:SBB}`, borderRadius:RAD.md, background:active?ACL:WH, cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:SP.xs, fontFamily:"inherit", boxShadow:active?"none":"0 1px 2px rgba(0,0,0,0.04)", minHeight:44 }}>
+                      <Ico name={t.icon} size={16} color={active?AC:TX2} />
+                      <span style={{ fontSize:FS.xs, fontWeight:active?700:500, color:active?AC:TX3, letterSpacing:"0.01em", lineHeight:1 }}>{t.label}</span>
                     </button>
                   );
                 })}
@@ -3247,9 +3386,9 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
             )}
             {remarks.length > 0 && (
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {openCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#B91C1C", background: "#FEF2F2", padding: "2px 8px 2px 5px", borderRadius: 20 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#EF4444", display: "inline-block" }} />{openCount} {t("notes.toProcess")}</span>}
-                {progressCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#92400E", background: "#FFFBEB", padding: "2px 8px 2px 5px", borderRadius: 20 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: AC,       display: "inline-block" }} />{progressCount} {t("notes.inProgress")}</span>}
-                {doneCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#166534", background: "#F0FDF4",  padding: "2px 8px 2px 5px", borderRadius: 20 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: GR,        display: "inline-block" }} />{doneCount} résolu{doneCount > 1 ? "s" : ""}</span>}
+                {openCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: "#B91C1C", background: "#FEF2F2", padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#EF4444", display: "inline-block" }} />{openCount} {t("notes.toProcess")}</span>}
+                {progressCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: "#92400E", background: "#FFFBEB", padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: AC,       display: "inline-block" }} />{progressCount} {t("notes.inProgress")}</span>}
+                {doneCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: "#166534", background: "#F0FDF4",  padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: GR,        display: "inline-block" }} />{doneCount} résolu{doneCount > 1 ? "s" : ""}</span>}
               </div>
             )}
           </div>
@@ -3330,9 +3469,9 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                 <div key={r.id} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", marginBottom: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 10 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
                     {/* Status pill — click to cycle */}
-                    <button onClick={() => cycleStatus(post.id, r.id)} title={`Statut : ${rs.label} — cliquer pour changer`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px 3px 6px", border: `1px solid ${r.urgent && r.status === "open" ? REDBRD : rs.dot + "40"}`, borderRadius: 20, background: r.urgent && r.status === "open" ? "#FEF2F2" : rs.bg, cursor: "pointer", fontFamily: "inherit", marginTop: 1, whiteSpace: "nowrap", outline: "none", transition: "all 0.15s" }}>
-                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: r.urgent && r.status === "open" ? "#EF4444" : rs.dot, flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: r.urgent && r.status === "open" ? "#B91C1C" : rs.color }}>
+                    <button onClick={() => cycleStatus(post.id, r.id)} title={`Statut : ${rs.label} — cliquer pour changer`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: SP.xs, padding: `${SP.xs}px ${SP.sm + 1}px ${SP.xs}px ${SP.sm - 2}px`, border: `1px solid ${r.urgent && r.status === "open" ? REDBRD : rs.dot + "40"}`, borderRadius: 20, background: r.urgent && r.status === "open" ? "#FEF2F2" : rs.bg, cursor: "pointer", fontFamily: "inherit", marginTop: 1, whiteSpace: "nowrap", outline: "none", transition: "all 0.15s" }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: r.urgent && r.status === "open" ? "#EF4444" : rs.dot, flexShrink: 0 }} />
+                      <span style={{ fontSize: FS.sm, fontWeight: 700, color: r.urgent && r.status === "open" ? "#B91C1C" : rs.color }}>
                         {r.urgent && r.status === "open" ? t("notes.urgent") : rs.label}
                       </span>
                       <Ico name="chevron-down" size={9} color={r.urgent && r.status === "open" ? "#B91C1C" : rs.color} />
@@ -3387,7 +3526,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                     <div style={{ background: "rgba(0,0,0,0.55)", borderRadius: 6, padding: "4px 6px" }}><Ico name="pen2" size={12} color="#fff" /></div>
                   </button>
                   {ph.annotated && <div style={{ position: "absolute", bottom: 3, left: 3, background: AC, borderRadius: 4, padding: "1px 4px" }}><Ico name="pen2" size={9} color="#fff" /></div>}
-                  <button onClick={() => removePhoto(post.id, ph.id)} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: RD, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                  <button onClick={() => removePhoto(post.id, ph.id)} aria-label="Supprimer la photo" style={{ position: "absolute", top: -6, right: -6, width: 24, height: 24, borderRadius: "50%", background: RD, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                     <Ico name="x" size={10} color="#fff" />
                   </button>
                 </div>
@@ -3676,12 +3815,12 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
               <div style={{ fontSize: 12, color: TX3 }}>Choisissez votre méthode de saisie pour commencer</div>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
-              {/* Dictate option — primary */}
+              {/* Dictate option — primary (disabled if no SpeechRecognition) */}
+              {(() => { const hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition); return (
               <button
-                onClick={() => { setInputMethod("dictate"); startContinuous(); }}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `2px solid ${AC}`, borderRadius: 16, background: `linear-gradient(180deg, ${ACL} 0%, #FFF8F0 100%)`, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s", position: "relative", overflow: "hidden" }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(217,123,13,0.18)"; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+                onClick={() => { if (!hasSR) return; setInputMethod("dictate"); startContinuous(); }}
+                className={hasSR ? "method-card-dictate" : ""}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `2px solid ${hasSR ? AC : SBB}`, borderRadius: 16, background: hasSR ? `linear-gradient(180deg, ${ACL} 0%, #FFF8F0 100%)` : SB, cursor: hasSR ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s", position: "relative", overflow: "hidden", opacity: hasSR ? 1 : 0.6 }}
               >
                 <div style={{ position: "absolute", top: 8, right: 8, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: AC, background: WH, padding: "2px 8px", borderRadius: 4, border: `1px solid ${ACL2}` }}>Recommandé</div>
                 <div style={{ width: 60, height: 60, borderRadius: "50%", background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(217,123,13,0.3)" }}>
@@ -3696,13 +3835,14 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                     <span key={i} style={{ fontSize: 9.5, fontWeight: 600, color: AC, background: WH, border: `1px solid ${ACL2}`, padding: "2px 7px", borderRadius: 4 }}>{tag}</span>
                   ))}
                 </div>
+                {!hasSR && <div style={{ fontSize: FS.xs, color: RD, marginTop: 4 }}>Non supporté par ce navigateur</div>}
               </button>
+              ); })()}
               {/* Write option — secondary */}
               <button
                 onClick={() => setInputMethod("write")}
+                className="method-card-write"
                 style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `1.5px solid ${SBB}`, borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.06)"; e.currentTarget.style.borderColor = TX3; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = SBB; }}
               >
                 <div style={{ width: 60, height: 60, borderRadius: "50%", background: SB, border: `1.5px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ico name="edit" size={26} color={TX2} />
@@ -4227,7 +4367,7 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
       pdfBase64,
       pdfFileName,
       subject,
-      customMessage: emailBody,
+      customMessage: emailBody.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/\bon\w+\s*=/gi, "data-removed="),
     });
 
     setSending(false);
@@ -4247,12 +4387,21 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
             <span style={{ fontSize: 16, fontWeight: 700, color: TX }}>Envoyer le PV n°{pvNumber}</span>
           </div>
           <div style={{ fontSize: 12, color: TX3 }}>{project.name} — {pvDate}</div>
-          {/* Step indicator */}
+          {/* Step indicator with labels */}
           {step !== "sent" && (
-            <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
-              {["recipients", "preview"].map((s, i) => (
-                <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, background: step === s || (step === "preview" && i === 0) ? AC : SBB, transition: "background 0.3s" }} />
-              ))}
+            <div style={{ display: "flex", gap: SP.sm, marginTop: SP.md }}>
+              {[
+                { id: "recipients", label: "1. Destinataires" },
+                { id: "preview", label: "2. Aperçu" },
+              ].map((s, i) => {
+                const active = step === s.id || (step === "preview" && i === 0);
+                return (
+                  <div key={s.id} style={{ flex: 1 }}>
+                    <div style={{ height: 3, borderRadius: 2, background: active ? AC : SBB, transition: "background 0.3s", marginBottom: SP.xs }} />
+                    <span style={{ fontSize: FS.xs, fontWeight: active ? 600 : 400, color: active ? AC : TX3 }}>{s.label}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -4340,6 +4489,7 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
               <div
                 contentEditable
                 suppressContentEditableWarning
+                role="textbox" aria-label="Corps du message email" aria-multiline="true"
                 onInput={e => setEmailBody(e.currentTarget.innerHTML)}
                 dangerouslySetInnerHTML={{ __html: emailBody }}
                 style={{ width: "100%", minHeight: 140, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, lineHeight: 1.6, fontFamily: "inherit", background: WH, color: TX, marginBottom: 10, boxSizing: "border-box", outline: "none", overflowWrap: "break-word" }}
@@ -4919,7 +5069,11 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
             <div style={{ position: "absolute", inset: -3, borderRadius: 17, border: `2px solid ${AC}`, opacity: 0.2, animation: "ring 1.8s ease infinite" }} />
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: TX, marginBottom: 4, letterSpacing: "-0.2px" }}>{t("result.generating")}</div>
-          <div style={{ fontSize: 13, color: TX3, marginBottom: 28 }}>{t("result.generatingDesc")}</div>
+          <div style={{ fontSize: FS.md, color: TX3, marginBottom: SP.lg }}>{t("result.generatingDesc")}</div>
+          {/* Barre de progression estimée */}
+          <div style={{ width: "100%", maxWidth: 300, height: 4, background: SB2, borderRadius: 2, marginBottom: SP.xl, overflow: "hidden" }}>
+            <div style={{ height: "100%", background: AC, borderRadius: 2, transition: "width 1s ease-out", width: sec < 2 ? "15%" : sec < 4 ? "45%" : sec < 8 ? "70%" : sec < 15 ? "85%" : "92%" }} />
+          </div>
           {/* Étapes progressives */}
           <div style={{ width: "100%", maxWidth: 300, textAlign: "left", marginBottom: 28 }}>
             {[
@@ -4967,10 +5121,11 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
                 <span style={{ fontSize: 10, color: "#fff" }}>✦</span>
                 <span style={{ fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: "0.02em" }}>IA</span>
               </div>
-              <span style={{ fontSize: 12, color: TX2 }}>Rédigé par <strong>gpt-4o</strong> en {sec}s</span>
+              <span style={{ fontSize: FS.base, color: TX2 }}>Rédigé par <strong>gpt-4o</strong> en {sec}s</span>
+              <span style={{ fontSize: FS.sm, color: TX3 }}>· {result.trim().split(/\s+/).length} mots</span>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              {sectionCount > 0 && <span style={{ fontSize: 11, color: TX2 }}><strong>{sectionCount}</strong> poste{sectionCount > 1 ? "s" : ""}</span>}
+              {sectionCount > 0 && <span style={{ fontSize: FS.sm, color: TX2 }}><strong>{sectionCount}</strong> poste{sectionCount > 1 ? "s" : ""}</span>}
               {actionLines > 0  && <span style={{ fontSize: 11, color: RD,  fontWeight: 600 }}><strong>{actionLines}</strong> point{actionLines > 1 ? "s" : ""} urgent{actionLines > 1 ? "s" : ""}</span>}
               {pointLines > 0   && <span style={{ fontSize: 11, color: TX2 }}><strong>{pointLines}</strong> décision{pointLines > 1 ? "s" : ""}</span>}
               {!saved && <span style={{ fontSize: 11, color: TX3, fontStyle: "italic" }}>Non sauvegardé</span>}
@@ -5077,6 +5232,7 @@ function DocumentsView({ project, setProjects, onBack }) {
   const [versionHistoryDoc, setVersionHistoryDoc] = useState(null);
   const [newVersionDocId, setNewVersionDocId] = useState(null);
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
+  const [docMenuOpen, setDocMenuOpen] = useState(null);
   const uploadRef = useRef(null);
   const newVersionRef = useRef(null);
   const t = useT();
@@ -5182,9 +5338,14 @@ function DocumentsView({ project, setProjects, onBack }) {
       {/* Liste documents */}
       {filtered.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "50px 20px", border: `2px dashed ${SBB}`, borderRadius: 12, background: WH, textAlign: "center" }}>
-          <Ico name="folder" size={38} color={TX3} />
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: ACL, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Ico name="folder" size={26} color={AC} />
+          </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginTop: 14, marginBottom: 6 }}>{activeCategory !== "all" ? t("docs.noDocsCat") : t("docs.noDocs")}</div>
-          <div style={{ fontSize: 13, color: TX3 }}>{t("docs.addAbove")}</div>
+          <div style={{ fontSize: FS.md, color: TX3, marginBottom: SP.lg }}>{t("docs.addAbove")}</div>
+          <button onClick={() => uploadRef.current.click()} style={{ padding: "9px 20px", border: "none", borderRadius: RAD.md, background: AC, color: "#fff", fontWeight: 600, fontSize: FS.md, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: SP.sm - 2 }}>
+            <Ico name="plus" size={13} color="#fff" />Ajouter un document
+          </button>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -5210,29 +5371,63 @@ function DocumentsView({ project, setProjects, onBack }) {
                     <span style={{ fontSize: 11, color: TX3 }}>{cur.addedAt}</span>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <button onClick={() => setViewDoc({ name: doc.name, dataUrl: cur.dataUrl, type: cur.type })} style={{ background: SB, border: "none", borderRadius: 6, cursor: "pointer", padding: "6px 10px", display: "flex", alignItems: "center", gap: 3 }}>
-                    <Ico name="eye" size={13} color={TX3} /><span style={{ fontSize: 11, color: TX2 }}>{t("view")}</span>
-                  </button>
-                  <button title={t("docs.newVersion")} onClick={() => { setNewVersionDocId(doc.id); setTimeout(() => newVersionRef.current?.click(), 50); }} style={{ background: ACL, border: `1px solid ${ACL2}`, borderRadius: 6, cursor: "pointer", padding: "6px 8px", display: "flex", alignItems: "center", gap: 2 }}>
-                    <Ico name="download" size={13} color={AC} /><span style={{ fontSize: 11, color: AC, fontWeight: 700 }}>v+</span>
-                  </button>
-                  {cur.version > 1 && (
-                    <button title={t("docs.versionHistory")} onClick={() => setVersionHistoryDoc(doc)} style={{ background: SB, border: "none", borderRadius: 6, cursor: "pointer", padding: "6px 8px", display: "flex", alignItems: "center" }}>
-                      <Ico name="history" size={14} color={TX3} />
-                    </button>
-                  )}
-                  {confirmDeleteDoc === doc.id ? (
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <button onClick={() => { removeDoc(doc.id); setConfirmDeleteDoc(null); }} style={{ fontSize: 11, fontWeight: 700, color: WH, background: RD, border: "none", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>Suppr.</button>
-                      <button onClick={() => setConfirmDeleteDoc(null)} style={{ fontSize: 11, color: TX2, background: SB, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>Non</button>
+                {/* Actions — inline desktop, menu mobile */}
+                {(() => {
+                  const [menuOpen, setMenuOpen] = [doc.id === docMenuOpen, (v) => setDocMenuOpen(v ? doc.id : null)];
+                  return (
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    {/* Desktop actions — hidden on mobile */}
+                    <div className="ap-doc-actions-desktop" style={{ display: "flex", alignItems: "center", gap: SP.xs }}>
+                      <button onClick={() => setViewDoc({ name: doc.name, dataUrl: cur.dataUrl, type: cur.type })} style={{ background: SB, border: "none", borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.sm - 2}px ${SP.sm + 2}px`, display: "flex", alignItems: "center", gap: 3 }}>
+                        <Ico name="eye" size={13} color={TX3} /><span style={{ fontSize: FS.sm, color: TX2 }}>{t("view")}</span>
+                      </button>
+                      <button title={t("docs.newVersion")} onClick={() => { setNewVersionDocId(doc.id); setTimeout(() => newVersionRef.current?.click(), 50); }} style={{ background: ACL, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.sm - 2}px ${SP.sm}px`, display: "flex", alignItems: "center", gap: 2 }}>
+                        <Ico name="download" size={13} color={AC} /><span style={{ fontSize: FS.sm, color: AC, fontWeight: 700 }}>v+</span>
+                      </button>
+                      {cur.version > 1 && (
+                        <button title={t("docs.versionHistory")} onClick={() => setVersionHistoryDoc(doc)} style={{ background: SB, border: "none", borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.sm - 2}px ${SP.sm}px`, display: "flex", alignItems: "center" }}>
+                          <Ico name="history" size={14} color={TX3} />
+                        </button>
+                      )}
+                      {confirmDeleteDoc === doc.id ? (
+                        <div style={{ display: "flex", gap: SP.xs, alignItems: "center" }}>
+                          <button onClick={() => { removeDoc(doc.id); setConfirmDeleteDoc(null); }} style={{ fontSize: FS.sm, fontWeight: 700, color: WH, background: RD, border: "none", borderRadius: RAD.sm, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>Suppr.</button>
+                          <button onClick={() => setConfirmDeleteDoc(null)} style={{ fontSize: FS.sm, color: TX2, background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.sm, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>Non</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteDoc(doc.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm - 2 }}>
+                          <Ico name="trash" size={14} color={TX3} />
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button onClick={() => setConfirmDeleteDoc(doc.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 6 }}>
-                      <Ico name="trash" size={14} color={TX3} />
-                    </button>
-                  )}
-                </div>
+                    {/* Mobile menu — hidden on desktop */}
+                    <div className="ap-doc-actions-mobile" style={{ display: "none" }}>
+                      <button onClick={() => setMenuOpen(!menuOpen)} style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.sm - 2}px ${SP.sm}px`, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 36, minHeight: 36 }}>
+                        <span style={{ fontSize: 16, color: TX3, fontWeight: 700, lineHeight: 1 }}>⋯</span>
+                      </button>
+                      {menuOpen && (
+                        <div style={{ position: "absolute", right: 0, top: "100%", marginTop: SP.xs, background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 50, minWidth: 160, overflow: "hidden", animation: "fadeIn 0.12s ease-out" }}>
+                          <button onClick={() => { setViewDoc({ name: doc.name, dataUrl: cur.dataUrl, type: cur.type }); setMenuOpen(false); }} style={{ width: "100%", padding: `${SP.sm + 2}px ${SP.md}px`, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.md, color: TX }}>
+                            <Ico name="eye" size={14} color={TX3} />Voir
+                          </button>
+                          <button onClick={() => { setNewVersionDocId(doc.id); setTimeout(() => newVersionRef.current?.click(), 50); setMenuOpen(false); }} style={{ width: "100%", padding: `${SP.sm + 2}px ${SP.md}px`, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.md, color: TX }}>
+                            <Ico name="download" size={14} color={AC} />Nouvelle version
+                          </button>
+                          {cur.version > 1 && (
+                            <button onClick={() => { setVersionHistoryDoc(doc); setMenuOpen(false); }} style={{ width: "100%", padding: `${SP.sm + 2}px ${SP.md}px`, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.md, color: TX }}>
+                              <Ico name="history" size={14} color={TX3} />Historique
+                            </button>
+                          )}
+                          <div style={{ height: 1, background: SBB }} />
+                          <button onClick={() => { confirmDeleteDoc === doc.id ? (removeDoc(doc.id), setConfirmDeleteDoc(null)) : setConfirmDeleteDoc(doc.id); setMenuOpen(false); }} style={{ width: "100%", padding: `${SP.sm + 2}px ${SP.md}px`, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.md, color: RD }}>
+                            <Ico name="trash" size={14} color={RD} />Supprimer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -6555,8 +6750,8 @@ function PlanViewer({ project, setProjects, onBack }) {
       ) : !planImageSrc ? (
         /* ── Empty state ── */
         <div style={{ margin: "0 20px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 20px", border: `2px dashed ${SBB}`, borderRadius: 14, background: WH, textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: SB, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
-            <Ico name="mappin" size={26} color={TX3} />
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+            <Ico name="mappin" size={26} color={AC} />
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: TX, marginBottom: 6 }}>Aucun plan uploadé</div>
           <div style={{ fontSize: 13, color: TX3, marginBottom: 24, maxWidth: 300, lineHeight: 1.6 }}>Uploadez un fichier image (JPG, PNG) pour localiser vos remarques directement sur le plan.</div>
@@ -6580,9 +6775,9 @@ function PlanViewer({ project, setProjects, onBack }) {
                   { id: "anno",   label: "Dessin",   icon: "pen2"   },
                 ].map((m) => (
                   <button key={m.id} onClick={() => switchMode(m.id)}
-                    style={{ flex: 1, padding: "6px 2px", border: "none", borderRadius: 6, background: mode === m.id ? WH : "transparent", color: mode === m.id ? TX : TX3, fontWeight: mode === m.id ? 700 : 400, fontSize: 10, cursor: "pointer", fontFamily: "inherit", boxShadow: mode === m.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
+                    style={{ flex: 1, padding: `${SP.sm}px ${SP.xs}px`, border: "none", borderRadius: RAD.sm, background: mode === m.id ? WH : "transparent", color: mode === m.id ? TX : TX3, fontWeight: mode === m.id ? 700 : 400, fontSize: FS.xs, cursor: "pointer", fontFamily: "inherit", boxShadow: mode === m.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minHeight: 44 }}
                   >
-                    <Ico name={m.icon} size={13} color={mode === m.id ? AC : TX3} />
+                    <Ico name={m.icon} size={15} color={mode === m.id ? AC : TX3} />
                     {m.label}
                   </button>
                 ))}
@@ -6614,7 +6809,7 @@ function PlanViewer({ project, setProjects, onBack }) {
                       const post = project.posts.find((p) => p.id === m.postId);
                       return (
                         <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}` }}>
-                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: AC, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: AC, color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
                           <span style={{ fontSize: 11, color: TX2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post ? `${post.id}. ${post.label}` : "—"}</span>
                           <button onClick={() => removeMarker(m.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0, opacity: 0.4 }}><Ico name="trash" size={11} color={TX3} /></button>
                         </div>
@@ -6679,7 +6874,7 @@ function PlanViewer({ project, setProjects, onBack }) {
                       const post = project.posts.find((p) => p.id === m.postId);
                       return (
                         <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}` }}>
-                          <div style={{ width: 20, height: 20, borderRadius: "50%", background: AC, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: AC, color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
                           <span style={{ fontSize: 11, color: TX2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post ? `${post.id}. ${post.label}` : "—"}</span>
                           <button onClick={() => removeMarker(m.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><Ico name="trash" size={11} color={TX3} /></button>
                         </div>
@@ -6703,10 +6898,10 @@ function PlanViewer({ project, setProjects, onBack }) {
                     return (
                       <button key={t.id} title={t.label}
                         onClick={() => { setAnnoTool(t.id); if (t.id !== "select") { setSelectedId(null); selectedIdRef.current = null; redrawCanvas(planStrokesRef.current); } }}
-                        style={{ padding: "8px 4px 6px", border: `1.5px solid ${active ? AC : SBB}`, borderRadius: 8, background: active ? ACL : WH, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontFamily: "inherit", boxShadow: active ? "none" : "0 1px 2px rgba(0,0,0,0.04)" }}
+                        style={{ padding: `${SP.sm + 2}px ${SP.xs}px ${SP.sm}px`, border: `1.5px solid ${active ? AC : SBB}`, borderRadius: RAD.md, background: active ? ACL : WH, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: SP.xs, fontFamily: "inherit", boxShadow: active ? "none" : "0 1px 2px rgba(0,0,0,0.04)", minHeight: 44 }}
                       >
-                        <Ico name={t.icon} size={14} color={active ? AC : TX2} />
-                        <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, color: active ? AC : TX3, letterSpacing: "0.01em", lineHeight: 1 }}>{t.label}</span>
+                        <Ico name={t.icon} size={16} color={active ? AC : TX2} />
+                        <span style={{ fontSize: FS.xs, fontWeight: active ? 700 : 500, color: active ? AC : TX3, letterSpacing: "0.01em", lineHeight: 1 }}>{t.label}</span>
                       </button>
                     );
                   })}
@@ -7844,9 +8039,9 @@ function ProfileView({ profile, onSave }) {
       {/* Form — Informations */}
       <div ref={refFor("info")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>{t("profile.personalInfo")}</div>
-        <Field label={t("profile.fullName")} value={form.name} onChange={set("name")} placeholder="ex: Gaëlle CNOP" />
+        <Field label={t("profile.fullName")} value={form.name} onChange={set("name")} placeholder="ex: Gaëlle CNOP" required />
         <div style={{ display: "flex", gap: 10 }}>
-          <Field half label={t("profile.structureName")} value={form.structure} onChange={set("structure")} placeholder="ex: DEWIL architecten" />
+          <Field half label={t("profile.structureName")} value={form.structure} onChange={set("structure")} placeholder="ex: DEWIL architecten" required />
           <Field half label={t("profile.structureType")} value={form.structureType} onChange={set("structureType")} select options={STRUCTURE_TYPES} />
         </div>
         <Field label={t("profile.address")} value={form.address} onChange={set("address")} placeholder="ex: Rue de la Loi 12, 1000 Bruxelles" />
@@ -7863,7 +8058,8 @@ function ProfileView({ profile, onSave }) {
         <div
           contentEditable
           suppressContentEditableWarning
-          onInput={e => set("emailSignature")(e.currentTarget.innerHTML)}
+          role="textbox" aria-label="Signature email" aria-multiline="true"
+          onInput={e => set("emailSignature")(e.currentTarget.innerHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/\bon\w+\s*=/gi, "data-removed="))}
           onPaste={e => {
             const items = e.clipboardData?.items;
             if (!items) return;
@@ -8090,9 +8286,12 @@ function ChecklistsView({ project, setProjects, onBack }) {
       {/* Liste des checklists */}
       {checklists.length === 0 && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "50px 20px", border: `2px dashed ${SBB}`, borderRadius: 12, background: WH, textAlign: "center" }}>
-          <Ico name="listcheck" size={38} color={TX3} />
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: ACL, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Ico name="listcheck" size={26} color={AC} />
+          </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginTop: 14, marginBottom: 6 }}>{t("checklists.noChecklists")}</div>
-          <div style={{ fontSize: 13, color: TX3 }}>{t("checklists.noChecklistsDesc")}</div>
+          <div style={{ fontSize: FS.md, color: TX3, marginBottom: SP.lg }}>{t("checklists.noChecklistsDesc")}</div>
+          <div style={{ fontSize: FS.sm, color: TX3 }}>Utilisez le champ ci-dessus pour créer votre première checklist.</div>
         </div>
       )}
 
@@ -8178,7 +8377,7 @@ function ChecklistsView({ project, setProjects, onBack }) {
                         <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${SB}` }}>
                           <button
                             onClick={() => toggleItem(cl.id, it.id)}
-                            style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${it.checked ? GR : SBB}`, background: it.checked ? GR : WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "all 0.15s" }}
+                            style={{ width: 24, height: 24, borderRadius: RAD.sm, border: `2px solid ${it.checked ? GR : SBB}`, background: it.checked ? GR : WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "all 0.15s" }}
                           >
                             {it.checked && <Ico name="check" size={12} color="#fff" />}
                           </button>
@@ -8484,7 +8683,23 @@ export default function App() {
 
   const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Tableau de bord" };
 
+  // ── Global keyboard shortcuts ──
+  useEffect(() => {
+    const onKey = (e) => {
+      // Don't trigger in inputs/textareas/contenteditable
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.contentEditable === "true") return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key === "k") { e.preventDefault(); setShowSearch(true); }
+      if (ctrl && e.key === "n") { e.preventDefault(); setModal("new"); }
+      if (ctrl && e.key === "b") { e.preventDefault(); setSidebarOpen(v => !v); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
+    <ErrorBoundary>
     <LangContext.Provider value={profile.lang || "fr"}>
     <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
       <style>{`
@@ -8493,10 +8708,14 @@ export default function App() {
         @keyframes modalIn { from { opacity: 0; transform: scale(0.97) } to { opacity: 1; transform: scale(1) } }
         @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(196,57,42,0.45) } 70% { box-shadow: 0 0 0 18px rgba(196,57,42,0) } 100% { box-shadow: 0 0 0 0 rgba(196,57,42,0) } }
         @keyframes spin { to { transform: rotate(360deg) } }
-        *:focus-visible { outline: 2px solid #D97B0D; outline-offset: 2px }
+        @keyframes skeleton { 0%, 100% { opacity: 0.4 } 50% { opacity: 0.8 } }
+        *:focus-visible { outline: 2px solid ${AC}; outline-offset: 2px }
         *:focus:not(:focus-visible) { outline: none }
-        input::placeholder, textarea::placeholder { color: #767672 }
-        * { scrollbar-width: thin; scrollbar-color: #E2E1DD transparent }
+        input::placeholder, textarea::placeholder { color: ${TX3} }
+        * { scrollbar-width: thin; scrollbar-color: ${SBB} transparent; line-height: ${LH.normal} }
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
         button { transition: filter 0.15s, transform 0.1s; }
         button:not([disabled]):not(.sidebar-logout):hover { filter: brightness(0.92); }
         button:not([disabled]):active { transform: scale(0.97); }
@@ -8509,6 +8728,9 @@ export default function App() {
         .sb-nav:hover { background: ${SB2} !important; }
         .sb-nav:hover span { color: ${TX} !important; }
         .sb-cta:hover { filter: brightness(1.06) !important; }
+        .method-card-dictate:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(217,123,13,0.18); }
+        .method-card-write:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-color: ${TX3} !important; }
+        .ap-view-enter { animation: fadeIn 0.18s ease-out; }
         .profile-nav-item:hover { background: ${SB} !important; }
         .plan-folder-row:hover { background: ${SB}; }
         .plan-file-row:hover { background: ${SB}; }
@@ -8527,6 +8749,14 @@ export default function App() {
           .ap-main { margin-left: 0 !important; }
         }
 
+        /* Tablet landscape — intermediate layout */
+        @media (max-width: 900px) {
+          .ap-overview-grid { flex-direction: column !important; }
+          .ap-overview-grid > div { flex: 1 1 100% !important; min-width: 0 !important; }
+          .ap-note-layout { flex-direction: column !important; }
+          .ap-note-layout > div { flex: 1 1 100% !important; max-width: 100% !important; width: 100% !important; }
+        }
+
         @media (max-width: 768px) {
           /* Bigger touch targets */
           button, a, select, label { min-height: 44px; }
@@ -8536,6 +8766,17 @@ export default function App() {
           .ap-header { padding: 8px 12px !important; gap: 8px !important; }
           .ap-header .ap-search-pill { display: none !important; }
           .ap-header .ap-profile-text { display: none !important; }
+          .ap-header .ap-project-name { max-width: 140px !important; font-size: 14px !important; }
+          .ap-header .ap-project-meta { max-width: 160px !important; }
+
+          /* Overview secondary column — collapsible on mobile */
+          .ap-side-toggle { display: flex !important; }
+          .ap-side-content { display: none !important; }
+          .ap-overview-side.open .ap-side-content { display: flex !important; }
+
+          /* Documents — menu contextuel sur mobile */
+          .ap-doc-actions-desktop { display: none !important; }
+          .ap-doc-actions-mobile { display: block !important; }
 
           /* Content area tighter padding */
           .ap-content { padding: 12px !important; }
@@ -8560,8 +8801,8 @@ export default function App() {
         }
 
         @media (max-width: 480px) {
-          /* Extra small: stack everything */
-          .ap-kpi-row > div { flex: 1 1 100% !important; }
+          /* Extra small: KPI 2x2 minimum instead of 1 column */
+          .ap-kpi-row > div { flex: 1 1 45% !important; min-width: 0 !important; }
         }
 
         /* Touch-friendly: larger active area */
@@ -8569,29 +8810,50 @@ export default function App() {
           button:not([disabled]):active { transform: scale(0.95); }
           .ap-touch-btn { min-height: 48px; padding: 12px 16px !important; }
         }
+
+        /* Safe area insets for notched devices (iPhone X+) */
+        @supports (padding: env(safe-area-inset-top)) {
+          .ap-header { padding-top: max(10px, env(safe-area-inset-top)) !important; }
+          .ap-content { padding-bottom: max(20px, env(safe-area-inset-bottom)) !important; }
+          .ap-modal-card { padding-bottom: env(safe-area-inset-bottom) !important; }
+        }
+
+        /* Landscape phone — constrained height */
+        @media (max-height: 500px) and (orientation: landscape) {
+          .ap-header { padding: 4px 12px !important; }
+          .ap-modal-card { max-height: 100% !important; height: 100% !important; border-radius: 0 !important; }
+        }
       `}</style>
-      <Sidebar projects={projects} activeId={activeId} onSelect={(id) => { setActiveId(id); setView("overview"); if (window.innerWidth <= 1024) setSidebarOpen(false); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); setSidebarOpen(false); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { /* TODO: open shared project */ }} onStats={() => { setView("stats"); setSidebarOpen(false); }} />
+      <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); if (window.innerWidth <= 1024) setSidebarOpen(false); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); setSidebarOpen(false); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { /* TODO: open shared project */ }} onStats={() => { setView("stats"); setSidebarOpen(false); }} />
 
       {/* Sidebar overlay for tablet/mobile */}
       {sidebarOpen && <div className="ap-sidebar-overlay open" onClick={() => setSidebarOpen(false)} />}
 
       <div className="ap-main" style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
         <div className="ap-header" style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
-          {/* Gauche — hamburger + contexte projet */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto", minWidth: 0 }}>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+          {/* Gauche — hamburger + retour + contexte projet */}
+          <div style={{ display: "flex", alignItems: "center", gap: SP.sm, flex: "0 0 auto", minWidth: 0 }}>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"} style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.md }}>
               <Ico name={sidebarOpen ? "x" : "menu"} color={TX2} />
             </button>
+            {/* Bouton retour — visible dans les vues profondes */}
+            {view !== "overview" && view !== "stats" && view !== "profile" && (
+              <button onClick={() => setView("overview")} aria-label="Retour à l'aperçu" className="sb-nav" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.xs, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
+                <Ico name="back" size={16} color={TX2} />
+              </button>
+            )}
             <div style={{ minWidth: 0 }}>
               {view === "profile" ? (
-                <div style={{ fontSize: 15, fontWeight: 600, color: TX }}>Mon profil</div>
+                <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Mon profil</div>
+              ) : view === "stats" ? (
+                <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Tableau de bord</div>
               ) : (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{project?.name}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
+                    <span role="heading" aria-level="1" className="ap-project-name" style={{ fontSize: FS.lg, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{project?.name}</span>
                     {project && <StatusBadge statusId={project.statusId} small />}
                   </div>
-                  <div style={{ fontSize: 11, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>
+                  <div className="ap-project-meta" style={{ fontSize: FS.sm, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>
                     {VIEW_LABELS[view] ? <><span style={{ color: AC, fontWeight: 600 }}>{VIEW_LABELS[view]}</span> · </> : ""}{project?.client}
                   </div>
                 </>
@@ -8601,9 +8863,9 @@ export default function App() {
 
           {/* Centre — barre de recherche pilule */}
           <div className="ap-search-pill" style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <button onClick={() => setShowSearch(true)} style={{ display: "flex", alignItems: "center", gap: 8, background: "#F2F2F0", border: "none", borderRadius: 999, padding: "8px 18px", cursor: "text", width: "100%", maxWidth: 400, fontFamily: "inherit" }}>
-              <Ico name="search" size={15} color="#A3A39D" />
-              <span style={{ fontSize: 13, color: "#A3A39D", fontWeight: 400 }}>Search for anything here...</span>
+            <button onClick={() => setShowSearch(true)} aria-label="Rechercher" style={{ display: "flex", alignItems: "center", gap: 8, background: "#F2F2F0", border: "none", borderRadius: 999, padding: "8px 18px", cursor: "text", width: "100%", maxWidth: 400, fontFamily: "inherit" }}>
+              <Ico name="search" size={15} color={TX3} />
+              <span style={{ fontSize: FS.md, color: TX3, fontWeight: 400 }}>Rechercher...</span>
             </button>
           </div>
 
@@ -8611,11 +8873,11 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "0 0 auto" }}>
           {/* Notification bell */}
           <div style={{ position: "relative" }}>
-            <button onClick={() => setShowNotifications(p => !p)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+            <button onClick={() => setShowNotifications(p => !p)} aria-label="Notifications" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, borderRadius: RAD.md, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
               <Ico name="bell" size={18} color={TX2} />
-              {notifications.filter(n => !n.read).length > 0 && (
-                <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: RD, border: "2px solid #fff" }} />
-              )}
+              {(() => { const unread = notifications.filter(n => !n.read).length + invitations.length; return unread > 0 ? (
+                <span style={{ position: "absolute", top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, background: RD, border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff", padding: "0 3px", lineHeight: 1 }}>{unread > 9 ? "9+" : unread}</span>
+              ) : null; })()}
             </button>
             {showNotifications && (
               <div style={{ position: "absolute", top: "100%", right: 0, width: 340, maxHeight: 400, overflowY: "auto", background: WH, border: `1px solid ${SBB}`, borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", zIndex: 200, animation: "fadeIn 0.15s ease-out" }}>
@@ -9019,5 +9281,6 @@ export default function App() {
       )}
     </div>
     </LangContext.Provider>
+    </ErrorBoundary>
   );
 }
