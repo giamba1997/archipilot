@@ -425,11 +425,11 @@ export async function deleteComment(commentId) {
 
 // ── PV Distribution ────────────────────────────────────────
 
-export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName }) {
+export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName, subject, customMessage }) {
   const pvId = `${projectName.replace(/\s+/g, "_")}-${pvNumber}`;
 
   const { data, error } = await supabase.functions.invoke("send-pv-email", {
-    body: { to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName, pvId },
+    body: { to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName, pvId, subject, customMessage },
   });
 
   if (error) { console.error("sendPvByEmail error:", error); return { error: error.message }; }

@@ -109,11 +109,45 @@ const parseAddress = (addr) => {
 };
 
 const RECURRENCES = [
-  { id: "none", label: "Pas de récurrence" },
-  { id: "weekly", label: "1x par semaine" },
-  { id: "biweekly", label: "1x / 2 semaines" },
-  { id: "monthly", label: "1x par mois" },
+  { id: "none", label: "Ponctuel (pas de récurrence)", days: 0 },
+  { id: "2x_week", label: "2x par semaine", days: 3 },
+  { id: "3x_week", label: "3x par semaine", days: 2 },
+  { id: "weekly", label: "1x par semaine", days: 7 },
+  { id: "biweekly", label: "1x / 2 semaines", days: 14 },
+  { id: "monthly", label: "1x par mois", days: 30 },
+  { id: "6weeks", label: "1x / 6 semaines", days: 42 },
 ];
+
+// Parse dd/mm/yyyy to Date
+function parseDateFR(str) {
+  if (!str) return null;
+  const p = str.split("/");
+  if (p.length !== 3) return null;
+  return new Date(+p[2], +p[1] - 1, +p[0]);
+}
+
+// Format Date to dd/mm/yyyy
+function formatDateFR(d) {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+// Calculate next meeting date from last meeting + recurrence
+function calcNextMeeting(lastDate, recurrenceId) {
+  const rec = RECURRENCES.find(r => r.id === recurrenceId);
+  if (!rec || rec.days === 0 || !lastDate) return null;
+  const d = parseDateFR(lastDate);
+  if (!d) return null;
+  d.setDate(d.getDate() + rec.days);
+  return formatDateFR(d);
+}
+
+// Days until a date
+function daysUntil(dateStr) {
+  const d = parseDateFR(dateStr);
+  if (!d) return null;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  return Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+}
 
 const STRUCTURE_TYPES = [
   { id: "architecte", label: "Architecte" },
@@ -138,6 +172,7 @@ const INIT_PROFILE = {
   postTemplate: "general",
   pvTemplate: "standard",
   remarkNumbering: "none",
+  emailSignature: "",
 };
 
 const COLOR_PRESETS = [
@@ -478,7 +513,7 @@ const compositePlanImage = (project) => new Promise((resolve) => {
   img.src = project.planImage;
 });
 
-async function generatePDF(project, pvNum, date, result, profile) {
+async function generatePDF(project, pvNum, date, result, profile, options) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = 210, H = 297;
   const ML = 18, MR = 18;
@@ -769,8 +804,11 @@ async function generatePDF(project, pvNum, date, result, profile) {
     doc.text(`Page ${i} / ${total}`, W - MR, H - 6, { align: "right" });
   }
 
-  const safeName = project.name.replace(/[^\w\s]/g, "").replace(/\s+/g, "_");
+  const safeName = project.name.replace(/[^\w\s\u00C0-\u024F]/g, "").replace(/\s+/g, "_");
   const safeDate = date.replace(/\//g, "-");
+  if (options?.returnDataUrl) {
+    return { dataUrl: doc.output("datauristring"), fileName: `PV_${pvNum}_${safeName}_${safeDate}.pdf` };
+  }
   doc.save(`PV_${pvNum}_${safeName}_${safeDate}.pdf`);
 }
 
@@ -796,6 +834,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     archive: "M21 8v13H3V8 M1 3h22v5H1z M10 12h4",
     dup: "M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1z M20 5H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z",
     mail: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 6l-10 7L2 6",
+    bell: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0",
     phone: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z",
     eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z",
     repeat: "M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3",
@@ -819,6 +858,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     mic: "M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8",
     logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9",
     "chevron-down": "M6 9l6 6 6-6",
+    "chevron-right": "M9 18l6-6-6-6",
     "chevron-up":   "M18 15l-6-6-6 6",
     undo:           "M3 7v6h6 M3 13a9 9 0 1 0 2.64-6.36",
     line:           "M5 19L19 5",
@@ -830,6 +870,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     move:           "M5 9l-3 3 3 3 M9 5l3-3 3 3 M15 19l-3 3-3-3 M19 9l3 3-3 3 M2 12h20 M12 2v20",
     layers:         "M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5",
     pipette:        "M7 21l-4-4 8.5-8.5 4 4L7 21z M14.5 5.5l4 4 M16.5 3.5a2.12 2.12 0 0 1 3 3l-2 2-4-4 2-2z",
+    stop:           "M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
   };
   const d = paths[name] || "";
   return (
@@ -979,17 +1020,32 @@ const INIT_PROJECTS = [
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
 function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats }) {
-  const [sortBy, setSortBy] = useState("recency");
+  const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [collapsedClients, setCollapsedClients] = useState({});
   const t = useT();
   const active = projects.filter((p) => !p.archived);
   const archived = projects.filter((p) => p.archived);
   const sortedActive = [...active].sort((a, b) => {
     if (sortBy === "name") return a.name.localeCompare(b.name, "fr");
+    if (sortBy === "client") return (a.client || "").localeCompare(b.client || "", "fr") || a.name.localeCompare(b.name, "fr");
     const aDate = a.pvHistory?.[0]?.date || "";
     const bDate = b.pvHistory?.[0]?.date || "";
     return bDate.localeCompare(aDate) || b.id - a.id;
   });
+
+  // Group by client
+  const clientGroups = sortBy === "client" ? sortedActive.reduce((acc, p) => {
+    const client = p.client || "Sans client";
+    if (!acc[client]) acc[client] = [];
+    acc[client].push(p);
+    return acc;
+  }, {}) : null;
+  const toggleClient = (client) => setCollapsedClients(prev => ({ ...prev, [client]: !prev[client] }));
+
+  // Shared color for muted text (better contrast than #A3A39D)
+  const TX4 = "#8A8A85";
 
   return (
     <div style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 264, background: SB, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", zIndex: 100, transform: open ? "translateX(0)" : "translateX(-264px)", transition: "transform 0.25s ease" }}>
@@ -1008,123 +1064,177 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
       {/* ── Scrollable body ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 10px 10px" }}>
 
-        {/* Actions principales */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-          <button onClick={onNewProject} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit" }}>
-            <Ico name="plus" size={13} color="#fff" />
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
-          </button>
-          <button onClick={onStats} style={{ padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Tableau de bord">
-            <Ico name="chart" size={15} color={TX2} />
-          </button>
-        </div>
+        {/* CTA Nouveau projet — pleine largeur */}
+        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 }}>
+          <Ico name="plus" size={13} color="#fff" />
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
+        </button>
 
-        {/* Label section + tri */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px", marginBottom: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("sidebar.projects")}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: AC, background: ACL, padding: "1px 6px", borderRadius: 10, lineHeight: "16px" }}>{active.length}</span>
-          </div>
-          {/* Tri compact */}
+        {/* Navigation — Tableau de bord */}
+        <button onClick={onStats} className="sb-nav" style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", border: "none", borderRadius: 6, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginBottom: 12, transition: "background 0.15s" }}>
+          <Ico name="chart" size={14} color={TX3} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>Tableau de bord</span>
+        </button>
+
+        {/* Section header + mode de vue */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("sidebar.projects")}</span>
           <div style={{ display: "flex", background: SB2, borderRadius: 6, padding: 2, gap: 1 }}>
-            <button onClick={() => setSortBy("recency")} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", border: "none", borderRadius: 5, background: sortBy === "recency" ? WH : "transparent", cursor: "pointer", fontFamily: "inherit", boxShadow: sortBy === "recency" ? "0 1px 2px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
-              <Ico name="clock" size={10} color={sortBy === "recency" ? AC : TX3} />
-              <span style={{ fontSize: 10, fontWeight: 600, color: sortBy === "recency" ? AC : TX3 }}>{t("sidebar.recent")}</span>
-            </button>
-            <button onClick={() => setSortBy("name")} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", border: "none", borderRadius: 5, background: sortBy === "name" ? WH : "transparent", cursor: "pointer", fontFamily: "inherit", boxShadow: sortBy === "name" ? "0 1px 2px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: sortBy === "name" ? AC : TX3 }}>{t("sidebar.az")}</span>
-            </button>
+            {[
+              { id: "client", icon: "folder", label: "Client" },
+              { id: "recency", icon: "clock", label: "R\u00E9cents" },
+              { id: "name", icon: null, label: "A\u2192Z" },
+            ].map(s => (
+              <button key={s.id} onClick={() => setSortBy(s.id)} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 6px", border: "none", borderRadius: 5, background: sortBy === s.id ? WH : "transparent", cursor: "pointer", fontFamily: "inherit", boxShadow: sortBy === s.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
+                {s.icon && <Ico name={s.icon} size={10} color={sortBy === s.id ? AC : TX3} />}
+                <span style={{ fontSize: 9, fontWeight: 600, color: sortBy === s.id ? AC : TX3 }}>{s.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Liste des projets */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          {sortedActive.map((p) => {
-            const st = getStatus(p.statusId);
-            const isActive = activeId === p.id;
-            return (
-              <button
-                key={p.id}
-                onClick={() => { onSelect(p.id); onClose(); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 9,
-                  padding: isActive ? "9px 10px 9px 10px" : "8px 10px 8px 12px",
-                  border: "none",
-                  borderLeft: isActive ? `3px solid ${AC}` : "3px solid transparent",
-                  borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-                  background: isActive ? WH : "transparent",
-                  boxShadow: isActive ? "0 1px 5px rgba(0,0,0,0.06)" : "none",
-                  transition: "background 0.12s, box-shadow 0.12s",
-                }}
-              >
-                <div style={{ width: 30, height: 30, borderRadius: 7, background: isActive ? st.bg : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.12s" }}>
-                  <Ico name="building" size={14} color={isActive ? st.color : TX3} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {sortBy === "client" && clientGroups ? (
+            Object.entries(clientGroups).map(([client, clientProjects], gi) => {
+              const collapsed = collapsedClients[client];
+              const hasActive = clientProjects.some(p => p.id === activeId);
+              return (
+                <div key={client} style={{ marginBottom: 2 }}>
+                  {/* Separator between client groups */}
+                  {gi > 0 && <div style={{ height: 1, background: SBB, margin: "6px 6px 6px 6px", opacity: 0.6 }} />}
+                  {/* Client section header */}
+                  <button onClick={() => toggleClient(client)} className="sb-client" style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 8,
+                    padding: "7px 6px", border: "none", background: "transparent",
+                    cursor: "pointer", fontFamily: "inherit", borderRadius: 6,
+                  }}>
+                    <Ico name={collapsed ? "chevron-right" : "chevron-down"} size={10} color={TX3} />
+                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: hasActive ? TX : TX2, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.1px" }}>{client}</span>
+                    <span style={{ fontSize: 9, color: TX4, fontWeight: 600, flexShrink: 0 }}>{clientProjects.length}</span>
+                  </button>
+                  {/* Projects in this client group */}
+                  {!collapsed && (
+                    <div style={{ marginLeft: 14, borderLeft: `2px solid ${hasActive ? ACL2 : SBB}`, paddingLeft: 0, transition: "border-color 0.2s" }}>
+                      {clientProjects.map((p) => {
+                        const st = getStatus(p.statusId);
+                        const isAct = activeId === p.id;
+                        const pvCount = (p.pvHistory || []).length;
+                        return (
+                          <button key={p.id} onClick={() => { onSelect(p.id); onClose(); }} className="sb-project" style={{
+                            width: "100%", display: "flex", alignItems: "center", gap: 8,
+                            padding: "7px 10px 7px 12px",
+                            border: "none",
+                            borderRadius: 7, cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                            background: isAct ? WH : "transparent",
+                            boxShadow: isAct ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+                            transition: "background 0.15s, box-shadow 0.15s", marginTop: 1,
+                          }}>
+                            <div style={{ width: 26, height: 26, borderRadius: 6, background: isAct ? st.bg : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }}>
+                              <Ico name="building" size={12} color={isAct ? st.color : TX4} />
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontSize: 12, fontWeight: isAct ? 650 : 500, color: isAct ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "16px" }}>{p.name}</div>
+                              <div style={{ fontSize: 9, color: isAct ? TX3 : TX4, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ fontSize: 9, fontWeight: 600, color: st.color, background: st.bg, padding: "1px 6px", borderRadius: 4, lineHeight: "14px" }}>{st.label}</span>
+                                {pvCount > 0 && <span style={{ color: isAct ? AC : TX4, fontWeight: 600 }}>{pvCount} PV</span>}
+                              </div>
+                            </div>
+                            {isAct && <div style={{ width: 5, height: 5, borderRadius: "50%", background: AC, flexShrink: 0 }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: isActive ? 650 : 500, color: isActive ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "17px" }}>{p.name}</div>
-                  <div style={{ fontSize: 10, color: isActive ? TX3 : "#A3A39D", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {p.client}{(p.pvHistory || []).length > 0 ? <span style={{ color: isActive ? AC : "#BBBBB5", fontWeight: 600 }}> · PV{p.pvHistory.length}</span> : ""}
+              );
+            })
+          ) : (
+            sortedActive.map((p) => {
+              const st = getStatus(p.statusId);
+              const isActive = activeId === p.id;
+              const pvCount = (p.pvHistory || []).length;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => { onSelect(p.id); onClose(); }}
+                  className="sb-project"
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 9,
+                    padding: isActive ? "9px 10px 9px 10px" : "8px 10px 8px 12px",
+                    border: "none",
+                    borderLeft: isActive ? `3px solid ${AC}` : "3px solid transparent",
+                    borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                    background: isActive ? WH : "transparent",
+                    boxShadow: isActive ? "0 1px 5px rgba(0,0,0,0.06)" : "none",
+                    transition: "background 0.15s, box-shadow 0.15s",
+                  }}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: 7, background: isActive ? st.bg : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }}>
+                    <Ico name="building" size={14} color={isActive ? st.color : TX4} />
                   </div>
-                </div>
-                {isActive && (
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: AC, flexShrink: 0, opacity: 0.7 }} />
-                )}
-              </button>
-            );
-          })}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: isActive ? 650 : 500, color: isActive ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "17px" }}>{p.name}</div>
+                    <div style={{ fontSize: 10, color: isActive ? TX3 : TX4, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span>{p.client}</span>
+                      {pvCount > 0 && <span style={{ color: isActive ? AC : TX4, fontWeight: 600 }}>&middot; {pvCount} PV</span>}
+                    </div>
+                  </div>
+                  {isActive && (
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: AC, flexShrink: 0 }} />
+                  )}
+                </button>
+              );
+            })
+          )}
         </div>
 
         {/* Section Partagés */}
         {sharedProjects && sharedProjects.length > 0 && (
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 4px", marginBottom: 4 }}>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("collab.sharedWithMe")}</span>
               <span style={{ fontSize: 10, fontWeight: 600, color: TX3, background: SB2, padding: "1px 6px", borderRadius: 10 }}>{sharedProjects.length}</span>
             </div>
             {sharedProjects.map((p) => (
-              <button key={`shared-${p._ownerId}-${p.id}`} onClick={() => { onSelectShared(p); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1 }}>
+              <button key={`shared-${p._ownerId}-${p.id}`} onClick={() => { onSelectShared(p); onClose(); }} className="sb-project" style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1, transition: "background 0.15s" }}>
                 <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Ico name="users" size={13} color={AC} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: 12, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{p.name}</span>
-                  <span style={{ fontSize: 10, color: TX3 }}>{t(`collab.role${p._role.charAt(0).toUpperCase() + p._role.slice(1)}`)}</span>
+                  <span style={{ fontSize: 10, color: TX4 }}>{t(`collab.role${p._role.charAt(0).toUpperCase() + p._role.slice(1)}`)}</span>
                 </div>
               </button>
             ))}
           </div>
         )}
 
-        {/* Section Archivés */}
-        <div style={{ marginTop: 16 }}>
-          <button
-            onClick={() => setArchivedOpen((v) => !v)}
-            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 4px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("sidebar.archived")}</span>
-              {archived.length > 0 && (
-                <span style={{ fontSize: 10, fontWeight: 600, color: TX3, background: SB2, padding: "1px 6px", borderRadius: 10 }}>{archived.length}</span>
-              )}
-            </div>
-            {archived.length > 0 && (
-              <Ico name={archivedOpen ? "chevron-up" : "chevron-down"} size={11} color={TX3} />
-            )}
-          </button>
-
-          {archived.length === 0 && (
-            <div style={{ padding: "8px 4px 2px", fontSize: 11, color: "#B0AFA9", fontStyle: "italic" }}>{t("sidebar.noArchived")}</div>
-          )}
-
-          {archivedOpen && archived.map((p) => (
-            <button key={p.id} onClick={() => { onSelect(p.id); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.6 }}>
-                <Ico name="archive" size={13} color={TX3} />
+        {/* Section Archivés — masquée si vide */}
+        {archived.length > 0 && (
+          <div style={{ marginTop: 18 }}>
+            <button
+              onClick={() => setArchivedOpen((v) => !v)}
+              className="sb-client"
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 4px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", borderRadius: 6 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: TX2 }}>{t("sidebar.archived")}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: TX4, background: SB2, padding: "1px 6px", borderRadius: 10 }}>{archived.length}</span>
               </div>
-              <span style={{ fontSize: 12, color: TX3, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+              <Ico name={archivedOpen ? "chevron-up" : "chevron-down"} size={11} color={TX3} />
             </button>
-          ))}
-        </div>
+
+            {archivedOpen && archived.map((p) => (
+              <button key={p.id} onClick={() => { onSelect(p.id); onClose(); }} className="sb-project" style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1, transition: "background 0.15s" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.6 }}>
+                  <Ico name="archive" size={13} color={TX3} />
+                </div>
+                <span style={{ fontSize: 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
       </div>
 
@@ -1141,16 +1251,34 @@ function Sidebar({ projects, activeId, onSelect, open, onClose, profile, onNewPr
         </div>
       )}
 
-      {/* ── Déconnexion ── */}
-      <div style={{ padding: "0 10px 12px", flexShrink: 0 }}>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="sidebar-logout"
-          style={{ width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit", transition: "all 0.15s" }}
-        >
-          <Ico name="logout" size={14} color={TX2} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>{t("sidebar.logout")}</span>
-        </button>
+      {/* ── Footer : profil + déconnexion ── */}
+      <div style={{ padding: "10px 10px 12px", flexShrink: 0, borderTop: `1px solid ${SBB}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 4px" }}>
+          {/* Avatar — cliquable vers profil */}
+          <button onClick={onProfile} className="sb-avatar" style={{ width: 32, height: 32, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 11, fontWeight: 700, color: AC, border: `2px solid transparent`, cursor: "pointer", transition: "border-color 0.15s", padding: 0, fontFamily: "inherit" }}>
+            {(profile?.name || "?").split(" ").map(w => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()}
+          </button>
+          {/* Nom + structure — cliquable vers profil */}
+          <button onClick={onProfile} className="sb-profile-text" style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", cursor: "pointer", textAlign: "left", padding: 0, fontFamily: "inherit" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "16px" }}>{profile?.name || "Mon profil"}</div>
+            <div style={{ fontSize: 10, color: TX4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "14px" }}>{profile?.structure || ""}</div>
+          </button>
+          {/* Logout — icône, toggle confirm */}
+          <button onClick={() => setLogoutConfirm(v => !v)} className="sb-logout-icon" title={t("sidebar.logout")} style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: logoutConfirm ? SB2 : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "background 0.15s" }}>
+            <Ico name="logout" size={14} color={logoutConfirm ? RD : TX3} />
+          </button>
+        </div>
+        {/* Confirmation de déconnexion */}
+        {logoutConfirm && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8, padding: "0 4px", animation: "fadeIn 0.15s ease-out" }}>
+            <button onClick={() => setLogoutConfirm(false)} style={{ flex: 1, padding: "7px 0", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontSize: 11, fontWeight: 500, color: TX2, fontFamily: "inherit", transition: "background 0.15s" }}>
+              Annuler
+            </button>
+            <button onClick={() => supabase.auth.signOut()} style={{ flex: 1, padding: "7px 0", border: "none", borderRadius: 6, background: RD, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#fff", fontFamily: "inherit", transition: "background 0.15s" }}>
+              Se déconnecter
+            </button>
+          </div>
+        )}
       </div>
 
     </div>
@@ -1345,12 +1473,181 @@ function WeatherWidget({ address }) {
   );
 }
 
-function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPlan, onViewDocs, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab }) {
+// ── Meeting Card (editable) ─────────────────────────────────
+const MEETING_MODES = [
+  { id: "onsite", label: "Sur site", icon: "building", color: AC },
+  { id: "remote", label: "À distance", icon: "users", color: BL },
+  { id: "hybrid", label: "Hybride", icon: "repeat", color: VI },
+];
+
+function MeetingCard({ project, setProjects, rec }) {
+  const [editing, setEditing] = useState(false);
+  const [dateVal, setDateVal] = useState(project.nextMeeting || "");
+  const meetingMode = project.meetingMode || "onsite";
+  const t = useT();
+
+  const update = (patch) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, ...patch } : p));
+  const days = daysUntil(project.nextMeeting);
+  const isPast = days !== null && days < 0;
+  const isToday = days === 0;
+  const isSoon = days !== null && days > 0 && days <= 2;
+  const mode = MEETING_MODES.find(m => m.id === meetingMode) || MEETING_MODES[0];
+  const suggested = rec && rec.id !== "none" ? calcNextMeeting(project.nextMeeting, project.recurrence) : null;
+
+  const Card = ({ children, style = {} }) => (
+    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "16px 18px", ...style }}>{children}</div>
+  );
+
+  return (
+    <Card style={{ background: project.nextMeeting ? ACL : WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}` }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: AC, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>{t("project.nextMeeting")}</div>
+
+      {editing ? (
+        <div>
+          {/* Date input */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 500, color: TX2, display: "block", marginBottom: 4 }}>Date</label>
+            <input
+              type="text" value={dateVal} onChange={e => setDateVal(e.target.value)}
+              placeholder="dd/mm/yyyy" autoFocus
+              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box" }}
+            />
+          </div>
+          {/* Meeting mode */}
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 11, fontWeight: 500, color: TX2, display: "block", marginBottom: 4 }}>Format</label>
+            <div style={{ display: "flex", gap: 4 }}>
+              {MEETING_MODES.map(m => (
+                <button key={m.id} onClick={() => update({ meetingMode: m.id })} style={{
+                  flex: 1, padding: "6px 8px", border: `1.5px solid ${meetingMode === m.id ? m.color : SBB}`,
+                  borderRadius: 6, background: meetingMode === m.id ? m.color + "14" : WH,
+                  cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+                }}>
+                  <Ico name={m.icon} size={10} color={meetingMode === m.id ? m.color : TX3} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: meetingMode === m.id ? m.color : TX3 }}>{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Recurrence quick display */}
+          {rec && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 10, fontSize: 10, color: TX3 }}>
+              <Ico name="repeat" size={10} color={TX3} />
+              {rec.label}
+            </div>
+          )}
+          {/* Save / Cancel */}
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => { update({ nextMeeting: dateVal }); setEditing(false); }} style={{ flex: 1, padding: "7px 12px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Enregistrer</button>
+            <button onClick={() => { setDateVal(project.nextMeeting || ""); setEditing(false); }} style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX3, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          {/* Date display */}
+          {project.nextMeeting ? (
+            <div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 20, fontWeight: 700, color: TX, letterSpacing: "-0.5px", lineHeight: 1.2 }}>{project.nextMeeting}</span>
+                {isToday && <span style={{ fontSize: 11, fontWeight: 700, color: AC, background: WH, padding: "2px 8px", borderRadius: 10 }}>Aujourd'hui</span>}
+                {isSoon && <span style={{ fontSize: 11, fontWeight: 600, color: AC }}>dans {days}j</span>}
+                {isPast && <span style={{ fontSize: 11, fontWeight: 600, color: RD }}>passée ({Math.abs(days)}j)</span>}
+                {days !== null && days > 2 && <span style={{ fontSize: 11, color: TX3 }}>dans {days} jours</span>}
+              </div>
+              {/* Mode badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", background: WH, border: `1px solid ${mode.color}22`, borderRadius: 6 }}>
+                  <Ico name={mode.icon} size={10} color={mode.color} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: mode.color }}>{mode.label}</span>
+                </div>
+                {rec && rec.id !== "none" && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <Ico name="repeat" size={10} color={TX3} />
+                    <span style={{ fontSize: 10, color: TX3 }}>{rec.label}</span>
+                  </div>
+                )}
+                {rec && rec.id === "none" && (
+                  <span style={{ fontSize: 10, color: TX3 }}>Ponctuel</span>
+                )}
+              </div>
+              {/* Suggest next if past */}
+              {isPast && suggested && (
+                <button onClick={() => { update({ nextMeeting: suggested }); setDateVal(suggested); }} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", border: `1px solid ${AC}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 600, color: AC, width: "100%" }}>
+                  <Ico name="repeat" size={10} color={AC} />Planifier la prochaine : {suggested}
+                </button>
+              )}
+            </div>
+          ) : (
+            <span style={{ fontSize: 14, color: TX3, fontWeight: 400 }}>{t("project.notPlanned")}</span>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button onClick={() => { setDateVal(project.nextMeeting || ""); setEditing(true); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
+              <Ico name="edit" size={11} color={AC} />{project.nextMeeting ? "Modifier" : "Planifier"}
+            </button>
+            {project.nextMeeting && getGoogleCalendarUrl(project) && (
+              <a href={getGoogleCalendarUrl(project)} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, textDecoration: "none" }}>
+                <Ico name="calendar" size={10} color={AC} />Cal
+              </a>
+            )}
+            {project.nextMeeting && (
+              <button onClick={() => downloadICS(project)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
+                <Ico name="download" size={10} color={AC} />.ics
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── PV Row (reusable) ────────────────────────────────────────
+function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
+  const hasInput = pv.inputNotes && pv.inputNotes.length > 0;
+  const hasContent = !!(pv.content || pv.pdfDataUrl);
+  return (
+    <div
+      className="plan-file-row"
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: `1px solid ${SB2}`, borderRadius: 8, marginTop: 1 }}
+    >
+      <div style={{ width: 28, height: 28, borderRadius: 7, background: pv.imported ? BLB : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Ico name={pv.imported ? "upload" : "file"} size={12} color={pv.imported ? BL : TX3} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => onViewPV(pv)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: TX }}>{pv.title || `PV n°${pv.number}`}</span>
+          {pv.imported
+            ? <span style={{ fontSize: 9, fontWeight: 600, color: BL, background: BLB, padding: "1px 6px", borderRadius: 10 }}>{t("project.imported")}</span>
+            : <PvStatusBadge status={pv.status} onClick={(e) => { e.stopPropagation(); updatePvStatus(pv.number, nextPvStatus(pv.status || "draft")); }} />
+          }
+        </div>
+        <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>{pv.date} · {pv.author}</div>
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {/* Bouton Rédaction — ouvre le contenu texte/notes */}
+        <button onClick={() => onViewPV(pv)} style={{ height: 28, padding: "0 9px", borderRadius: 6, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+          <Ico name="edit" size={10} color={TX3} /><span style={{ fontSize: 9, fontWeight: 500, color: TX2 }}>Rédaction</span>
+        </button>
+        {/* Bouton PDF — génère et affiche le PDF */}
+        {hasContent && (
+          <button onClick={() => onViewPdf(pv)} style={{ height: 28, padding: "0 9px", borderRadius: 6, border: `1px solid ${AC}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
+            <Ico name="file" size={10} color={AC} /><span style={{ fontSize: 9, fontWeight: 600, color: AC }}>PDF</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab }) {
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
   const urgent = project.actions.filter((a) => a.urgent && a.open);
   const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
   const rec = RECURRENCES.find((r) => r.id === project.recurrence);
   const t = useT();
+  const [showAllPV, setShowAllPV] = useState(false);
 
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
@@ -1432,9 +1729,6 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
         );
       })()}
 
-      {/* ── Météo du jour ── */}
-      {(project.city || project.address) && <div style={{ marginBottom: 14 }}><WeatherWidget address={project.city || formatAddress(project)} /></div>}
-
       {/* ── Layout 2 colonnes ── */}
       <div className="ap-overview-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
 
@@ -1458,9 +1752,8 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
           {/* Outils rapides */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[
-              { label: t("project.plan"),      icon: "mappin",    color: BL,  bg: BLB,  count: (project.planMarkers||[]).length, onClick: onViewPlan },
+              { label: "Documents",            icon: "folder",    color: BL,  bg: BLB,  count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
               { label: t("project.planning"),  icon: "gantt",     color: GR,  bg: GRBG, count: (project.lots||[]).length,        onClick: onViewPlanning },
-              { label: t("project.documents"), icon: "folder",    color: VI,  bg: VIB,  count: (project.documents||[]).length,   onClick: onViewDocs },
               { label: t("project.lists"),     icon: "listcheck", color: TE,  bg: TEB,  count: (project.checklists||[]).length,  onClick: onViewChecklists },
             ].map((tb) => (
               <button key={tb.label} onClick={tb.onClick} style={{ flex: "1 1 80px", padding: "10px 8px", border: `1px solid ${tb.color}25`, borderRadius: 10, background: tb.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -1510,38 +1803,25 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                     </div>
                   </div>
                 )}
-                {/* Tous les anciens PV */}
-                {project.pvHistory.slice(1).map((pv, i) => (
-                  <div key={i}
-                    onClick={() => onViewPV(pv)}
-                    style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderTop: `1px solid ${SB2}`, cursor: "pointer", borderRadius: 8, transition: "background 0.12s", marginTop: 2 }}
-                    onMouseEnter={e => e.currentTarget.style.background = SB}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >
-                    <div style={{ width: 30, height: 30, borderRadius: 7, background: pv.imported ? BLB : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                      <Ico name={pv.imported ? "upload" : "file"} size={13} color={pv.imported ? BL : TX3} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: TX }}>{pv.title || `PV n°${pv.number}`}</span>
-                        {pv.imported
-                          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, color: BL, background: BLB, padding: "1px 6px", borderRadius: 10 }}>{t("project.imported")}</span>
-                          : <PvStatusBadge status={pv.status} onClick={(e) => { e.stopPropagation(); updatePvStatus(pv.number, nextPvStatus(pv.status || "draft")); }} />
-                        }
-                      </div>
-                      {pv.excerpt && <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pv.excerpt}</div>}
-                      <div style={{ display: "flex", gap: 8, fontSize: 10, color: TX3 }}>
-                        <span>{pv.date}</span>
-                        <span>{pv.author}</span>
-                        {!pv.imported && pv.postsCount > 0 && <span>{pv.postsCount} poste{pv.postsCount > 1 ? "s" : ""}</span>}
-                      </div>
-                    </div>
-                    <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", background: WH, border: `1px solid ${SBB}`, borderRadius: 6, marginTop: 2 }}>
-                      <Ico name="eye" size={11} color={TX2} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color: TX2 }}>{t("view")}</span>
-                    </div>
-                  </div>
+                {/* Anciens PV — limité à 2 (3 total avec le dernier) */}
+                {project.pvHistory.slice(1, 3).map((pv, i) => (
+                  <PvRow key={i} pv={pv} onViewPV={onViewPV} onViewPdf={onViewPdf} updatePvStatus={updatePvStatus} t={t} />
                 ))}
+                {/* Bouton voir tout */}
+                {project.pvHistory.length > 3 && !showAllPV && (
+                  <button onClick={() => setShowAllPV(true)} style={{ width: "100%", marginTop: 6, padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: "inherit", fontSize: 11, fontWeight: 600, color: TX2 }}>
+                    <Ico name="clock" size={11} color={TX3} />
+                    Voir tout l'historique ({project.pvHistory.length} PV)
+                  </button>
+                )}
+                {showAllPV && project.pvHistory.slice(3).map((pv, i) => (
+                  <PvRow key={i + 3} pv={pv} onViewPV={onViewPV} onViewPdf={onViewPdf} updatePvStatus={updatePvStatus} t={t} />
+                ))}
+                {showAllPV && project.pvHistory.length > 3 && (
+                  <button onClick={() => setShowAllPV(false)} style={{ width: "100%", marginTop: 6, padding: "6px 12px", border: "none", borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontFamily: "inherit", fontSize: 10, color: TX3 }}>
+                    <Ico name="chevron-up" size={10} color={TX3} />Réduire
+                  </button>
+                )}
               </>
             )}
           </Card>
@@ -1610,37 +1890,10 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
         <div style={{ flex: "0 1 272px", display: "flex", flexDirection: "column", gap: 14, minWidth: 220 }}>
 
           {/* Prochaine réunion */}
-          <Card style={{ background: project.nextMeeting ? ACL : WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: AC, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>{t("project.nextMeeting")}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: TX, letterSpacing: "-0.5px", lineHeight: 1.2 }}>
-                  {project.nextMeeting || <span style={{ fontSize: 14, color: TX3, fontWeight: 400 }}>{t("project.notPlanned")}</span>}
-                </div>
-                {rec && rec.id !== "none" && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
-                    <Ico name="repeat" size={11} color={TX3} />
-                    <span style={{ fontSize: 11, color: TX3 }}>{rec.label}</span>
-                  </div>
-                )}
-              </div>
-              <button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                <Ico name="edit" size={13} color={AC} />
-              </button>
-            </div>
-            {project.nextMeeting && (
-              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                {getGoogleCalendarUrl(project) && (
-                  <a href={getGoogleCalendarUrl(project)} target="_blank" rel="noopener noreferrer" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, textDecoration: "none", cursor: "pointer" }}>
-                    <Ico name="calendar" size={11} color={AC} />Google Calendar
-                  </a>
-                )}
-                <button onClick={() => downloadICS(project)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
-                  <Ico name="download" size={11} color={AC} />Outlook / iCal
-                </button>
-              </div>
-            )}
-          </Card>
+          <MeetingCard project={project} setProjects={setProjects} rec={rec} />
+
+          {/* Météo du jour */}
+          {(project.city || project.address) && <WeatherWidget address={project.city || formatAddress(project)} />}
 
           {/* Participants */}
           <Card>
@@ -1660,22 +1913,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 </div>
               </div>
             ))}
-            {/* Actions: Export + Import + Invite */}
-            <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              <button onClick={() => exportParticipantsCSV(project)} style={{ flex: 1, padding: "7px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontFamily: "inherit", fontSize: 10, fontWeight: 500, color: TX3 }}>
-                <Ico name="download" size={10} color={TX3} />Export CSV
-              </button>
-              <label style={{ flex: 1, padding: "7px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 10, fontWeight: 500, color: TX3 }}>
-                <Ico name="upload" size={10} color={TX3} />Import CSV
-                <input type="file" accept=".csv" style={{ display: "none" }} onChange={async (e) => {
-                  const file = e.target.files[0]; if (!file) return;
-                  const imported = await importParticipantsCSV(file);
-                  if (imported.length > 0) setProjects(prev => prev.map(p => p.id === project.id ? { ...p, participants: [...p.participants, ...imported] } : p));
-                  e.target.value = "";
-                }} />
-              </label>
-            </div>
-            <button onClick={onCollab} style={{ width: "100%", marginTop: 6, padding: "8px 12px", border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: AC, transition: "all 0.15s" }}>
+            <button onClick={onCollab} style={{ width: "100%", marginTop: 10, padding: "8px 12px", border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: AC, transition: "all 0.15s" }}>
               <Ico name="plus" size={12} color={AC} />
               Inviter des collaborateurs
             </button>
@@ -2580,12 +2818,14 @@ function AnnotationEditor({ photo, onSave, onClose }) {
   );
 }
 
-function NoteEditor({ project, setProjects, onBack, onGenerate }) {
+function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
   const [activePost,      setActivePost]      = useState(null);
   const [annotatingPhoto, setAnnotatingPhoto] = useState(null);
   const [addText,    setAddText]    = useState("");
   const [addUrgent,  setAddUrgent]  = useState(false);
-  const [recipientFilters, setRecipientFilters] = useState([]); // [] = tous
+  const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
+  const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
+  const [inputMethod, setInputMethod] = useState(() => hasExistingRemarks ? "write" : null); // null = choose, "write" | "dictate"
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
   const [renamingPost, setRenamingPost] = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
@@ -2660,6 +2900,158 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
     rec.start();
     setIsRecording(true);
   };
+
+  // ── Continuous recording (global, not per-post) ──
+  const [contRecording, setContRecording] = useState(false);
+  const [contTranscript, setContTranscript] = useState("");
+  const [contInterim, setContInterim] = useState("");
+  const [contDispatching, setContDispatching] = useState(false);
+  const [contReview, setContReview] = useState(false);
+  const [contErr, setContErr] = useState("");
+  const [contSeconds, setContSeconds] = useState(0);
+  const contRecRef = useRef(null);
+  const contTimerRef = useRef(null);
+  const contTranscriptRef = useRef("");
+
+  const startContinuous = (resume = false) => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setContErr(t("notes.voiceNotSupported")); return; }
+    setContErr("");
+    if (!resume) {
+      setContTranscript("");
+      setContSeconds(0);
+      contTranscriptRef.current = "";
+    }
+    setContInterim("");
+    const rec = new SR();
+    rec.lang = "fr-FR";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          const text = e.results[i][0].transcript.trim();
+          if (text) {
+            contTranscriptRef.current += (contTranscriptRef.current ? " " : "") + text;
+            setContTranscript(contTranscriptRef.current);
+          }
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+      setContInterim(interim);
+    };
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed") setContErr(t("notes.micDenied"));
+      else if (e.error !== "no-speech") setContErr("Erreur microphone : " + e.error);
+      setContRecording(false);
+      clearInterval(contTimerRef.current);
+    };
+    rec.onend = () => {
+      // Auto-restart if still in continuous mode (browser stops after silence)
+      // Check both _keepAlive AND that contRecRef still points to this instance
+      if (rec._keepAlive && contRecRef.current === rec) {
+        try { rec.start(); } catch (_) {}
+      }
+    };
+    rec._keepAlive = true;
+    contRecRef.current = rec;
+    rec.start();
+    setContRecording(true);
+    contTimerRef.current = setInterval(() => setContSeconds(s => s + 1), 1000);
+  };
+
+  const stopContinuous = () => {
+    // Disable auto-restart BEFORE stopping
+    if (contRecRef.current) {
+      contRecRef.current._keepAlive = false;
+    }
+    // Small delay to let the last onresult fire before we read the ref
+    setTimeout(() => {
+      if (contRecRef.current) {
+        try { contRecRef.current.stop(); } catch (_) {}
+        contRecRef.current = null;
+      }
+      setContRecording(false);
+      setContInterim("");
+      clearInterval(contTimerRef.current);
+      // Combine finalized transcript + any pending interim
+      const transcript = contTranscriptRef.current.trim();
+      if (!transcript) {
+        // Nothing was captured — go back to chooser
+        setInputMethod(null);
+        return;
+      }
+      setContTranscript(transcript);
+      setContReview(true);
+    }, 300);
+  };
+
+  const submitTranscript = async () => {
+    const transcript = contTranscript.trim();
+    if (!transcript) return;
+    setContReview(false);
+    await dispatchTranscript(transcript);
+  };
+
+  const dispatchTranscript = async (transcript) => {
+    setContDispatching(true);
+    setContErr("");
+    try {
+      const posts = project.posts.map(p => ({ id: p.id, label: p.label }));
+      const { data, error } = await supabase.functions.invoke("dispatch-remarks", {
+        body: { transcript, posts },
+      });
+      if (error) throw new Error(error.message || "Erreur serveur");
+      if (data?.error) throw new Error(data.error);
+      const items = data?.items;
+      if (!Array.isArray(items)) throw new Error("Réponse invalide");
+      // Normalize postIds for flexible matching (e.g. "1" matches "01")
+      const normalizeId = (id) => String(id).replace(/^0+/, "") || "0";
+      const postIds = project.posts.map(po => po.id);
+      const findPost = (rawId) => {
+        const s = String(rawId);
+        if (postIds.includes(s)) return s;
+        const norm = normalizeId(s);
+        const match = postIds.find(pid => normalizeId(pid) === norm);
+        return match || postIds[0] || null;
+      };
+      const grouped = {};
+      for (const it of items) {
+        const resolvedId = findPost(it.postId);
+        if (!resolvedId) continue;
+        if (!grouped[resolvedId]) grouped[resolvedId] = [];
+        grouped[resolvedId].push({ id: Date.now() + Math.random(), text: it.text, urgent: !!it.urgent, status: "open" });
+      }
+      setProjects(prev => prev.map(p => {
+        if (p.id !== project.id) return p;
+        const updatedPosts = p.posts.map(po => {
+          const newRemarks = grouped[po.id] || [];
+          if (newRemarks.length === 0) return po;
+          const existing = (po.remarks || []).length > 0 ? po.remarks : (po.notes?.trim() ? parseNotesToRemarks(po.notes) : []);
+          return { ...po, remarks: [...existing, ...newRemarks], notes: "" };
+        });
+        return { ...p, posts: updatedPosts };
+      }));
+      setContTranscript("");
+      setInputMethod("write");
+    } catch (e) {
+      console.error("Dispatch error:", e);
+      setContErr("Erreur : " + e.message);
+      setContReview(true);
+    } finally {
+      setContDispatching(false);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (contRecRef.current) { contRecRef.current._keepAlive = false; contRecRef.current.stop(); }
+      clearInterval(contTimerRef.current);
+    };
+  }, []);
 
   const initials = (name) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
@@ -3023,7 +3415,7 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
   const totalRemarks = project.posts.reduce((acc, p) => acc + getRemarks(p).length, 0);
   const urgentCount  = project.posts.reduce((acc, p) => acc + getRemarks(p).filter(r => r.urgent).length, 0);
   const totalPhotos  = project.posts.reduce((acc, p) => acc + (p.photos || []).length, 0);
-  const readyToGenerate = filledCount > 0;
+  const readyToGenerate = filledCount > 0 && recipientFilters !== null;
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", paddingBottom: 32 }}>
@@ -3057,7 +3449,7 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
         {(() => {
           const steps = [
             { step: 1, label: t("notes.stepPosts"), sub: `${filledCount}/${project.posts.length}`, icon: "listcheck", done: filledCount > 0 },
-            { step: 2, label: t("notes.stepRecipients"), sub: recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} filtrés`, icon: "users", done: true },
+            { step: 2, label: t("notes.stepRecipients"), sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
             { step: 3, label: t("notes.stepGeneration"), sub: readyToGenerate ? t("notes.stepReady") : t("notes.stepWaiting"), icon: "send", done: false },
           ];
           const activeIdx = steps.findIndex(s => !s.done);
@@ -3134,7 +3526,7 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
         </div>
       )}
 
-      {/* ── Section 1 : Postes ── */}
+      {/* ── Section 1 : Remarques ── */}
       <div style={{ background: WH, borderRadius: 12, border: `1px solid ${SBB}`, overflow: "hidden", marginBottom: 12 }}>
         {/* Section header */}
         <div style={{ padding: "11px 16px", borderBottom: `1px solid ${SBB}`, background: SB }}>
@@ -3146,6 +3538,7 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
               <span style={{ fontSize: 13, fontWeight: 700, color: TX, letterSpacing: "-0.1px" }}>{t("notes.posts")}</span>
               <span style={{ fontSize: 10.5, color: TX3, fontWeight: 400 }}>{filledCount}/{project.posts.length}</span>
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {/* Inline stat chips */}
             {(totalRemarks > 0 || totalPhotos > 0) && (
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
@@ -3173,8 +3566,183 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
                 )}
               </div>
             )}
+            {/* Delete all posts */}
+            {project.posts.length > 0 && (
+              <button
+                onClick={() => { if (confirm(`Supprimer les ${project.posts.length} postes et tout leur contenu ?`)) setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: [] } : p)); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = RD; e.currentTarget.style.background = "#FEF2F2"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = SBB; e.currentTarget.style.background = WH; }}
+                title="Supprimer tous les postes"
+              >
+                <Ico name="trash" size={10} color={RD} />
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: RD }}>Tout supprimer</span>
+              </button>
+            )}
+            </div>
           </div>
         </div>
+
+        {/* ── Method chooser / Dictation / Review / Dispatch / Post list ── */}
+        {contDispatching ? (
+          /* Dispatching state */
+          <div style={{ padding: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: ACL, borderRadius: 12, border: `1px solid ${ACL2}` }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 2px 10px rgba(217,123,13,0.15)" }}>
+                <div style={{ width: 22, height: 22, border: `3px solid ${AC}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 4 }}>Répartition en cours...</div>
+              <div style={{ fontSize: 12, color: TX3 }}>L'IA analyse et répartit vos remarques dans les postes</div>
+            </div>
+          </div>
+        ) : contRecording ? (
+          /* Active recording */
+          <div style={{ padding: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", transition: "all 0.3s" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <div style={{ width: 12, height: 12, borderRadius: "50%", background: RD, animation: "ring 1.4s ease infinite" }} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: RD }}>Enregistrement en cours</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#B91C1C", fontVariantNumeric: "tabular-nums" }}>
+                  {String(Math.floor(contSeconds / 60)).padStart(2, "0")}:{String(contSeconds % 60).padStart(2, "0")}
+                </span>
+              </div>
+              <div style={{ width: "100%", minHeight: 60, maxHeight: 220, overflowY: "auto", marginBottom: 16, padding: "12px 14px", background: WH, borderRadius: 10, border: "1px solid #FECACA", fontSize: 13, color: TX, lineHeight: 1.7 }}>
+                {contTranscript ? (
+                  <>{contTranscript}{contInterim && <span style={{ color: TX3, fontStyle: "italic" }}> {contInterim}</span>}</>
+                ) : contInterim ? (
+                  <span style={{ color: TX3, fontStyle: "italic" }}>{contInterim}</span>
+                ) : (
+                  <span style={{ color: TX3 }}>Parlez librement de chaque poste...</span>
+                )}
+              </div>
+              <button
+                onClick={stopContinuous}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 32px", border: "none", borderRadius: 10, background: RD, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 12px rgba(196,57,42,0.25)" }}
+              >
+                <Ico name="stop" size={16} color="#fff" />
+                Terminer l'enregistrement
+              </button>
+            </div>
+          </div>
+        ) : contReview ? (
+          /* Review & edit transcript before dispatch */
+          <div style={{ padding: "12px" }}>
+            <div style={{ padding: "20px 16px", background: SB, borderRadius: 12, border: `1px solid ${SBB}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: AC, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="check" size={14} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: TX }}>Transcription terminée</div>
+                  <div style={{ fontSize: 11, color: TX3 }}>Relisez et corrigez si besoin avant la répartition</div>
+                </div>
+              </div>
+              <textarea
+                value={contTranscript}
+                onChange={(e) => setContTranscript(e.target.value)}
+                style={{ width: "100%", minHeight: 120, maxHeight: 300, padding: "12px 14px", border: `1px solid ${SBB}`, borderRadius: 10, fontSize: 13, color: TX, lineHeight: 1.7, fontFamily: "inherit", background: WH, resize: "vertical", outline: "none" }}
+                onFocus={(e) => { e.target.style.borderColor = AC; }}
+                onBlur={(e) => { e.target.style.borderColor = SBB; }}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button
+                  onClick={() => { setContReview(false); setContTranscript(""); contTranscriptRef.current = ""; setInputMethod(null); }}
+                  style={{ flex: 1, padding: "11px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => { contTranscriptRef.current = contTranscript; setContReview(false); startContinuous(true); }}
+                  style={{ padding: "11px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}
+                >
+                  <Ico name="mic" size={13} color={RD} />Reprendre
+                </button>
+                <button
+                  onClick={submitTranscript}
+                  disabled={!contTranscript.trim()}
+                  style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", border: "none", borderRadius: 10, background: contTranscript.trim() ? AC : SBB, color: contTranscript.trim() ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: contTranscript.trim() ? "pointer" : "default", fontFamily: "inherit", boxShadow: contTranscript.trim() ? "0 3px 12px rgba(217,123,13,0.2)" : "none" }}
+                >
+                  <span style={{ fontSize: 14 }}>✦</span>Répartir dans les postes
+                </button>
+              </div>
+              {contErr && <div style={{ marginTop: 10, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
+            </div>
+          </div>
+        ) : !inputMethod ? (
+          /* ── Method chooser — prominent first step ── */
+          <div style={{ padding: "20px 16px 24px" }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: TX, letterSpacing: "-0.3px", marginBottom: 4 }}>Comment saisir vos remarques ?</div>
+              <div style={{ fontSize: 12, color: TX3 }}>Choisissez votre méthode de saisie pour commencer</div>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              {/* Dictate option — primary */}
+              <button
+                onClick={() => { setInputMethod("dictate"); startContinuous(); }}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `2px solid ${AC}`, borderRadius: 16, background: `linear-gradient(180deg, ${ACL} 0%, #FFF8F0 100%)`, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s", position: "relative", overflow: "hidden" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(217,123,13,0.18)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+              >
+                <div style={{ position: "absolute", top: 8, right: 8, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: AC, background: WH, padding: "2px 8px", borderRadius: 4, border: `1px solid ${ACL2}` }}>Recommandé</div>
+                <div style={{ width: 60, height: 60, borderRadius: "50%", background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(217,123,13,0.3)" }}>
+                  <Ico name="mic" size={28} color="#fff" />
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: TX, marginBottom: 5 }}>Dicter</div>
+                  <div style={{ fontSize: 11.5, color: TX2, lineHeight: 1.5 }}>Parlez librement de votre visite, l'IA répartit automatiquement dans les postes</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  {["Mains libres", "Rapide", "IA"].map((tag, i) => (
+                    <span key={i} style={{ fontSize: 9.5, fontWeight: 600, color: AC, background: WH, border: `1px solid ${ACL2}`, padding: "2px 7px", borderRadius: 4 }}>{tag}</span>
+                  ))}
+                </div>
+              </button>
+              {/* Write option — secondary */}
+              <button
+                onClick={() => setInputMethod("write")}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `1.5px solid ${SBB}`, borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.06)"; e.currentTarget.style.borderColor = TX3; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = SBB; }}
+              >
+                <div style={{ width: 60, height: 60, borderRadius: "50%", background: SB, border: `1.5px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Ico name="edit" size={26} color={TX2} />
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: TX, marginBottom: 5 }}>Écrire</div>
+                  <div style={{ fontSize: 11.5, color: TX2, lineHeight: 1.5 }}>Saisir manuellement vos remarques poste par poste</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  {["Précis", "Photos"].map((tag, i) => (
+                    <span key={i} style={{ fontSize: 9.5, fontWeight: 600, color: TX3, background: SB, border: `1px solid ${SBB}`, padding: "2px 7px", borderRadius: 4 }}>{tag}</span>
+                  ))}
+                </div>
+              </button>
+            </div>
+            {contErr && <div style={{ marginTop: 12, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
+          </div>
+        ) : (
+          /* Post list (write mode, or after dictation dispatch) */
+          <>
+            {/* Method switch bar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderBottom: `1px solid ${SB2}` }}>
+              <div style={{ display: "flex", gap: 4, background: SB, borderRadius: 8, padding: 3 }}>
+                <button
+                  onClick={() => { setInputMethod("dictate"); startContinuous(); }}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", border: "none", borderRadius: 6, background: "transparent", color: TX3, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                >
+                  <Ico name="mic" size={12} color={TX3} />Dicter
+                </button>
+                <button
+                  onClick={() => setInputMethod("write")}
+                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", border: "none", borderRadius: 6, background: WH, color: TX, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+                >
+                  <Ico name="edit" size={12} color={TX} />Écrire
+                </button>
+              </div>
+              {totalRemarks > 0 && (
+                <span style={{ fontSize: 11, color: TX3 }}>{totalRemarks} remarque{totalRemarks !== 1 ? "s" : ""}</span>
+              )}
+            </div>
 
         {/* Post list */}
         <div style={{ padding: "6px 8px 2px" }}>
@@ -3267,12 +3835,6 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
                     {/* Counters */}
                     {hasContent && (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 4 }}>
-                        {remarks.length > 0 && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 3 }} title={`${remarks.length} remarque${remarks.length > 1 ? "s" : ""}`}>
-                            <Ico name="edit" size={11} color={TX3} />
-                            <span style={{ fontSize: 11, fontWeight: 600, color: TX2 }}>{remarks.length}</span>
-                          </div>
-                        )}
                         {photoCount > 0 && (
                           <div style={{ display: "flex", alignItems: "center", gap: 3 }} title={`${photoCount} photo${photoCount > 1 ? "s" : ""}`}>
                             <Ico name="camera" size={11} color={TX3} />
@@ -3288,12 +3850,19 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
                       </div>
                     )}
 
-                    {/* Delete (empty posts only) */}
-                    {!hasContent && (
-                      <button onClick={(e) => { e.stopPropagation(); deletePost(post.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0, opacity: 0.4 }} title={t("notes.deleteEmptyPost")}>
-                        <Ico name="trash" size={12} color={TX3} />
-                      </button>
-                    )}
+                    {/* Delete post */}
+                    <div
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); if (hasContent && !confirm(`Supprimer le poste "${post.label}" et tout son contenu ?`)) return; deletePost(post.id); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      style={{ width: 28, height: 28, borderRadius: 6, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", transition: "background 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = hasContent ? "#FEF2F2" : SB; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      title="Supprimer ce poste"
+                      role="button"
+                    >
+                      <Ico name="trash" size={13} color={hasContent ? RD : TX3} />
+                    </div>
 
                     {/* Arrow */}
                     <div style={{ width: 22, height: 22, borderRadius: 5, background: hasContent ? ACL : SB, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -3319,6 +3888,8 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
             <Ico name="plus" size={12} color={TX3} />{t("notes.addPost")}
           </button>
         </div>
+          </>
+        )}
       </div>
 
       {/* ── Section 2 : Destinataires ── */}
@@ -3331,21 +3902,27 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
             </div>
             <span style={{ fontSize: 13, fontWeight: 700, color: TX, letterSpacing: "-0.1px" }}>{t("notes.recipients")}</span>
             <span style={{ fontSize: 10.5, color: TX3, fontWeight: 400 }}>
-              {recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} sélectionné${recipientFilters.length > 1 ? "s" : ""}`}
+              {recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} sélectionné${recipientFilters.length > 1 ? "s" : ""}`}
             </span>
           </div>
 
           {/* Recipients body */}
           <div style={{ padding: "12px 16px" }}>
+            {recipientFilters === null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "8px 12px", background: "#FDF4E7", borderRadius: 8, border: `1px solid ${ACL2}` }}>
+                <Ico name="alert" size={13} color={AC} />
+                <span style={{ fontSize: 11.5, color: TX2, fontWeight: 500 }}>Sélectionnez les destinataires du PV ou choisissez "Tous"</span>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
               <button
                 onClick={() => setRecipientFilters([])}
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 13px", border: `1.5px solid ${recipientFilters.length === 0 ? AC : SBB}`, borderRadius: 18, background: recipientFilters.length === 0 ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 13px", border: `1.5px solid ${recipientFilters !== null && recipientFilters.length === 0 ? AC : SBB}`, borderRadius: 18, background: recipientFilters !== null && recipientFilters.length === 0 ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
               >
-                <span style={{ fontSize: 11, fontWeight: 600, color: recipientFilters.length === 0 ? AC : TX2 }}>{t("notes.allRecipients")}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: recipientFilters !== null && recipientFilters.length === 0 ? AC : TX2 }}>{t("notes.allRecipients")}</span>
               </button>
               {project.participants.map((p, i) => {
-                const selected = recipientFilters.includes(p.name);
+                const selected = recipientFilters !== null && recipientFilters.includes(p.name);
                 const countForP = project.posts.reduce((acc, post) => {
                   const remarks = getRemarks(post);
                   return acc + remarks.filter(r => !(r.recipients || []).length || (r.recipients || []).includes(p.name)).length;
@@ -3353,7 +3930,10 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
                 return (
                   <button
                     key={i}
-                    onClick={() => setRecipientFilters(prev => prev.includes(p.name) ? prev.filter(n => n !== p.name) : [...prev, p.name])}
+                    onClick={() => setRecipientFilters(prev => {
+                      const list = prev || [];
+                      return list.includes(p.name) ? list.filter(n => n !== p.name) : [...list, p.name];
+                    })}
                     style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", border: `1.5px solid ${selected ? AC : SBB}`, borderRadius: 18, background: selected ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
                   >
                     <div style={{ width: 18, height: 18, borderRadius: "50%", background: selected ? AC : SB2, color: selected ? "#fff" : TX3, fontSize: 7.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -3366,7 +3946,7 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
                 );
               })}
             </div>
-            {recipientFilters.length > 0 && (() => {
+            {recipientFilters !== null && recipientFilters.length > 0 && (() => {
               const cnt = project.posts.reduce((acc, post) => {
                 const remarks = getRemarks(post);
                 return acc + remarks.filter(r => !(r.recipients || []).length || recipientFilters.some(rec => (r.recipients || []).includes(rec))).length;
@@ -3446,7 +4026,7 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
 
           {/* CTA area */}
           <div style={{ padding: "12px 20px 16px" }}>
-            {recipientFilters.length > 0 && (
+            {recipientFilters && recipientFilters.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10, padding: "5px 9px", background: SB, borderRadius: 6, border: `1px solid ${SBB}` }}>
                 <Ico name="users" size={11} color={TX2} />
                 <span style={{ fontSize: 10.5, color: TX2 }}>{t("notes.filteredVersion")}</span>
@@ -3572,14 +4152,19 @@ function NoteEditor({ project, setProjects, onBack, onGenerate }) {
 // ── Send PV by Email Modal ─────────────────────────────────
 function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, onSent }) {
   const t = useT();
+  const [step, setStep] = useState("recipients"); // "recipients" | "preview" | "sent"
   const [recipients, setRecipients] = useState(
     project.participants.filter(p => p.email).map(p => ({ email: p.email, name: p.name, role: p.role, checked: true }))
   );
   const [extraEmail, setExtraEmail] = useState("");
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [includePdf, setIncludePdf] = useState(true);
+  const [subject, setSubject] = useState(`PV n\u00B0${pvNumber} \u2014 ${project.name} (${pvDate})`);
+  const signatureHtml = profile.emailSignature?.trim() || `Cordialement,<br>${profile.name}${profile.structure ? `<br>${profile.structure}` : ""}`;
+  const [emailBody, setEmailBody] = useState(
+    `Bonjour,<br><br>Veuillez trouver ci-${includePdf ? "joint" : "dessous"} le proc\u00E8s-verbal n\u00B0${pvNumber} relatif au chantier \u00AB\u00A0${project.name}\u00A0\u00BB, dress\u00E9 en date du ${pvDate}.<br><br>Merci d'en prendre connaissance et de me faire part de vos \u00E9ventuelles remarques.<br><br>${signatureHtml}`
+  );
 
   const toggleRecipient = (email) => setRecipients(prev => prev.map(r => r.email === email ? { ...r, checked: !r.checked } : r));
 
@@ -3591,8 +4176,11 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
     setExtraEmail("");
   };
 
+  const checkedCount = recipients.filter(r => r.checked).length;
+  const checkedRecipients = recipients.filter(r => r.checked);
+
   const handleSend = async () => {
-    const to = recipients.filter(r => r.checked).map(r => r.email);
+    const to = checkedRecipients.map(r => r.email);
     if (to.length === 0) return;
     setSending(true); setError("");
 
@@ -3601,7 +4189,6 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
     if (includePdf) {
       try {
         const { jsPDF } = await import("jspdf");
-        // Generate a simple text PDF
         const doc = new jsPDF({ unit: "mm", format: "a4" });
         const margin = 15;
         const pageW = doc.internal.pageSize.getWidth();
@@ -3623,7 +4210,7 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
           y += 5;
         }
         pdfBase64 = doc.output("datauristring").split(",")[1];
-        pdfFileName = `PV-${pvNumber}-${project.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+        pdfFileName = `PV-${pvNumber}-${project.name.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.pdf`;
       } catch (e) {
         console.error("PDF generation for email failed:", e);
       }
@@ -3639,28 +4226,39 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
       structureName: profile.structure,
       pdfBase64,
       pdfFileName,
+      subject,
+      customMessage: emailBody,
     });
 
     setSending(false);
     if (res.error) { setError(res.error); return; }
-    setSent(true);
+    setStep("sent");
     if (onSent) onSent(to);
   };
 
-  const checkedCount = recipients.filter(r => r.checked).length;
-
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500 }} onClick={onClose}>
-      <div style={{ background: WH, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.2s ease-out" }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: WH, borderRadius: 16, width: "100%", maxWidth: 520, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.2s ease-out" }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div style={{ padding: "20px 24px 14px", borderBottom: `1px solid ${SBB}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <Ico name="send" size={16} color={AC} />
             <span style={{ fontSize: 16, fontWeight: 700, color: TX }}>Envoyer le PV n°{pvNumber}</span>
           </div>
           <div style={{ fontSize: 12, color: TX3 }}>{project.name} — {pvDate}</div>
+          {/* Step indicator */}
+          {step !== "sent" && (
+            <div style={{ display: "flex", gap: 4, marginTop: 12 }}>
+              {["recipients", "preview"].map((s, i) => (
+                <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, background: step === s || (step === "preview" && i === 0) ? AC : SBB, transition: "background 0.3s" }} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {sent ? (
+        {/* ── Step: Sent confirmation ── */}
+        {step === "sent" && (
           <div style={{ padding: "32px 24px", textAlign: "center" }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#EAF3DE", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
               <Ico name="check" size={22} color={GR} />
@@ -3671,12 +4269,14 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
             </div>
             <button onClick={onClose} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Fermer</button>
           </div>
-        ) : (
+        )}
+
+        {/* ── Step 1: Recipients ── */}
+        {step === "recipients" && (
           <>
-            {/* Recipients list */}
             <div style={{ padding: "14px 24px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>
-                Liste de diffusion ({checkedCount} sélectionné{checkedCount > 1 ? "s" : ""})
+                Destinataires ({checkedCount} sélectionné{checkedCount > 1 ? "s" : ""})
               </div>
               {recipients.map((r, i) => (
                 <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${SB}`, cursor: "pointer" }}>
@@ -3687,8 +4287,6 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
                   </div>
                 </label>
               ))}
-
-              {/* Add extra recipient */}
               <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
                 <input
                   type="email" value={extraEmail} onChange={e => setExtraEmail(e.target.value)}
@@ -3700,7 +4298,6 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
               </div>
             </div>
 
-            {/* Options */}
             <div style={{ padding: "0 24px 14px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 0" }}>
                 <input type="checkbox" checked={includePdf} onChange={e => setIncludePdf(e.target.checked)} style={{ accentColor: AC, width: 16, height: 16 }} />
@@ -3708,15 +4305,90 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
               </label>
             </div>
 
+            <div style={{ padding: "0 24px 20px", display: "flex", gap: 8 }}>
+              <button onClick={onClose} style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2 }}>Annuler</button>
+              <button onClick={() => setStep("preview")} disabled={checkedCount === 0} style={{ flex: 2, padding: 11, border: "none", borderRadius: 8, background: checkedCount === 0 ? DIS : AC, color: checkedCount === 0 ? DIST : "#fff", fontSize: 13, fontWeight: 600, cursor: checkedCount === 0 ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Ico name="eye" size={14} color={checkedCount === 0 ? DIST : "#fff"} />Aperçu de l'email
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 2: Email Preview & Edit ── */}
+        {step === "preview" && (
+          <>
+            <div style={{ padding: "14px 24px 0" }}>
+              {/* Recipients summary */}
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>À</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
+                {checkedRecipients.map((r, i) => (
+                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", background: SB, borderRadius: 6, fontSize: 11, color: TX2 }}>
+                    {r.name || r.email}
+                  </span>
+                ))}
+              </div>
+
+              {/* Subject */}
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Objet</div>
+              <input
+                value={subject} onChange={e => setSubject(e.target.value)}
+                style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontWeight: 600, fontFamily: "inherit", background: WH, color: TX, marginBottom: 14, boxSizing: "border-box" }}
+              />
+
+              {/* Email body */}
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Message</div>
+              <div
+                contentEditable
+                suppressContentEditableWarning
+                onInput={e => setEmailBody(e.currentTarget.innerHTML)}
+                dangerouslySetInnerHTML={{ __html: emailBody }}
+                style={{ width: "100%", minHeight: 140, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, lineHeight: 1.6, fontFamily: "inherit", background: WH, color: TX, marginBottom: 10, boxSizing: "border-box", outline: "none", overflowWrap: "break-word" }}
+              />
+
+              {/* Visual preview */}
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Aperçu visuel</div>
+              <div style={{ border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden", marginBottom: 14, background: "#F7F6F4" }}>
+                {/* Mini email header */}
+                <div style={{ background: WH, padding: "12px 16px", borderBottom: `1px solid ${SBB}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: AC, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>A</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>ArchiPilot</div>
+                      <div style={{ fontSize: 10, color: TX3 }}>noreply@archipilot.app</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subject || "(sans objet)"}</div>
+                </div>
+                {/* Email body preview */}
+                <div style={{ padding: 16, fontSize: 12, lineHeight: 1.7, color: TX, background: WH, margin: 10, borderRadius: 8 }} dangerouslySetInnerHTML={{ __html: emailBody }} />
+                {/* PV excerpt */}
+                <div style={{ margin: "0 10px 10px", padding: 12, background: "#F7F6F4", borderRadius: 8, border: `1px solid ${SBB}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>PV de chantier</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: TX, marginBottom: 2 }}>PV n°{pvNumber} — {project.name}</div>
+                  <div style={{ fontSize: 10, color: TX3, marginBottom: 6 }}>{pvDate} · {profile.name}</div>
+                  <div style={{ fontSize: 10, color: TX2, lineHeight: 1.5, maxHeight: 60, overflow: "hidden" }}>
+                    {(pvContent || "").slice(0, 200)}{(pvContent || "").length > 200 ? "…" : ""}
+                  </div>
+                </div>
+                {includePdf && (
+                  <div style={{ margin: "0 10px 10px", padding: "8px 12px", background: WH, borderRadius: 8, border: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 8 }}>
+                    <Ico name="file" size={14} color={AC} />
+                    <span style={{ fontSize: 11, color: TX2 }}>PV-{pvNumber}-{project.name.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.pdf</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {error && (
               <div style={{ margin: "0 24px 14px", padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 12, color: RD }}>{error}</div>
             )}
 
-            {/* Actions */}
             <div style={{ padding: "0 24px 20px", display: "flex", gap: 8 }}>
-              <button onClick={onClose} style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2 }}>Annuler</button>
-              <button onClick={handleSend} disabled={sending || checkedCount === 0} style={{ flex: 2, padding: 11, border: "none", borderRadius: 8, background: sending || checkedCount === 0 ? "#D3D1C7" : AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: sending || checkedCount === 0 ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                {sending ? <><div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "sp .6s linear infinite" }} />Envoi en cours...</> : <><Ico name="send" size={14} color="#fff" />Envoyer à {checkedCount} personne{checkedCount > 1 ? "s" : ""}</>}
+              <button onClick={() => setStep("recipients")} style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Ico name="chevron-left" size={14} color={TX3} />Retour
+              </button>
+              <button onClick={handleSend} disabled={sending} style={{ flex: 2, padding: 11, border: "none", borderRadius: 8, background: sending ? DIS : AC, color: sending ? DIST : "#fff", fontSize: 13, fontWeight: 600, cursor: sending ? "not-allowed" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                {sending ? <><div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "sp .6s linear infinite" }} />Envoi en cours...</> : <><Ico name="send" size={14} color="#fff" />Envoyer</>}
               </button>
             </div>
           </>
@@ -3775,7 +4447,7 @@ function exportRemarksCSV(projects) {
 function exportParticipantsCSV(project) {
   const headers = ["Rôle", "Nom", "Email", "Téléphone"];
   const rows = (project.participants || []).map(p => [p.role, p.name, p.email, p.phone]);
-  downloadCSV(`participants-${project.name.replace(/[^a-zA-Z0-9]/g, "_")}.csv`, headers, rows);
+  downloadCSV(`participants-${project.name.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.csv`, headers, rows);
 }
 
 function importParticipantsCSV(file) {
@@ -3833,7 +4505,7 @@ function downloadICS(project) {
   if (!ics) return;
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = `reunion-${project.name.replace(/[^a-zA-Z0-9]/g, "_")}.ics`; a.click();
+  const a = document.createElement("a"); a.href = url; a.download = `reunion-${project.name.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.ics`; a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -3848,58 +4520,50 @@ function getGoogleCalendarUrl(project) {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateStr}/${dateStr}&location=${location}&details=${details}`;
 }
 
-function StatsView({ projects, onBack, onSelectProject }) {
+function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject }) {
   const t = useT();
   const active = projects.filter(p => !p.archived);
   const archived = projects.filter(p => p.archived);
+  const [remarkFilter, setRemarkFilter] = useState("all"); // "all" | "urgent" | "open" | "done"
+  const [showExport, setShowExport] = useState(false);
 
-  // Global stats
+  // Stats
   const totalPV = projects.reduce((s, p) => s + (p.pvHistory?.length || 0), 0);
-  const totalActions = projects.reduce((s, p) => s + (p.actions?.length || 0), 0);
   const openActions = projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open).length, 0);
   const urgentActions = projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open && a.urgent).length, 0);
-  const closedActions = totalActions - openActions;
   const totalRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).length, 0), 0);
   const openRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).filter(r => r.status === "open" || r.status === "progress").length, 0), 0);
+  const urgentRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).filter(r => r.urgent && r.status !== "done").length, 0), 0);
   const doneRemarks = totalRemarks - openRemarks;
   const totalLots = projects.reduce((s, p) => s + (p.lots?.length || 0), 0);
   const delayedLots = projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length, 0);
-  const doneLots = projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "done").length, 0);
 
-  // Per-status breakdown
-  const byStatus = STATUSES.map(st => ({ ...st, count: active.filter(p => p.statusId === st.id).length })).filter(s => s.count > 0);
+  // Urgent items across all projects
+  const allUrgent = [];
+  active.forEach(p => {
+    (p.actions || []).filter(a => a.open && a.urgent).forEach(a => allUrgent.push({ type: "action", text: a.text, who: a.who, since: a.since, project: p }));
+    (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").forEach(l => allUrgent.push({ type: "delay", text: `${l.name} — en retard`, who: l.contractor, project: p }));
+  });
 
-  // Per-project stats
+  // Recent AI PV
+  const recentPV = [];
+  active.forEach(p => { (p.pvHistory || []).slice(0, 2).forEach(pv => recentPV.push({ ...pv, project: p })); });
+  recentPV.sort((a, b) => (b.date || "").localeCompare(a.date || "")).splice(5);
+
+  // Project stats
   const projectStats = active.map(p => {
     const open = (p.actions || []).filter(a => a.open).length;
     const urgent = (p.actions || []).filter(a => a.open && a.urgent).length;
-    const lots = p.lots || [];
-    const delayed = lots.filter(l => calcLotStatus(l).id === "delayed").length;
+    const delayed = (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length;
     const st = getStatus(p.statusId);
-    return { ...p, openActions: open, urgentActions: urgent, delayedLots: delayed, status: st, pvCount: p.pvHistory?.length || 0 };
+    const lastPV = p.pvHistory?.[0];
+    return { ...p, openActions: open, urgentActions: urgent, delayedLots: delayed, status: st, pvCount: p.pvHistory?.length || 0, lastPV };
   }).sort((a, b) => b.urgentActions - a.urgentActions || b.openActions - a.openActions);
 
   // Contractor performance
   const contractors = {};
-  projects.forEach(p => {
-    (p.actions || []).forEach(a => {
-      const who = a.who?.trim();
-      if (!who) return;
-      if (!contractors[who]) contractors[who] = { total: 0, open: 0, urgent: 0, closed: 0 };
-      contractors[who].total++;
-      if (a.open) { contractors[who].open++; if (a.urgent) contractors[who].urgent++; }
-      else contractors[who].closed++;
-    });
-  });
+  projects.forEach(p => { (p.actions || []).forEach(a => { const who = a.who?.trim(); if (!who) return; if (!contractors[who]) contractors[who] = { total: 0, open: 0, urgent: 0, closed: 0 }; contractors[who].total++; if (a.open) { contractors[who].open++; if (a.urgent) contractors[who].urgent++; } else contractors[who].closed++; }); });
   const contractorList = Object.entries(contractors).map(([name, s]) => ({ name, ...s })).sort((a, b) => b.open - a.open);
-
-  const StatCard = ({ label, value, sub, color }) => (
-    <div style={{ flex: 1, minWidth: 110, padding: "14px 16px", background: WH, border: `1px solid ${SBB}`, borderRadius: 12 }}>
-      <div style={{ fontSize: 24, fontWeight: 800, color: color || TX, letterSpacing: "-0.5px" }}>{value}</div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginTop: 2 }}>{label}</div>
-      {sub && <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>{sub}</div>}
-    </div>
-  );
 
   const Bar = ({ value, max, color }) => (
     <div style={{ flex: 1, height: 6, background: SB2, borderRadius: 3, overflow: "hidden" }}>
@@ -3907,138 +4571,214 @@ function StatsView({ projects, onBack, onSelectProject }) {
     </div>
   );
 
+  const SectionTitle = ({ children, action }) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>{children}</span>
+      {action}
+    </div>
+  );
+
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" color={TX2} /></button>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Tableau de bord</div>
-          <div style={{ fontSize: 12, color: TX3 }}>{active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""} · {archived.length} archivé{archived.length > 1 ? "s" : ""}</div>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="ap-kpi-row" style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        <StatCard label="Projets actifs" value={active.length} sub={`${archived.length} archivés`} />
-        <StatCard label="PV générés" value={totalPV} sub="tous projets" />
-        <StatCard label="Actions ouvertes" value={openActions} sub={`${urgentActions} urgente${urgentActions > 1 ? "s" : ""}`} color={urgentActions > 0 ? RD : TX} />
-        <StatCard label="Lots en retard" value={delayedLots} sub={`${doneLots} terminé${doneLots > 1 ? "s" : ""} / ${totalLots}`} color={delayedLots > 0 ? RD : GR} />
-      </div>
-
-      {/* Status breakdown */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Répartition par phase</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {byStatus.map(s => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: s.bg, borderRadius: 8 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.count}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Remarks stats */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Remarques globales</div>
-        <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ animation: "fadeIn 0.2s ease" }}>
+      {/* ── Header + CTAs ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" color={TX2} /></button>
           <div>
-            <span style={{ fontSize: 28, fontWeight: 800, color: TX }}>{totalRemarks}</span>
-            <span style={{ fontSize: 12, color: TX3, marginLeft: 6 }}>remarques</span>
-          </div>
-          <div style={{ flex: 1, minWidth: 120 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{doneRemarks} résolues</span>
-              <span style={{ fontSize: 11, color: AC, fontWeight: 600 }}>{openRemarks} ouvertes</span>
-            </div>
-            <div style={{ height: 8, background: SB2, borderRadius: 4, overflow: "hidden", display: "flex" }}>
-              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (doneRemarks / totalRemarks) * 100 : 0}%`, background: GR, transition: "width 0.3s" }} />
-              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (openRemarks / totalRemarks) * 100 : 0}%`, background: AC, transition: "width 0.3s" }} />
-            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: TX, letterSpacing: "-0.3px" }}>Tableau de bord</div>
+            <div style={{ fontSize: 12, color: TX3 }}>{active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""}</div>
           </div>
         </div>
-      </div>
-
-      {/* Per-project table */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Projets — Vue d'ensemble</div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderBottom: `2px solid ${SBB}` }}>
-                <th style={{ textAlign: "left", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Projet</th>
-                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Phase</th>
-                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>PV</th>
-                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Actions</th>
-                <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Avancement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projectStats.map(p => (
-                <tr key={p.id} onClick={() => onSelectProject(p.id)} style={{ borderBottom: `1px solid ${SB}`, cursor: "pointer" }} onMouseEnter={e => e.currentTarget.style.background = SB} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "10px 6px" }}>
-                    <div style={{ fontWeight: 600, color: TX }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: TX3 }}>{p.client}</div>
-                  </td>
-                  <td style={{ textAlign: "center", padding: "10px 6px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: p.status.color, background: p.status.bg, padding: "3px 8px", borderRadius: 6 }}>{p.status.label}</span>
-                  </td>
-                  <td style={{ textAlign: "center", padding: "10px 6px", fontWeight: 600, color: TX }}>{p.pvCount}</td>
-                  <td style={{ textAlign: "center", padding: "10px 6px" }}>
-                    <span style={{ fontWeight: 600, color: p.urgentActions > 0 ? RD : p.openActions > 0 ? AC : GR }}>
-                      {p.openActions}{p.urgentActions > 0 ? ` (${p.urgentActions}!)` : ""}
-                    </span>
-                  </td>
-                  <td style={{ padding: "10px 6px", width: 120 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <Bar value={p.progress || 0} max={100} color={p.delayedLots > 0 ? RD : GR} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: TX2, minWidth: 30 }}>{p.progress || 0}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Contractor performance */}
-      {/* Export buttons */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Exporter les données</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => exportProjectsCSV(projects)} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 6 }}>
-            <Ico name="download" size={13} color={TX3} />Projets (CSV)
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={onNewProject} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: TX2 }}>
+            <Ico name="plus" size={12} color={TX3} />Projet
           </button>
-          <button onClick={() => exportActionsCSV(projects)} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 6 }}>
-            <Ico name="download" size={13} color={TX3} />Actions (CSV)
-          </button>
-          <button onClick={() => exportRemarksCSV(projects)} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontWeight: 500, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 6 }}>
-            <Ico name="download" size={13} color={TX3} />Remarques (CSV)
+          <button onClick={() => setShowExport(p => !p)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: TX3 }}>
+            <Ico name="download" size={12} color={TX3} />
           </button>
         </div>
       </div>
 
-      {contractorList.length > 0 && (
-        <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 12 }}>Performance par intervenant</div>
-          {contractorList.map(c => (
-            <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${SB}` }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
-              </div>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 11 }}>
-                <span style={{ color: GR, fontWeight: 600 }}>{c.closed} fermée{c.closed > 1 ? "s" : ""}</span>
-                <span style={{ color: AC, fontWeight: 600 }}>{c.open} ouverte{c.open > 1 ? "s" : ""}</span>
-                {c.urgent > 0 && <span style={{ color: RD, fontWeight: 700 }}>{c.urgent} urgente{c.urgent > 1 ? "s" : ""}!</span>}
-              </div>
-              <div style={{ width: 80 }}>
-                <Bar value={c.closed} max={c.total} color={GR} />
-              </div>
-            </div>
-          ))}
+      {/* ── Export collapsed ── */}
+      {showExport && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, animation: "fadeIn 0.12s ease-out" }}>
+          <button onClick={() => { exportProjectsCSV(projects); setShowExport(false); }} style={{ padding: "6px 12px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontSize: 11, fontFamily: "inherit", color: TX2 }}>Projets CSV</button>
+          <button onClick={() => { exportActionsCSV(projects); setShowExport(false); }} style={{ padding: "6px 12px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontSize: 11, fontFamily: "inherit", color: TX2 }}>Actions CSV</button>
+          <button onClick={() => { exportRemarksCSV(projects); setShowExport(false); }} style={{ padding: "6px 12px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontSize: 11, fontFamily: "inherit", color: TX2 }}>Remarques CSV</button>
         </div>
       )}
+
+      {/* ══════ 1. ACTION CENTER (hero) ══════ */}
+      {allUrgent.length > 0 && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 14, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 8px rgba(196,57,42,0.08)" }}>
+          <SectionTitle action={<span style={{ fontSize: 11, fontWeight: 600, color: RD }}>{allUrgent.length} point{allUrgent.length > 1 ? "s" : ""}</span>}>
+            À traiter aujourd'hui
+          </SectionTitle>
+          {allUrgent.slice(0, 5).map((item, i) => (
+            <div key={i} onClick={() => onSelectProject(item.project.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #FECACA40" : "none", cursor: "pointer" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.type === "action" ? RD : AC, flexShrink: 0, animation: item.type === "action" ? "ring 1.8s ease infinite" : "none" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#B91C1C" }}>{item.text}</div>
+                <div style={{ fontSize: 10, color: "#DC2626" }}>{item.project.name}{item.who ? ` · ${item.who}` : ""}{item.since ? ` · ${item.since}` : ""}</div>
+              </div>
+              <Ico name="arrowr" size={12} color="#DC2626" />
+            </div>
+          ))}
+          {allUrgent.length > 5 && <div style={{ fontSize: 11, color: RD, fontWeight: 600, marginTop: 6, cursor: "pointer" }}>+ {allUrgent.length - 5} autres points urgents</div>}
+        </div>
+      )}
+
+      {/* ══════ 2. KPI Cards ══════ */}
+      <div className="ap-kpi-row" style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        {[
+          { label: "Projets actifs", value: active.length, icon: "building", color: TX },
+          { label: "PV générés", value: totalPV, icon: "file", color: AC },
+          { label: "Actions ouvertes", value: openActions, icon: "alert", color: urgentActions > 0 ? RD : AC, sub: urgentActions > 0 ? `${urgentActions} urgente${urgentActions > 1 ? "s" : ""}` : null },
+          { label: "Lots en retard", value: delayedLots, icon: "clock", color: delayedLots > 0 ? RD : GR, sub: `${totalLots} total` },
+        ].map((kpi, i) => (
+          <div key={i} style={{ flex: 1, minWidth: 110, padding: "14px 16px", background: WH, border: `1px solid ${SBB}`, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", transition: "box-shadow 0.15s" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: SB, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Ico name={kpi.icon} size={13} color={TX3} />
+              </div>
+              {kpi.sub && <span style={{ fontSize: 9, fontWeight: 600, color: kpi.color, background: kpi.color === RD ? "#FEF2F2" : SB, padding: "2px 6px", borderRadius: 4 }}>{kpi.sub}</span>}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: kpi.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{kpi.value}</div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: TX3, marginTop: 4 }}>{kpi.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ══════ 3. Two-column layout ══════ */}
+      <div className="ap-overview-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 16 }}>
+
+        {/* ── Left: Project table ── */}
+        <div style={{ flex: "1 1 400px", minWidth: 0 }}>
+          <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <SectionTitle>Projets</SectionTitle>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${SBB}` }}>
+                    <th style={{ textAlign: "left", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Projet</th>
+                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Phase</th>
+                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Actions</th>
+                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Avancement</th>
+                    <th style={{ padding: "8px 6px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectStats.map(p => (
+                    <tr key={p.id} onClick={() => onSelectProject(p.id)} className="plan-file-row" style={{ borderBottom: `1px solid ${SB}`, cursor: "pointer" }}>
+                      <td style={{ padding: "10px 6px" }}>
+                        <div style={{ fontWeight: 600, color: TX }}>{p.name}</div>
+                        <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>{p.client}{p.lastPV ? ` · PV ${p.lastPV.date}` : ""}</div>
+                      </td>
+                      <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: p.status.color, background: p.status.bg, padding: "2px 7px", borderRadius: 5 }}>{p.status.label}</span>
+                      </td>
+                      <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                        {p.urgentActions > 0 ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: RD }}>{p.urgentActions}!</span>
+                        ) : p.openActions > 0 ? (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: AC }}>{p.openActions}</span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: GR }}>0</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 6px", width: 100 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <Bar value={p.progress || 0} max={100} color={p.delayedLots > 0 ? RD : GR} />
+                          <span style={{ fontSize: 10, fontWeight: 600, color: TX2, minWidth: 24 }}>{p.progress || 0}%</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: "10px 4px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => onNewPV(p.id)} title="Nouveau PV" style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${ACL2}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Ico name="edit" size={11} color={AC} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right column ── */}
+        <div style={{ flex: "0 1 280px", display: "flex", flexDirection: "column", gap: 14, minWidth: 220 }}>
+
+          {/* AI Reports */}
+          {recentPV.length > 0 && (
+            <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <SectionTitle action={<div style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 6px", background: ACL, borderRadius: 4 }}><span style={{ fontSize: 9, color: AC }}>✦</span><span style={{ fontSize: 9, fontWeight: 700, color: AC }}>IA</span></div>}>
+                PV récents
+              </SectionTitle>
+              {recentPV.map((pv, i) => (
+                <div key={i} onClick={() => onSelectProject(pv.project.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: i > 0 ? `1px solid ${SB}` : "none", cursor: "pointer" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name="file" size={12} color={AC} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>PV n°{pv.number} — {pv.project.name}</div>
+                    <div style={{ fontSize: 10, color: TX3 }}>{pv.date} · {pv.author}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Remarks segmented */}
+          <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <SectionTitle>Remarques</SectionTitle>
+            <div style={{ display: "flex", gap: 3, marginBottom: 10, background: SB, borderRadius: 6, padding: 2 }}>
+              {[
+                { id: "all", label: "Toutes", count: totalRemarks },
+                { id: "urgent", label: "Urgentes", count: urgentRemarks },
+                { id: "open", label: "Ouvertes", count: openRemarks },
+                { id: "done", label: "Résolues", count: doneRemarks },
+              ].map(seg => (
+                <button key={seg.id} onClick={() => setRemarkFilter(seg.id)} style={{
+                  flex: 1, padding: "5px 4px", border: "none", borderRadius: 5, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  background: remarkFilter === seg.id ? WH : "transparent",
+                  color: remarkFilter === seg.id ? (seg.id === "urgent" ? RD : TX) : TX3,
+                  boxShadow: remarkFilter === seg.id ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                }}>
+                  {seg.count}
+                  <div style={{ fontSize: 8, marginTop: 1 }}>{seg.label}</div>
+                </button>
+              ))}
+            </div>
+            <div style={{ height: 8, background: SB2, borderRadius: 4, overflow: "hidden", display: "flex" }}>
+              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (doneRemarks / totalRemarks) * 100 : 0}%`, background: GR }} />
+              <div style={{ height: "100%", width: `${totalRemarks > 0 ? ((openRemarks - urgentRemarks) / totalRemarks) * 100 : 0}%`, background: AC }} />
+              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (urgentRemarks / totalRemarks) * 100 : 0}%`, background: RD }} />
+            </div>
+          </div>
+
+          {/* Contractor performance */}
+          {contractorList.length > 0 && (
+            <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+              <SectionTitle>Intervenants</SectionTitle>
+              {contractorList.slice(0, 6).map(c => (
+                <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${SB}` }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: c.urgent > 0 ? "#FEF2F2" : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, fontWeight: 700, color: c.urgent > 0 ? RD : TX3 }}>
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {c.urgent > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "1px 5px", borderRadius: 3 }}>{c.urgent}!</span>}
+                    <span style={{ fontSize: 10, color: TX3 }}>{c.open}/{c.total}</span>
+                  </div>
+                  <div style={{ width: 50 }}><Bar value={c.closed} max={c.total} color={GR} /></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -4066,12 +4806,6 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
     setSec(0);
     timer.current = setInterval(() => setSec((s) => s + 1), 1000);
     ctrl.current = new AbortController();
-    if (!profile?.apiKey?.trim()) {
-      setErr(t("result.apiKeyMissing"));
-      setLoading(false);
-      clearInterval(timer.current);
-      return;
-    }
     const allRemarks  = (p) => (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
     const toRemarks   = (p) => {
       const all = allRemarks(p);
@@ -4108,14 +4842,14 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
     const pvTpl = PV_TEMPLATES.find(t => t.id === project.pvTemplate);
     const SYS = pvTpl?.prompt || t("ai.systemPrompt");
     const recipientCtx = pvRecipients && pvRecipients.length > 0 ? "\n" + t("ai.recipientFilter", { recipients: pvRecipients.join(", ") }) : "";
+    const userPrompt = `PROJET: ${project.name}\nCLIENT: ${project.client}\nENTREPRISE: ${project.contractor}\nADRESSE: ${formatAddress(project)}${(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => `\n${cf.label.toUpperCase()}: ${cf.value}`).join("")}\nPV N${pvNum} — ${date}${pvFieldData?.visitStart ? `\nVISITE: ${pvFieldData.visitStart}${pvFieldData.visitEnd ? ` → ${pvFieldData.visitEnd}` : ""}` : ""}${pvFieldData?.attendance ? `\nPRÉSENTS: ${pvFieldData.attendance.filter(a => a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${pvFieldData?.attendance?.some(a => !a.present) ? `\nABSENTS: ${pvFieldData.attendance.filter(a => !a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${recipientCtx}\n\nNOTES:\n${notes}\n\nTransforme en PV.`;
     try {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${profile.apiKey}` }, signal: ctrl.current.signal,
-        body: JSON.stringify({ model: "gpt-4o", max_tokens: pvTpl?.id === "detailed" ? 3000 : 2000, messages: [{ role: "system", content: SYS }, { role: "user", content: `PROJET: ${project.name}\nCLIENT: ${project.client}\nENTREPRISE: ${project.contractor}\nADRESSE: ${formatAddress(project)}${(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => `\n${cf.label.toUpperCase()}: ${cf.value}`).join("")}\nPV N${pvNum} — ${date}${pvFieldData?.visitStart ? `\nVISITE: ${pvFieldData.visitStart}${pvFieldData.visitEnd ? ` → ${pvFieldData.visitEnd}` : ""}` : ""}${pvFieldData?.attendance ? `\nPRÉSENTS: ${pvFieldData.attendance.filter(a => a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${pvFieldData?.attendance?.some(a => !a.present) ? `\nABSENTS: ${pvFieldData.attendance.filter(a => !a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${recipientCtx}\n\nNOTES:\n${notes}\n\nTransforme en PV.` }] }),
+      const { data, error } = await supabase.functions.invoke("generate-pv", {
+        body: { systemPrompt: SYS, userPrompt, maxTokens: pvTpl?.id === "detailed" ? 3000 : 2000 },
       });
-      if (!r.ok) throw new Error("Erreur " + r.status);
-      const d = await r.json();
-      const txt = d.choices?.[0]?.message?.content;
+      if (error) throw new Error(error.message || "Erreur serveur");
+      if (data?.error) throw new Error(data.error);
+      const txt = data?.content;
       if (txt) setResult(txt); else throw new Error(t("result.emptyResponse"));
     } catch (e) { setErr(e.name === "AbortError" ? t("result.cancelled") : e.message); }
     finally { setLoading(false); clearInterval(timer.current); }
@@ -4134,9 +4868,16 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
   }).length;
 
   const savePV = () => {
+    // Snapshot input notes (remarks per post)
+    const inputNotes = project.posts.map(po => ({
+      id: po.id, label: po.label,
+      remarks: (po.remarks || []).map(r => ({ text: r.text, urgent: r.urgent, status: r.status })),
+      notes: po.notes || "",
+    })).filter(po => po.remarks.length > 0 || po.notes.trim());
+
     setProjects((prev) => prev.map((p) => p.id === project.id ? {
       ...p,
-      pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: result.slice(0, 100) + "...", content: result, status: "draft" }, ...p.pvHistory],
+      pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: result.slice(0, 100) + "...", content: result, inputNotes, status: "draft" }, ...p.pvHistory],
       // Carry forward open/progress remarks; remove done ones
       posts: p.posts.map((po) => ({
         ...po,
@@ -4566,7 +5307,675 @@ function DocumentsView({ project, setProjects, onBack }) {
   );
 }
 
+// ── Plan Manager (collapsible tree) ─────────────────────────
+// ── Crop Tool (fullscreen overlay) ───────────────────────────
+function CropTool({ imageSrc, fileName, onSave, onClose }) {
+  const canvasRef = useRef(null);
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const [crop, setCrop] = useState({ x: 0, y: 0, w: 0, h: 0 });
+  const [dragging, setDragging] = useState(null); // null | "move" | "nw" | "ne" | "sw" | "se"
+  const dragStart = useRef({ mx: 0, my: 0, cx: 0, cy: 0, cw: 0, ch: 0 });
+  const containerRef = useRef(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const maxW = el.clientWidth - 40;
+      const maxH = el.clientHeight - 120;
+      const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      setScale(s);
+      setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
+      // Default crop: 60% centered
+      const cw = Math.round(img.naturalWidth * 0.6);
+      const ch = Math.round(img.naturalHeight * 0.6);
+      setCrop({ x: Math.round((img.naturalWidth - cw) / 2), y: Math.round((img.naturalHeight - ch) / 2), w: cw, h: ch });
+    };
+    img.src = imageSrc;
+  }, [imageSrc]);
+
+  const toCanvas = (px, py) => {
+    const el = containerRef.current?.querySelector("img");
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    return { x: Math.round((px - rect.left) / scale), y: Math.round((py - rect.top) / scale) };
+  };
+
+  const onMouseDown = (e, type) => {
+    e.preventDefault(); e.stopPropagation();
+    setDragging(type);
+    dragStart.current = { mx: e.clientX, my: e.clientY, cx: crop.x, cy: crop.y, cw: crop.w, ch: crop.h };
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => {
+      const dx = Math.round((e.clientX - dragStart.current.mx) / scale);
+      const dy = Math.round((e.clientY - dragStart.current.my) / scale);
+      const { cx, cy, cw, ch } = dragStart.current;
+      if (dragging === "move") {
+        setCrop({ x: Math.max(0, Math.min(imgSize.w - cw, cx + dx)), y: Math.max(0, Math.min(imgSize.h - ch, cy + dy)), w: cw, h: ch });
+      } else if (dragging === "se") {
+        setCrop({ x: cx, y: cy, w: Math.max(20, Math.min(imgSize.w - cx, cw + dx)), h: Math.max(20, Math.min(imgSize.h - cy, ch + dy)) });
+      } else if (dragging === "nw") {
+        const nw = Math.max(20, cw - dx); const nh = Math.max(20, ch - dy);
+        setCrop({ x: cx + cw - nw, y: cy + ch - nh, w: nw, h: nh });
+      } else if (dragging === "ne") {
+        const nw = Math.max(20, cw + dx); const nh = Math.max(20, ch - dy);
+        setCrop({ x: cx, y: cy + ch - nh, w: Math.min(imgSize.w - cx, nw), h: nh });
+      } else if (dragging === "sw") {
+        const nw = Math.max(20, cw - dx); const nh = Math.max(20, ch + dy);
+        setCrop({ x: cx + cw - nw, y: cy, w: nw, h: Math.min(imgSize.h - cy, nh) });
+      }
+    };
+    const onUp = () => setDragging(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [dragging, imgSize, scale]);
+
+  const doCrop = () => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = crop.w; canvas.height = crop.h;
+      canvas.getContext("2d").drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+      onSave(canvas.toDataURL("image/png"), `crop-${fileName || "image"}.png`);
+    };
+    img.src = imageSrc;
+  };
+
+  const hs = 10; // handle size
+  const Handle = ({ pos, cursor }) => {
+    const positions = {
+      nw: { left: crop.x * scale - hs / 2, top: crop.y * scale - hs / 2 },
+      ne: { left: (crop.x + crop.w) * scale - hs / 2, top: crop.y * scale - hs / 2 },
+      sw: { left: crop.x * scale - hs / 2, top: (crop.y + crop.h) * scale - hs / 2 },
+      se: { left: (crop.x + crop.w) * scale - hs / 2, top: (crop.y + crop.h) * scale - hs / 2 },
+    };
+    return (
+      <div onMouseDown={e => onMouseDown(e, pos)} style={{
+        position: "absolute", ...positions[pos], width: hs, height: hs,
+        background: WH, border: `2px solid ${AC}`, borderRadius: 2,
+        cursor, zIndex: 3,
+      }} />
+    );
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 600, display: "flex", flexDirection: "column" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: "rgba(0,0,0,0.5)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Ico name="edit" size={16} color="#fff" />
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Rogner — {fileName}</span>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: `1px solid rgba(255,255,255,0.3)`, borderRadius: 8, background: "transparent", color: "#fff", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+          <button onClick={doCrop} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Rogner et sauvegarder</button>
+        </div>
+      </div>
+      {/* Canvas area */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 20 }}>
+        {imgSize.w > 0 && (
+          <div style={{ position: "relative", userSelect: "none" }}>
+            <img src={imageSrc} alt="" style={{ display: "block", width: imgSize.w * scale, height: imgSize.h * scale }} draggable={false} />
+            {/* Dark overlay outside crop */}
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+              <svg width={imgSize.w * scale} height={imgSize.h * scale} style={{ position: "absolute", inset: 0 }}>
+                <defs><mask id="cropMask">
+                  <rect width="100%" height="100%" fill="white" />
+                  <rect x={crop.x * scale} y={crop.y * scale} width={crop.w * scale} height={crop.h * scale} fill="black" />
+                </mask></defs>
+                <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#cropMask)" />
+              </svg>
+            </div>
+            {/* Crop border */}
+            <div onMouseDown={e => onMouseDown(e, "move")} style={{
+              position: "absolute",
+              left: crop.x * scale, top: crop.y * scale,
+              width: crop.w * scale, height: crop.h * scale,
+              border: `2px solid ${AC}`, cursor: "move", zIndex: 2,
+              boxShadow: `0 0 0 1px rgba(255,255,255,0.3)`,
+            }}>
+              {/* Grid lines */}
+              <div style={{ position: "absolute", left: "33.33%", top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,0.2)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", left: "66.66%", top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,0.2)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", top: "33.33%", left: 0, right: 0, height: 1, background: "rgba(255,255,255,0.2)", pointerEvents: "none" }} />
+              <div style={{ position: "absolute", top: "66.66%", left: 0, right: 0, height: 1, background: "rgba(255,255,255,0.2)", pointerEvents: "none" }} />
+            </div>
+            {/* Resize handles */}
+            <Handle pos="nw" cursor="nw-resize" />
+            <Handle pos="ne" cursor="ne-resize" />
+            <Handle pos="sw" cursor="sw-resize" />
+            <Handle pos="se" cursor="se-resize" />
+          </div>
+        )}
+      </div>
+      {/* Info bar */}
+      <div style={{ padding: "8px 20px", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", gap: 16, fontSize: 11, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>
+        <span>Zone : {crop.w} x {crop.h} px</span>
+        <span>Position : {crop.x}, {crop.y}</span>
+        <span>Original : {imgSize.w} x {imgSize.h} px</span>
+      </div>
+    </div>
+  );
+}
+
+function PlanManager({ project, setProjects, onBack }) {
+  const [activePlanId, setActivePlanId] = useState(null);
+  const [newFolderParent, setNewFolderParent] = useState(null);
+  const [croppingItem, setCroppingItem] = useState(null); // file id being cropped
+  const [newFolderName, setNewFolderName] = useState("");
+  const [expanded, setExpanded] = useState({});
+  const [renaming, setRenaming] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
+  const [movingItem, setMovingItem] = useState(null); // item id being moved
+  const uploadRef = useRef(null);
+  const [uploadTarget, setUploadTarget] = useState(null);
+  const t = useT();
+
+  const planFiles = project.planFiles || [];
+  const updatePlanFiles = (fn) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, planFiles: fn(p.planFiles || []) } : p));
+
+  const getChildren = (parentId) => planFiles.filter(f => f.parentId === (parentId || null));
+  const getFolders = (parentId) => getChildren(parentId).filter(f => f.type === "folder");
+  const getFiles = (parentId) => getChildren(parentId).filter(f => f.type !== "folder");
+
+  const toggleExpand = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
+
+  const createFolder = (parentId) => {
+    if (!newFolderName.trim()) return;
+    const newId = Date.now() + Math.random();
+    updatePlanFiles(files => [...files, { id: newId, type: "folder", name: newFolderName.trim(), parentId: parentId || null, createdAt: new Date().toISOString() }]);
+    setNewFolderName(""); setNewFolderParent(null);
+    setExpanded(p => ({ ...p, [newId]: true }));
+    if (parentId) setExpanded(p => ({ ...p, [parentId]: true }));
+  };
+
+  const handleUpload = (files, parentId) => {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "tiff", "tif"];
+        const pdfExts = ["pdf"];
+        const cadExts = ["dwg", "dxf", "skp", "rvt", "rfa", "ifc", "3dm", "step", "stp"];
+        const docExts = ["doc", "docx", "odt", "rtf", "txt"];
+        const sheetExts = ["xls", "xlsx", "csv", "ods"];
+        const slideExts = ["ppt", "pptx", "odp"];
+        const designExts = ["psd", "ai", "indd", "fig", "sketch"];
+        let fileType = "other";
+        if (imageExts.includes(ext)) fileType = "image";
+        else if (pdfExts.includes(ext)) fileType = "pdf";
+        else if (cadExts.includes(ext)) fileType = "cad";
+        else if (docExts.includes(ext)) fileType = "doc";
+        else if (sheetExts.includes(ext)) fileType = "sheet";
+        else if (slideExts.includes(ext)) fileType = "slide";
+        else if (designExts.includes(ext)) fileType = "design";
+        updatePlanFiles(prev => [...prev, {
+          id: Date.now() + Math.random(),
+          type: fileType,
+          name: file.name, parentId: parentId || null,
+          dataUrl: ev.target.result, size: file.size,
+          ext,
+          createdAt: new Date().toISOString(),
+        }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    if (parentId) setExpanded(p => ({ ...p, [parentId]: true }));
+  };
+
+  const deleteItem = (itemId) => {
+    const toDelete = new Set([itemId]);
+    const findChildren = (pid) => { planFiles.filter(f => f.parentId === pid).forEach(f => { toDelete.add(f.id); if (f.type === "folder") findChildren(f.id); }); };
+    findChildren(itemId);
+    updatePlanFiles(files => files.filter(f => !toDelete.has(f.id)));
+    if (activePlanId === itemId) setActivePlanId(null);
+  };
+
+  const renameItem = (itemId) => {
+    if (!renameVal.trim()) { setRenaming(null); return; }
+    updatePlanFiles(files => files.map(f => f.id === itemId ? { ...f, name: renameVal.trim() } : f));
+    setRenaming(null);
+  };
+
+  // Move item to a different folder
+  const moveItem = (itemId, newParentId) => {
+    // Prevent moving folder into its own descendant
+    if (newParentId) {
+      let parent = newParentId;
+      while (parent) { if (parent === itemId) return; const f = planFiles.find(x => x.id === parent); parent = f?.parentId; }
+    }
+    updatePlanFiles(files => files.map(f => f.id === itemId ? { ...f, parentId: newParentId || null } : f));
+    if (newParentId) setExpanded(p => ({ ...p, [newParentId]: true }));
+    setMovingItem(null);
+  };
+
+  // Build folder options for move picker (flat list with indent)
+  const getFolderOptions = (excludeId) => {
+    const options = [{ id: null, name: "/ Racine", depth: 0 }];
+    const walk = (parentId, depth) => {
+      getFolders(parentId).forEach(f => {
+        if (f.id === excludeId) return;
+        options.push({ id: f.id, name: f.name, depth });
+        walk(f.id, depth + 1);
+      });
+    };
+    walk(null, 1);
+    return options;
+  };
+
+  // If viewing an image or PDF → PlanViewer with per-file markers/strokes
+  const activePlan = planFiles.find(f => f.id === activePlanId);
+  if (activePlan && (activePlan.type === "image" || activePlan.type === "pdf")) {
+    const fileProject = {
+      ...project,
+      planImage: activePlan.dataUrl,
+      planMarkers: activePlan.markers || project.planMarkers || [],
+      planStrokes: activePlan.strokes || project.planStrokes || [],
+    };
+    // Proxy setProjects: intercept changes to planMarkers/planStrokes/planImage and store on the file
+    const fileSetProjects = (fn) => {
+      setProjects(prev => {
+        // Let PlanViewer's updater run on a virtual projects array
+        const virtualPrev = prev.map(p => p.id === project.id ? fileProject : p);
+        const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
+        const updated = virtualNext.find(p => p.id === project.id);
+        if (!updated) return prev;
+        // Write back markers/strokes to the planFile
+        return prev.map(p => {
+          if (p.id !== project.id) return p;
+          return {
+            ...p,
+            planFiles: (p.planFiles || []).map(f => f.id === activePlanId ? {
+              ...f,
+              markers: updated.planMarkers || [],
+              strokes: updated.planStrokes || [],
+              dataUrl: updated.planImage || f.dataUrl,
+            } : f),
+          };
+        });
+      });
+    };
+    return <PlanViewer project={fileProject} setProjects={fileSetProjects} onBack={() => setActivePlanId(null)} />;
+  }
+
+  const hasLegacy = project.planImage && planFiles.length === 0;
+  const fileCount = planFiles.filter(f => f.type !== "folder").length;
+  const folderCount = planFiles.filter(f => f.type === "folder").length;
+
+  // File type icons & colors
+  const FILE_TYPE_STYLES = {
+    image:  { label: "IMG", color: GR, bg: GRBG, icon: "camera" },
+    pdf:    { label: "PDF", color: RD, bg: REDBG, icon: "file" },
+    cad:    { label: "CAD", color: BL, bg: BLB, icon: "layers" },
+    doc:    { label: "DOC", color: BL, bg: BLB, icon: "file" },
+    sheet:  { label: "XLS", color: GR, bg: GRBG, icon: "chart" },
+    slide:  { label: "PPT", color: AC, bg: ACL, icon: "layers" },
+    design: { label: "DSN", color: PU, bg: PUB, icon: "edit" },
+    other:  { label: "FILE", color: TX3, bg: SB2, icon: "file" },
+  };
+
+  const FileIcon = ({ type, ext, dataUrl }) => {
+    const s = FILE_TYPE_STYLES[type] || FILE_TYPE_STYLES.other;
+    if (type === "image" && dataUrl) {
+      return <img src={dataUrl} alt="" style={{ width: 32, height: 32, borderRadius: 7, objectFit: "cover", border: `1px solid ${SBB}`, flexShrink: 0 }} />;
+    }
+    return (
+      <div style={{ width: 32, height: 32, borderRadius: 7, background: s.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: `1px solid ${s.color}22`, flexShrink: 0 }}>
+        <span style={{ fontSize: 7, fontWeight: 700, color: s.color, textTransform: "uppercase" }}>{ext || s.label}</span>
+        <Ico name={s.icon} size={10} color={s.color} />
+      </div>
+    );
+  };
+
+  // Action buttons shared component
+  const ItemActions = ({ item }) => (
+    <div style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      {/* Annotate — only for images & PDFs */}
+      {(item.type === "image" || item.type === "pdf") && (
+        <button onClick={() => setActivePlanId(item.id)} title="Annoter le plan" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${AC}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+          <Ico name="layers" size={11} color={AC} />
+          <span style={{ fontSize: 9, fontWeight: 700, color: AC }}>Annoter</span>
+        </button>
+      )}
+      {/* Crop — images & PDFs */}
+      {(item.type === "image" || item.type === "pdf") && (
+        <button onClick={() => setCroppingItem(item.id)} title="Rogner" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+          <Ico name="fit" size={11} color={TX2} />
+          <span style={{ fontSize: 9, fontWeight: 600, color: TX2 }}>Rogner</span>
+        </button>
+      )}
+      {/* Download */}
+      {item.type !== "image" && item.type !== "folder" && item.dataUrl && (
+        <a href={item.dataUrl} download={item.name} title="Télécharger" style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${SBB}`, background: WH, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+          <Ico name="download" size={11} color={TX3} />
+        </a>
+      )}
+      {/* Move */}
+      <button onClick={() => setMovingItem(item.id)} title="Déplacer" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Ico name="arrowr" size={10} color={TX3} />
+      </button>
+      {/* Rename */}
+      <button onClick={() => { setRenaming(item.id); setRenameVal(item.name); }} title="Renommer" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Ico name="textT" size={11} color={TX3} />
+      </button>
+      {/* Delete */}
+      <button onClick={() => deleteItem(item.id)} title="Supprimer" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Ico name="trash" size={10} color={TX3} />
+      </button>
+    </div>
+  );
+
+  // Recursive tree renderer
+  const TreeNode = ({ parentId, depth = 0 }) => {
+    const folders = getFolders(parentId);
+    const files = getFiles(parentId);
+    if (folders.length === 0 && files.length === 0) return null;
+
+    return (
+      <div style={{ marginLeft: depth > 0 ? 16 : 0, borderLeft: depth > 0 ? `1px solid ${SBB}` : "none", paddingLeft: depth > 0 ? 8 : 0 }}>
+        {folders.map(folder => {
+          const isOpen = expanded[folder.id];
+          const childCount = getChildren(folder.id).length;
+          return (
+            <div key={folder.id}>
+              <div className="plan-folder-row" onClick={() => toggleExpand(folder.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, cursor: "pointer", marginBottom: 2 }}>
+                <Ico name={isOpen ? "chevron-up" : "chevron-down"} size={11} color={TX3} />
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="folder" size={14} color={AC} />
+                </div>
+                {renaming === folder.id ? (
+                  <input value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
+                    onKeyDown={e => { if (e.key === "Enter") renameItem(folder.id); if (e.key === "Escape") setRenaming(null); }}
+                    onBlur={() => renameItem(folder.id)} onClick={e => e.stopPropagation()}
+                    style={{ flex: 1, padding: "3px 8px", border: `1px solid ${AC}`, borderRadius: 5, fontSize: 12, fontFamily: "inherit", background: WH, color: TX }}
+                  />
+                ) : (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: TX }}>{folder.name}</span>
+                    <span style={{ fontSize: 10, color: TX3, marginLeft: 6 }}>{childCount}</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 1, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { setUploadTarget(folder.id); uploadRef.current?.click(); }} title="Importer ici" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="plus" size={11} color={TX3} />
+                  </button>
+                  <button onClick={() => { setNewFolderParent(folder.id); setExpanded(p => ({ ...p, [folder.id]: true })); }} title="Sous-dossier" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="folder" size={10} color={TX3} />
+                  </button>
+                  <button onClick={() => setMovingItem(folder.id)} title="Déplacer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="arrowr" size={10} color={TX3} />
+                  </button>
+                  <button onClick={() => { setRenaming(folder.id); setRenameVal(folder.name); }} title="Renommer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="textT" size={10} color={TX3} />
+                  </button>
+                  <button onClick={() => deleteItem(folder.id)} title="Supprimer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="trash" size={10} color={TX3} />
+                  </button>
+                </div>
+              </div>
+              {/* New subfolder inline */}
+              {newFolderParent === folder.id && (
+                <div style={{ display: "flex", gap: 4, padding: "4px 10px 4px 52px", marginBottom: 4, animation: "fadeIn 0.12s ease-out" }}>
+                  <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nom du sous-dossier..." autoFocus
+                    onKeyDown={e => { if (e.key === "Enter") createFolder(folder.id); if (e.key === "Escape") setNewFolderParent(null); }}
+                    style={{ flex: 1, padding: "5px 8px", border: `1px solid ${AC}`, borderRadius: 5, fontSize: 11, fontFamily: "inherit", background: WH, color: TX }}
+                  />
+                  <button onClick={() => createFolder(folder.id)} style={{ padding: "5px 10px", border: "none", borderRadius: 5, background: AC, color: "#fff", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>OK</button>
+                  <button onClick={() => setNewFolderParent(null)} style={{ padding: "5px 6px", border: `1px solid ${SBB}`, borderRadius: 5, background: WH, cursor: "pointer", display: "flex", alignItems: "center" }}>
+                    <Ico name="x" size={9} color={TX3} />
+                  </button>
+                </div>
+              )}
+              {isOpen && <TreeNode parentId={folder.id} depth={depth + 1} />}
+            </div>
+          );
+        })}
+        {files.map(file => (
+          <div key={file.id}
+            onClick={() => { if (file.type === "image" || file.type === "pdf") setActivePlanId(file.id); }}
+            className="plan-file-row"
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 8, cursor: file.type === "image" || file.type === "pdf" ? "pointer" : "default", marginBottom: 2 }}
+          >
+            <FileIcon type={file.type} ext={file.ext} dataUrl={file.dataUrl} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {renaming === file.id ? (
+                <input value={renameVal} onChange={e => setRenameVal(e.target.value)} autoFocus
+                  onKeyDown={e => { if (e.key === "Enter") renameItem(file.id); if (e.key === "Escape") setRenaming(null); }}
+                  onBlur={() => renameItem(file.id)} onClick={e => e.stopPropagation()}
+                  style={{ width: "100%", padding: "3px 8px", border: `1px solid ${AC}`, borderRadius: 5, fontSize: 12, fontFamily: "inherit", background: WH, color: TX }}
+                />
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{file.name}</div>
+                  <div style={{ fontSize: 10, color: TX3 }}>{file.size ? `${(file.size / 1024).toFixed(0)} KB` : ""}{file.createdAt ? ` · ${new Date(file.createdAt).toLocaleDateString("fr-BE")}` : ""}</div>
+                </>
+              )}
+            </div>
+            <ItemActions item={file} />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Ico name="back" color={TX2} />
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: TX }}>Documents</div>
+          <div style={{ fontSize: 12, color: TX3 }}>{fileCount} fichier{fileCount !== 1 ? "s" : ""} · {folderCount} dossier{folderCount !== 1 ? "s" : ""}</div>
+        </div>
+      </div>
+
+      {/* Actions bar */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+        <button onClick={() => { setUploadTarget(null); uploadRef.current?.click(); }} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="upload" size={13} color="#fff" />Importer
+        </button>
+        <button onClick={() => setNewFolderParent("root")} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="folder" size={13} color={TX3} />Nouveau dossier
+        </button>
+        <input ref={uploadRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.dwg,.dxf,.skp,.rvt,.rfa,.ifc,.psd,.ai,.indd,.fig,.sketch,.3dm,.step,.stp,.odt,.ods,.odp,.rtf,.txt" multiple style={{ display: "none" }} onChange={(e) => { handleUpload(e.target.files, uploadTarget); e.target.value = ""; }} />
+      </div>
+      <div style={{ fontSize: 10, color: TX3, marginBottom: 14, lineHeight: 1.6, padding: "0 2px" }}>
+        Formats acceptés : <strong>Images</strong> (JPG, PNG, SVG, TIFF) · <strong>PDF</strong> · <strong>CAO</strong> (DWG, DXF, SketchUp, Revit, IFC) · <strong>Documents</strong> (Word, Excel, PowerPoint, CSV) · <strong>Design</strong> (PSD, AI, InDesign, Figma)
+      </div>
+
+      {/* New folder at root */}
+      {newFolderParent === "root" && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, animation: "fadeIn 0.12s ease-out" }}>
+          <div style={{ width: 32, height: 32, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico name="folder" size={14} color={AC} />
+          </div>
+          <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Nom du dossier..." autoFocus
+            onKeyDown={e => { if (e.key === "Enter") createFolder(null); if (e.key === "Escape") setNewFolderParent(null); }}
+            style={{ flex: 1, padding: "7px 12px", border: `1px solid ${AC}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: WH, color: TX, boxShadow: `0 0 0 3px ${AC}1a` }}
+          />
+          <button onClick={() => createFolder(null)} style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Créer</button>
+          <button onClick={() => setNewFolderParent(null)} style={{ padding: "7px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Ico name="x" size={12} color={TX3} />
+          </button>
+        </div>
+      )}
+
+      {/* Legacy migration */}
+      {hasLegacy && (
+        <div style={{ padding: "12px 16px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+          <Ico name="alert" size={14} color={AC} />
+          <div style={{ flex: 1, fontSize: 12, color: TX }}>Un plan existant a été détecté.</div>
+          <button onClick={() => updatePlanFiles(files => [...files, { id: Date.now(), type: "image", name: "Plan principal", parentId: null, dataUrl: project.planImage, size: 0, createdAt: new Date().toISOString() }])} style={{ padding: "6px 14px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            Migrer
+          </button>
+        </div>
+      )}
+
+      {/* Move picker modal */}
+      {movingItem && (() => {
+        const item = planFiles.find(f => f.id === movingItem);
+        if (!item) return null;
+        const options = getFolderOptions(movingItem);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setMovingItem(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: WH, borderRadius: 14, width: "100%", maxWidth: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease", overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", borderBottom: `1px solid ${SBB}` }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: TX }}>Déplacer "{item.name}"</div>
+                <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>Choisissez le dossier de destination</div>
+              </div>
+              <div style={{ maxHeight: 300, overflowY: "auto", padding: "8px 10px" }}>
+                {options.map(opt => {
+                  const isCurrent = item.parentId === opt.id || (!item.parentId && !opt.id);
+                  return (
+                    <button key={opt.id || "__root__"} onClick={() => { if (!isCurrent) moveItem(movingItem, opt.id); }}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", gap: 8,
+                        padding: "9px 12px", paddingLeft: 12 + opt.depth * 16,
+                        border: "none", borderRadius: 7, cursor: isCurrent ? "default" : "pointer",
+                        background: isCurrent ? SB : "transparent",
+                        fontFamily: "inherit", textAlign: "left", marginBottom: 2,
+                        opacity: isCurrent ? 0.5 : 1,
+                      }}
+                    >
+                      <Ico name="folder" size={12} color={isCurrent ? TX3 : AC} />
+                      <span style={{ fontSize: 12, fontWeight: 500, color: isCurrent ? TX3 : TX }}>{opt.name}</span>
+                      {isCurrent && <span style={{ fontSize: 10, color: TX3, marginLeft: "auto" }}>actuel</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ padding: "10px 18px", borderTop: `1px solid ${SBB}` }}>
+                <button onClick={() => setMovingItem(null)} style={{ width: "100%", padding: 10, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: TX2 }}>Annuler</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* File tree */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "10px 8px", minHeight: 80 }}>
+        {planFiles.length === 0 && !hasLegacy && (
+          <div style={{ padding: "40px 16px", textAlign: "center" }}>
+            <Ico name="upload" size={28} color={SBB} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: TX3, marginTop: 8 }}>Aucun plan importé</div>
+            <div style={{ fontSize: 11, color: TX3, marginTop: 3 }}>Importez des images ou PDFs de vos plans</div>
+          </div>
+        )}
+        <TreeNode parentId={null} depth={0} />
+      </div>
+
+      {/* Crop overlay */}
+      {croppingItem && (() => {
+        const file = planFiles.find(f => f.id === croppingItem);
+        if (!file) return null;
+        const isPdf = file.type === "pdf";
+        if (isPdf) {
+          // Render PDF to image first, then show crop tool
+          return <PdfCropBridge file={file} onSave={(dataUrl, name) => {
+            updatePlanFiles(prev => [...prev, {
+              id: Date.now() + Math.random(), type: "image", name,
+              parentId: file.parentId, dataUrl, size: 0, createdAt: new Date().toISOString(),
+            }]);
+            setCroppingItem(null);
+          }} onClose={() => setCroppingItem(null)} />;
+        }
+        return <CropTool imageSrc={file.dataUrl} fileName={file.name} onSave={(dataUrl, name) => {
+          updatePlanFiles(prev => [...prev, {
+            id: Date.now() + Math.random(), type: "image", name,
+            parentId: file.parentId, dataUrl, size: 0, createdAt: new Date().toISOString(),
+          }]);
+          setCroppingItem(null);
+        }} onClose={() => setCroppingItem(null)} />;
+      })()}
+    </div>
+  );
+}
+
+// Helper: render PDF page to image, then open CropTool
+function PdfCropBridge({ file, onSave, onClose }) {
+  const [imgSrc, setImgSrc] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const cacheKey = file.dataUrl.slice(0, 100);
+        if (_pdfCache[cacheKey]) { setImgSrc(_pdfCache[cacheKey]); return; }
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+        const data = atob(file.dataUrl.split(",")[1]);
+        const arr = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) arr[i] = data.charCodeAt(i);
+        const pdf = await pdfjsLib.getDocument({ data: arr }).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        const result = canvas.toDataURL("image/png");
+        _pdfCache[cacheKey] = result;
+        setImgSrc(result);
+      } catch (e) { console.error("PDF crop render error:", e); onClose(); }
+    })();
+  }, [file.dataUrl]);
+
+  if (!imgSrc) return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center", color: "#fff" }}>
+        <div style={{ width: 20, height: 20, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "sp .6s linear infinite", margin: "0 auto 12px" }} />
+        <div style={{ fontSize: 13 }}>Rendu du PDF...</div>
+      </div>
+    </div>
+  );
+
+  return <CropTool imageSrc={imgSrc} fileName={file.name} onSave={onSave} onClose={onClose} />;
+}
+
+// PDF render cache — avoid re-rendering the same PDF
+const _pdfCache = {};
+
 function PlanViewer({ project, setProjects, onBack }) {
+  const [pdfRendered, setPdfRendered] = useState(null);
+  const isPdf = project.planImage?.startsWith("data:application/pdf");
+
+  // Render PDF first page to image (local pdfjs-dist, cached)
+  useEffect(() => {
+    if (!isPdf || !project.planImage) return;
+    // Check cache by dataUrl hash (first 100 chars as key)
+    const cacheKey = project.planImage.slice(0, 100);
+    if (_pdfCache[cacheKey]) { setPdfRendered(_pdfCache[cacheKey]); return; }
+    (async () => {
+      try {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+        const data = atob(project.planImage.split(",")[1]);
+        const arr = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i++) arr[i] = data.charCodeAt(i);
+        const pdf = await pdfjsLib.getDocument({ data: arr }).promise;
+        const page = await pdf.getPage(1);
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        const result = canvas.toDataURL("image/png");
+        _pdfCache[cacheKey] = result;
+        setPdfRendered(result);
+      } catch (e) {
+        console.error("PDF render error:", e);
+      }
+    })();
+  }, [isPdf, project.planImage]);
+
+  const planImageSrc = isPdf ? pdfRendered : project.planImage;
+
   const [mode,          setMode]          = useState("view"); // "view" | "marker" | "anno"
   const [pendingMarker, setPendingMarker] = useState(null);
   const [selectedPostId, setSelectedPostId] = useState("");
@@ -4620,7 +6029,7 @@ function PlanViewer({ project, setProjects, onBack }) {
 
   // Size canvas + draw strokes whenever planImage changes
   useEffect(() => {
-    if (!project.planImage || !canvasRef.current) return;
+    if (!planImageSrc || !canvasRef.current) return;
     const img = new Image();
     img.onload = () => {
       const canvas = canvasRef.current;
@@ -4645,8 +6054,8 @@ function PlanViewer({ project, setProjects, onBack }) {
         vpRef.current = next; setVp(next);
       }, 60);
     };
-    img.src = project.planImage;
-  }, [project.planImage]);
+    img.src = planImageSrc;
+  }, [planImageSrc]);
 
   // Redraw when persisted strokes change
   useEffect(() => {
@@ -4891,7 +6300,7 @@ function PlanViewer({ project, setProjects, onBack }) {
   // ── Wheel zoom (non-passive) ─────────────────────────────────
   useEffect(() => {
     const el = planAreaRef.current;
-    if (!el || !project.planImage) return;
+    if (!el || !planImageSrc) return;
     const handler = (e) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
@@ -4904,7 +6313,7 @@ function PlanViewer({ project, setProjects, onBack }) {
     };
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
-  }, [project.planImage]);
+  }, [planImageSrc]);
 
   // ── Flash "Enregistré" à chaque modification ────────────────
   useEffect(() => {
@@ -5122,7 +6531,7 @@ function PlanViewer({ project, setProjects, onBack }) {
         </div>
 
         {/* Changer de plan (secondaire) */}
-        {project.planImage && (
+        {planImageSrc && (
           <button onClick={() => uploadRef.current.click()} style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, color: TX2, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
             <Ico name="upload" size={13} color={TX3} />Changer de plan
           </button>
@@ -5137,7 +6546,13 @@ function PlanViewer({ project, setProjects, onBack }) {
         </button>
       </div>
 
-      {!project.planImage ? (
+      {isPdf && !pdfRendered ? (
+        /* ── Loading PDF ── */
+        <div style={{ margin: "0 20px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 20px", background: WH, borderRadius: 14, border: `1px solid ${SBB}`, textAlign: "center" }}>
+          <div style={{ width: 14, height: 14, border: `2px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "sp .7s linear infinite", marginBottom: 14 }} />
+          <div style={{ fontSize: 13, color: TX3 }}>Rendu du PDF en cours...</div>
+        </div>
+      ) : !planImageSrc ? (
         /* ── Empty state ── */
         <div style={{ margin: "0 20px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 20px", border: `2px dashed ${SBB}`, borderRadius: 14, background: WH, textAlign: "center" }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: SB, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
@@ -5453,7 +6868,7 @@ function PlanViewer({ project, setProjects, onBack }) {
               style={{ position: "absolute", top: 0, left: 0, transformOrigin: "0 0", transform: `translate(${vp.panX}px,${vp.panY}px) scale(${vp.zoom})`, boxShadow: "0 4px 24px rgba(0,0,0,0.15)", borderRadius: 6, overflow: "hidden", userSelect: "none" }}
             >
               {imgBase.w > 0 && (
-                <img src={project.planImage} alt="Plan" style={{ display: "block", width: imgBase.w, height: imgBase.h }} />
+                <img src={planImageSrc} alt="Plan" style={{ display: "block", width: imgBase.w, height: imgBase.h }} />
               )}
 
               {/* Canvas annotation overlay */}
@@ -5549,12 +6964,89 @@ function PlanViewer({ project, setProjects, onBack }) {
 }
 
 function PlanningView({ project, setProjects, onBack }) {
-  const EMPTY_LOT = { name: "", contractor: "", startDate: "", endDate: "", progress: 0, color: "amber" };
+  const EMPTY_LOT = { name: "", contractor: "", startDate: "", endDate: "", duration: "", progress: 0, color: "amber", steps: [], postId: "" };
+  const EMPTY_STEP = { name: "", startDate: "", endDate: "", duration: "", done: false };
   const [modal,     setModal]     = useState(null); // null | "add" | "edit"
   const [editLot,   setEditLot]   = useState(EMPTY_LOT);
   const [editingId, setEditingId] = useState(null);
   const [confirmDeleteLot, setConfirmDeleteLot] = useState(null);
+  const importRef = useRef(null);
   const t = useT();
+
+  // Auto-calc endDate from startDate + duration (days)
+  const calcEndFromDuration = (start, days) => {
+    if (!start || !days) return "";
+    const d = new Date(start);
+    d.setDate(d.getDate() + parseInt(days));
+    return d.toISOString().slice(0, 10);
+  };
+  const calcDuration = (start, end) => {
+    if (!start || !end) return "";
+    const diff = Math.round((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? String(diff) : "";
+  };
+
+  // Import CSV — step 1: parse, step 2: mapping UI
+  const [importData, setImportData] = useState(null); // { headers: [], rows: [], mapping: {} }
+
+  const handleImportFile = (file) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const lines = text.split("\n").filter(l => l.trim());
+      if (lines.length < 2) return;
+      const sep = lines[0].includes("\t") ? "\t" : lines[0].includes(";") ? ";" : ",";
+      const headers = lines[0].split(sep).map(c => c.replace(/^"|"$/g, "").trim());
+      const rows = lines.slice(1).map(line => line.split(sep).map(c => c.replace(/^"|"$/g, "").trim()));
+      // Auto-detect mapping from header names
+      const autoMap = {};
+      const fields = [
+        { key: "name", labels: ["lot", "nom", "name", "tâche", "tache", "task", "libellé", "libelle", "description"] },
+        { key: "contractor", labels: ["responsable", "entreprise", "contractor", "société", "societe", "company", "attribué", "attribue"] },
+        { key: "startDate", labels: ["début", "debut", "start", "date début", "date debut", "start date", "begin"] },
+        { key: "endDate", labels: ["fin", "end", "date fin", "end date", "échéance", "echeance", "deadline"] },
+        { key: "progress", labels: ["avancement", "progress", "%", "progression", "completion"] },
+        { key: "duration", labels: ["durée", "duree", "duration", "jours", "days"] },
+      ];
+      headers.forEach((h, i) => {
+        const lower = h.toLowerCase();
+        for (const f of fields) {
+          if (f.labels.some(l => lower.includes(l)) && !autoMap[f.key]) {
+            autoMap[f.key] = i;
+            break;
+          }
+        }
+      });
+      setImportData({ headers, rows, mapping: autoMap });
+    };
+    reader.readAsText(file);
+  };
+
+  const applyImport = () => {
+    if (!importData) return;
+    const { rows, mapping } = importData;
+    const get = (row, key) => mapping[key] !== undefined ? (row[mapping[key]] || "") : "";
+    const newLots = rows.map(row => {
+      const name = get(row, "name");
+      if (!name) return null;
+      const startDate = get(row, "startDate");
+      const endDate = get(row, "endDate");
+      const dur = get(row, "duration");
+      const finalEnd = endDate || (startDate && dur ? calcEndFromDuration(startDate, dur) : "");
+      return {
+        id: Date.now() + Math.random(), name,
+        contractor: get(row, "contractor"),
+        startDate, endDate: finalEnd,
+        duration: calcDuration(startDate, finalEnd) || dur,
+        progress: parseInt(get(row, "progress")) || 0,
+        color: "amber", steps: [],
+      };
+    }).filter(Boolean);
+    if (newLots.length > 0) {
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, lots: [...(p.lots || []), ...newLots] } : p));
+    }
+    setImportData(null);
+  };
 
   const lots = project.lots || [];
 
@@ -5604,9 +7096,16 @@ function PlanningView({ project, setProjects, onBack }) {
           <div style={{ fontSize: 17, fontWeight: 600, color: TX }}>{t("planning.title")}</div>
           <div style={{ fontSize: 12, color: TX3 }}>{project.name}{lots.length > 0 ? ` · ${lots.length} lot${lots.length > 1 ? "s" : ""} · ${overallProgress}% avancement` : ""}</div>
         </div>
+        <button onClick={() => importRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="upload" size={13} color={TX3} />Importer CSV
+        </button>
         <button onClick={() => { setEditLot(EMPTY_LOT); setEditingId(null); setModal("add"); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
           <Ico name="plus" size={14} color="#fff" />{t("planning.lot")}
         </button>
+        <input ref={importRef} type="file" accept=".csv,.xlsx,.xls,.tsv" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value = ""; }} />
+      </div>
+      <div style={{ fontSize: 10, color: TX3, marginBottom: 12, padding: "0 2px" }}>
+        Format CSV pour import : <strong>Lot ; Responsable ; Début (YYYY-MM-DD) ; Fin (YYYY-MM-DD) ; Avancement (%)</strong>
       </div>
 
       {lots.length === 0 ? (
@@ -5651,21 +7150,37 @@ function PlanningView({ project, setProjects, onBack }) {
                   const st     = calcLotStatus(lot);
                   const left   = pct(toMs(lot.startDate));
                   const width  = Math.max(1, pct(toMs(lot.endDate)) - left);
+                  const steps  = (lot.steps || []).filter(s => s.startDate && s.endDate);
                   return (
-                    <div key={lot.id} style={{ marginBottom: i < datedLots.length - 1 ? 6 : 0, display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ fontSize: 11, color: TX2, width: 90, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={lot.name}>{lot.name}</div>
-                      <div style={{ flex: 1, position: "relative", height: 18, background: SB, borderRadius: 4 }}>
-                        {/* Full bar */}
-                        <div style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", background: lc.bg, border: `1px solid ${lc.value}40`, borderRadius: 4 }} />
-                        {/* Progress fill */}
-                        <div style={{ position: "absolute", left: `${left}%`, width: `${width * (lot.progress || 0) / 100}%`, height: "100%", background: st.id === "delayed" ? RD + "80" : lc.value + "80", borderRadius: 4 }} />
-                        {(lot.progress || 0) > 0 && (
-                          <div style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: TX, opacity: 0.75 }}>{lot.progress}%</span>
-                          </div>
-                        )}
+                    <div key={lot.id} style={{ marginBottom: i < datedLots.length - 1 ? 2 : 0 }}>
+                      {/* Lot bar */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: TX2, width: 90, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={lot.name}>{lot.name}</div>
+                        <div style={{ flex: 1, position: "relative", height: 18, background: SB, borderRadius: 4 }}>
+                          <div style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", background: lc.bg, border: `1px solid ${lc.value}40`, borderRadius: 4 }} />
+                          <div style={{ position: "absolute", left: `${left}%`, width: `${width * (lot.progress || 0) / 100}%`, height: "100%", background: st.id === "delayed" ? RD + "80" : lc.value + "80", borderRadius: 4 }} />
+                          {(lot.progress || 0) > 0 && (
+                            <div style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: TX, opacity: 0.75 }}>{lot.progress}%</span>
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>{st.label}</span>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>{st.label}</span>
+                      {/* Step bars (indented, smaller) */}
+                      {steps.map(step => {
+                        const sLeft = pct(toMs(step.startDate));
+                        const sWidth = Math.max(0.5, pct(toMs(step.endDate)) - sLeft);
+                        return (
+                          <div key={step.name + step.startDate} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 1 }}>
+                            <div style={{ fontSize: 9, color: TX3, width: 90, flexShrink: 0, paddingLeft: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={step.name}>{step.name}</div>
+                            <div style={{ flex: 1, position: "relative", height: 10, borderRadius: 3 }}>
+                              <div style={{ position: "absolute", left: `${sLeft}%`, width: `${sWidth}%`, height: "100%", background: step.done ? GR + "60" : lc.value + "40", borderRadius: 3 }} />
+                            </div>
+                            <div style={{ width: 42 }} />
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -5687,7 +7202,8 @@ function PlanningView({ project, setProjects, onBack }) {
                   <div style={{ width: 10, height: 10, borderRadius: 3, background: lc.value, marginTop: 4, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{lot.name}</div>
-                    {lot.contractor && <div style={{ fontSize: 12, color: TX3, marginTop: 1 }}>{lot.contractor}</div>}
+                    {lot.contractor && <span style={{ fontSize: 12, color: TX3 }}>{lot.contractor}</span>}
+                    {lot.postId && (() => { const post = (project.posts || []).find(p => p.id === lot.postId); return post ? <span style={{ fontSize: 10, color: BL, background: BLB, padding: "1px 6px", borderRadius: 4, marginLeft: 6 }}>{post.id}. {post.label}</span> : null; })()}
                     <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 11, color: TX3 }}>
                       {lot.startDate && <span>{fmtDate(lot.startDate)}</span>}
                       {lot.startDate && lot.endDate && <span>→</span>}
@@ -5695,7 +7211,7 @@ function PlanningView({ project, setProjects, onBack }) {
                     </div>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, padding: "2px 7px", borderRadius: 6, flexShrink: 0 }}>{st.label}</span>
-                  <button onClick={() => { setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", progress: lot.progress || 0, color: lot.color || "amber" }); setEditingId(lot.id); setModal("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
+                  <button onClick={() => { setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", duration: calcDuration(lot.startDate, lot.endDate), progress: lot.progress || 0, color: lot.color || "amber", steps: lot.steps || [], postId: lot.postId || "" }); setEditingId(lot.id); setModal("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                     <Ico name="edit" size={14} color={TX3} />
                   </button>
                   {confirmDeleteLot === lot.id ? (
@@ -5710,8 +7226,37 @@ function PlanningView({ project, setProjects, onBack }) {
                   )}
                 </div>
 
+                {/* Duration */}
+                {lot.startDate && lot.endDate && (
+                  <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>
+                    Durée : {calcDuration(lot.startDate, lot.endDate)} jours
+                  </div>
+                )}
+
+                {/* Steps */}
+                {(lot.steps || []).length > 0 && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${SB2}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Étapes ({(lot.steps || []).length})</div>
+                    {(lot.steps || []).map((step, si) => (
+                      <div key={si} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0" }}>
+                        <button onClick={() => {
+                          setProjects(prev => prev.map(p => p.id === project.id ? {
+                            ...p, lots: (p.lots || []).map(l => l.id === lot.id ? {
+                              ...l, steps: l.steps.map((s, j) => j === si ? { ...s, done: !s.done } : s)
+                            } : l)
+                          } : p));
+                        }} style={{ width: 16, height: 16, borderRadius: 3, border: `1.5px solid ${step.done ? GR : SBB}`, background: step.done ? "#F0FDF4" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                          {step.done && <Ico name="check" size={9} color={GR} />}
+                        </button>
+                        <span style={{ fontSize: 11, color: step.done ? TX3 : TX, textDecoration: step.done ? "line-through" : "none", flex: 1 }}>{step.name}</span>
+                        {step.startDate && <span style={{ fontSize: 9, color: TX3 }}>{fmtDate(step.startDate)}{step.endDate ? ` → ${fmtDate(step.endDate)}` : ""}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Progress slider */}
-                <div>
+                <div style={{ marginTop: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
                     <span style={{ fontSize: 11, color: TX3 }}>Avancement</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: lot.progress >= 100 ? GR : TX }}>{lot.progress || 0}%</span>
@@ -5731,26 +7276,167 @@ function PlanningView({ project, setProjects, onBack }) {
         </div>
       )}
 
+      {/* Import mapping modal */}
+      {importData && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={() => setImportData(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: WH, borderRadius: 14, width: "100%", maxWidth: 600, maxHeight: "85vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease" }}>
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${SBB}` }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: TX }}>Mapper les colonnes</div>
+              <div style={{ fontSize: 12, color: TX3, marginTop: 2 }}>{importData.rows.length} ligne{importData.rows.length > 1 ? "s" : ""} détectée{importData.rows.length > 1 ? "s" : ""} · {importData.headers.length} colonne{importData.headers.length > 1 ? "s" : ""}</div>
+            </div>
+
+            <div style={{ padding: "16px 20px" }}>
+              {/* Mapping selectors */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                {[
+                  { key: "name", label: "Nom du lot *", required: true },
+                  { key: "contractor", label: "Responsable" },
+                  { key: "startDate", label: "Date de début" },
+                  { key: "endDate", label: "Date de fin" },
+                  { key: "duration", label: "Durée (jours)" },
+                  { key: "progress", label: "Avancement (%)" },
+                ].map(field => (
+                  <div key={field.key}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 3 }}>{field.label}</div>
+                    <select
+                      value={importData.mapping[field.key] ?? ""}
+                      onChange={e => setImportData(prev => ({ ...prev, mapping: { ...prev.mapping, [field.key]: e.target.value === "" ? undefined : Number(e.target.value) } }))}
+                      style={{ width: "100%", padding: "7px 10px", border: `1px solid ${importData.mapping[field.key] !== undefined ? AC : SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: importData.mapping[field.key] !== undefined ? ACL : SB, color: TX, cursor: "pointer" }}
+                    >
+                      <option value="">— Non mappé —</option>
+                      {importData.headers.map((h, i) => (
+                        <option key={i} value={i}>{h}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview */}
+              <div style={{ fontSize: 11, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Aperçu ({Math.min(3, importData.rows.length)} premières lignes)</div>
+              <div style={{ overflowX: "auto", marginBottom: 16 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ borderBottom: `2px solid ${SBB}` }}>
+                      {importData.headers.map((h, i) => {
+                        const mappedTo = Object.entries(importData.mapping).find(([, v]) => v === i);
+                        return (
+                          <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600, color: mappedTo ? AC : TX3, background: mappedTo ? ACL : "transparent" }}>
+                            {h}
+                            {mappedTo && <div style={{ fontSize: 9, fontWeight: 700, color: AC }}>→ {mappedTo[0]}</div>}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importData.rows.slice(0, 3).map((row, ri) => (
+                      <tr key={ri} style={{ borderBottom: `1px solid ${SB}` }}>
+                        {row.map((cell, ci) => {
+                          const mappedTo = Object.entries(importData.mapping).find(([, v]) => v === ci);
+                          return <td key={ci} style={{ padding: "5px 8px", color: mappedTo ? TX : TX3, background: mappedTo ? ACL + "40" : "transparent" }}>{cell}</td>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ padding: "12px 20px", borderTop: `1px solid ${SBB}`, display: "flex", gap: 8 }}>
+              <button onClick={() => setImportData(null)} style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2 }}>Annuler</button>
+              <button onClick={applyImport} disabled={importData.mapping.name === undefined} style={{ flex: 2, padding: 11, border: "none", borderRadius: 8, background: importData.mapping.name !== undefined ? AC : DIS, color: importData.mapping.name !== undefined ? "#fff" : DIST, fontSize: 13, fontWeight: 600, cursor: importData.mapping.name !== undefined ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                Importer {importData.rows.length} lot{importData.rows.length > 1 ? "s" : ""}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit modal */}
-      <Modal open={!!modal} onClose={() => { setModal(null); setEditLot(EMPTY_LOT); setEditingId(null); }} title={modal === "add" ? t("planning.newLot") : t("planning.editLot")}>
+      <Modal open={!!modal} onClose={() => { setModal(null); setEditLot(EMPTY_LOT); setEditingId(null); }} title={modal === "add" ? t("planning.newLot") : t("planning.editLot")} wide>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>{t("planning.lotName")} *</div>
           <input value={editLot.name} onChange={(e) => setEditLot((p) => ({ ...p, name: e.target.value }))} placeholder={t("planning.lotPlaceholder")} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} autoFocus />
         </div>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Responsable / Entreprise</div>
-          <input value={editLot.contractor} onChange={(e) => setEditLot((p) => ({ ...p, contractor: e.target.value }))} placeholder="ex. Entreprise Dupont" style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Responsable / Entreprise</div>
+            <input value={editLot.contractor || ""} onChange={(e) => setEditLot((p) => ({ ...p, contractor: e.target.value }))} placeholder="ex. Entreprise Dupont" style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Poste PV associé</div>
+            <select value={editLot.postId || ""} onChange={(e) => setEditLot((p) => ({ ...p, postId: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", appearance: "auto", cursor: "pointer" }}>
+              <option value="">— Aucun poste —</option>
+              {(project.posts || []).map(p => (
+                <option key={p.id} value={p.id}>{p.id}. {p.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>{t("planning.start")}</div>
-            <input type="date" value={editLot.startDate} onChange={(e) => setEditLot((p) => ({ ...p, startDate: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
+            <input type="date" value={editLot.startDate} onChange={(e) => {
+              const start = e.target.value;
+              const end = editLot.duration ? calcEndFromDuration(start, editLot.duration) : editLot.endDate;
+              setEditLot(p => ({ ...p, startDate: start, endDate: end }));
+            }} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
+          </div>
+          <div style={{ flex: "0 0 90px" }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Durée (jours)</div>
+            <input type="number" min="1" value={editLot.duration || ""} onChange={(e) => {
+              const dur = e.target.value;
+              const end = editLot.startDate && dur ? calcEndFromDuration(editLot.startDate, dur) : editLot.endDate;
+              setEditLot(p => ({ ...p, duration: dur, endDate: end }));
+            }} placeholder="—" style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>{t("planning.end")}</div>
-            <input type="date" value={editLot.endDate} onChange={(e) => setEditLot((p) => ({ ...p, endDate: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
+            <input type="date" value={editLot.endDate} onChange={(e) => {
+              const end = e.target.value;
+              const dur = editLot.startDate ? calcDuration(editLot.startDate, end) : "";
+              setEditLot(p => ({ ...p, endDate: end, duration: dur }));
+            }} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
           </div>
         </div>
+
+        {/* Steps */}
+        <div style={{ marginBottom: 14, borderTop: `1px solid ${SBB}`, paddingTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: TX2 }}>Étapes</span>
+            <button onClick={() => setEditLot(p => ({ ...p, steps: [...(p.steps || []), { ...EMPTY_STEP }] }))} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontSize: 11, color: AC, fontWeight: 600, fontFamily: "inherit" }}>
+              <Ico name="plus" size={10} color={AC} />Ajouter une étape
+            </button>
+          </div>
+          {(editLot.steps || []).length === 0 && (
+            <div style={{ fontSize: 11, color: TX3, fontStyle: "italic", padding: "4px 0" }}>Aucune étape — optionnel, pour détailler le lot</div>
+          )}
+          {(editLot.steps || []).map((step, si) => (
+            <div key={si} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center", padding: "6px 8px", background: SB, borderRadius: 8 }}>
+              <input value={step.name} onChange={e => setEditLot(p => ({ ...p, steps: p.steps.map((s, j) => j === si ? { ...s, name: e.target.value } : s) }))} placeholder="Nom de l'étape" style={{ flex: 1, padding: "6px 8px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, minWidth: 0 }} />
+              <input type="date" value={step.startDate || ""} onChange={e => {
+                const start = e.target.value;
+                const end = step.duration ? calcEndFromDuration(start, step.duration) : step.endDate;
+                setEditLot(p => ({ ...p, steps: p.steps.map((s, j) => j === si ? { ...s, startDate: start, endDate: end || "" } : s) }));
+              }} style={{ width: 120, padding: "6px 6px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX }} />
+              <input type="number" min="1" value={step.duration || ""} onChange={e => {
+                const dur = e.target.value;
+                const end = step.startDate && dur ? calcEndFromDuration(step.startDate, dur) : step.endDate;
+                setEditLot(p => ({ ...p, steps: p.steps.map((s, j) => j === si ? { ...s, duration: dur, endDate: end || "" } : s) }));
+              }} placeholder="j" title="Durée en jours" style={{ width: 45, padding: "6px 6px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX, textAlign: "center" }} />
+              <input type="date" value={step.endDate || ""} onChange={e => {
+                const end = e.target.value;
+                const dur = step.startDate ? calcDuration(step.startDate, end) : "";
+                setEditLot(p => ({ ...p, steps: p.steps.map((s, j) => j === si ? { ...s, endDate: end, duration: dur } : s) }));
+              }} style={{ width: 120, padding: "6px 6px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX }} />
+              <button onClick={() => setEditLot(p => ({ ...p, steps: p.steps.filter((_, j) => j !== si) }))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
+                <Ico name="x" size={10} color={TX3} />
+              </button>
+            </div>
+          ))}
+        </div>
+
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 6 }}>{t("planning.progressPct")} — {editLot.progress}%</div>
           <input type="range" min={0} max={100} value={editLot.progress} onChange={(e) => setEditLot((p) => ({ ...p, progress: Number(e.target.value) }))} style={{ width: "100%", accentColor: AC }} />
@@ -5938,13 +7624,13 @@ const PROFILE_SECTIONS = [
   { id: "security", icon: "eye", label: "Sécurité" },
   { id: "info", icon: "file", label: "Informations" },
   { id: "lang", icon: "building", label: "Langue" },
-  { id: "api", icon: "edit", label: "API Claude" },
   { id: "appearance", icon: "chart", label: "Apparence PV" },
   { id: "preview", icon: "eye", label: "Aperçu" },
 ];
 
 function ProfileView({ profile, onSave }) {
   const [form, setForm] = useState({ ...profile });
+  const [saved, setSaved] = useState(false);
   const fileRef = useRef();
   const t = useT();
   const [authEmail, setAuthEmail] = useState("");
@@ -5967,6 +7653,17 @@ function ProfileView({ profile, onSave }) {
   // Track active section on scroll
   useEffect(() => {
     const onScroll = () => {
+      // If scrolled to bottom, activate the last visible section
+      const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 20;
+      if (atBottom) {
+        // Find last section that has a ref
+        for (let i = PROFILE_SECTIONS.length - 1; i >= 0; i--) {
+          if (sectionRefs.current[PROFILE_SECTIONS[i].id]) {
+            setActiveSection(PROFILE_SECTIONS[i].id);
+            return;
+          }
+        }
+      }
       let current = "avatar";
       for (const s of PROFILE_SECTIONS) {
         const el = sectionRefs.current[s.id];
@@ -6159,6 +7856,65 @@ function ProfileView({ profile, onSave }) {
         </div>
       </div>
 
+      {/* Signature email */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Signature email</div>
+        <div style={{ fontSize: 11, color: TX3, marginBottom: 12 }}>Ajoutée automatiquement à la fin de vos emails. Vous pouvez coller une image (logo) directement dans l'éditeur.</div>
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          onInput={e => set("emailSignature")(e.currentTarget.innerHTML)}
+          onPaste={e => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+              if (item.type.startsWith("image/")) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (!file) return;
+                if (file.size > 500000) { alert("Image trop lourde (max 500 Ko)"); return; }
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const img = document.createElement("img");
+                  img.src = ev.target.result;
+                  img.style.maxHeight = "60px";
+                  img.style.maxWidth = "200px";
+                  img.style.objectFit = "contain";
+                  img.style.display = "block";
+                  img.style.marginBottom = "4px";
+                  const sel = window.getSelection();
+                  if (sel.rangeCount) {
+                    const range = sel.getRangeAt(0);
+                    range.deleteContents();
+                    range.insertNode(img);
+                    range.setStartAfter(img);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                  }
+                  set("emailSignature")(e.currentTarget.innerHTML);
+                };
+                reader.readAsDataURL(file);
+                return;
+              }
+            }
+          }}
+          dangerouslySetInnerHTML={{ __html: form.emailSignature || "" }}
+          style={{ width: "100%", minHeight: 100, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 10, fontSize: 12, lineHeight: 1.6, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", outline: "none", overflowWrap: "break-word", whiteSpace: "pre-wrap" }}
+        />
+        {!form.emailSignature && (
+          <button
+            onClick={() => {
+              const html = `Cordialement,<br>${form.name || "Votre nom"}<br>${form.structure || "Votre bureau"}${form.phone ? "<br>Tél : " + form.phone : ""}${form.email ? "<br>" + form.email : ""}`;
+              set("emailSignature")(html);
+            }}
+            style={{ marginTop: 8, padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 11, fontFamily: "inherit", color: AC, fontWeight: 600 }}
+          >
+            Générer depuis mon profil
+          </button>
+        )}
+      </div>
+
       {/* Langue */}
       <div ref={refFor("lang")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>Langue / Language</div>
@@ -6168,28 +7924,14 @@ function ProfileView({ profile, onSave }) {
             { id: "en", label: "English", flag: "🇬🇧" },
           ].map(l => (
             <button key={l.id} onClick={() => set("lang")(l.id)}
-              style={{ flex: 1, padding: "12px 14px", border: `2px solid ${form.lang === l.id ? TX : SBB}`, borderRadius: 10, background: form.lang === l.id ? TX : WH, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 10 }}>
+              style={{ flex: 1, padding: "12px 14px", border: `2px solid ${form.lang === l.id ? AC : SBB}`, borderRadius: 10, background: form.lang === l.id ? ACL : WH, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "all 0.15s", display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 22 }}>{l.flag}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: form.lang === l.id ? WH : TX }}>{l.label}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: form.lang === l.id ? AC : TX }}>{l.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Clé API Claude */}
-      <div ref={refFor("api")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>{t("profile.apiTitle")}</div>
-        <div style={{ fontSize: 12, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
-          {t("profile.apiDesc")}
-        </div>
-        <Field label={t("profile.apiKey")} value={form.apiKey || ""} onChange={set("apiKey")} placeholder="sk-..." type="password" />
-        {form.apiKey && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, marginTop: -4 }}>
-            <div style={{ width: 6, height: 6, borderRadius: 3, background: GR }} />
-            <span style={{ fontSize: 11, color: GR }}>{t("profile.apiConfigured")}</span>
-          </div>
-        )}
-      </div>
 
       {/* Templates */}
       {/* Apparence du PV */}
@@ -6226,10 +7968,10 @@ function ProfileView({ profile, onSave }) {
               <button
                 key={f.id}
                 onClick={() => set("pdfFont")(f.id)}
-                style={{ flex: 1, padding: "10px 12px", border: `2px solid ${form.pdfFont === f.id ? TX : SBB}`, borderRadius: 10, background: form.pdfFont === f.id ? TX : WH, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "all 0.15s" }}
+                style={{ flex: 1, padding: "10px 12px", border: `2px solid ${form.pdfFont === f.id ? AC : SBB}`, borderRadius: 10, background: form.pdfFont === f.id ? ACL : WH, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "all 0.15s" }}
               >
-                <div style={{ fontSize: 14, fontWeight: 700, color: form.pdfFont === f.id ? WH : TX, fontFamily: f.id === "times" ? "Georgia,serif" : "inherit", marginBottom: 2 }}>{f.label}</div>
-                <div style={{ fontSize: 11, color: form.pdfFont === f.id ? "#ccc" : TX3 }}>{f.desc}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: form.pdfFont === f.id ? AC : TX, fontFamily: f.id === "times" ? "Georgia,serif" : "inherit", marginBottom: 2 }}>{f.label}</div>
+                <div style={{ fontSize: 11, color: form.pdfFont === f.id ? TX2 : TX3 }}>{f.desc}</div>
               </button>
             ))}
           </div>
@@ -6237,17 +7979,17 @@ function ProfileView({ profile, onSave }) {
       </div>
 
       {/* Aperçu */}
-      <div ref={refFor("preview")} style={{ marginBottom: 16 }}>
+      <div ref={refFor("preview")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("profile.templatePreview")}</div>
         <PDFPreview form={form} />
       </div>
 
       <button
-        onClick={() => onSave(form)}
+        onClick={() => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); }}
         disabled={!form.name.trim() || !form.structure.trim()}
-        style={{ width: "100%", marginTop: 4, padding: 14, border: "none", borderRadius: 10, background: form.name.trim() && form.structure.trim() ? AC : DIS, color: form.name.trim() && form.structure.trim() ? "#fff" : DIST, fontSize: 15, fontWeight: 600, cursor: form.name.trim() && form.structure.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.2s" }}
+        style={{ width: "100%", marginTop: 4, padding: 14, border: "none", borderRadius: 10, background: saved ? GR : (form.name.trim() && form.structure.trim() ? AC : DIS), color: form.name.trim() && form.structure.trim() ? "#fff" : DIST, fontSize: 15, fontWeight: 600, cursor: form.name.trim() && form.structure.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
       >
-        {t("profile.saveSettings")}
+        {saved ? <><Ico name="check" size={18} color="#fff" />Enregistré !</> : t("profile.saveSettings")}
       </button>
       </div>{/* end scroll container */}
     </div>
@@ -6256,27 +7998,28 @@ function ProfileView({ profile, onSave }) {
 
 function ChecklistsView({ project, setProjects, onBack }) {
   const [activeClId, setActiveClId] = useState(null);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newTemplate, setNewTemplate] = useState("visit");
   const [newItemText, setNewItemText] = useState("");
   const newItemRef = useRef(null);
   const t = useT();
 
   const checklists = project.checklists || [];
-  const activeCl = checklists.find((c) => c.id === activeClId) || null;
 
   const saveChecklists = (updated) =>
     setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, checklists: updated } : p));
 
-  const createChecklist = () => {
-    const tpl = CHECKLIST_TEMPLATES.find((t) => t.id === newTemplate);
+  // Quick create from template — one click, auto-opens
+  const quickCreate = (tplId) => {
+    const tpl = CHECKLIST_TEMPLATES.find((t) => t.id === tplId);
     const items = (tpl?.items || []).map((item, i) => ({ id: Date.now() + i, text: item.text, section: item.section || "", checked: false }));
-    const cl = { id: Date.now(), name: newName.trim() || tpl?.label || "Checklist", createdAt: new Date().toLocaleDateString("fr-BE"), visitDate: "", items };
-    const updated = [...checklists, cl];
-    saveChecklists(updated);
-    setCreating(false);
-    setNewName("");
+    const cl = { id: Date.now(), name: tpl?.label || "Checklist", createdAt: new Date().toLocaleDateString("fr-BE"), visitDate: "", items };
+    saveChecklists([...checklists, cl]);
+    setActiveClId(cl.id);
+  };
+
+  // Create blank
+  const createBlank = () => {
+    const cl = { id: Date.now(), name: "Checklist", createdAt: new Date().toLocaleDateString("fr-BE"), visitDate: "", items: [] };
+    saveChecklists([...checklists, cl]);
     setActiveClId(cl.id);
   };
 
@@ -6329,50 +8072,23 @@ function ChecklistsView({ project, setProjects, onBack }) {
           <div style={{ fontSize: 17, fontWeight: 600, color: TX }}>{t("checklists.title")}</div>
           <div style={{ fontSize: 12, color: TX3 }}>{project.name} · {checklists.length} liste{checklists.length !== 1 ? "s" : ""}</div>
         </div>
-        {!creating && (
-          <button onClick={() => { setCreating(true); setNewName(""); setNewTemplate("visit"); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: AC, color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-            <Ico name="plus" size={14} color="#fff" />{t("checklists.new")}
-          </button>
-        )}
       </div>
 
-      {/* Formulaire de création */}
-      {creating && (
-        <div style={{ background: WH, border: `1px solid ${ACL2}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginBottom: 14 }}>{t("checklists.newChecklist")}</div>
-
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 8 }}>{t("checklists.template")}</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {CHECKLIST_TEMPLATES.map((tpl) => (
-                <button key={tpl.id} onClick={() => setNewTemplate(tpl.id)} style={{ padding: "7px 14px", border: `2px solid ${newTemplate === tpl.id ? tpl.color : SBB}`, borderRadius: 20, background: newTemplate === tpl.id ? tpl.bg : WH, color: newTemplate === tpl.id ? tpl.color : TX2, fontWeight: newTemplate === tpl.id ? 600 : 400, fontSize: 12, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
-                  {tpl.label}
-                  {tpl.items.length > 0 && <span style={{ opacity: 0.6, marginLeft: 4 }}>({tpl.items.length})</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 6 }}>{t("checklists.nameOpt")}</div>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder={tplInfo(newTemplate).label}
-              onKeyDown={(e) => e.key === "Enter" && createChecklist()}
-              style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }}
-            />
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={createChecklist} style={{ flex: 1, padding: 12, border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{t("create")}</button>
-            <button onClick={() => setCreating(false)} style={{ padding: "12px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{t("cancel")}</button>
-          </div>
-        </div>
-      )}
+      {/* Quick create */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        <input
+          value={newItemText} onChange={e => setNewItemText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && newItemText.trim()) { const cl = { id: Date.now(), name: newItemText.trim(), createdAt: new Date().toLocaleDateString("fr-BE"), visitDate: "", assignee: "", items: [] }; saveChecklists([...checklists, cl]); setActiveClId(cl.id); setNewItemText(""); } }}
+          placeholder="Nom de la checklist..."
+          style={{ flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }}
+        />
+        <button onClick={() => { if (newItemText.trim()) { const cl = { id: Date.now(), name: newItemText.trim(), createdAt: new Date().toLocaleDateString("fr-BE"), visitDate: "", assignee: "", items: [] }; saveChecklists([...checklists, cl]); setActiveClId(cl.id); setNewItemText(""); } }} disabled={!newItemText.trim()} style={{ padding: "9px 16px", border: "none", borderRadius: 8, background: newItemText.trim() ? AC : DIS, color: newItemText.trim() ? "#fff" : DIST, fontWeight: 600, fontSize: 13, cursor: newItemText.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+          <Ico name="plus" size={12} color={newItemText.trim() ? "#fff" : DIST} />Créer
+        </button>
+      </div>
 
       {/* Liste des checklists */}
-      {checklists.length === 0 && !creating && (
+      {checklists.length === 0 && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "50px 20px", border: `2px dashed ${SBB}`, borderRadius: 12, background: WH, textAlign: "center" }}>
           <Ico name="listcheck" size={38} color={TX3} />
           <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginTop: 14, marginBottom: 6 }}>{t("checklists.noChecklists")}</div>
@@ -6396,20 +8112,37 @@ function ChecklistsView({ project, setProjects, onBack }) {
                   <Ico name={pct === 100 ? "check" : "listcheck"} size={16} color={pct === 100 ? GR : TX3} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{cl.name}</div>
-                  <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
-                    {checked}/{total} point{total !== 1 ? "s" : ""} · {cl.createdAt}
-                    {pct === 100 && <span style={{ marginLeft: 8, color: GR, fontWeight: 600 }}>{t("checklists.completed")}</span>}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: TX3 }}>{t("checklists.visitDate")}</span>
+                  {isOpen ? (
+                    <input
+                      value={cl.name}
+                      onChange={(e) => saveChecklists(checklists.map(c => c.id !== cl.id ? c : { ...c, name: e.target.value }))}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: 14, fontWeight: 600, color: TX, border: "none", background: "transparent", padding: 0, width: "100%", fontFamily: "inherit", outline: "none", borderBottom: `1px solid ${SBB}` }}
+                    />
+                  ) : (
+                    <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{cl.name}</div>
+                  )}
+                  <div style={{ fontSize: 11, color: TX3, marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span>{checked}/{total}</span>
+                    {pct === 100 && <span style={{ color: GR, fontWeight: 600 }}>{t("checklists.completed")}</span>}
                     <input
                       type="date"
                       value={cl.visitDate || ""}
                       onChange={(e) => saveChecklists(checklists.map(c => c.id !== cl.id ? c : { ...c, visitDate: e.target.value }))}
                       onClick={(e) => e.stopPropagation()}
-                      style={{ fontSize: 11, border: `1px solid ${SBB}`, borderRadius: 6, padding: "2px 6px", background: SB, color: TX, fontFamily: "inherit" }}
+                      style={{ fontSize: 10, border: `1px solid ${SBB}`, borderRadius: 5, padding: "1px 5px", background: SB, color: TX, fontFamily: "inherit" }}
                     />
+                    <select
+                      value={cl.assignee || ""}
+                      onChange={(e) => saveChecklists(checklists.map(c => c.id !== cl.id ? c : { ...c, assignee: e.target.value }))}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: 10, border: `1px solid ${SBB}`, borderRadius: 5, padding: "1px 5px", background: cl.assignee ? ACL : SB, color: cl.assignee ? AC : TX, fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      <option value="">Non attribué</option>
+                      {(project.participants || []).map((p, i) => (
+                        <option key={i} value={p.name}>{p.name} ({p.role})</option>
+                      ))}
+                    </select>
                   </div>
                   {total > 0 && (
                     <div style={{ marginTop: 5, width: "100%", height: 4, borderRadius: 4, background: SB2, overflow: "hidden" }}>
@@ -6749,7 +8482,7 @@ export default function App() {
     showToast("Projet dupliqué avec succès");
   };
 
-  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: t("view.plan"), docs: t("view.docs"), planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Tableau de bord" };
+  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Tableau de bord" };
 
   return (
     <LangContext.Provider value={profile.lang || "fr"}>
@@ -6759,6 +8492,7 @@ export default function App() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes modalIn { from { opacity: 0; transform: scale(0.97) } to { opacity: 1; transform: scale(1) } }
         @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(196,57,42,0.45) } 70% { box-shadow: 0 0 0 18px rgba(196,57,42,0) } 100% { box-shadow: 0 0 0 0 rgba(196,57,42,0) } }
+        @keyframes spin { to { transform: rotate(360deg) } }
         *:focus-visible { outline: 2px solid #D97B0D; outline-offset: 2px }
         *:focus:not(:focus-visible) { outline: none }
         input::placeholder, textarea::placeholder { color: #767672 }
@@ -6766,10 +8500,18 @@ export default function App() {
         button { transition: filter 0.15s, transform 0.1s; }
         button:not([disabled]):not(.sidebar-logout):hover { filter: brightness(0.92); }
         button:not([disabled]):active { transform: scale(0.97); }
-        .sidebar-logout:hover { background: ${SB} !important; }
-        .sidebar-logout:hover span { color: ${TX} !important; }
-        .sidebar-logout:active { transform: scale(0.97); }
+        .sb-avatar:hover { border-color: ${AC} !important; }
+        .sb-profile-text:hover div:first-child { color: ${AC} !important; }
+        .sb-logout-icon:hover { background: ${SB2} !important; }
+        .sb-logout-icon:active { transform: scale(0.92); }
+        .sb-project:hover { background: ${SB2} !important; }
+        .sb-client:hover { background: ${SB2} !important; }
+        .sb-nav:hover { background: ${SB2} !important; }
+        .sb-nav:hover span { color: ${TX} !important; }
+        .sb-cta:hover { filter: brightness(1.06) !important; }
         .profile-nav-item:hover { background: ${SB} !important; }
+        .plan-folder-row:hover { background: ${SB}; }
+        .plan-file-row:hover { background: ${SB}; }
         a[href]:hover { opacity: 0.85; }
 
         /* ── Tablet & Mobile Responsive ── */
@@ -6870,7 +8612,7 @@ export default function App() {
           {/* Notification bell */}
           <div style={{ position: "relative" }}>
             <button onClick={() => setShowNotifications(p => !p)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-              <Ico name="mail" size={18} color={TX2} />
+              <Ico name="bell" size={18} color={TX2} />
               {notifications.filter(n => !n.read).length > 0 && (
                 <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: RD, border: "2px solid #fff" }} />
               )}
@@ -6911,19 +8653,6 @@ export default function App() {
               </div>
             )}
           </div>
-          <button onClick={() => { setView("profile"); setSidebarOpen(false); }} title="Mon profil" style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            {profile.picture ? (
-              <img src={profile.picture} alt="profil" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-            ) : (
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: AC, flexShrink: 0 }}>
-                {profile.name.trim().split(" ").map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?"}
-              </div>
-            )}
-            <div className="ap-profile-text" style={{ textAlign: "left" }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{profile.name}</div>
-              <div style={{ fontSize: 9, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>{profile.structure}</div>
-            </div>
-          </button>
           </div>{/* end right section */}
         </div>
         <div className="ap-content" style={{ padding: 20, maxWidth: 920, margin: "0 auto" }}>
@@ -6936,14 +8665,13 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPlan={() => setView("plan")} onViewDocs={() => setView("docs")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} />}
-          {view !== "profile" && project && view === "notes" && <NoteEditor project={project} setProjects={setProjects} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} />}
+          {view !== "profile" && project && view === "notes" && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
           {view !== "profile" && project && view === "result" && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
-          {view !== "profile" && project && view === "plan" && <PlanViewer project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "docs" && <DocumentsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "plan" && <PlanManager project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
+          {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { setActiveId(id); setView("notes"); }} onNewProject={() => setModal("new")} />}
         </div>
       </div>
 
@@ -7146,40 +8874,91 @@ export default function App() {
       </Modal>
 
       <Modal open={modal === "viewpv"} onClose={() => { setModal(null); setModalData(d => d ? { ...d, _showSend: false } : d); }} title={modalData ? `PV n°${modalData.number} — ${modalData.date}` : ""} wide>
-        {modalData && (
+        {modalData && (() => {
+          const hasInput = modalData.inputNotes && modalData.inputNotes.length > 0;
+          const pvTab = modalData._tab || "output";
+          return (
           <div>
-            <div style={{ display: "flex", gap: 12, marginBottom: 14, fontSize: 12, color: TX3, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 12, marginBottom: 10, fontSize: 12, color: TX3, flexWrap: "wrap", alignItems: "center" }}>
               <span>Rédigé par {modalData.author}</span>
               {!modalData.imported && <span>{modalData.postsCount} postes</span>}
               {modalData.imported && <span style={{ fontSize: 10, fontWeight: 600, color: BL, background: BLB, padding: "2px 8px", borderRadius: 6 }}>PV importé</span>}
             </div>
-            {modalData.pdfDataUrl ? (
-              <div>
-                <iframe src={modalData.pdfDataUrl} title={modalData.fileName || `PV n°${modalData.number}`} style={{ width: "100%", height: "65vh", border: "none", borderRadius: 10, background: SB }} />
-                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                  <a href={modalData.pdfDataUrl} download={modalData.fileName || `PV-${modalData.number}.pdf`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", background: AC, color: "#fff", borderRadius: 8, fontWeight: 600, fontSize: 13, textDecoration: "none" }}>
-                    <Ico name="download" size={14} color="#fff" />Télécharger
-                  </a>
-                  <button onClick={() => setModalData(d => ({ ...d, _showSend: true }))} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", border: `1px solid ${AC}`, background: WH, color: AC, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-                    <Ico name="send" size={14} color={AC} />Envoyer par email
+
+            {/* Tabs: Output IA / Notes brutes */}
+            {hasInput && !modalData.pdfDataUrl && (
+              <div style={{ display: "flex", gap: 2, marginBottom: 12, background: SB, borderRadius: 8, padding: 3 }}>
+                {[
+                  { id: "output", label: "PV généré (IA)", icon: "file" },
+                  { id: "input", label: "Notes brutes", icon: "edit" },
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setModalData(d => ({ ...d, _tab: tab.id }))} style={{
+                    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                    padding: "8px 12px", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                    fontSize: 12, fontWeight: 600,
+                    background: pvTab === tab.id ? WH : "transparent",
+                    color: pvTab === tab.id ? TX : TX3,
+                    boxShadow: pvTab === tab.id ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                  }}>
+                    <Ico name={tab.icon} size={12} color={pvTab === tab.id ? AC : TX3} />
+                    {tab.label}
                   </button>
-                </div>
+                ))}
               </div>
-            ) : (
-              <div>
-                <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "60vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
-                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                  <button onClick={() => { navigator.clipboard.writeText(modalData.content); }} style={{ padding: "10px 20px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 4 }}>
-                    <Ico name="copy" size={14} color={TX3} />Copier le contenu
-                  </button>
-                  <button onClick={() => setModalData(d => ({ ...d, _showSend: true }))} style={{ padding: "10px 20px", border: `1px solid ${AC}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: AC, display: "flex", alignItems: "center", gap: 6 }}>
-                    <Ico name="send" size={14} color={AC} />Envoyer par email
-                  </button>
-                </div>
+            )}
+
+            {/* Output tab */}
+            {(pvTab === "output" || !hasInput) && (
+              <>
+                {modalData.pdfDataUrl ? (
+                  <div>
+                    <iframe src={modalData.pdfDataUrl} title={modalData.fileName || `PV n°${modalData.number}`} style={{ width: "100%", height: "65vh", border: "none", borderRadius: 10, background: SB }} />
+                    <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                      <a href={modalData.pdfDataUrl} download={modalData.fileName || `PV-${modalData.number}.pdf`} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", background: AC, color: "#fff", borderRadius: 8, fontWeight: 600, fontSize: 13, textDecoration: "none" }}>
+                        <Ico name="download" size={14} color="#fff" />Télécharger
+                      </a>
+                      <button onClick={() => setModalData(d => ({ ...d, _showSend: true }))} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", border: `1px solid ${AC}`, background: WH, color: AC, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                        <Ico name="send" size={14} color={AC} />Envoyer par email
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "55vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
+                    <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                      <button onClick={() => { navigator.clipboard.writeText(modalData.content); }} style={{ padding: "10px 20px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 4 }}>
+                        <Ico name="copy" size={14} color={TX3} />Copier
+                      </button>
+                      <button onClick={() => setModalData(d => ({ ...d, _showSend: true }))} style={{ padding: "10px 20px", border: `1px solid ${AC}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "inherit", color: AC, display: "flex", alignItems: "center", gap: 6 }}>
+                        <Ico name="send" size={14} color={AC} />Envoyer par email
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Input tab — notes brutes */}
+            {pvTab === "input" && hasInput && (
+              <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+                {modalData.inputNotes.map((post, i) => (
+                  <div key={i} style={{ marginBottom: 12, padding: "12px 14px", background: SB, borderRadius: 10, border: `1px solid ${SBB}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: AC, marginBottom: 6 }}>{post.id}. {post.label}</div>
+                    {post.notes && <div style={{ fontSize: 12, color: TX, lineHeight: 1.6, whiteSpace: "pre-wrap", marginBottom: 6 }}>{post.notes}</div>}
+                    {(post.remarks || []).map((r, j) => (
+                      <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: 6, padding: "4px 0" }}>
+                        <span style={{ fontSize: 11, color: r.urgent ? RD : TX3, fontWeight: r.urgent ? 700 : 400 }}>{r.urgent ? ">" : "-"}</span>
+                        <span style={{ fontSize: 12, color: TX, lineHeight: 1.4 }}>{r.text}</span>
+                        <span style={{ fontSize: 9, fontWeight: 600, color: r.status === "done" ? GR : r.status === "progress" ? AC : TX3, background: r.status === "done" ? GRBG : r.status === "progress" ? ACL : SB, padding: "1px 5px", borderRadius: 4, flexShrink: 0, marginLeft: "auto" }}>{r.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
         {modalData?._showSend && project && (
           <SendPvModal
             project={project}

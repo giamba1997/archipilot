@@ -28,6 +28,8 @@ serve(async (req) => {
       pdfBase64,       // optional — base64 encoded PDF
       pdfFileName,     // optional — file name for the PDF
       pvId,            // for read tracking
+      subject: customSubject,   // optional — user-edited subject line
+      customMessage,            // optional — user-edited email body HTML
     } = await req.json();
 
     if (!to?.length || !projectName || !pvNumber) {
@@ -42,6 +44,9 @@ serve(async (req) => {
     // Build a clean preview of the PV content (first 500 chars)
     const preview = (pvContent || "").slice(0, 500).replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
 
+    // Custom message is already HTML from the rich editor
+    const messageHtml = customMessage || "";
+
     const html = `
 <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
   <div style="text-align: center; margin-bottom: 28px;">
@@ -50,6 +55,8 @@ serve(async (req) => {
   </div>
 
   <div style="background: #fff; border-radius: 16px; border: 1px solid #E2E1DD; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
+    ${messageHtml ? `<div style="font-size: 13px; line-height: 1.7; color: #1D1D1B; margin-bottom: 20px;">${messageHtml}</div><hr style="border: none; border-top: 1px solid #E2E1DD; margin-bottom: 20px;" />` : ""}
+
     <div style="text-align: center; margin-bottom: 20px;">
       <div style="display: inline-block; padding: 4px 12px; background: #FDF4E7; border-radius: 6px; font-size: 11px; font-weight: 700; color: #D97B0D; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
         PV de chantier
@@ -80,7 +87,7 @@ serve(async (req) => {
     const attachments: Array<{ filename: string; content: string }> = [];
     if (pdfBase64) {
       attachments.push({
-        filename: pdfFileName || `PV-${pvNumber}-${projectName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+        filename: pdfFileName || `PV-${pvNumber}-${projectName.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.pdf`,
         content: pdfBase64,
       });
     }
@@ -89,7 +96,7 @@ serve(async (req) => {
     const resendPayload: Record<string, unknown> = {
       from: FROM_EMAIL,
       to,
-      subject: `PV n°${pvNumber} — ${projectName} (${pvDate})`,
+      subject: customSubject || `PV n°${pvNumber} — ${projectName} (${pvDate})`,
       html,
     };
     if (attachments.length > 0) {
@@ -119,7 +126,7 @@ serve(async (req) => {
   } catch (err) {
     console.error("send-pv-email error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
+      status: 200,
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   }
