@@ -144,13 +144,14 @@ export async function deletePhoto(storagePath) {
 }
 
 export function getPhotoUrl(photo) {
-  // If the photo has a storage URL, use it; otherwise fall back to dataUrl (legacy/offline)
+  // Prefer dataUrl for immediate local display, then storage URL
+  if (photo.dataUrl) return photo.dataUrl;
   if (photo.url) return photo.url;
   if (photo.storagePath) {
     const { data } = supabase.storage.from("project-files").getPublicUrl(photo.storagePath);
     return data.publicUrl;
   }
-  return photo.dataUrl || "";
+  return "";
 }
 
 // ── Collaboration ──────────────────────────────────────────
@@ -361,6 +362,16 @@ export async function markAllNotificationsRead() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
   await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+}
+
+export async function deleteNotification(id) {
+  await supabase.from("notifications").delete().eq("id", id);
+}
+
+export async function deleteAllNotifications() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("notifications").delete().eq("user_id", user.id);
 }
 
 export function subscribeToNotifications(userId, callback) {

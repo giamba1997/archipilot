@@ -36,7 +36,7 @@ class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, subscribeToNotifications, sendPvByEmail, loadPvSends } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends } from "./db";
 
 // ── Design Tokens ──────────────────────────────────────────
 // Colors
@@ -1842,7 +1842,7 @@ function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
   );
 }
 
-function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab }) {
+function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery }) {
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
   const urgent = project.actions.filter((a) => a.urgent && a.open);
   const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
@@ -1871,7 +1871,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
   );
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
+    <div className="ap-overview-wrap" style={{ maxWidth: 960, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
 
       {/* ── Barre contexte projet — masquée sur mobile (redondant avec header) ── */}
       <div className="ap-context-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
@@ -1938,83 +1938,106 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
         {/* ═══ Colonne principale ═══ */}
         <div className="ap-col-main" style={{ flex: "1 1 360px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
 
-          {/* ── Mobile Dashboard — compact, 1 screen, tap to expand ── */}
-          <div className="ap-mobile-dashboard" style={{ display: "none", flexDirection: "column", gap: SP.sm }}>
-            {/* Grid 2x2 — tappable summary cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SP.sm }}>
-              {/* PV card */}
-              <button onClick={() => setMobileSheet("pv")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
-                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="file" size={16} color={AC} />
-                </div>
-                <div>
-                  <div style={{ fontSize: FS.xl, fontWeight: 700, color: TX, lineHeight: 1 }}>{project.pvHistory.length}</div>
-                  <div style={{ fontSize: FS.xs, color: TX3 }}>PV rédigés</div>
-                </div>
-              </button>
-              {/* Actions card */}
-              <button onClick={() => setMobileSheet("actions")} style={{ background: WH, border: `1px solid ${openActions.length > 0 ? "#FECACA" : SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
-                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: openActions.length > 0 ? "#FEF2F2" : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="alert" size={16} color={openActions.length > 0 ? RD : GR} />
-                </div>
-                <div>
-                  <div style={{ fontSize: FS.xl, fontWeight: 700, color: openActions.length > 0 ? RD : TX, lineHeight: 1 }}>{openActions.length}</div>
-                  <div style={{ fontSize: FS.xs, color: TX3 }}>Actions</div>
-                </div>
-              </button>
-              {/* Équipe card */}
-              <button onClick={() => setMobileSheet("team")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
-                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="users" size={16} color={AC} />
-                </div>
-                <div>
-                  <div style={{ fontSize: FS.xl, fontWeight: 700, color: TX, lineHeight: 1 }}>{project.participants.length}</div>
-                  <div style={{ fontSize: FS.xs, color: TX3 }}>Équipe</div>
-                </div>
-              </button>
-              {/* Réunion card */}
-              <button onClick={() => setMobileSheet("meeting")} style={{ background: WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.sm }}>
-                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: project.nextMeeting ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="calendar" size={16} color={project.nextMeeting ? AC : TX3} />
-                </div>
-                <div>
-                  <div style={{ fontSize: project.nextMeeting ? FS.base : FS.sm, fontWeight: 700, color: TX, lineHeight: 1 }}>{project.nextMeeting || "—"}</div>
-                  <div style={{ fontSize: FS.xs, color: TX3 }}>Réunion</div>
-                </div>
-              </button>
+          {/* ── Mobile Dashboard — operational, action-oriented ── */}
+          <div className="ap-mobile-dashboard" style={{ display: "none", flexDirection: "column", gap: 10 }}>
+
+            {/* Prochaine réunion */}
+            <button onClick={() => setMobileSheet("meeting")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: project.nextMeeting ? ACL : WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: project.nextMeeting ? WH : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ico name="calendar" size={14} color={project.nextMeeting ? AC : TX3} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: AC, textTransform: "uppercase", letterSpacing: "0.05em" }}>Prochaine réunion</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>{project.nextMeeting || "Non planifiée"}</div>
+              </div>
+              <Ico name="arrowr" size={10} color={TX3} />
+            </button>
+
+            {/* Accès rapides — 4 colonnes */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 5 }}>
+              {[
+                { label: "Documents", icon: "folder", color: BL, bg: BLB, count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
+                { label: "Photos",    icon: "camera", color: AC, bg: ACL, count: (project.gallery||[]).length, onClick: onGallery },
+                { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
+                { label: "Listes",    icon: "listcheck", color: TE, bg: TEB, count: (project.checklists||[]).length, onClick: onViewChecklists },
+              ].map(s => (
+                <button key={s.label} onClick={s.onClick} style={{ padding: "8px 4px", border: `1px solid ${s.color}18`, borderRadius: 8, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <Ico name={s.icon} size={14} color={s.color} />
+                  <span style={{ fontSize: 9, fontWeight: 600, color: s.color }}>{s.label}</span>
+                  {s.count > 0 && <span style={{ fontSize: 8, color: s.color, opacity: 0.7 }}>{s.count}</span>}
+                </button>
+              ))}
             </div>
-            {/* Dernier PV — preview compact */}
-            {lastPV && (
-              <button onClick={() => onViewPV(lastPV)} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.md, width: "100%" }}>
-                <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="file" size={16} color={TX3} />
+
+            {/* ── Sections condensées — summary rows, tap to expand ── */}
+            <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden" }}>
+
+              {/* Actions */}
+              <button onClick={() => setMobileSheet("actions")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", borderBottom: `1px solid ${SB2}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: openActions.length > 0 ? (urgent.length > 0 ? "#FEF2F2" : SB) : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="alert" size={13} color={openActions.length > 0 ? (urgent.length > 0 ? RD : TX3) : GR} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: FS.base, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastPV.title || `PV n°${lastPV.number}`}</div>
-                  <div style={{ fontSize: FS.xs, color: TX3 }}>{relativeDate(lastPV.date)} · {lastPV.author}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Actions</div>
+                  <div style={{ fontSize: 10, color: openActions.length > 0 ? (urgent.length > 0 ? "#B91C1C" : TX3) : GR }}>
+                    {openActions.length === 0 ? "Toutes clôturées" : `${openActions.length} ouverte${openActions.length > 1 ? "s" : ""}${urgent.length > 0 ? ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}` : ""}`}
+                  </div>
                 </div>
-                <Ico name="chevron-right" size={14} color={TX3} />
+                <Ico name="arrowr" size={10} color={TX3} />
               </button>
-            )}
-            {/* Captures section */}
-            {(() => {
-              const allPhotos = project.posts.flatMap(p => (p.photos || []).map(ph => ({ ...ph, postId: p.id, postLabel: p.label })));
-              const unclassified = project.posts.filter(p => (p.photos || []).length > 0 && (p.remarks || []).length === 0).reduce((acc, p) => acc + (p.photos || []).length, 0);
-              if (allPhotos.length === 0) return null;
-              return (
-                <button onClick={() => onStartNotes()} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.md}px`, cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", alignItems: "center", gap: SP.md, width: "100%" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Ico name="camera" size={16} color={AC} />
+
+              {/* Historique PV */}
+              <button onClick={() => setMobileSheet("pv")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", borderBottom: `1px solid ${SB2}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="file" size={13} color={AC} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Historique des PV</div>
+                  <div style={{ fontSize: 10, color: TX3 }}>
+                    {project.pvHistory.length === 0 ? "Aucun PV" : `${project.pvHistory.length} PV${lastPV ? ` · dernier : PV n°${lastPV.number}` : ""}`}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: FS.base, fontWeight: 600, color: TX }}>{allPhotos.length} capture{allPhotos.length > 1 ? "s" : ""}</div>
-                    <div style={{ fontSize: FS.xs, color: unclassified > 0 ? AC : TX3 }}>{unclassified > 0 ? `${unclassified} non classée${unclassified > 1 ? "s" : ""}` : "Toutes classées"}</div>
+                </div>
+                <Ico name="arrowr" size={10} color={TX3} />
+              </button>
+
+              {/* Participants */}
+              <button onClick={() => setMobileSheet("team")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", borderBottom: `1px solid ${SB2}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="users" size={13} color={AC} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Participants ({project.participants.length})</div>
+                  <div style={{ fontSize: 10, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {project.participants.length === 0 ? "Aucun participant" : project.participants.slice(0, 3).map(p => p.name.split(" ")[0]).join(", ")}{project.participants.length > 3 ? "…" : ""}
                   </div>
-                  <span style={{ fontSize: FS.xs, fontWeight: 600, color: AC }}>Voir</span>
-                  <Ico name="chevron-right" size={14} color={AC} />
-                </button>
-              );
-            })()}
+                </div>
+                {/* Stacked avatars */}
+                <div style={{ display: "flex", flexShrink: 0, marginRight: 4 }}>
+                  {project.participants.slice(0, 3).map((p, i) => (
+                    <div key={i} style={{ width: 22, height: 22, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: AC, border: `1.5px solid ${WH}`, marginLeft: i > 0 ? -6 : 0, zIndex: 3 - i }}>
+                      {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                  ))}
+                </div>
+                <Ico name="arrowr" size={10} color={TX3} />
+              </button>
+
+              {/* Infos projet */}
+              <button onClick={() => setMobileSheet("info")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="building" size={13} color={TX3} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Infos projet</div>
+                  <div style={{ fontSize: 10, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {[project.client, project.contractor, project.city].filter(Boolean).join(" · ") || "Aucune info"}
+                  </div>
+                </div>
+                <Ico name="arrowr" size={10} color={TX3} />
+              </button>
+
+            </div>
+
           </div>
 
           {/* CTA Nouveau PV */}
@@ -2035,6 +2058,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
           <div className="ap-quick-tools" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[
               { label: "Documents",            icon: "folder",    color: BL,  bg: BLB,  count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
+              { label: "Photos",               icon: "camera",    color: AC,  bg: ACL,  count: (project.gallery||[]).length,     onClick: onGallery },
               { label: t("project.planning"),  icon: "gantt",     color: GR,  bg: GRBG, count: (project.lots||[]).length,        onClick: onViewPlanning },
               { label: t("project.lists"),     icon: "listcheck", color: TE,  bg: TEB,  count: (project.checklists||[]).length,  onClick: onViewChecklists },
             ].map((tb) => (
@@ -2360,7 +2384,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
               <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, overflowY: "auto" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.md }}>
                   <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Équipe</span>
-                  <button onClick={() => { setMobileSheet(null); onEditParticipants(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, color: AC, fontWeight: 600, fontFamily: "inherit" }}>Modifier</button>
+                  <button onClick={() => { setMobileSheet(null); setTimeout(onEditParticipants, 100); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, color: AC, fontWeight: 600, fontFamily: "inherit" }}>Modifier</button>
                 </div>
                 {project.participants.map((p, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 2}px 0`, borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
@@ -2389,6 +2413,36 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
               <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px` }}>
                 <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, display: "block", marginBottom: SP.md }}>Prochaine réunion</span>
                 <MeetingCard project={project} setProjects={setProjects} rec={rec} />
+              </div>
+            )}
+
+            {/* Sheet: Infos projet */}
+            {mobileSheet === "info" && (
+              <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, overflowY: "auto" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.md }}>
+                  <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Infos projet</span>
+                  <button onClick={() => { setMobileSheet(null); setTimeout(onEditInfo, 100); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: FS.sm, color: AC, fontWeight: 600, fontFamily: "inherit" }}>Modifier</button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: SP.md }}>
+                  {[
+                    { icon: "users", label: "Maître d'ouvrage", value: project.client },
+                    { icon: "building", label: "Entreprise", value: project.contractor },
+                    { icon: "mappin", label: "Adresse", value: formatAddress(project) || project.city },
+                    { icon: "calendar", label: "Date de début", value: project.startDate },
+                    { icon: "calendar", label: "Date de fin", value: project.endDate },
+                    ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => ({ icon: "file", label: cf.label, value: cf.value })),
+                  ].filter(item => item.value).map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: SP.md, padding: `${SP.sm}px 0`, borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: RAD.sm, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Ico name={item.icon} size={14} color={TX3} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: FS.xs, color: TX3, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>{item.label}</div>
+                        <div style={{ fontSize: FS.md, color: TX, fontWeight: 500 }}>{item.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -3275,7 +3329,9 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
   const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
   const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
   const [inputMethod, setInputMethod] = useState(() => hasExistingRemarks ? "write" : null); // null = choose, "write" | "dictate"
+  const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
+  const [mobileStep, setMobileStep] = useState(0);
   const [renamingPost, setRenamingPost] = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
   const [inputMode,    setInputMode]    = useState("write"); // "write" | "voice"
@@ -3879,37 +3935,48 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
   const stepsData = [
     { step: 1, label: "Saisie", sub: `${filledCount}/${project.posts.length} postes`, icon: "listcheck", done: filledCount > 0 },
     { step: 2, label: "Destinataires", sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? "Tous" : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
-    { step: 3, label: "Générer", sub: readyToGenerate ? "Prêt" : "En attente", icon: "send", done: false },
+    { step: 3, label: "Génération", sub: readyToGenerate ? "Prêt" : "En attente", icon: "send", done: false },
   ];
   const activeStepIdx = stepsData.findIndex(s => !s.done);
   const currentStep = activeStepIdx === -1 ? stepsData.length - 1 : activeStepIdx;
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", paddingBottom: 32 }}>
+    <div className="ap-note-container" data-mobile-step={mobileStep} style={{ maxWidth: 960, margin: "0 auto", paddingBottom: 32 }}>
 
-      {/* ── Mobile stepper — clean 3-step indicator ── */}
-      <div className="ap-note-mobile-stepper" style={{ display: "none", padding: `${SP.md}px ${SP.lg}px ${SP.sm}px`, marginBottom: SP.sm }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
-          {stepsData.map((s, i) => {
-            const isDone = s.done;
-            const isActive = i === currentStep;
-            return (
-              <div key={s.step} style={{ display: "flex", alignItems: "center" }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 64 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: isDone ? AC : isActive ? WH : SB2, border: `2px solid ${isDone ? AC : isActive ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s" }}>
-                    {isDone ? <Ico name="check" size={14} color="#fff" /> : <span style={{ fontSize: FS.md, fontWeight: 700, color: isActive ? AC : TX3 }}>{s.step}</span>}
+      {/* ── Mobile top bar — back + stepper ── */}
+      <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "6px 0 4px", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Back button */}
+          <button
+            onClick={() => mobileStep === 0 ? onBack() : setMobileStep(mobileStep === 2 && project.participants.length === 0 ? 0 : mobileStep - 1)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, flexShrink: 0 }}
+          >
+            <Ico name="back" color={TX2} size={16} />
+          </button>
+
+          {/* Step indicators — all labels visible */}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 0 }}>
+            {stepsData.map((s, i) => {
+              const isDone = s.done;
+              const isActive = i === mobileStep;
+              return (
+                <div key={s.step} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
+                  <div
+                    onClick={() => setMobileStep(i)}
+                    style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", flex: 1, minWidth: 0 }}
+                  >
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", background: isDone ? AC : isActive ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                      {isDone ? <Ico name="check" size={8} color="#fff" /> : <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "#fff" : TX3 }}>{s.step}</span>}
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? TX : isDone ? AC : TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
                   </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: FS.sm, fontWeight: isActive || isDone ? 700 : 500, color: isActive ? TX : isDone ? AC : TX3 }}>{s.label}</div>
-                    <div style={{ fontSize: FS.xs - 1, color: isDone ? GR : isActive ? AC : TX3 }}>{isDone ? "Fait" : s.sub}</div>
-                  </div>
+                  {i < stepsData.length - 1 && (
+                    <div style={{ width: 20, height: 1.5, background: isDone ? AC : SBB, borderRadius: 1, flexShrink: 0, margin: "0 2px" }} />
+                  )}
                 </div>
-                {i < stepsData.length - 1 && (
-                  <div style={{ width: 32, height: 2, background: isDone ? AC : SBB, borderRadius: 1, marginBottom: 20 }} />
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -3996,9 +4063,15 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
         })()}
       </div>
 
+      {/* ── Step 0: Saisie ── */}
+      <div className="ap-note-section-0">
+
+      {/* Content area for step 0 */}
+      <div className="ap-note-step-content">
+
       {/* ── Rappel remarques non clôturées ── */}
       {carriedCount > 0 && (
-        <div style={{ display: "flex", alignItems: "stretch", borderRadius: 10, marginBottom: 12, overflow: "hidden", border: `1px solid ${ACL2}`, background: WH }}>
+        <div className="ap-carried-reminder" style={{ display: "flex", alignItems: "stretch", borderRadius: 10, marginBottom: 12, overflow: "hidden", border: `1px solid ${ACL2}`, background: WH }}>
           <div style={{ width: 4, background: AC, flexShrink: 0 }} />
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: ACL }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: WH, border: `1px solid ${ACL2}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -4020,9 +4093,9 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
       )}
 
       {/* ── Section 1 : Remarques ── */}
-      <div style={{ background: WH, borderRadius: 12, border: `1px solid ${SBB}`, overflow: "hidden", marginBottom: 12 }}>
+      <div className="ap-section-card" style={{ background: WH, borderRadius: 12, border: `1px solid ${SBB}`, overflow: "hidden", marginBottom: 12 }}>
         {/* Section header */}
-        <div style={{ padding: "11px 16px", borderBottom: `1px solid ${SBB}`, background: SB }}>
+        <div className="ap-section-hdr" style={{ padding: "11px 16px", borderBottom: `1px solid ${SBB}`, background: SB }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div style={{ width: 22, height: 22, borderRadius: "50%", background: filledCount > 0 ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: filledCount > 0 ? "0 1px 3px rgba(217,123,13,0.25)" : "none" }}>
@@ -4059,9 +4132,10 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                 )}
               </div>
             )}
-            {/* Delete all posts */}
+            {/* Delete all posts — hidden on mobile */}
             {project.posts.length > 0 && (
               <button
+                className="ap-delete-all-btn"
                 onClick={() => { if (confirm(`Supprimer les ${project.posts.length} postes et tout leur contenu ?`)) setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: [] } : p)); }}
                 style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = RD; e.currentTarget.style.background = "#FEF2F2"; }}
@@ -4162,58 +4236,99 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
             </div>
           </div>
         ) : !inputMethod ? (
-          /* ── Method chooser — prominent first step ── */
-          <div style={{ padding: "20px 16px 24px" }}>
-            <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: TX, letterSpacing: "-0.3px", marginBottom: 4 }}>Comment saisir vos remarques ?</div>
-              <div style={{ fontSize: 12, color: TX3 }}>Choisissez votre méthode de saisie pour commencer</div>
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              {/* Dictate option — primary (disabled if no SpeechRecognition) */}
-              {(() => { const hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition); return (
+          /* ── Method chooser — action-oriented ── */
+          (() => {
+            const hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+            const sel = selectedMethod;
+            const isDictate = sel === "dictate";
+            return (
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "14px 14px 16px" }}>
+              {/* Title */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: TX, letterSpacing: "-0.3px", lineHeight: 1.3 }}>Comment voulez-vous créer ce PV ?</div>
+                <div style={{ fontSize: 11.5, color: TX3, marginTop: 3, lineHeight: 1.4 }}>Choisissez votre méthode de départ. Vous pourrez changer plus tard.</div>
+              </div>
+
+              {/* Option cards */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+                {/* Dictate */}
+                <button
+                  onClick={() => setSelectedMethod("dictate")}
+                  disabled={!hasSR}
+                  className="method-card-dictate"
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${isDictate && hasSR ? AC : SBB}`, borderRadius: 12, background: isDictate && hasSR ? ACL : WH, cursor: hasSR ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left", opacity: hasSR ? 1 : 0.5, position: "relative" }}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isDictate ? `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)` : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    <Ico name="mic" size={20} color={isDictate ? "#fff" : TX3} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Dicter</span>
+                      {hasSR && <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: AC, background: WH, padding: "1px 6px", borderRadius: 3, border: `1px solid ${ACL2}` }}>Recommandé</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>Parlez librement, l'IA répartit les remarques automatiquement.</div>
+                    <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+                      {["Chantier", "Rapide", "IA"].map((tag, ti) => (
+                        <span key={ti} style={{ fontSize: 9, fontWeight: 600, color: isDictate ? AC : TX3, background: isDictate ? WH : SB, border: `1px solid ${isDictate ? ACL2 : SBB}`, padding: "1px 6px", borderRadius: 3 }}>{tag}</span>
+                      ))}
+                    </div>
+                    {!hasSR && <div style={{ fontSize: 10, color: RD, marginTop: 3 }}>Non supporté par ce navigateur</div>}
+                  </div>
+                  {/* Radio indicator */}
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${isDictate && hasSR ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    {isDictate && hasSR && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                  </div>
+                </button>
+
+                {/* Write */}
+                <button
+                  onClick={() => setSelectedMethod("write")}
+                  className="method-card-write"
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${!isDictate ? AC : SBB}`, borderRadius: 12, background: !isDictate ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left" }}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: !isDictate ? `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)` : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    <Ico name="edit" size={20} color={!isDictate ? "#fff" : TX3} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Écrire</span>
+                    <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>Ajoutez vos remarques manuellement, poste par poste.</div>
+                    <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+                      {["Précis", "Compléments", "Photos"].map((tag, ti) => (
+                        <span key={ti} style={{ fontSize: 9, fontWeight: 600, color: !isDictate ? AC : TX3, background: !isDictate ? WH : SB, border: `1px solid ${!isDictate ? ACL2 : SBB}`, padding: "1px 6px", borderRadius: 3 }}>{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Radio indicator */}
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${!isDictate ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    {!isDictate && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                  </div>
+                </button>
+              </div>
+
+              {/* CTA */}
               <button
-                onClick={() => { if (!hasSR) return; setInputMethod("dictate"); startContinuous(); }}
-                className={hasSR ? "method-card-dictate" : ""}
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `2px solid ${hasSR ? AC : SBB}`, borderRadius: 16, background: hasSR ? `linear-gradient(180deg, ${ACL} 0%, #FFF8F0 100%)` : SB, cursor: hasSR ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s", position: "relative", overflow: "hidden", opacity: hasSR ? 1 : 0.6 }}
+                onClick={() => {
+                  if (sel === "dictate" && hasSR) { setInputMethod("dictate"); startContinuous(); }
+                  else { setInputMethod("write"); }
+                }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 14,
+                  background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+                  color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  boxShadow: "0 3px 14px rgba(217,123,13,0.25)", transition: "all 0.15s",
+                }}
               >
-                <div style={{ position: "absolute", top: 8, right: 8, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: AC, background: WH, padding: "2px 8px", borderRadius: 4, border: `1px solid ${ACL2}` }}>Recommandé</div>
-                <div style={{ width: 60, height: 60, borderRadius: "50%", background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(217,123,13,0.3)" }}>
-                  <Ico name="mic" size={28} color="#fff" />
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: TX, marginBottom: 5 }}>Dicter</div>
-                  <div style={{ fontSize: 11.5, color: TX2, lineHeight: 1.5 }}>Parlez librement de votre visite, l'IA répartit automatiquement dans les postes</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                  {["Mains libres", "Rapide", "IA"].map((tag, i) => (
-                    <span key={i} style={{ fontSize: 9.5, fontWeight: 600, color: AC, background: WH, border: `1px solid ${ACL2}`, padding: "2px 7px", borderRadius: 4 }}>{tag}</span>
-                  ))}
-                </div>
-                {!hasSR && <div style={{ fontSize: FS.xs, color: RD, marginTop: 4 }}>Non supporté par ce navigateur</div>}
+                {isDictate && hasSR ? (
+                  <><Ico name="mic" size={16} color="#fff" />Commencer à dicter</>
+                ) : (
+                  <><Ico name="edit" size={16} color="#fff" />Commencer à écrire</>
+                )}
               </button>
-              ); })()}
-              {/* Write option — secondary */}
-              <button
-                onClick={() => setInputMethod("write")}
-                className="method-card-write"
-                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 14px 22px", border: `1.5px solid ${SBB}`, borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s, transform 0.15s" }}
-              >
-                <div style={{ width: 60, height: 60, borderRadius: "50%", background: SB, border: `1.5px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ico name="edit" size={26} color={TX2} />
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: TX, marginBottom: 5 }}>Écrire</div>
-                  <div style={{ fontSize: 11.5, color: TX2, lineHeight: 1.5 }}>Saisir manuellement vos remarques poste par poste</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                  {["Précis", "Photos"].map((tag, i) => (
-                    <span key={i} style={{ fontSize: 9.5, fontWeight: 600, color: TX3, background: SB, border: `1px solid ${SBB}`, padding: "2px 7px", borderRadius: 4 }}>{tag}</span>
-                  ))}
-                </div>
-              </button>
+              {contErr && <div style={{ marginTop: 8, fontSize: 11, color: RD, textAlign: "center", padding: "6px 10px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
             </div>
-            {contErr && <div style={{ marginTop: 12, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
-          </div>
+            );
+          })()
         ) : (
           /* Post list (write mode, or after dictation dispatch) */
           <>
@@ -4239,7 +4354,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
             </div>
 
         {/* Post list */}
-        <div style={{ padding: "6px 8px 2px" }}>
+        <div className="ap-post-list" style={{ padding: "6px 8px 2px" }}>
           {project.posts.map((post, postIdx) => {
             const remarks     = getRemarks(post);
             const openCount   = remarks.filter((r) => r.status === "open").length;
@@ -4253,6 +4368,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
             return (
               <button
                 key={post.id}
+                className="ap-post-row"
                 onClick={() => { setActivePost(post.id); setAddText(""); setAddUrgent(false); }}
                 style={{ width: "100%", display: "flex", alignItems: "stretch", gap: 0, padding: 0, background: WH, border: `1px solid ${hasUrgent ? REDBRD : hasContent ? ACL2 : SB2}`, borderRadius: 9, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "border-color 0.15s, box-shadow 0.15s", marginBottom: 5, overflow: "hidden", boxShadow: hasContent ? "0 1px 2px rgba(0,0,0,0.03)" : "none" }}
               >
@@ -4386,6 +4502,27 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
         )}
       </div>
 
+      </div>{/* end ap-note-step-content step 0 */}
+
+      {/* Mobile: go to next step */}
+      <div className="ap-note-step-nav">
+        <button
+          onClick={() => setMobileStep(project.participants.length > 0 ? 1 : 2)}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          Étape suivante : {project.participants.length > 0 ? "Destinataires" : "Génération"}
+          <Ico name="arrowr" size={12} color="#fff" />
+        </button>
+      </div>
+
+      </div>{/* end step 0 */}
+
+      {/* ── Step 1: Destinataires ── */}
+      <div className="ap-note-section-1">
+
+      {/* Scrollable content area for step 1 */}
+      <div className="ap-note-step-content">
+
       {/* ── Section 2 : Destinataires ── */}
       {project.participants.length > 0 && (
         <div style={{ background: WH, borderRadius: 12, border: `1px solid ${SBB}`, overflow: "hidden", marginBottom: 12 }}>
@@ -4451,11 +4588,32 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
         </div>
       )}
 
+      </div>{/* end ap-note-step-content step 1 */}
+
+      {/* Mobile: go to next step */}
+      <div className="ap-note-step-nav">
+        <button
+          onClick={() => setMobileStep(2)}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          Étape suivante : Génération
+          <Ico name="arrowr" size={12} color="#fff" />
+        </button>
+      </div>
+
+      </div>{/* end step 1 */}
+
+      {/* ── Step 2: Générer ── */}
+      <div className="ap-note-section-2">
+
+      {/* Scrollable content area for step 2 */}
+      <div className="ap-note-step-content">
+
       {/* ── Section 3 : Zone de génération ── */}
       {readyToGenerate ? (
         <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${ACL2}`, background: WH, boxShadow: "0 2px 10px rgba(217,123,13,0.07)", transition: "all 0.3s" }}>
           {/* Header */}
-          <div style={{ background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ap-gen-header" style={{ background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>✦</span>
             </div>
@@ -4466,7 +4624,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
           </div>
 
           {/* Stats row */}
-          <div style={{ display: "flex", borderBottom: `1px solid ${SB2}` }}>
+          <div className="ap-gen-stats" style={{ display: "flex", borderBottom: `1px solid ${SB2}` }}>
             {[
               { value: filledCount, label: `poste${filledCount > 1 ? "s" : ""}`, icon: "listcheck", color: AC },
               { value: totalRemarks, label: `remarque${totalRemarks > 1 ? "s" : ""}`, icon: "edit", color: TX },
@@ -4484,7 +4642,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
           </div>
 
           {/* Attendance */}
-          <div style={{ padding: "12px 20px 0" }}>
+          <div className="ap-gen-attendance" style={{ padding: "12px 20px 0" }}>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 8 }}>Présences</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
               {attendance.map((a, i) => (
@@ -4505,7 +4663,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
           </div>
 
           {/* Visit timestamp */}
-          <div style={{ padding: "6px 20px 12px", display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="ap-gen-visit" style={{ padding: "6px 20px 12px", display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Ico name="clock" size={12} color={TX3} />
               <span style={{ fontSize: 11, color: TX3 }}>Début : <strong style={{ color: TX2 }}>{visitStart}</strong></span>
@@ -4519,7 +4677,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
           </div>
 
           {/* CTA area */}
-          <div style={{ padding: "12px 20px 16px" }}>
+          <div className="ap-gen-cta" style={{ padding: "12px 20px 16px" }}>
             {recipientFilters && recipientFilters.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 10, padding: "5px 9px", background: SB, borderRadius: 6, border: `1px solid ${SBB}` }}>
                 <Ico name="users" size={11} color={TX2} />
@@ -4528,8 +4686,8 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
               </div>
             )}
 
-            {/* What happens next */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            {/* What happens next — hidden on mobile */}
+            <div className="ap-gen-next-steps" style={{ display: "flex", gap: 12, marginBottom: 12 }}>
               {[
                 { icon: "edit", text: t("notes.redactionStep") },
                 { icon: "file", text: t("notes.pdfStep") },
@@ -4638,6 +4796,9 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
           </div>
         </div>
       )}
+
+      </div>{/* end ap-note-step-content step 2 */}
+      </div>{/* end step 2 */}
 
     </div>
   );
@@ -5027,18 +5188,11 @@ function getGoogleCalendarUrl(project) {
 function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject }) {
   const t = useT();
   const active = projects.filter(p => !p.archived);
-  const archived = projects.filter(p => p.archived);
-  const [remarkFilter, setRemarkFilter] = useState("all"); // "all" | "urgent" | "open" | "done"
   const [showExport, setShowExport] = useState(false);
 
-  // Stats
-  const totalPV = projects.reduce((s, p) => s + (p.pvHistory?.length || 0), 0);
+  // ── Compute all stats ──
   const openActions = projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open).length, 0);
   const urgentActions = projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open && a.urgent).length, 0);
-  const totalRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).length, 0), 0);
-  const openRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).filter(r => r.status === "open" || r.status === "progress").length, 0), 0);
-  const urgentRemarks = projects.reduce((s, p) => s + (p.posts || []).reduce((s2, po) => s2 + (po.remarks || []).filter(r => r.urgent && r.status !== "done").length, 0), 0);
-  const doneRemarks = totalRemarks - openRemarks;
   const totalLots = projects.reduce((s, p) => s + (p.lots?.length || 0), 0);
   const delayedLots = projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length, 0);
 
@@ -5049,20 +5203,54 @@ function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject })
     (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").forEach(l => allUrgent.push({ type: "delay", text: `${l.name} — en retard`, who: l.contractor, project: p }));
   });
 
-  // Recent AI PV
-  const recentPV = [];
-  active.forEach(p => { (p.pvHistory || []).slice(0, 2).forEach(pv => recentPV.push({ ...pv, project: p })); });
-  recentPV.sort((a, b) => (b.date || "").localeCompare(a.date || "")).splice(5);
+  // PV needing action (drafts, not sent)
+  const pvToResume = [];
+  active.forEach(p => {
+    (p.pvHistory || []).forEach(pv => {
+      const st = pv.status || "draft";
+      if (st === "draft" || st === "review") pvToResume.push({ ...pv, project: p });
+    });
+  });
+  pvToResume.sort((a, b) => (b.date || "").localeCompare(a.date || "")).splice(6);
 
-  // Project stats
+  // Meetings this week
+  const now = new Date();
+  const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
+  const meetingsThisWeek = active.filter(p => {
+    if (!p.nextMeeting) return false;
+    const parts = p.nextMeeting.split("/");
+    if (parts.length !== 3) return false;
+    const d = new Date(parts[2], parts[1] - 1, parts[0]);
+    return d >= now && d <= weekEnd;
+  });
+
+  // Project stats for table
   const projectStats = active.map(p => {
     const open = (p.actions || []).filter(a => a.open).length;
     const urgent = (p.actions || []).filter(a => a.open && a.urgent).length;
     const delayed = (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length;
     const st = getStatus(p.statusId);
     const lastPV = p.pvHistory?.[0];
-    return { ...p, openActions: open, urgentActions: urgent, delayedLots: delayed, status: st, pvCount: p.pvHistory?.length || 0, lastPV };
+    return { ...p, openActions: open, urgentActions: urgent, delayedLots: delayed, status: st, lastPV };
   }).sort((a, b) => b.urgentActions - a.urgentActions || b.openActions - a.openActions);
+
+  // Lots needing attention
+  const lotsToWatch = [];
+  active.forEach(p => {
+    (p.lots || []).forEach(l => {
+      const st = calcLotStatus(l);
+      if (st.id === "delayed" || st.id === "active") lotsToWatch.push({ ...l, lotStatus: st, project: p });
+    });
+  });
+  lotsToWatch.sort((a, b) => (a.lotStatus.id === "delayed" ? 0 : 1) - (b.lotStatus.id === "delayed" ? 0 : 1)).splice(5);
+
+  // Activity feed
+  const activity = [];
+  active.forEach(p => {
+    (p.pvHistory || []).slice(0, 2).forEach(pv => activity.push({ type: "pv", text: `PV n°${pv.number} ${pv.imported ? "importé" : "rédigé"}`, date: pv.date, project: p }));
+    (p.gallery || []).slice(-2).forEach(ph => activity.push({ type: "photo", text: "Photo ajoutée", date: ph.date ? new Date(ph.date).toLocaleDateString("fr-BE") : "", project: p }));
+  });
+  activity.sort((a, b) => (b.date || "").localeCompare(a.date || "")).splice(6);
 
   // Contractor performance
   const contractors = {};
@@ -5074,23 +5262,116 @@ function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject })
       <div style={{ height: "100%", width: `${max > 0 ? (value / max) * 100 : 0}%`, background: color || AC, borderRadius: 3, transition: "width 0.3s" }} />
     </div>
   );
-
   const SectionTitle = ({ children, action }) => (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
       <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>{children}</span>
       {action}
     </div>
   );
+  const DashCard = ({ children, style: s = {} }) => (
+    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", ...s }}>{children}</div>
+  );
 
+  // Upcoming meetings sorted by date
+  const upcomingMeetings = active.filter(p => p.nextMeeting).map(p => {
+    const parts = p.nextMeeting.split("/");
+    const d = parts.length === 3 ? new Date(parts[2], parts[1] - 1, parts[0]) : null;
+    return { project: p, date: d, dateStr: p.nextMeeting };
+  }).filter(m => m.date && m.date >= now).sort((a, b) => a.date - b.date);
+
+  // ═══════════════════════════════════════════════════
+  // ══ MOBILE DASHBOARD ══
+  // ═══════════════════════════════════════════════════
+  if (typeof window !== "undefined" && window.innerWidth < 768) {
+    return (
+      <div style={{ animation: "fadeIn 0.2s ease", display: "flex", flexDirection: "column", gap: 10 }}>
+
+        {/* 1. Urgences */}
+        {allUrgent.length > 0 && (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: RD }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C", flex: 1 }}>À traiter</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: RD }}>{allUrgent.length}</span>
+            </div>
+            {allUrgent.slice(0, 2).map((item, i) => (
+              <div key={i} onClick={() => onSelectProject(item.project.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: i > 0 ? "1px solid #FECACA40" : "none", cursor: "pointer" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#B91C1C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.text}</div>
+                  <div style={{ fontSize: 9, color: "#DC2626" }}>{item.project.name}{item.who ? ` · ${item.who}` : ""}</div>
+                </div>
+                <Ico name="arrowr" size={9} color="#DC2626" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 2. Prochaine réunion */}
+        {upcomingMeetings.length > 0 && (
+          <button onClick={() => onSelectProject(upcomingMeetings[0].project.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: WH, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Ico name="calendar" size={14} color={AC} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>{upcomingMeetings[0].dateStr}</div>
+              <div style={{ fontSize: 10, color: TX3 }}>{upcomingMeetings[0].project.name}</div>
+            </div>
+            <Ico name="arrowr" size={10} color={AC} />
+          </button>
+        )}
+
+        {/* 3. Projets — la vraie vue décisionnelle */}
+        {projectStats.length > 0 && (
+          <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ padding: "9px 12px", borderBottom: `1px solid ${SB2}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: TX }}>Mes projets</span>
+              <button onClick={onNewProject} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                <Ico name="plus" size={10} color={TX3} />
+                <span style={{ fontSize: 10, fontWeight: 600, color: TX2 }}>Nouveau</span>
+              </button>
+            </div>
+            {projectStats.map((p, i) => {
+              const attention = p.urgentActions + p.delayedLots;
+              return (
+                <div key={p.id} onClick={() => onSelectProject(p.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderBottom: i < projectStats.length - 1 ? `1px solid ${SB2}` : "none", cursor: "pointer" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      <span style={{ fontSize: 8, fontWeight: 600, color: p.status.color, background: p.status.bg, padding: "1px 5px", borderRadius: 4 }}>{p.status.label}</span>
+                      {p.nextMeeting && <span style={{ fontSize: 9, color: TX3 }}>{p.nextMeeting}</span>}
+                    </div>
+                  </div>
+                  {attention > 0 && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 9, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "2px 6px", borderRadius: 8 }}>
+                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: RD }} />{attention}
+                    </span>
+                  )}
+                  {pvToResume.some(pv => pv.project.id === p.id) && (
+                    <span style={{ fontSize: 8, fontWeight: 600, color: AC, background: ACL, padding: "2px 5px", borderRadius: 4 }}>PV</span>
+                  )}
+                  <Ico name="arrowr" size={9} color={TX3} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  // ══ DESKTOP DASHBOARD ══
+  // ═══════════════════════════════════════════════════
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
-      {/* ── Header + CTAs ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+
+      {/* ═══ 1. Header ═══ */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" color={TX2} /></button>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, color: TX, letterSpacing: "-0.3px" }}>Tableau de bord</div>
-            <div style={{ fontSize: 12, color: TX3 }}>{active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""}</div>
+            <div style={{ fontSize: 12, color: TX3 }}>{active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""}{urgentActions > 0 ? ` · ${urgentActions} urgence${urgentActions > 1 ? "s" : ""}` : ""}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -5102,8 +5383,6 @@ function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject })
           </button>
         </div>
       </div>
-
-      {/* ── Export collapsed ── */}
       {showExport && (
         <div style={{ display: "flex", gap: 6, marginBottom: 14, animation: "fadeIn 0.12s ease-out" }}>
           <button onClick={() => { exportProjectsCSV(projects); setShowExport(false); }} style={{ padding: "6px 12px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontSize: 11, fontFamily: "inherit", color: TX2 }}>Projets CSV</button>
@@ -5112,174 +5391,175 @@ function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject })
         </div>
       )}
 
-      {/* ══════ 1. ACTION CENTER (hero) ══════ */}
+      {/* ═══ 2. Urgences (hero) ═══ */}
       {allUrgent.length > 0 && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 14, padding: "16px 20px", marginBottom: 16, boxShadow: "0 2px 8px rgba(196,57,42,0.08)" }}>
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 14, padding: "16px 20px", marginBottom: 16 }}>
           <SectionTitle action={<span style={{ fontSize: 11, fontWeight: 600, color: RD }}>{allUrgent.length} point{allUrgent.length > 1 ? "s" : ""}</span>}>
-            À traiter aujourd'hui
+            À traiter maintenant
           </SectionTitle>
           {allUrgent.slice(0, 5).map((item, i) => (
-            <div key={i} onClick={() => onSelectProject(item.project.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #FECACA40" : "none", cursor: "pointer" }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.type === "action" ? RD : AC, flexShrink: 0, animation: item.type === "action" ? "ring 1.8s ease infinite" : "none" }} />
+            <div key={i} onClick={() => onSelectProject(item.project.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: i > 0 ? "1px solid #FECACA40" : "none", cursor: "pointer" }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: item.type === "action" ? RD : AC, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#B91C1C" }}>{item.text}</div>
-                <div style={{ fontSize: 10, color: "#DC2626" }}>{item.project.name}{item.who ? ` · ${item.who}` : ""}{item.since ? ` · ${item.since}` : ""}</div>
+                <div style={{ fontSize: 10, color: "#DC2626" }}>{item.project.name}{item.who ? ` · ${item.who}` : ""}</div>
               </div>
-              <Ico name="arrowr" size={12} color="#DC2626" />
+              <Ico name="arrowr" size={11} color="#DC2626" />
             </div>
           ))}
-          {allUrgent.length > 5 && <div style={{ fontSize: 11, color: RD, fontWeight: 600, marginTop: 6, cursor: "pointer" }}>+ {allUrgent.length - 5} autres points urgents</div>}
         </div>
       )}
 
-      {/* ══════ 2. KPI Cards ══════ */}
-      <div className="ap-kpi-row" style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        {[
-          { label: "Projets actifs", value: active.length, icon: "building", color: TX },
-          { label: "PV générés", value: totalPV, icon: "file", color: AC },
-          { label: "Actions ouvertes", value: openActions, icon: "alert", color: urgentActions > 0 ? RD : AC, sub: urgentActions > 0 ? `${urgentActions} urgente${urgentActions > 1 ? "s" : ""}` : null },
-          { label: "Lots en retard", value: delayedLots, icon: "clock", color: delayedLots > 0 ? RD : GR, sub: `${totalLots} total` },
-        ].map((kpi, i) => (
-          <div key={i} style={{ flex: 1, minWidth: 110, padding: "14px 16px", background: WH, border: `1px solid ${SBB}`, borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", transition: "box-shadow 0.15s" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: SB, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Ico name={kpi.icon} size={13} color={TX3} />
-              </div>
-              {kpi.sub && <span style={{ fontSize: 9, fontWeight: 600, color: kpi.color, background: kpi.color === RD ? "#FEF2F2" : SB, padding: "2px 6px", borderRadius: 4 }}>{kpi.sub}</span>}
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: kpi.color, letterSpacing: "-0.5px", lineHeight: 1 }}>{kpi.value}</div>
-            <div style={{ fontSize: 11, fontWeight: 500, color: TX3, marginTop: 4 }}>{kpi.label}</div>
-          </div>
-        ))}
-      </div>
+      {/* ═══ 3. Two-column layout ═══ */}
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
 
-      {/* ══════ 3. Two-column layout ══════ */}
-      <div className="ap-overview-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 16 }}>
+        {/* ── Left: projets (la vraie vue) ── */}
+        <div style={{ flex: "1 1 520px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
 
-        {/* ── Left: Project table ── */}
-        <div style={{ flex: "1 1 400px", minWidth: 0 }}>
-          <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <SectionTitle>Projets</SectionTitle>
+          {/* Tableau projets */}
+          <DashCard>
+            <SectionTitle>Portefeuille projets</SectionTitle>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ borderBottom: `2px solid ${SBB}` }}>
                     <th style={{ textAlign: "left", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Projet</th>
                     <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Phase</th>
-                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Actions</th>
+                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Alertes</th>
+                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Réunion</th>
+                    <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>PV</th>
                     <th style={{ textAlign: "center", padding: "8px 6px", color: TX3, fontWeight: 600 }}>Avancement</th>
-                    <th style={{ padding: "8px 6px" }}></th>
+                    <th style={{ padding: "8px 4px" }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projectStats.map(p => (
-                    <tr key={p.id} onClick={() => onSelectProject(p.id)} className="plan-file-row" style={{ borderBottom: `1px solid ${SB}`, cursor: "pointer" }}>
-                      <td style={{ padding: "10px 6px" }}>
-                        <div style={{ fontWeight: 600, color: TX }}>{p.name}</div>
-                        <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>{p.client}{p.lastPV ? ` · PV ${p.lastPV.date}` : ""}</div>
-                      </td>
-                      <td style={{ textAlign: "center", padding: "10px 6px" }}>
-                        <span style={{ fontSize: 9, fontWeight: 600, color: p.status.color, background: p.status.bg, padding: "2px 7px", borderRadius: 5 }}>{p.status.label}</span>
-                      </td>
-                      <td style={{ textAlign: "center", padding: "10px 6px" }}>
-                        {p.urgentActions > 0 ? (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: RD }}>{p.urgentActions}!</span>
-                        ) : p.openActions > 0 ? (
-                          <span style={{ fontSize: 11, fontWeight: 600, color: AC }}>{p.openActions}</span>
-                        ) : (
-                          <span style={{ fontSize: 11, color: GR }}>0</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "10px 6px", width: 100 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <Bar value={p.progress || 0} max={100} color={p.delayedLots > 0 ? RD : GR} />
-                          <span style={{ fontSize: 10, fontWeight: 600, color: TX2, minWidth: 24 }}>{p.progress || 0}%</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: "10px 4px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => onNewPV(p.id)} title="Nouveau PV" style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${ACL2}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Ico name="edit" size={11} color={AC} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {projectStats.map(p => {
+                    const attention = p.urgentActions + p.delayedLots;
+                    const hasDraftPV = pvToResume.some(pv => pv.project.id === p.id);
+                    return (
+                      <tr key={p.id} onClick={() => onSelectProject(p.id)} className="plan-file-row" style={{ borderBottom: `1px solid ${SB}`, cursor: "pointer" }}>
+                        <td style={{ padding: "10px 6px" }}>
+                          <div style={{ fontWeight: 600, color: TX }}>{p.name}</div>
+                          <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>{p.client || "—"}</div>
+                        </td>
+                        <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                          <span style={{ fontSize: 9, fontWeight: 600, color: p.status.color, background: p.status.bg, padding: "2px 7px", borderRadius: 5 }}>{p.status.label}</span>
+                        </td>
+                        <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                          {attention > 0 ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "2px 8px", borderRadius: 10 }}>
+                              <span style={{ width: 5, height: 5, borderRadius: "50%", background: RD }} />{attention}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 10, color: GR, fontWeight: 600 }}>OK</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "10px 6px", fontSize: 11, color: p.nextMeeting ? TX : TX3 }}>
+                          {p.nextMeeting || "—"}
+                        </td>
+                        <td style={{ textAlign: "center", padding: "10px 6px" }}>
+                          {hasDraftPV ? (
+                            <span style={{ fontSize: 9, fontWeight: 600, color: AC, background: ACL, padding: "2px 6px", borderRadius: 4 }}>Brouillon</span>
+                          ) : (
+                            <span style={{ fontSize: 10, color: TX3 }}>{p.pvHistory?.length || 0}</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 6px", width: 90 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <Bar value={p.progress || 0} max={100} color={p.delayedLots > 0 ? RD : GR} />
+                            <span style={{ fontSize: 10, fontWeight: 600, color: TX2, minWidth: 24 }}>{p.progress || 0}%</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 4px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                          <button onClick={() => onNewPV(p.id)} title="Nouveau PV" style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${ACL2}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Ico name="edit" size={11} color={AC} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          </div>
+          </DashCard>
+
+          {/* Lots à surveiller */}
+          {lotsToWatch.length > 0 && (
+            <DashCard>
+              <SectionTitle action={<span style={{ fontSize: 10, color: TX3 }}>{totalLots} lots · {delayedLots} en retard</span>}>Planning chantier</SectionTitle>
+              {lotsToWatch.map((l, i) => (
+                <div key={i} onClick={() => onSelectProject(l.project.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: i > 0 ? `1px solid ${SB}` : "none", cursor: "pointer" }}>
+                  <div style={{ width: 3, height: 24, borderRadius: 2, background: l.lotStatus.id === "delayed" ? RD : AC, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>{l.name}</div>
+                    <div style={{ fontSize: 10, color: TX3 }}>{l.project.name}{l.contractor ? ` · ${l.contractor}` : ""}</div>
+                  </div>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: l.lotStatus.color, background: l.lotStatus.bg, padding: "2px 7px", borderRadius: 5 }}>{l.lotStatus.label}</span>
+                </div>
+              ))}
+            </DashCard>
+          )}
         </div>
 
         {/* ── Right column ── */}
         <div style={{ flex: "0 1 280px", display: "flex", flexDirection: "column", gap: 14, minWidth: 220 }}>
 
-          {/* AI Reports */}
-          {recentPV.length > 0 && (
-            <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <SectionTitle action={<div style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 6px", background: ACL, borderRadius: 4 }}><span style={{ fontSize: 9, color: AC }}>✦</span><span style={{ fontSize: 9, fontWeight: 700, color: AC }}>IA</span></div>}>
-                PV récents
-              </SectionTitle>
-              {recentPV.map((pv, i) => (
-                <div key={i} onClick={() => onSelectProject(pv.project.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: i > 0 ? `1px solid ${SB}` : "none", cursor: "pointer" }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Ico name="file" size={12} color={AC} />
+          {/* Prochaines réunions */}
+          {upcomingMeetings.length > 0 && (
+            <DashCard style={{ background: ACL, border: `1px solid ${ACL2}` }}>
+              <SectionTitle>Réunions à venir</SectionTitle>
+              {upcomingMeetings.slice(0, 4).map((m, i) => (
+                <div key={i} onClick={() => onSelectProject(m.project.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: i > 0 ? `1px solid ${ACL2}` : "none", cursor: "pointer" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: WH, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name="calendar" size={12} color={AC} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>PV n°{pv.number} — {pv.project.name}</div>
-                    <div style={{ fontSize: 10, color: TX3 }}>{pv.date} · {pv.author}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: TX }}>{m.dateStr}</div>
+                    <div style={{ fontSize: 10, color: TX3 }}>{m.project.name}</div>
                   </div>
                 </div>
               ))}
-            </div>
+            </DashCard>
           )}
 
-          {/* Remarks segmented */}
-          <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <SectionTitle>Remarques</SectionTitle>
-            <div style={{ display: "flex", gap: 3, marginBottom: 10, background: SB, borderRadius: 6, padding: 2 }}>
-              {[
-                { id: "all", label: "Toutes", count: totalRemarks },
-                { id: "urgent", label: "Urgentes", count: urgentRemarks },
-                { id: "open", label: "Ouvertes", count: openRemarks },
-                { id: "done", label: "Résolues", count: doneRemarks },
-              ].map(seg => (
-                <button key={seg.id} onClick={() => setRemarkFilter(seg.id)} style={{
-                  flex: 1, padding: "5px 4px", border: "none", borderRadius: 5, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-                  background: remarkFilter === seg.id ? WH : "transparent",
-                  color: remarkFilter === seg.id ? (seg.id === "urgent" ? RD : TX) : TX3,
-                  boxShadow: remarkFilter === seg.id ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-                }}>
-                  {seg.count}
-                  <div style={{ fontSize: 8, marginTop: 1 }}>{seg.label}</div>
-                </button>
+          {/* PV à finaliser */}
+          {pvToResume.length > 0 && (
+            <DashCard>
+              <SectionTitle action={<span style={{ fontSize: 10, fontWeight: 600, color: AC }}>{pvToResume.length}</span>}>
+                PV à finaliser
+              </SectionTitle>
+              {pvToResume.slice(0, 4).map((pv, i) => (
+                <div key={i} onClick={() => onSelectProject(pv.project.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: i > 0 ? `1px solid ${SB}` : "none", cursor: "pointer" }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 6, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name="edit" size={10} color={AC} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>PV n°{pv.number} — {pv.project.name}</div>
+                    <div style={{ fontSize: 9, color: TX3 }}>{pv.date}</div>
+                  </div>
+                  <PvStatusBadge status={pv.status} />
+                </div>
               ))}
-            </div>
-            <div style={{ height: 8, background: SB2, borderRadius: 4, overflow: "hidden", display: "flex" }}>
-              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (doneRemarks / totalRemarks) * 100 : 0}%`, background: GR }} />
-              <div style={{ height: "100%", width: `${totalRemarks > 0 ? ((openRemarks - urgentRemarks) / totalRemarks) * 100 : 0}%`, background: AC }} />
-              <div style={{ height: "100%", width: `${totalRemarks > 0 ? (urgentRemarks / totalRemarks) * 100 : 0}%`, background: RD }} />
-            </div>
-          </div>
+            </DashCard>
+          )}
 
-          {/* Contractor performance */}
-          {contractorList.length > 0 && (
-            <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "14px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-              <SectionTitle>Intervenants</SectionTitle>
-              {contractorList.slice(0, 6).map(c => (
-                <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${SB}` }}>
+          {/* Intervenants à suivre */}
+          {contractorList.filter(c => c.open > 0).length > 0 && (
+            <DashCard>
+              <SectionTitle>Intervenants à suivre</SectionTitle>
+              {contractorList.filter(c => c.open > 0).slice(0, 6).map(c => (
+                <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${SB}` }}>
                   <div style={{ width: 24, height: 24, borderRadius: "50%", background: c.urgent > 0 ? "#FEF2F2" : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, fontWeight: 700, color: c.urgent > 0 ? RD : TX3 }}>
                     {c.name.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
                   </div>
-                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    {c.urgent > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "1px 5px", borderRadius: 3 }}>{c.urgent}!</span>}
-                    <span style={{ fontSize: 10, color: TX3 }}>{c.open}/{c.total}</span>
-                  </div>
-                  <div style={{ width: 50 }}><Bar value={c.closed} max={c.total} color={GR} /></div>
+                  <span style={{ fontSize: 10, color: TX3 }}>{c.open} ouv.</span>
+                  {c.urgent > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "1px 5px", borderRadius: 3 }}>{c.urgent}!</span>}
                 </div>
               ))}
-            </div>
+            </DashCard>
           )}
         </div>
       </div>
@@ -6018,6 +6298,249 @@ function CropTool({ imageSrc, fileName, onSave, onClose }) {
         <span>Position : {crop.x}, {crop.y}</span>
         <span>Original : {imgSize.w} x {imgSize.h} px</span>
       </div>
+    </div>
+  );
+}
+
+function GallerySheet({ photos, onClose, onAdd, onDelete }) {
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const exitSelect = () => { setSelecting(false); setSelected(new Set()); };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={() => { if (!selecting) onClose(); }}>
+      <div style={{ background: "rgba(0,0,0,0.3)", position: "absolute", inset: 0 }} />
+      <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "85vh", display: "flex", flexDirection: "column", animation: "sheetUp 0.25s ease-out", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `${SP.md}px auto ${SP.sm}px` }} />
+
+        {/* Header — switches between normal and selection mode */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${SP.lg}px ${SP.sm}px`, gap: 8 }}>
+          {selecting ? (
+            <>
+              <button onClick={exitSelect} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
+                <Ico name="x" size={14} color={TX2} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{selected.size} sélectionnée{selected.size !== 1 ? "s" : ""}</span>
+              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={selected.size === photos.length ? () => setSelected(new Set()) : () => setSelected(new Set(photos.map(p => p.id)))} style={{ padding: "5px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 600, color: TX2 }}>
+                  {selected.size === photos.length ? "Aucun" : "Tous"}
+                </button>
+                <button onClick={() => { onDelete(selected); exitSelect(); }} disabled={selected.size === 0} style={{ padding: "5px 10px", border: "none", borderRadius: 6, background: selected.size > 0 ? RD : DIS, cursor: selected.size > 0 ? "pointer" : "default", fontFamily: "inherit", fontSize: 10, fontWeight: 600, color: "#fff", display: "flex", alignItems: "center", gap: 4 }}>
+                  <Ico name="trash" size={10} color="#fff" />Supprimer{selected.size > 0 ? ` (${selected.size})` : ""}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Photos du chantier</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                {photos.length > 0 && (
+                  <button onClick={() => setSelecting(true)} style={{ padding: "5px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 600, color: TX2 }}>
+                    Sélectionner
+                  </button>
+                )}
+                <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", border: "none", borderRadius: 6, background: AC, cursor: "pointer", fontFamily: "inherit" }}>
+                  <Ico name="plus" size={11} color="#fff" />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#fff" }}>Ajouter</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Photo grid */}
+        <div style={{ overflowY: "auto", padding: `0 ${SP.lg}px ${SP.lg}px` }}>
+          {photos.length === 0 ? (
+            <div style={{ padding: "40px 0", textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: SB, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <Ico name="camera" size={22} color={TX3} />
+              </div>
+              <div style={{ fontSize: 13, color: TX3, marginBottom: 4 }}>Aucune photo</div>
+              <div style={{ fontSize: 11, color: TX3 }}>Prenez des photos du chantier avec le bouton ci-dessus</div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
+              {photos.map(ph => {
+                const isSel = selected.has(ph.id);
+                return (
+                  <div key={ph.id} onClick={() => selecting ? toggleSelect(ph.id) : null} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", background: SB, cursor: selecting ? "pointer" : "default", border: `2px solid ${selecting && isSel ? AC : "transparent"}`, transition: "border-color 0.15s" }}>
+                    <img src={getPhotoUrl(ph)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: selecting && isSel ? 0.7 : 1, transition: "opacity 0.15s" }} />
+                    {selecting && (
+                      <div style={{ position: "absolute", top: 4, left: 4, width: 20, height: 20, borderRadius: 5, background: isSel ? AC : "rgba(255,255,255,0.85)", border: `2px solid ${isSel ? AC : "rgba(0,0,0,0.2)"}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
+                        {isSel && <Ico name="check" size={10} color="#fff" />}
+                      </div>
+                    )}
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "12px 6px 3px", background: "linear-gradient(transparent, rgba(0,0,0,0.4))" }}>
+                      <span style={{ fontSize: 8, color: "#fff", fontWeight: 500 }}>{new Date(ph.date).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GalleryView({ project, setProjects, onBack }) {
+  const uploadRef = useRef(null);
+  const [lightbox, setLightbox] = useState(null); // photo id
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const photos = (project.gallery || []).slice().reverse();
+
+  const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const selectAll = () => setSelected(new Set(photos.map(p => p.id)));
+  const exitSelect = () => { setSelecting(false); setSelected(new Set()); };
+  const deleteSelected = () => {
+    selected.forEach(id => {
+      const photo = photos.find(ph => ph.id === id);
+      if (photo?.storagePath) deletePhoto(photo.storagePath);
+    });
+    setProjects(prev => prev.map(p => p.id === project.id ? { ...p, gallery: (p.gallery || []).filter(ph => !selected.has(ph.id)) } : p));
+    exitSelect();
+  };
+
+  const addPhotos = (files) => {
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const dataUrl = ev.target.result;
+        const photoId = Date.now() + Math.random();
+        const photo = { id: photoId, dataUrl, date: new Date().toISOString() };
+        setProjects(prev => prev.map(p => p.id === project.id ? { ...p, gallery: [...(p.gallery || []), photo] } : p));
+        if (navigator.onLine) {
+          const result = await uploadPhoto(dataUrl);
+          if (result) {
+            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, gallery: (p.gallery || []).map(ph => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph) } : p));
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removePhoto = (photoId) => {
+    const photo = photos.find(ph => ph.id === photoId);
+    if (photo?.storagePath) deletePhoto(photo.storagePath);
+    setProjects(prev => prev.map(p => p.id === project.id ? { ...p, gallery: (p.gallery || []).filter(ph => ph.id !== photoId) } : p));
+    if (lightbox === photoId) setLightbox(null);
+  };
+
+  const lbPhoto = lightbox ? photos.find(ph => ph.id === lightbox) : null;
+  const lbIdx = lightbox ? photos.findIndex(ph => ph.id === lightbox) : -1;
+
+  return (
+    <div style={{ maxWidth: 960, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={selecting ? exitSelect : onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
+            <Ico name={selecting ? "x" : "back"} color={TX2} size={16} />
+          </button>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>
+              {selecting ? `${selected.size} sélectionnée${selected.size !== 1 ? "s" : ""}` : "Photos du chantier"}
+            </div>
+            {!selecting && <div style={{ fontSize: 12, color: TX3 }}>{photos.length} photo{photos.length !== 1 ? "s" : ""}</div>}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {selecting ? (
+            <>
+              <button onClick={selected.size === photos.length ? () => setSelected(new Set()) : selectAll} style={{ padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: TX2 }}>
+                {selected.size === photos.length ? "Désélectionner" : "Tout sélectionner"}
+              </button>
+              <button onClick={deleteSelected} disabled={selected.size === 0} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "none", borderRadius: 8, background: selected.size > 0 ? RD : DIS, cursor: selected.size > 0 ? "pointer" : "default", fontFamily: "inherit" }}>
+                <Ico name="trash" size={13} color="#fff" />
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>Supprimer{selected.size > 0 ? ` (${selected.size})` : ""}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              {photos.length > 0 && (
+                <button onClick={() => setSelecting(true)} style={{ padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: TX2 }}>
+                  Sélectionner
+                </button>
+              )}
+              <button onClick={() => uploadRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit" }}>
+                <Ico name="plus" size={14} color="#fff" />
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>Ajouter</span>
+              </button>
+            </>
+          )}
+        </div>
+        <input ref={uploadRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }} />
+      </div>
+
+      {/* Gallery grid — 4 per row */}
+      {photos.length === 0 ? (
+        <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "60px 20px", textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: SB, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <Ico name="camera" size={26} color={TX3} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: TX, marginBottom: 4 }}>Aucune photo</div>
+          <div style={{ fontSize: 13, color: TX3, marginBottom: 16 }}>Ajoutez des photos de votre chantier pour les retrouver ici</div>
+          <button onClick={() => uploadRef.current?.click()} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#fff" }}>
+            <Ico name="plus" size={14} color="#fff" />Ajouter des photos
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+          {photos.map(ph => {
+            const isSel = selected.has(ph.id);
+            return (
+              <div key={ph.id} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: SB, cursor: "pointer", border: `2px solid ${selecting && isSel ? AC : SBB}`, transition: "border-color 0.15s" }} onClick={() => selecting ? toggleSelect(ph.id) : setLightbox(ph.id)}>
+                <img src={getPhotoUrl(ph)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: selecting && isSel ? 0.7 : 1, transition: "opacity 0.15s" }} />
+                {/* Selection checkbox */}
+                {selecting && (
+                  <div style={{ position: "absolute", top: 6, left: 6, width: 22, height: 22, borderRadius: 6, background: isSel ? AC : "rgba(255,255,255,0.85)", border: `2px solid ${isSel ? AC : "rgba(0,0,0,0.2)"}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
+                    {isSel && <Ico name="check" size={12} color="#fff" />}
+                  </div>
+                )}
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 6px", background: "linear-gradient(transparent, rgba(0,0,0,0.45))" }}>
+                  <span style={{ fontSize: 10, color: "#fff", fontWeight: 500 }}>{new Date(ph.date).toLocaleDateString("fr-BE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lbPhoto && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} onClick={() => setLightbox(null)}>
+          {/* Top bar */}
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", zIndex: 2 }}>
+            <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{lbIdx + 1} / {photos.length} — {new Date(lbPhoto.date).toLocaleDateString("fr-BE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                <Ico name="trash" size={13} color="#fff" />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
+              </button>
+              <button onClick={() => setLightbox(null)} style={{ width: 36, height: 36, border: "none", borderRadius: 8, background: "rgba(255,255,255,0.15)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Ico name="x" size={16} color="#fff" />
+              </button>
+            </div>
+          </div>
+          {/* Prev / Next */}
+          {lbIdx > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(photos[lbIdx - 1].id); }} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+              <Ico name="back" size={18} color="#fff" />
+            </button>
+          )}
+          {lbIdx < photos.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightbox(photos[lbIdx + 1].id); }} style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+              <Ico name="arrowr" size={18} color="#fff" />
+            </button>
+          )}
+          {/* Image */}
+          <img src={getPhotoUrl(lbPhoto)} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -8293,45 +8816,54 @@ function ProfileView({ profile, onSave }) {
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
-      <div className="ap-profile-mobile" style={{ maxWidth: 480, margin: "0 auto", padding: `${SP.md}px ${SP.lg}px 68px`, display: "flex", flexDirection: "column", height: "calc(100vh - 68px)", justifyContent: "center", overflow: "hidden" }}>
-        {/* Avatar + Name — compact */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: SP.md }}>
-          <div style={{ position: "relative", marginBottom: SP.sm }}>
+      <div className="ap-profile-mobile" style={{ maxWidth: 480, margin: "0 auto", padding: `0 ${SP.lg}px`, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
+        {/* Avatar + Name — centered */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 14, flexShrink: 0 }}>
+          <div style={{ position: "relative", marginBottom: 6 }}>
             {form.picture ? (
-              <img src={form.picture} alt="profil" style={{ width: 76, height: 76, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
+              <img src={form.picture} alt="profil" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
             ) : (
-              <div style={{ width: 76, height: 76, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
             )}
-            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: AC, border: `2px solid ${WH}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-              <Ico name="camera" size={11} color="#fff" />
+            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 0, right: 0, width: 24, height: 24, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              <Ico name="edit" size={14} color={TX3} />
             </button>
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{form.name || "Votre nom"}</div>
-          <div style={{ fontSize: FS.base, color: TX3 }}>{form.structure || "Votre bureau"}</div>
+          <div style={{ fontSize: FS.sm, color: TX3, marginTop: 1 }}>{form.structure || "Votre bureau"}</div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePicture} />
         </div>
 
-        {/* Section list — compact rows */}
-        <div style={{ background: WH, borderRadius: RAD.xxl, border: `1px solid ${SBB}`, overflow: "hidden", marginBottom: SP.sm, flex: "0 0 auto" }}>
-          {MOBILE_SECTIONS.map((s, i) => (
-            <button key={s.id} onClick={() => setMobileSection(s.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 3}px ${SP.lg}px`, border: "none", borderTop: i > 0 ? `1px solid ${SB2}` : "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: 44 }}>
-              <Ico name={s.icon} size={18} color={TX3} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: FS.base, fontWeight: 500, color: TX }}>{s.label}</div>
+        {/* Section list — single-line compact cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8, flexShrink: 0 }}>
+          {MOBILE_SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setMobileSection(s.id)}
+              className="ap-profile-card"
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s" }}
+            >
+              <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ico name={s.icon} size={13} color={TX2} />
               </div>
-              <span style={{ fontSize: FS.xs, color: TX3, maxWidth: 100, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
-              <Ico name="chevron-right" size={12} color={SBB} />
+              <span style={{ flex: 1, fontSize: FS.base, fontWeight: 600, color: TX, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
+              <span style={{ fontSize: FS.xs, color: TX3, maxWidth: 110, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
+              <Ico name="arrowr" size={9} color={SBB} />
             </button>
           ))}
         </div>
 
-        {/* Logout — integrated, subtle */}
-        <div style={{ background: WH, borderRadius: RAD.xxl, border: `1px solid ${SBB}`, overflow: "hidden" }}>
-          <button onClick={() => supabase.auth.signOut()} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 3}px ${SP.lg}px`, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: 44 }}>
-            <Ico name="logout" size={18} color={RD} />
-            <span style={{ fontSize: FS.base, fontWeight: 500, color: RD }}>Se déconnecter</span>
-          </button>
-        </div>
+        {/* Logout — destructive, single-line */}
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="ap-profile-card"
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid #FECACA`, borderRadius: RAD.md, background: "#FEF8F8", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico name="logout" size={13} color={RD} />
+          </div>
+          <span style={{ fontSize: FS.base, fontWeight: 600, color: RD }}>Se déconnecter</span>
+        </button>
 
         {/* ── Section Sheets ── */}
         {mobileSection && (
@@ -9019,8 +9551,11 @@ export default function App() {
   const [view, setView] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
+  const [gallerySheet, setGallerySheet] = useState(false);
   const [projectPicker, setProjectPicker] = useState(false);
+  const [pickerTab, setPickerTab] = useState("projects"); // "projects" | "dashboard"
   const mobilePhotoRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
   const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none" });
@@ -9233,6 +9768,8 @@ export default function App() {
         button { transition: filter 0.15s, transform 0.1s; }
         button:not([disabled]):not(.sidebar-logout):hover { filter: brightness(0.92); }
         button:not([disabled]):active { transform: scale(0.97); }
+        .ap-note-step-nav { display: none; }
+        .ap-profile-card:active { background: ${SB} !important; border-color: ${AC}40 !important; }
         .sb-avatar:hover { border-color: ${AC} !important; }
         .sb-profile-text:hover div:first-child { color: ${AC} !important; }
         .sb-logout-icon:hover { background: ${SB2} !important; }
@@ -9308,7 +9845,7 @@ export default function App() {
           .plan-file-row:active { background: ${SB} !important; }
 
           /* Content area tighter padding */
-          .ap-content { padding: 12px !important; }
+          .ap-content { padding: 6px !important; max-width: 100% !important; margin: 0 !important; }
 
           /* Overview: single column */
           .ap-overview-grid { flex-direction: column !important; }
@@ -9364,6 +9901,75 @@ export default function App() {
           /* NoteEditor — mobile stepper */
           .ap-note-mobile-stepper { display: block !important; }
           .ap-note-desktop-header { display: none !important; }
+
+          /* Mobile step process — viewport-fit wizard */
+          .ap-note-container {
+            display: flex !important;
+            flex-direction: column !important;
+            height: calc(100dvh - 52px - 88px) !important;
+            max-height: calc(100dvh - 52px - 88px) !important;
+            overflow: hidden !important;
+            padding: 0 8px !important;
+            margin: 0 !important;
+          }
+          .ap-note-mobile-stepper {
+            flex-shrink: 0 !important;
+          }
+          .ap-note-section-0,
+          .ap-note-section-1,
+          .ap-note-section-2 {
+            display: none !important;
+            flex-direction: column;
+            min-height: 0;
+          }
+          .ap-note-container[data-mobile-step="0"] .ap-note-section-0,
+          .ap-note-container[data-mobile-step="1"] .ap-note-section-1,
+          .ap-note-container[data-mobile-step="2"] .ap-note-section-2 {
+            display: flex !important;
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+          }
+          .ap-note-step-content {
+            flex: 1 1 0 !important;
+            overflow: hidden !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .ap-section-card {
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            margin-bottom: 0 !important;
+          }
+          .ap-carried-reminder { display: none !important; }
+          .ap-gen-next-steps { display: none !important; }
+          .ap-delete-all-btn { display: none !important; }
+          .ap-note-step-nav {
+            display: block !important;
+            flex-shrink: 0;
+            padding: 8px 0 0;
+          }
+          /* Method chooser — cards are horizontal on mobile, no need to compact */
+          /* Post list — compact rows + scrollable */
+          .ap-post-list {
+            flex: 1 1 0;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 4px 6px 2px !important;
+          }
+          .ap-post-row { margin-bottom: 3px !important; }
+          .ap-post-row > div:last-child { padding: 5px 10px 5px 8px !important; }
+          /* Section headers — tighter */
+          .ap-note-step-content .ap-section-hdr { padding: 7px 12px !important; }
+          /* Step 2 — compact generate card */
+          .ap-gen-header { padding: 10px 14px !important; }
+          .ap-gen-stats > div { padding: 7px 6px !important; }
+          .ap-gen-attendance { padding: 8px 14px 0 !important; }
+          .ap-gen-visit { padding: 4px 14px 8px !important; }
+          .ap-gen-cta { padding: 8px 14px 10px !important; }
           .ap-main { margin-left: 0 !important; padding-bottom: 72px !important; }
           .ap-project-name-desktop { display: none !important; }
           .ap-project-switcher { display: block !important; }
@@ -9374,6 +9980,7 @@ export default function App() {
           .ap-quick-tools { display: none !important; }
           .ap-mobile-quickstats { display: none !important; }
           .ap-cta-newpv { padding: 12px 16px !important; font-size: 13px !important; border-radius: 10px !important; }
+          .ap-overview-wrap { max-width: 100% !important; margin: 0 !important; }
           .ap-info-grid { grid-template-columns: 1fr !important; gap: ${SP.md}px !important; }
           .ap-admin-actions { flex-direction: column !important; }
           .ap-admin-actions button { width: 100% !important; justify-content: center !important; padding: ${SP.sm + 2}px ${SP.lg}px !important; }
@@ -9382,14 +9989,17 @@ export default function App() {
           .ap-col-main { display: contents !important; }
           .ap-overview-side { display: contents !important; }
 
-          /* Mobile: show dashboard, hide desktop secondary column */
+          /* Mobile: show new dashboard, hide desktop secondary column */
           .ap-mobile-dashboard { display: flex !important; }
           .ap-overview-side { display: none !important; }
 
-          /* Mobile: hide desktop-only sections */
+          /* Mobile: hide desktop-only sections and old mobile sections */
           .ap-section-pv { display: none !important; }
           .ap-section-actions { display: none !important; }
           .ap-quick-tools { display: none !important; }
+          .ap-mobile-shortcuts { display: none !important; }
+          .ap-mobile-participants { display: none !important; }
+          .ap-mobile-infos { display: none !important; }
 
           /* Mobile priority order: CTA → Dashboard */
           .ap-cta-newpv { order: 1 !important; }
@@ -9422,10 +10032,25 @@ export default function App() {
               {view === "profile" ? (
                 <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Mon profil</div>
               ) : view === "stats" ? (
-                <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Tableau de bord</div>
+                <>
+                <button className="ap-project-switcher" onClick={() => { setPickerTab("dashboard"); setProjectPicker(v => !v); }} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>Tableau de bord</span>
+                    </div>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: projectPicker ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                      <Ico name="chevron-down" size={12} color={projectPicker ? AC : TX3} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginTop: 3 }}>
+                    <span style={{ fontSize: FS.xs, color: TX3 }}>{projects.filter(p => !p.archived).length} projets actifs</span>
+                  </div>
+                </button>
+                <div className="ap-project-name-desktop" style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Tableau de bord</div>
+                </>
               ) : (
                 <>
-                  <button className="ap-project-switcher" onClick={() => setProjectPicker(v => !v)} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
+                  <button className="ap-project-switcher" onClick={() => { setPickerTab("projects"); setProjectPicker(v => !v); }} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span role="heading" aria-level="1" style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project?.name}</span>
@@ -9476,9 +10101,14 @@ export default function App() {
               <div style={{ position: "absolute", top: "100%", right: 0, width: 340, maxHeight: 400, overflowY: "auto", background: WH, border: `1px solid ${SBB}`, borderRadius: 12, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", zIndex: 200, animation: "fadeIn 0.15s ease-out" }}>
                 <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${SBB}` }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>{t("notif.title")}</span>
-                  {notifications.some(n => !n.read) && (
-                    <button onClick={() => { markAllNotificationsRead(); setNotifications(prev => prev.map(n => ({ ...n, read: true }))); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: AC, fontWeight: 600, fontFamily: "inherit" }}>{t("notif.markAllRead")}</button>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {notifications.some(n => !n.read) && (
+                      <button onClick={() => { markAllNotificationsRead(); setNotifications(prev => prev.map(n => ({ ...n, read: true }))); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: AC, fontWeight: 600, fontFamily: "inherit" }}>{t("notif.markAllRead")}</button>
+                    )}
+                    {notifications.length > 0 && (
+                      <button onClick={() => { deleteAllNotifications(); setNotifications([]); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: RD, fontWeight: 600, fontFamily: "inherit" }}>Tout supprimer</button>
+                    )}
+                  </div>
                 </div>
                 {/* Pending invitations */}
                 {invitations.length > 0 && invitations.map(inv => (
@@ -9496,13 +10126,19 @@ export default function App() {
                   <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: TX3 }}>{t("notif.empty")}</div>
                 )}
                 {notifications.map(n => (
-                  <div key={n.id} onClick={() => { if (!n.read) { markNotificationRead(n.id); setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x)); } }} style={{ padding: "10px 16px", borderBottom: `1px solid ${SBB}`, cursor: "pointer", background: n.read ? "transparent" : "#FAFAF5" }}>
-                    <div style={{ fontSize: 12, color: TX, lineHeight: 1.5 }}>
-                      {n.type === "invite" && t("notif.invite", { actor: n.actor_name, project: n.project_name || n.project_id })}
-                      {n.type === "invite_accepted" && t("notif.inviteAccepted", { actor: n.actor_name })}
-                      {n.type === "comment" && t("notif.comment", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                  <div key={n.id} onClick={() => { if (!n.read) { markNotificationRead(n.id); setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x)); } }} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${SBB}`, cursor: "pointer", background: n.read ? "transparent" : "#FAFAF5" }}>
+                    {!n.read && <div style={{ width: 6, height: 6, borderRadius: "50%", background: AC, flexShrink: 0, marginTop: 5 }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: TX, lineHeight: 1.5 }}>
+                        {n.type === "invite" && t("notif.invite", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                        {n.type === "invite_accepted" && t("notif.inviteAccepted", { actor: n.actor_name })}
+                        {n.type === "comment" && t("notif.comment", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                      </div>
+                      <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>{new Date(n.created_at).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                     </div>
-                    <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>{new Date(n.created_at).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                    <button onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); setNotifications(prev => prev.filter(x => x.id !== n.id)); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0, marginTop: 2 }}>
+                      <Ico name="x" size={12} color={TX3} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -9520,9 +10156,10 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} onGallery={() => { if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
           {view !== "profile" && project && view === "notes" && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
           {view !== "profile" && project && view === "result" && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
+          {view !== "profile" && project && view === "gallery" && <GalleryView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "plan" && <PlanManager project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
@@ -9590,7 +10227,7 @@ export default function App() {
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Field half label="Phase" value={editInfo.statusId || "sketch"} onChange={(v) => setEditInfo((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
-          <Field half label="Avancement (%)" value={editInfo.progress || ""} onChange={(v) => setEditInfo((p) => ({ ...p, progress: parseInt(v) || 0 }))} type="number" />
+          <Field half label="Avancement (%)" value={String(editInfo.progress || "")} onChange={(v) => setEditInfo((p) => ({ ...p, progress: parseInt(v) || 0 }))} type="number" />
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Field half label="Date début" value={editInfo.startDate || ""} onChange={(v) => setEditInfo((p) => ({ ...p, startDate: v }))} />
@@ -9635,22 +10272,32 @@ export default function App() {
         <button onClick={() => { updateProject(activeId, { ...editInfo, address: formatAddress(editInfo) }); setModal(null); }} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginTop: 12 }}>Enregistrer</button>
       </Modal>
 
-      <Modal open={modal === "parts"} onClose={() => setModal(null)} title="Modifier les participants" wide>
+      <Modal open={modal === "parts"} onClose={() => setModal(null)} title="Participants">
         {editParts.map((p, i) => (
-          <div key={i} style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input value={p.role} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], role: e.target.value }; setEditParts(c); }} placeholder="Rôle" style={{ width: 90, padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: SB, color: TX }} />
-            <input value={p.name} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], name: e.target.value }; setEditParts(c); }} placeholder="Nom" style={{ flex: "1 1 120px", padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: SB, color: TX }} />
-            <input value={p.email || ""} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], email: e.target.value }; setEditParts(c); }} placeholder="Email" style={{ flex: "1 1 160px", padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: SB, color: TX }} />
-            <input value={p.phone || ""} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], phone: e.target.value }; setEditParts(c); }} placeholder="Téléphone" style={{ width: 130, padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: SB, color: TX }} />
-            <button onClick={() => setEditParts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-              <Ico name="trash" size={15} color={RD} />
-            </button>
+          <div key={i} style={{ background: SB, borderRadius: 10, padding: "10px 12px", marginBottom: 8, border: `1px solid ${SBB}`, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: AC, flexShrink: 0 }}>
+                  {p.name ? p.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : "?"}
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name || "Nouveau"}</span>
+              </div>
+              <button onClick={() => setEditParts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0 }}>
+                <Ico name="trash" size={13} color={RD} />
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <input value={p.name} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], name: e.target.value }; setEditParts(c); }} placeholder="Nom" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, gridColumn: "1 / -1", boxSizing: "border-box", width: "100%", minWidth: 0 }} />
+              <input value={p.role} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], role: e.target.value }; setEditParts(c); }} placeholder="Rôle" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", width: "100%", minWidth: 0 }} />
+              <input value={p.phone || ""} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], phone: e.target.value }; setEditParts(c); }} placeholder="Tél." type="tel" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", width: "100%", minWidth: 0 }} />
+              <input value={p.email || ""} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], email: e.target.value }; setEditParts(c); }} placeholder="Email" type="email" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, gridColumn: "1 / -1", boxSizing: "border-box", width: "100%", minWidth: 0 }} />
+            </div>
           </div>
         ))}
-        <button onClick={() => setEditParts((prev) => [...prev, { role: "", name: "", email: "", phone: "" }])} style={{ width: "100%", padding: 10, border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", fontSize: 13, color: TX3, fontFamily: "inherit", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Ico name="plus" size={14} color={TX3} />Ajouter un participant
+        <button onClick={() => setEditParts((prev) => [...prev, { role: "", name: "", email: "", phone: "" }])} style={{ width: "100%", padding: 10, border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", fontSize: 12, color: AC, fontFamily: "inherit", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Ico name="plus" size={13} color={AC} />Ajouter un participant
         </button>
-        <button onClick={() => { updateProject(activeId, { participants: editParts.filter((p) => p.name.trim()) }); setModal(null); }} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Enregistrer</button>
+        <button onClick={() => { updateProject(activeId, { participants: editParts.filter((p) => p.name.trim()) }); setModal(null); }} style={{ width: "100%", padding: 13, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Enregistrer</button>
       </Modal>
 
       {/* Import PV modal */}
@@ -9883,15 +10530,14 @@ export default function App() {
       <CaptureSheet
         open={captureSheet}
         onClose={() => setCaptureSheet(false)}
-        photoCount={project ? project.posts.reduce((acc, p) => acc + (p.photos || []).length, 0) : 0}
+        photoCount={project ? (project.gallery || []).length : 0}
         onPhoto={() => {
           setCaptureSheet(false);
-          if (view !== "notes") setView("notes");
-          setTimeout(() => mobilePhotoRef.current?.click(), 200);
+          setTimeout(() => mobilePhotoRef.current?.click(), 150);
         }}
         onGallery={() => {
           setCaptureSheet(false);
-          setView("notes");
+          setGallerySheet(true);
         }}
       />
 
@@ -9906,64 +10552,151 @@ export default function App() {
           <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "75vh", display: "flex", flexDirection: "column", animation: "sheetUp 0.25s ease-out", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
             {/* Handle */}
             <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `${SP.md}px auto ${SP.sm}px` }} />
-            {/* Header */}
-            <div style={{ padding: `0 ${SP.lg}px ${SP.md}px`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX }}>Mes projets</span>
-              <span style={{ fontSize: FS.sm, fontWeight: 600, color: TX3, background: SB2, padding: "2px 8px", borderRadius: 10 }}>{activeProjects.length}</span>
-            </div>
-            {/* Search — visible with 4+ projects */}
-            {activeProjects.length >= 4 && (
-              <div style={{ padding: `0 ${SP.lg}px ${SP.md}px` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: SP.sm, background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.sm}px ${SP.md}px` }}>
-                  <Ico name="search" size={14} color={TX3} />
-                  <input
-                    value={pickerSearch} onChange={e => setPickerSearch(e.target.value)}
-                    placeholder="Rechercher un projet..."
-                    autoFocus
-                    style={{ flex: 1, border: "none", background: "transparent", fontSize: FS.md, color: TX, fontFamily: "inherit", outline: "none", padding: 0 }}
-                  />
-                  {pickerSearch && <button onClick={() => setPickerSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Ico name="x" size={14} color={TX3} /></button>}
-                </div>
+            {/* Segmented control */}
+            <div style={{ padding: `0 ${SP.lg}px ${SP.md}px` }}>
+              <div style={{ display: "flex", background: SB, borderRadius: 10, padding: 3, gap: 3 }}>
+                {["projects", "dashboard"].map(tab => {
+                  const isActive = pickerTab === tab;
+                  const label = tab === "projects" ? "Projets" : "Tableau de bord";
+                  const icon = tab === "projects" ? "building" : "chart";
+                  return (
+                    <button key={tab} onClick={() => setPickerTab(tab)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 10px", borderRadius: 8, background: isActive ? WH : "transparent", boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none", border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+                      <Ico name={icon} size={13} color={isActive ? TX : TX3} />
+                      <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 600, color: isActive ? TX : TX3 }}>{label}</span>
+                      {tab === "projects" && <span style={{ fontSize: 10, fontWeight: 600, color: TX3, background: isActive ? SB : SB2, padding: "1px 6px", borderRadius: 8 }}>{activeProjects.length}</span>}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-            {/* Project list */}
-            <div style={{ flex: 1, overflowY: "auto", padding: `0 ${SP.sm}px ${SP.lg}px` }}>
-              {filtered.length === 0 && (
-                <div style={{ padding: `${SP.xl}px ${SP.lg}px`, textAlign: "center", color: TX3, fontSize: FS.md }}>Aucun projet trouvé</div>
-              )}
-              {filtered.map(p => {
-                const st = getStatus(p.statusId);
-                const isCurrent = p.id === activeId;
-                return (
-                  <button key={p.id} onClick={() => { window._pickerSearch = ""; setActiveId(p.id); setProjectPicker(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.sm + 2, padding: `${SP.sm + 2}px ${SP.md}px`, border: isCurrent ? `1.5px solid ${AC}` : "1.5px solid transparent", borderRadius: RAD.lg, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: isCurrent ? ACL : "transparent", marginBottom: 2, transition: "all 0.12s" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: isCurrent ? st.bg : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Ico name="building" size={16} color={isCurrent ? st.color : TX3} />
+            </div>
+
+            {/* Tab: Projets */}
+            {pickerTab === "projects" && (
+              <>
+                {/* Search */}
+                {activeProjects.length >= 4 && (
+                  <div style={{ padding: `0 ${SP.lg}px ${SP.md}px` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: SP.sm, background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.sm}px ${SP.md}px` }}>
+                      <Ico name="search" size={14} color={TX3} />
+                      <input value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Rechercher un projet..." autoFocus style={{ flex: 1, border: "none", background: "transparent", fontSize: FS.md, color: TX, fontFamily: "inherit", outline: "none", padding: 0 }} />
+                      {pickerSearch && <button onClick={() => setPickerSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Ico name="x" size={14} color={TX3} /></button>}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: FS.md, fontWeight: isCurrent ? 650 : 500, color: isCurrent ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                      <div style={{ fontSize: FS.sm, color: TX3, display: "flex", alignItems: "center", gap: SP.xs }}>
-                        <span style={{ fontSize: FS.xs, fontWeight: 600, color: st.color, background: st.bg, padding: "1px 6px", borderRadius: 4 }}>{st.label}</span>
-                        {p.client && <span>{p.client}</span>}
+                  </div>
+                )}
+                {/* Project list */}
+                <div style={{ flex: 1, overflowY: "auto", padding: `0 ${SP.sm}px ${SP.lg}px` }}>
+                  {filtered.length === 0 && (
+                    <div style={{ padding: `${SP.xl}px ${SP.lg}px`, textAlign: "center", color: TX3, fontSize: FS.md }}>Aucun projet trouvé</div>
+                  )}
+                  {filtered.map(p => {
+                    const st = getStatus(p.statusId);
+                    const isCurrent = p.id === activeId && view !== "stats";
+                    return (
+                      <button key={p.id} onClick={() => { window._pickerSearch = ""; setActiveId(p.id); setView("overview"); setProjectPicker(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: SP.sm + 2, padding: `${SP.sm + 2}px ${SP.md}px`, border: isCurrent ? `1.5px solid ${AC}` : "1.5px solid transparent", borderRadius: RAD.lg, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: isCurrent ? ACL : "transparent", marginBottom: 2, transition: "all 0.12s" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: RAD.md, background: isCurrent ? st.bg : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <Ico name="building" size={16} color={isCurrent ? st.color : TX3} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: FS.md, fontWeight: isCurrent ? 650 : 500, color: isCurrent ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                          <div style={{ fontSize: FS.sm, color: TX3, display: "flex", alignItems: "center", gap: SP.xs }}>
+                            <span style={{ fontSize: FS.xs, fontWeight: 600, color: st.color, background: st.bg, padding: "1px 6px", borderRadius: 4 }}>{st.label}</span>
+                            {p.client && <span>{p.client}</span>}
+                          </div>
+                        </div>
+                        {isCurrent && <Ico name="check" size={16} color={AC} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Tab: Tableau de bord */}
+            {pickerTab === "dashboard" && (
+              <div style={{ flex: 1, overflowY: "auto", padding: `0 ${SP.lg}px ${SP.lg}px` }}>
+                {/* Quick stats */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  {[
+                    { label: "Projets actifs", value: activeProjects.length, icon: "building", color: TX },
+                    { label: "Actions urgentes", value: projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open && a.urgent).length, 0), icon: "alert", color: RD },
+                    { label: "PV brouillons", value: projects.reduce((s, p) => s + (p.pvHistory || []).filter(pv => !pv.status || pv.status === "draft" || pv.status === "review").length, 0), icon: "edit", color: AC },
+                    { label: "Lots en retard", value: projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length, 0), icon: "clock", color: RD },
+                  ].map((k, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: SB, borderRadius: 8 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 7, background: WH, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Ico name={k.icon} size={12} color={k.value > 0 ? k.color : TX3} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: k.value > 0 ? k.color : TX3, lineHeight: 1 }}>{k.value}</div>
+                        <div style={{ fontSize: 9, color: TX3 }}>{k.label}</div>
                       </div>
                     </div>
-                    {isCurrent && <Ico name="check" size={16} color={AC} />}
-                  </button>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+                {/* CTA */}
+                <button onClick={() => { setProjectPicker(false); setView("stats"); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 16px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  <Ico name="chart" size={15} color="#fff" />
+                  Ouvrir le tableau de bord
+                </button>
+              </div>
+            )}
           </div>
         </div>
         );
       })()}
 
-      {/* Hidden file input for mobile photo capture */}
+      {/* Hidden file input for mobile photo capture → project gallery */}
       <input ref={mobilePhotoRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => {
-        // Photos will be handled by the NoteEditor once it's in view
-        if (e.target.files?.[0]) {
-          // Store temporarily for NoteEditor to pick up
-          window._mobilePhotoPending = e.target.files[0];
-          e.target.value = "";
-        }
+        const file = e.target.files?.[0];
+        if (!file || !activeId) { e.target.value = ""; return; }
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const dataUrl = ev.target.result;
+          const photoId = Date.now() + Math.random();
+          const photo = { id: photoId, dataUrl, date: new Date().toISOString() };
+          setProjects(prev => prev.map(p => p.id === activeId ? { ...p, gallery: [...(p.gallery || []), photo] } : p));
+          setGallerySheet(true);
+          if (navigator.onLine) {
+            const result = await uploadPhoto(dataUrl);
+            if (result) {
+              setProjects(prev => prev.map(p => p.id === activeId ? { ...p, gallery: (p.gallery || []).map(ph => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph) } : p));
+            }
+          }
+        };
+        reader.readAsDataURL(file);
+        e.target.value = "";
+      }} />
+
+      {/* ── Gallery Sheet (mobile) ── */}
+      {gallerySheet && project && (() => {
+        const photos = (project.gallery || []).slice().reverse();
+        return <GallerySheet
+          photos={photos}
+          onClose={() => setGallerySheet(false)}
+          onAdd={() => galleryInputRef.current?.click()}
+          onDelete={(ids) => {
+            ids.forEach(id => { const ph = photos.find(p => p.id === id); if (ph?.storagePath) deletePhoto(ph.storagePath); });
+            setProjects(prev => prev.map(p => p.id === activeId ? { ...p, gallery: (p.gallery || []).filter(ph => !ids.has(ph.id)) } : p));
+          }}
+        />;
+      })()}
+      <input ref={galleryInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => {
+        Array.from(e.target.files || []).forEach(file => {
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+            const dataUrl = ev.target.result;
+            const photoId = Date.now() + Math.random();
+            setProjects(prev => prev.map(p => p.id === activeId ? { ...p, gallery: [...(p.gallery || []), { id: photoId, dataUrl, date: new Date().toISOString() }] } : p));
+            if (navigator.onLine) {
+              const result = await uploadPhoto(dataUrl);
+              if (result) {
+                setProjects(prev => prev.map(p => p.id === activeId ? { ...p, gallery: (p.gallery || []).map(ph => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph) } : p));
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+        e.target.value = "";
       }} />
 
     </div>
