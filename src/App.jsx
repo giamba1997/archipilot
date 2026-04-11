@@ -1890,6 +1890,9 @@ function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
 }
 
 function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery }) {
+  const _readOnly = isReadOnly(project);
+  const _canEdit = canEdit(project);
+  const _canManage = canManageMembers(project);
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
   const urgent = project.actions.filter((a) => a.urgent && a.open);
   const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
@@ -2088,7 +2091,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
           </div>
 
           {/* CTA Nouveau PV */}
-          <button className="ap-touch-btn ap-cta-newpv" onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
+          {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Ico name="edit" size={16} color="#fff" />
             </div>
@@ -2099,7 +2102,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
               </div>
             </div>
             <Ico name="arrowr" size={18} color="rgba(255,255,255,0.8)" style={{ marginLeft: "auto" }} />
-          </button>
+          </button>}
 
           {/* Outils rapides — masqués sur mobile (bottom bar remplace) */}
           <div className="ap-quick-tools" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2378,11 +2381,11 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 </div>
               </Card>
 
-              <div className="ap-admin-actions" style={{ display: "flex", gap: 6 }}>
+              {_canManage && <div className="ap-admin-actions" style={{ display: "flex", gap: 6 }}>
                 <SmallBtn onClick={onEditInfo} icon="edit" label={t("edit")} />
                 <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
                 <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -10678,8 +10681,9 @@ export default function App() {
             </div>
           )}
           {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} onGallery={() => { if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
-          {view !== "profile" && project && view === "notes" && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
-          {view !== "profile" && project && view === "result" && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
+          {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
+          {view !== "profile" && project && view === "notes" && isReadOnly(project) && (() => { setView("overview"); return null; })()}
+          {view !== "profile" && project && view === "result" && !isReadOnly(project) && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
           {view !== "profile" && project && view === "gallery" && <GalleryView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "plan" && <PlanManager project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
