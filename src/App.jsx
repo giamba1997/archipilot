@@ -10423,7 +10423,7 @@ export default function App() {
             -webkit-overflow-scrolling: touch;
           }
           .ap-section-card {
-            flex: 1 1 0 !important;
+            flex: 0 0 auto !important;
             min-height: 0 !important;
             display: flex !important;
             flex-direction: column !important;
