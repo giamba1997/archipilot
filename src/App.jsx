@@ -10533,7 +10533,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <div className="ap-sidebar-desktop">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { /* TODO: open shared project */ }} onStats={() => { setView("stats"); }} onPlanning={() => { setView("planningDashboard"); }} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setProjects(prev => { if (prev.some(x => x.id === p.id && x._shared)) return prev; return [...prev, p]; }); setActiveId(p.id); setView("overview"); }} onStats={() => { setView("stats"); }} onPlanning={() => { setView("planningDashboard"); }} />
       </div>
 
       {/* Sidebar overlay for tablet/mobile */}
