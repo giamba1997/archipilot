@@ -1961,90 +1961,90 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 <div style={{ fontSize: 10, fontWeight: 600, color: AC, textTransform: "uppercase", letterSpacing: "0.05em" }}>Prochaine réunion</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>{project.nextMeeting || "Non planifiée"}</div>
               </div>
-              <Ico name="arrowr" size={10} color={TX3} />
+              <Ico name="arrowr" size={14} color={TX3} />
             </button>
 
             {/* Accès rapides — 4 colonnes */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 5 }}>
+            {/* Quick access — 4 columns, bigger */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
               {[
                 { label: "Documents", icon: "folder", color: BL, bg: BLB, count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
                 { label: "Photos",    icon: "camera", color: AC, bg: ACL, count: (project.gallery||[]).length, onClick: onGallery },
                 { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
                 { label: "Listes",    icon: "listcheck", color: TE, bg: TEB, count: (project.checklists||[]).length, onClick: onViewChecklists },
               ].map(s => (
-                <button key={s.label} onClick={s.onClick} style={{ padding: "8px 4px", border: `1px solid ${s.color}18`, borderRadius: 8, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                  <Ico name={s.icon} size={14} color={s.color} />
-                  <span style={{ fontSize: 9, fontWeight: 600, color: s.color }}>{s.label}</span>
-                  {s.count > 0 && <span style={{ fontSize: 8, color: s.color, opacity: 0.7 }}>{s.count}</span>}
+                <button key={s.label} onClick={s.onClick} style={{ padding: "12px 4px", border: `1px solid ${s.color}18`, borderRadius: 10, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                  <Ico name={s.icon} size={18} color={s.color} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>
+                  {s.count > 0 && <span style={{ fontSize: 9, color: s.color, opacity: 0.7 }}>{s.count}</span>}
                 </button>
               ))}
             </div>
 
-            {/* ── Sections condensées — summary rows, tap to expand ── */}
-            <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden" }}>
+            {/* ── Sections — independent cards ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 
               {/* Actions */}
-              <button onClick={() => setMobileSheet("actions")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", borderBottom: `1px solid ${SB2}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: openActions.length > 0 ? (urgent.length > 0 ? "#FEF2F2" : SB) : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="alert" size={13} color={openActions.length > 0 ? (urgent.length > 0 ? RD : TX3) : GR} />
+              <button onClick={() => setMobileSheet("actions")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: openActions.length > 0 ? (urgent.length > 0 ? "#FEF2F2" : SB) : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="alert" size={16} color={openActions.length > 0 ? (urgent.length > 0 ? RD : TX3) : GR} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Actions</div>
-                  <div style={{ fontSize: 10, color: openActions.length > 0 ? (urgent.length > 0 ? "#B91C1C" : TX3) : GR }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Actions</div>
+                  <div style={{ fontSize: 11, color: openActions.length > 0 ? (urgent.length > 0 ? "#B91C1C" : TX3) : GR }}>
                     {openActions.length === 0 ? "Toutes clôturées" : `${openActions.length} ouverte${openActions.length > 1 ? "s" : ""}${urgent.length > 0 ? ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}` : ""}`}
                   </div>
                 </div>
-                <Ico name="arrowr" size={10} color={TX3} />
+                <Ico name="arrowr" size={14} color={TX3} />
               </button>
 
               {/* Historique PV */}
-              <button onClick={() => setMobileSheet("pv")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", borderBottom: `1px solid ${SB2}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="file" size={13} color={AC} />
+              <button onClick={() => setMobileSheet("pv")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="file" size={16} color={AC} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Historique des PV</div>
-                  <div style={{ fontSize: 10, color: TX3 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Historique des PV</div>
+                  <div style={{ fontSize: 11, color: TX3 }}>
                     {project.pvHistory.length === 0 ? "Aucun PV" : `${project.pvHistory.length} PV${lastPV ? ` · dernier : PV n°${lastPV.number}` : ""}`}
                   </div>
                 </div>
-                <Ico name="arrowr" size={10} color={TX3} />
+                <Ico name="arrowr" size={14} color={TX3} />
               </button>
 
               {/* Participants */}
-              <button onClick={() => setMobileSheet("team")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", borderBottom: `1px solid ${SB2}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="users" size={13} color={AC} />
+              <button onClick={() => setMobileSheet("team")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="users" size={16} color={AC} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Participants ({project.participants.length})</div>
-                  <div style={{ fontSize: 10, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Participants ({project.participants.length})</div>
+                  <div style={{ fontSize: 11, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {project.participants.length === 0 ? "Aucun participant" : project.participants.slice(0, 3).map(p => p.name.split(" ")[0]).join(", ")}{project.participants.length > 3 ? "…" : ""}
                   </div>
                 </div>
-                {/* Stacked avatars */}
                 <div style={{ display: "flex", flexShrink: 0, marginRight: 4 }}>
                   {project.participants.slice(0, 3).map((p, i) => (
-                    <div key={i} style={{ width: 22, height: 22, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: AC, border: `1.5px solid ${WH}`, marginLeft: i > 0 ? -6 : 0, zIndex: 3 - i }}>
+                    <div key={i} style={{ width: 24, height: 24, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: AC, border: `1.5px solid ${WH}`, marginLeft: i > 0 ? -6 : 0, zIndex: 3 - i }}>
                       {p.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                     </div>
                   ))}
                 </div>
-                <Ico name="arrowr" size={10} color={TX3} />
+                <Ico name="arrowr" size={14} color={TX3} />
               </button>
 
               {/* Infos projet */}
-              <button onClick={() => setMobileSheet("info")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 28, height: 28, borderRadius: 7, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="building" size={13} color={TX3} />
+              <button onClick={() => setMobileSheet("info")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="building" size={16} color={TX3} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: TX }}>Infos projet</div>
-                  <div style={{ fontSize: 10, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Infos projet</div>
+                  <div style={{ fontSize: 11, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {[project.client, project.contractor, project.city].filter(Boolean).join(" · ") || "Aucune info"}
                   </div>
                 </div>
-                <Ico name="arrowr" size={10} color={TX3} />
+                <Ico name="arrowr" size={14} color={TX3} />
               </button>
 
             </div>
@@ -2062,7 +2062,7 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
                 {project.nextMeeting ? t("project.meetingOn", { date: project.nextMeeting }) : t("project.prepareNextPV")}
               </div>
             </div>
-            <Ico name="arrowr" size={16} color="rgba(255,255,255,0.7)" style={{ marginLeft: "auto" }} />
+            <Ico name="arrowr" size={18} color="rgba(255,255,255,0.8)" style={{ marginLeft: "auto" }} />
           </button>
 
           {/* Outils rapides — masqués sur mobile (bottom bar remplace) */}
@@ -9314,51 +9314,51 @@ function ProfileView({ profile, onSave }) {
     return (
       <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: "0 5%", display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
         {/* Avatar + Name — centered */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 14, flexShrink: 0 }}>
-          <div style={{ position: "relative", marginBottom: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16, flexShrink: 0 }}>
+          <div style={{ position: "relative", marginBottom: 8 }}>
             {form.picture ? (
-              <img src={form.picture} alt="profil" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
+              <img src={form.picture} alt="profil" style={{ width: 86, height: 86, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
             ) : (
-              <div style={{ width: 72, height: 72, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
+              <div style={{ width: 86, height: 86, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
             )}
-            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 0, right: 0, width: 24, height: 24, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-              <Ico name="edit" size={14} color={TX3} />
+            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 2, right: 2, width: 26, height: 26, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              <Ico name="edit" size={15} color={TX3} />
             </button>
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{form.name || "Votre nom"}</div>
-          <div style={{ fontSize: FS.sm, color: TX3, marginTop: 1 }}>{form.structure || "Votre bureau"}</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{form.name || "Votre nom"}</div>
+          <div style={{ fontSize: FS.base, color: TX3, marginTop: 2 }}>{form.structure || "Votre bureau"}</div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePicture} />
         </div>
 
-        {/* Section list — single-line compact cards */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8, flexShrink: 0 }}>
+        {/* Section list */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10, flexShrink: 0 }}>
           {MOBILE_SECTIONS.map((s) => (
             <button
               key={s.id}
               onClick={() => setMobileSection(s.id)}
               className="ap-profile-card"
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s" }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `1px solid ${SBB}`, borderRadius: RAD.lg, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s" }}
             >
-              <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ico name={s.icon} size={13} color={TX2} />
+              <div style={{ width: 34, height: 34, borderRadius: RAD.md, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ico name={s.icon} size={16} color={TX2} />
               </div>
-              <span style={{ flex: 1, fontSize: FS.base, fontWeight: 600, color: TX, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
-              <span style={{ fontSize: FS.xs, color: TX3, maxWidth: 110, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
-              <Ico name="arrowr" size={9} color={SBB} />
+              <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: TX, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
+              <span style={{ fontSize: FS.sm, color: TX3, maxWidth: 110, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
+              <Ico name="arrowr" size={12} color={SBB} />
             </button>
           ))}
         </div>
 
-        {/* Logout — destructive, single-line */}
+        {/* Logout */}
         <button
           onClick={() => supabase.auth.signOut()}
           className="ap-profile-card"
-          style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid #FECACA`, borderRadius: RAD.md, background: "#FEF8F8", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `1px solid #FECACA`, borderRadius: RAD.lg, background: "#FEF8F8", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Ico name="logout" size={13} color={RD} />
+          <div style={{ width: 34, height: 34, borderRadius: RAD.md, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico name="logout" size={16} color={RD} />
           </div>
-          <span style={{ fontSize: FS.base, fontWeight: 600, color: RD }}>Se déconnecter</span>
+          <span style={{ fontSize: FS.md, fontWeight: 600, color: RD }}>Se déconnecter</span>
         </button>
 
         {/* ── Section Sheets ── */}
