@@ -9326,7 +9326,7 @@ const PROFILE_SECTIONS = [
   { id: "avatar", icon: "users", label: "Profil" },
   { id: "plan", icon: "chart", label: "Abonnement" },
   { id: "account", icon: "mail", label: "Compte" },
-  { id: "security", icon: "eye", label: "Sécurité" },
+  { id: "security", icon: "lock", label: "Sécurité" },
   { id: "info", icon: "file", label: "Informations" },
   { id: "lang", icon: "building", label: "Langue" },
   { id: "appearance", icon: "chart", label: "Apparence PV" },
@@ -9434,46 +9434,46 @@ function ProfileView({ profile, onSave }) {
       { id: "plan", icon: "chart", label: "Abonnement", desc: `Plan ${PLANS[form.plan || "free"]?.label || "Free"}` },
       { id: "info", icon: "file", label: "Informations personnelles", desc: `${form.name} · ${form.structure}` },
       { id: "account", icon: "mail", label: "Compte & email", desc: authEmail || "Email de connexion" },
-      { id: "security", icon: "eye", label: "Sécurité", desc: "Authentification à deux facteurs" },
+      { id: "security", icon: "lock", label: "Sécurité", desc: "Authentification à deux facteurs" },
       { id: "signature", icon: "edit", label: "Signature email", desc: form.emailSignature ? "Configurée" : "Non configurée" },
       { id: "lang", icon: "building", label: "Langue", desc: form.lang === "fr" ? "Français" : "English" },
       { id: "appearance", icon: "chart", label: "Apparence du PV", desc: `${(form.pdfColor || "#D97B0D").toUpperCase()} · ${form.pdfFont || "helvetica"}` },
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
-      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: 0, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: 0, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 96px)", justifyContent: "center", overflow: "hidden" }}>
         {/* Avatar + Name — centered */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16, flexShrink: 0 }}>
-          <div style={{ position: "relative", marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 12, flexShrink: 0 }}>
+          <div style={{ position: "relative", marginBottom: 6 }}>
             {form.picture ? (
-              <img src={form.picture} alt="profil" style={{ width: 86, height: 86, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
+              <img src={form.picture} alt="profil" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `3px solid ${ACL2}` }} />
             ) : (
-              <div style={{ width: 86, height: 86, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
             )}
-            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 2, right: 2, width: 26, height: 26, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-              <Ico name="edit" size={15} color={TX3} />
+            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 0, right: 0, width: 24, height: 24, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              <Ico name="edit" size={14} color={TX3} />
             </button>
           </div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{form.name || "Votre nom"}</div>
-          <div style={{ fontSize: FS.base, color: TX3, marginTop: 2 }}>{form.structure || "Votre bureau"}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{form.name || "Votre nom"}</div>
+          <div style={{ fontSize: FS.sm, color: TX3, marginTop: 1 }}>{form.structure || "Votre bureau"}</div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePicture} />
         </div>
 
         {/* Section list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10, flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 8, flexShrink: 0 }}>
           {MOBILE_SECTIONS.map((s) => (
             <button
               key={s.id}
               onClick={() => setMobileSection(s.id)}
               className="ap-profile-card"
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `1px solid ${SBB}`, borderRadius: RAD.lg, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s" }}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s" }}
             >
-              <div style={{ width: 34, height: 34, borderRadius: RAD.md, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ico name={s.icon} size={16} color={TX2} />
+              <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ico name={s.icon} size={13} color={TX2} />
               </div>
-              <span style={{ flex: 1, fontSize: FS.md, fontWeight: 600, color: TX, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
-              <span style={{ fontSize: FS.sm, color: TX3, maxWidth: 110, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
-              <Ico name="arrowr" size={12} color={SBB} />
+              <span style={{ flex: 1, fontSize: FS.base, fontWeight: 600, color: TX, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
+              <span style={{ fontSize: FS.xs, color: TX3, maxWidth: 100, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{s.desc}</span>
+              <Ico name="arrowr" size={10} color={SBB} />
             </button>
           ))}
         </div>
@@ -9482,12 +9482,12 @@ function ProfileView({ profile, onSave }) {
         <button
           onClick={() => supabase.auth.signOut()}
           className="ap-profile-card"
-          style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `1px solid #FECACA`, borderRadius: RAD.lg, background: "#FEF8F8", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid #FECACA`, borderRadius: RAD.md, background: "#FEF8F8", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
         >
-          <div style={{ width: 34, height: 34, borderRadius: RAD.md, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Ico name="logout" size={16} color={RD} />
+          <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico name="logout" size={13} color={RD} />
           </div>
-          <span style={{ fontSize: FS.md, fontWeight: 600, color: RD }}>Se déconnecter</span>
+          <span style={{ fontSize: FS.base, fontWeight: 600, color: RD }}>Se déconnecter</span>
         </button>
 
         {/* ── Section Sheets ── */}
