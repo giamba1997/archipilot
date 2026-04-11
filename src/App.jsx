@@ -4303,28 +4303,28 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                     {!isDictate && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
                   </div>
                 </button>
-              </div>
 
-              {/* CTA */}
-              <button
-                onClick={() => {
-                  if (sel === "dictate" && hasSR) { setInputMethod("dictate"); startContinuous(); }
-                  else { setInputMethod("write"); }
-                }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 10,
-                  background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
-                  color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  boxShadow: "0 3px 14px rgba(217,123,13,0.25)", transition: "all 0.15s",
-                }}
-              >
-                {isDictate && hasSR ? (
-                  <><Ico name="mic" size={16} color="#fff" />Commencer à dicter</>
-                ) : (
-                  <><Ico name="edit" size={16} color="#fff" />Commencer à écrire</>
-                )}
-              </button>
+                {/* CTA — inside cards container */}
+                <button
+                  onClick={() => {
+                    if (sel === "dictate" && hasSR) { setInputMethod("dictate"); startContinuous(); }
+                    else { setInputMethod("write"); }
+                  }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 2,
+                    background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+                    color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                    boxShadow: "0 3px 14px rgba(217,123,13,0.25)", transition: "all 0.15s",
+                  }}
+                >
+                  {isDictate && hasSR ? (
+                    <><Ico name="mic" size={16} color="#fff" />Commencer à dicter</>
+                  ) : (
+                    <><Ico name="edit" size={16} color="#fff" />Commencer à écrire</>
+                  )}
+                </button>
+              </div>
               {contErr && <div style={{ marginTop: 8, fontSize: 11, color: RD, textAlign: "center", padding: "6px 10px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
             </div>
             );
