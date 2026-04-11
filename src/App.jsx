@@ -4250,7 +4250,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
               </div>
 
               {/* Option cards */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {/* Dictate */}
                 <button
                   onClick={() => setSelectedMethod("dictate")}
@@ -4313,7 +4313,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                 }}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 14,
+                  padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 10,
                   background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
                   color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                   boxShadow: "0 3px 14px rgba(217,123,13,0.25)", transition: "all 0.15s",
@@ -9301,7 +9301,7 @@ function ProfileView({ profile, onSave }) {
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
-      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: "0 5%", display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
+      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: 0, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
         {/* Avatar + Name — centered */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16, flexShrink: 0 }}>
           <div style={{ position: "relative", marginBottom: 8 }}>
