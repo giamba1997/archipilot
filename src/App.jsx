@@ -220,6 +220,42 @@ const STRUCTURE_TYPES = [
   { id: "autre", label: "Autre" },
 ];
 
+// ── Plans & Feature Gates ──────────────────────────────────
+const PLANS = {
+  free: { id: "free", label: "Free", price: 0, priceYear: 0 },
+  pro: { id: "pro", label: "Pro", price: 29, priceYear: 290 },
+  team: { id: "team", label: "Team", price: 59, priceYear: 590 },
+};
+const PLAN_FEATURES = {
+  maxProjects:      { free: 1,     pro: Infinity, team: Infinity },
+  maxPvPerMonth:    { free: 3,     pro: Infinity, team: Infinity },
+  maxAiPerMonth:    { free: 3,     pro: Infinity, team: Infinity },
+  maxCollabPerProj: { free: 0,     pro: 3,        team: Infinity },
+  sendEmail:        { free: false, pro: true,     team: true },
+  gallery:          { free: false, pro: true,     team: true },
+  planning:         { free: false, pro: true,     team: true },
+  lots:             { free: false, pro: true,     team: true },
+  checklists:       { free: false, pro: true,     team: true },
+  roles:            { free: false, pro: false,    team: true },
+  dashboardFull:    { free: false, pro: true,     team: true },
+  planningCross:    { free: false, pro: false,    team: true },
+  exportCsv:        { free: false, pro: false,    team: true },
+  pdfNoWatermark:   { free: false, pro: true,     team: true },
+  pdfCustomLogo:    { free: false, pro: false,    team: true },
+};
+const hasFeature = (plan, feature) => {
+  const p = plan || "free";
+  const f = PLAN_FEATURES[feature];
+  if (!f) return true;
+  return f[p] !== undefined ? f[p] : f.free;
+};
+const getLimit = (plan, feature) => {
+  const p = plan || "free";
+  const f = PLAN_FEATURES[feature];
+  if (!f) return Infinity;
+  return f[p] !== undefined ? f[p] : f.free;
+};
+
 const INIT_PROFILE = {
   name: "Gaëlle CNOP",
   structure: "DEWIL architecten",
@@ -232,6 +268,7 @@ const INIT_PROFILE = {
   pdfFont: "helvetica",
   apiKey: "",
   lang: "fr",
+  plan: "free",
   postTemplate: "general",
   pvTemplate: "standard",
   remarkNumbering: "none",
@@ -888,6 +925,7 @@ function Ico({ name, size = 18, color = TX3 }) {
     users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
     user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
     clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M12 6v6l4 2",
+    lock: "M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4",
     alert: "M12 9v4 M12 17h.01",
     building: "M3 21h18 M5 21V7l8-4v18 M19 21V11l-6-4",
     copy: "M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2z M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1",
@@ -1409,7 +1447,7 @@ function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, o
               <span style={{ fontSize: 10, fontWeight: 600, color: TX3, background: SB2, padding: "1px 6px", borderRadius: 10 }}>{sharedProjects.length}</span>
             </div>
             {sharedProjects.map((p) => (
-              <button key={`shared-${p._ownerId}-${p.id}`} onClick={() => { onSelectShared(p); onClose(); }} className="sb-project" style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1, transition: "background 0.15s" }}>
+              <button key={`shared-${p._ownerId}-${p.id}`} onClick={() => { onSelectShared(p); }} className="sb-project" style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "7px 10px 7px 12px", border: "none", borderLeft: "3px solid transparent", borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit", background: "transparent", marginTop: 1, transition: "background 0.15s" }}>
                 <div style={{ width: 28, height: 28, borderRadius: 7, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Ico name="users" size={13} color={AC} />
                 </div>
@@ -1509,6 +1547,67 @@ function CollabModalWrapper({ project, onClose, showToast, profile }) {
   }, [ownerId]);
   if (!ownerId) return null;
   return <CollabModal project={project} ownerId={ownerId} onClose={onClose} showToast={showToast} profile={profile} />;
+}
+
+// ── Upgrade Gate Component ──────────────────────────────────
+function UpgradeGate({ plan, feature, children, fallback }) {
+  if (hasFeature(plan, feature)) return children;
+  if (fallback) return fallback;
+  const minPlan = PLAN_FEATURES[feature]?.pro ? "pro" : "team";
+  return (
+    <div style={{ padding: "16px", background: SB, borderRadius: 10, border: `1px solid ${SBB}`, textAlign: "center" }}>
+      <Ico name="lock" size={20} color={TX3} />
+      <div style={{ fontSize: 12, fontWeight: 600, color: TX, marginTop: 6 }}>Fonctionnalité {PLANS[minPlan]?.label}</div>
+      <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>Passez au plan {PLANS[minPlan]?.label} pour débloquer</div>
+    </div>
+  );
+}
+
+// ── Pricing Section (for profile) ───────────────────────────
+function PricingSection({ currentPlan, onSelectPlan }) {
+  const t = useT();
+  const plans = [
+    { ...PLANS.free, desc: t("plan.freeDesc"), features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec watermark"] },
+    { ...PLANS.pro, desc: t("plan.proDesc"), popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email PV", "Galerie photos", "Planning & Lots", "3 collaborateurs / projet", "PDF sans watermark"] },
+    { ...PLANS.team, desc: t("plan.teamDesc"), features: ["Tout le Pro", "Collaborateurs illimités", "Rôles & permissions", "Dashboard complet", "Planning cross-projets", "Export CSV", "PDF logo personnalisé", "Support prioritaire"] },
+  ];
+  return (
+    <div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: TX, marginBottom: 4 }}>Votre abonnement</div>
+      <div style={{ fontSize: 12, color: TX3, marginBottom: 16 }}>Plan actuel : <strong style={{ color: AC }}>{PLANS[currentPlan]?.label || "Free"}</strong></div>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {plans.map(p => {
+          const isCurrent = p.id === currentPlan;
+          return (
+            <div key={p.id} style={{ flex: "1 1 200px", minWidth: 180, background: WH, border: `${p.popular ? "2px" : "1px"} solid ${p.popular ? AC : SBB}`, borderRadius: 14, padding: "18px 16px", position: "relative", display: "flex", flexDirection: "column" }}>
+              {p.popular && <div style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#fff", background: AC, padding: "2px 10px", borderRadius: 10 }}>Populaire</div>}
+              <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>{p.label}</div>
+              <div style={{ fontSize: 11, color: TX3, marginBottom: 10 }}>{p.desc}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 12 }}>
+                <span style={{ fontSize: 28, fontWeight: 800, color: TX }}>{p.price === 0 ? "0" : p.price}€</span>
+                <span style={{ fontSize: 11, color: TX3 }}>/mois</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
+                {p.features.map((f, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: TX2 }}>
+                    <Ico name="check" size={10} color={GR} />
+                    {f}
+                  </div>
+                ))}
+              </div>
+              {isCurrent ? (
+                <div style={{ width: "100%", padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, textAlign: "center", fontSize: 12, fontWeight: 600, color: TX3, marginTop: 14 }}>Plan actuel</div>
+              ) : (
+                <button onClick={() => onSelectPlan(p.id)} style={{ width: "100%", padding: "9px 16px", border: "none", borderRadius: 8, background: p.popular ? AC : SB, color: p.popular ? "#fff" : TX, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginTop: 14 }}>
+                  {p.price === 0 ? "Rétrograder" : `Passer au ${p.label}`}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ── Project Permissions Helper ──────────────────────────────
@@ -9225,6 +9324,7 @@ function MfaSection() {
 
 const PROFILE_SECTIONS = [
   { id: "avatar", icon: "users", label: "Profil" },
+  { id: "plan", icon: "chart", label: "Abonnement" },
   { id: "account", icon: "mail", label: "Compte" },
   { id: "security", icon: "eye", label: "Sécurité" },
   { id: "info", icon: "file", label: "Informations" },
@@ -9331,6 +9431,7 @@ function ProfileView({ profile, onSave }) {
   // Mobile profile — completely different layout
   if (isMobile) {
     const MOBILE_SECTIONS = [
+      { id: "plan", icon: "chart", label: "Abonnement", desc: `Plan ${PLANS[form.plan || "free"]?.label || "Free"}` },
       { id: "info", icon: "file", label: "Informations personnelles", desc: `${form.name} · ${form.structure}` },
       { id: "account", icon: "mail", label: "Compte & email", desc: authEmail || "Email de connexion" },
       { id: "security", icon: "eye", label: "Sécurité", desc: "Authentification à deux facteurs" },
@@ -9395,6 +9496,12 @@ function ProfileView({ profile, onSave }) {
             <div style={{ background: "rgba(0,0,0,0.3)", position: "absolute", inset: 0 }} />
             <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "85vh", overflowY: "auto", animation: "sheetUp 0.25s ease-out", padding: `${SP.xl}px ${SP.lg}px`, paddingBottom: `max(${SP.xl}px, env(safe-area-inset-bottom, 20px))` }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `0 auto ${SP.lg}px` }} />
+
+              {mobileSection === "plan" && (
+                <div style={{ padding: "0 4px" }}>
+                  <PricingSection currentPlan={form.plan || "free"} onSelectPlan={(p) => { set("plan")(p); onSave({ ...form, plan: p }); setSaved(true); setTimeout(() => setSaved(false), 2500); setMobileSection(null); }} />
+                </div>
+              )}
 
               {mobileSection === "info" && (
                 <>
@@ -9574,6 +9681,11 @@ function ProfileView({ profile, onSave }) {
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePicture} />
         </div>
+      </div>
+
+      {/* Abonnement */}
+      <div ref={refFor("plan")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+        <PricingSection currentPlan={form.plan || "free"} onSelectPlan={(p) => { set("plan")(p); onSave({ ...form, plan: p }); setSaved(true); setTimeout(() => setSaved(false), 2500); }} />
       </div>
 
       {/* Compte — Email de connexion */}

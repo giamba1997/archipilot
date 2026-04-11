@@ -536,6 +536,19 @@ fr: {
   "collab.decline": "Décliner",
   "collab.changeRole": "Changer le rôle",
 
+  // ── Plans ──
+  "plan.free": "Free",
+  "plan.pro": "Pro",
+  "plan.team": "Team",
+  "plan.current": "Plan actuel",
+  "plan.upgrade": "Passer au plan",
+  "plan.upgradeDesc": "Débloquez cette fonctionnalité",
+  "plan.month": "/mois",
+  "plan.year": "/an",
+  "plan.proDesc": "Pour les architectes indépendants",
+  "plan.teamDesc": "Pour les bureaux d'architecture",
+  "plan.freeDesc": "Pour découvrir ArchiPilot",
+
   // ── Notifications ──
   "notif.title": "Notifications",
   "notif.empty": "Aucune notification",
