@@ -1498,7 +1498,7 @@ function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, o
 }
 
 // ── Collab Modal Wrapper (gets userId) ─────────────────────
-function CollabModalWrapper({ project, onClose, showToast }) {
+function CollabModalWrapper({ project, onClose, showToast, profile }) {
   const [ownerId, setOwnerId] = useState(project._ownerId || null);
   useEffect(() => {
     if (!ownerId) {
@@ -1508,7 +1508,7 @@ function CollabModalWrapper({ project, onClose, showToast }) {
     }
   }, [ownerId]);
   if (!ownerId) return null;
-  return <CollabModal project={project} ownerId={ownerId} onClose={onClose} showToast={showToast} />;
+  return <CollabModal project={project} ownerId={ownerId} onClose={onClose} showToast={showToast} profile={profile} />;
 }
 
 // ── Project Permissions Helper ──────────────────────────────
@@ -1522,7 +1522,7 @@ const canManageSettings = (project) => { const r = getProjectRole(project); retu
 const isReadOnly = (project) => getProjectRole(project) === "reader";
 
 // ── Invite / Members Modal ─────────────────────────────────
-function CollabModal({ project, ownerId, onClose, showToast }) {
+function CollabModal({ project, ownerId, onClose, showToast, profile }) {
   const t = useT();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("contributor");
@@ -1541,7 +1541,7 @@ function CollabModal({ project, ownerId, onClose, showToast }) {
     e.preventDefault();
     if (!email.trim()) return;
     setError(""); setLoading(true);
-    const res = await inviteMember(String(project.id), ownerId, email.trim(), role, project.name, "");
+    const res = await inviteMember(String(project.id), ownerId, email.trim(), role, project.name, profile?.name || profile?.email || "");
     setLoading(false);
     if (res.error === "already_invited") { setError(t("collab.alreadyInvited")); return; }
     if (res.error) { setError(res.error); return; }
@@ -10641,7 +10641,7 @@ export default function App() {
                       {t("notif.invite", { actor: inv.invited_name || "Quelqu'un", project: inv.project_id })}
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={async () => { await respondToInvitation(inv.id, true); setInvitations(prev => prev.filter(i => i.id !== inv.id)); loadSharedProjects().then(setSharedProjects); showToast("Invitation acceptée"); }} style={{ padding: "5px 14px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.accept")}</button>
+                      <button onClick={async () => { await respondToInvitation(inv.id, true); setInvitations(prev => prev.filter(i => i.id !== inv.id)); showToast("Invitation acceptée"); setTimeout(() => loadSharedProjects().then(sp => { console.log("Shared projects loaded:", sp.length, sp); setSharedProjects(sp); }), 500); }} style={{ padding: "5px 14px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.accept")}</button>
                       <button onClick={async () => { await respondToInvitation(inv.id, false); setInvitations(prev => prev.filter(i => i.id !== inv.id)); }} style={{ padding: "5px 14px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX2, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.decline")}</button>
                     </div>
                   </div>
@@ -10691,7 +10691,7 @@ export default function App() {
 
       {/* Collaboration modal */}
       {modal === "collab" && project && (
-        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} />
+        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} />
       )}
 
       <Modal open={modal === "new"} onClose={() => setModal(null)} title="Nouveau projet">
