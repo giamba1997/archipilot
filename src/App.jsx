@@ -5560,9 +5560,10 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfErr, setPdfErr] = useState("");
   const [showSendModal, setShowSendModal] = useState(false);
+  const [savedPvNum, setSavedPvNum] = useState(null);
   const timer = useRef(null);
   const ctrl = useRef(null);
-  const pvNum = project.pvHistory.length + 1;
+  const pvNum = savedPvNum || project.pvHistory.length + 1;
   const t = useT();
 
   useEffect(() => { run(); return () => { clearInterval(timer.current); ctrl.current?.abort(); }; }, []);
@@ -5642,6 +5643,7 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
       notes: po.notes || "",
     })).filter(po => po.remarks.length > 0 || po.notes.trim());
 
+    setSavedPvNum(pvNum);
     setProjects((prev) => prev.map((p) => p.id === project.id ? {
       ...p,
       pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: result.slice(0, 100) + "...", content: result, inputNotes, status: "draft" }, ...p.pvHistory],
