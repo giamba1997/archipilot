@@ -507,20 +507,49 @@ function getSessionId() {
   return _sessionId;
 }
 
-export async function track(event, properties = {}) {
+// Batched analytics — flush every 5 seconds
+let _eventBuffer = [];
+let _flushTimer = null;
+let _userId = null;
+
+async function flushEvents() {
+  if (_eventBuffer.length === 0) return;
+  const batch = _eventBuffer.splice(0);
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    await supabase.from("analytics_events").insert(batch);
+  } catch (e) {
+    // Non-blocking
+  }
+}
+
+export function track(event, properties = {}) {
+  try {
+    if (!_userId) {
+      supabase.auth.getUser().then(({ data: { user } }) => { if (user) _userId = user.id; });
+      return;
+    }
     const device = typeof window !== "undefined" && window.innerWidth < 768 ? "mobile" : "desktop";
-    await supabase.from("analytics_events").insert({
-      user_id: user.id,
+    _eventBuffer.push({
+      user_id: _userId,
       event,
       properties,
       device,
       page: properties._page || "",
       session_id: getSessionId(),
     });
+    if (!_flushTimer) {
+      _flushTimer = setInterval(() => { flushEvents(); }, 5000);
+    }
+    // Flush immediately for important events
+    if (["login", "pv_generated", "pv_sent", "project_created", "plan_selected"].includes(event)) {
+      flushEvents();
+    }
   } catch (e) {
-    // Non-blocking — never break the app for analytics
+    // Non-blocking
   }
+}
+
+// Flush on page unload
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => flushEvents());
 }

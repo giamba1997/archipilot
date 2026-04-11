@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component } from "react";
+import { useState, useRef, useEffect, useMemo, Component } from "react";
 import { jsPDF } from "jspdf";
 import { LangContext, useT, useTP } from "./i18n";
 import { supabase } from "./supabase";
@@ -1241,23 +1241,23 @@ function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, o
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [collapsedClients, setCollapsedClients] = useState({});
   const t = useT();
-  const active = projects.filter((p) => !p.archived);
-  const archived = projects.filter((p) => p.archived);
-  const sortedActive = [...active].sort((a, b) => {
+  const active = useMemo(() => projects.filter((p) => !p.archived), [projects]);
+  const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
+  const sortedActive = useMemo(() => [...active].sort((a, b) => {
     if (sortBy === "name") return a.name.localeCompare(b.name, "fr");
     if (sortBy === "client") return (a.client || "").localeCompare(b.client || "", "fr") || a.name.localeCompare(b.name, "fr");
     const aDate = a.pvHistory?.[0]?.date || "";
     const bDate = b.pvHistory?.[0]?.date || "";
     return bDate.localeCompare(aDate) || b.id - a.id;
-  });
+  }), [active, sortBy]);
 
   // Group by client
-  const clientGroups = sortBy === "client" ? sortedActive.reduce((acc, p) => {
+  const clientGroups = useMemo(() => sortBy === "client" ? sortedActive.reduce((acc, p) => {
     const client = p.client || "Sans client";
     if (!acc[client]) acc[client] = [];
     acc[client].push(p);
     return acc;
-  }, {}) : null;
+  }, {}) : null, [sortedActive, sortBy]);
   const toggleClient = (client) => setCollapsedClients(prev => ({ ...prev, [client]: !prev[client] }));
 
   const TX4 = "#8A8A85"; // muted text (sidebar only)
@@ -1989,6 +1989,22 @@ function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
   );
 }
 
+// ── Shared UI components (extracted from render bodies) ────
+const Card = ({ children, style = {} }) => (
+  <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.xl, padding: `${SP.lg}px ${SP.lg + 2}px`, ...style }}>{children}</div>
+);
+const CardHeader = ({ title, action }) => (
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SP.md }}>
+    <span role="heading" aria-level="2" style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{title}</span>
+    {action}
+  </div>
+);
+const SmallBtn = ({ onClick, icon, label }) => (
+  <button onClick={onClick} style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.sm + 1, cursor: "pointer", padding: `${SP.xs + 1}px ${SP.sm + 2}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
+    <Ico name={icon} size={FS.base} color={TX3} /><span style={{ fontSize: FS.sm, color: TX2, fontWeight: 500 }}>{label}</span>
+  </button>
+);
+
 function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
@@ -2005,20 +2021,6 @@ function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onVie
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
   const lastPV        = project.pvHistory[0] || null;
-  const Card = ({ children, style = {} }) => (
-    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.xl, padding: `${SP.lg}px ${SP.lg + 2}px`, ...style }}>{children}</div>
-  );
-  const CardHeader = ({ title, action }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: SP.md }}>
-      <span role="heading" aria-level="2" style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{title}</span>
-      {action}
-    </div>
-  );
-  const SmallBtn = ({ onClick, icon, label }) => (
-    <button onClick={onClick} style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.sm + 1, cursor: "pointer", padding: `${SP.xs + 1}px ${SP.sm + 2}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
-      <Ico name={icon} size={FS.base} color={TX3} /><span style={{ fontSize: FS.sm, color: TX2, fontWeight: 500 }}>{label}</span>
-    </button>
-  );
 
   return (
     <div className="ap-overview-wrap" style={{ maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
@@ -10306,19 +10308,13 @@ export default function App() {
     return () => { try { unsub?.(); } catch {} };
   }, []);
 
-  // Save projects to Supabase (debounced) + localStorage fallback
+  // Save projects + activeId to Supabase + localStorage
   useEffect(() => {
     if (!dbLoaded) return;
     try { localStorage.setItem("archipilot_projects", JSON.stringify(projects)); } catch { setStorageWarning(true); setTimeout(() => setStorageWarning(false), 5000); }
-    dbSaveProjects(projects, activeId);
-  }, [projects, dbLoaded]);
-
-  // Save activeId
-  useEffect(() => {
-    if (!dbLoaded) return;
     try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch {}
     dbSaveProjects(projects, activeId);
-  }, [activeId, dbLoaded]);
+  }, [projects, activeId, dbLoaded]);
 
   // Détection online/offline + sync au retour
   useEffect(() => {
