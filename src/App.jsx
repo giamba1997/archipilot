@@ -10224,8 +10224,8 @@ function SearchModal({ projects, onClose, onOpen }) {
 }
 
 export default function App() {
-  const [projects, setProjects] = useState([]);
-  const [activeId, setActiveId] = useState(1);
+  const [projects, setProjects] = useState(() => { try { const s = localStorage.getItem("archipilot_projects"); return s ? JSON.parse(s) : []; } catch { return []; } });
+  const [activeId, setActiveId] = useState(() => { try { const s = localStorage.getItem("archipilot_activeId"); return s ? Number(s) || 1 : 1; } catch { return 1; } });
   const [dbLoaded, setDbLoaded] = useState(false);
   const [view, _setView] = useState("overview");
   const setView = (v) => { _setView(v); track("page_viewed", { _page: v }); };
@@ -10422,6 +10422,19 @@ export default function App() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+  // Loading screen only if no cached data (first use)
+  if (!dbLoaded && projects.length === 0) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 42, height: 42, borderRadius: 11, background: AC, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 800, margin: "0 auto 12px", boxShadow: "0 2px 8px rgba(217,123,13,0.25)" }}>A</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 8 }}>ArchiPilot</div>
+          <div style={{ width: 20, height: 20, border: `2.5px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "sp 0.6s linear infinite", margin: "0 auto" }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>
