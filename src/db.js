@@ -267,7 +267,8 @@ export async function loadMyInvitations() {
 
 export async function respondToInvitation(memberId, accept) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) { console.error("[Respond] No user"); return false; }
+  console.log("[Respond] User:", user.id, user.email, "memberId:", memberId, "accept:", accept);
 
   const { data, error } = await supabase
     .from("project_members")
@@ -280,7 +281,8 @@ export async function respondToInvitation(memberId, accept) {
     .select()
     .single();
 
-  if (error) { console.error("respondToInvitation error:", error); return false; }
+  console.log("[Respond] Update result:", { data, error });
+  if (error) { console.error("[Respond] Error:", error); return false; }
 
   // Notify the project owner
   if (accept && data) {
