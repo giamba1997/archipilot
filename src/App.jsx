@@ -5757,72 +5757,81 @@ function PlanningDashboard({ projects, onBack, onSelectProject }) {
     const grouped = groupByDay(mobileEvents);
     const [mobileDetail, setMobileDetail] = useState(null);
 
+    // Lot context helper
+    const lotContext = (ev) => {
+      if (!ev.lotStatus) return "";
+      if (ev.lotStatus.id === "delayed") return "En retard";
+      if (ev.lotStatus.id === "active") return "En cours";
+      if (ev.startDate) {
+        const tom = new Date(today); tom.setDate(tom.getDate() + 1);
+        if (isSameDay(ev.startDate, today)) return "Demarre aujourd'hui";
+        if (isSameDay(ev.startDate, tom)) return "Demarre demain";
+      }
+      return ev.lotStatus.label;
+    };
+
     return (
-      <div style={{ animation: "fadeIn 0.2s ease", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ animation: "fadeIn 0.2s ease", display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* Summary chips */}
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 2 }}>
-          {[
-            { v: meetingsWeek, label: "reunion", icon: "calendar", color: BL },
-            { v: actionsOpen, label: "action", icon: "alert", color: AC },
-            { v: lotsRisk, label: "lot a risque", icon: "clock", color: lotsRisk > 0 ? RD : GR },
-            ...(alerts > 0 ? [{ v: alerts, label: "alerte", icon: "alert", color: RD }] : []),
-          ].map((s, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: WH, border: `1px solid ${SBB}`, borderRadius: 8, flexShrink: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.v}</span>
-              <span style={{ fontSize: 9, color: TX3, whiteSpace: "nowrap" }}>{s.label}{s.v !== 1 ? "s" : ""}</span>
-            </div>
-          ))}
+        {/* Period switch — centered, prominent */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <div style={{ display: "flex", background: SB, borderRadius: 10, padding: 3, gap: 3, border: `1px solid ${SBB}` }}>
+            {[{ id: "today", label: "Jour" }, { id: "week", label: "Semaine" }, { id: "month", label: "À venir" }].map(v => (
+              <button key={v.id} onClick={() => { setViewMode(v.id); setWeekOffset(0); }} style={{ padding: "9px 22px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: viewMode === v.id ? 700 : 500, cursor: "pointer", fontFamily: "inherit", background: viewMode === v.id ? WH : "transparent", color: viewMode === v.id ? AC : TX3, boxShadow: viewMode === v.id ? "0 2px 6px rgba(0,0,0,0.08)" : "none", transition: "all 0.12s" }}>{v.label}</button>
+            ))}
+          </div>
         </div>
 
-        {/* Period switch */}
-        <div style={{ display: "flex", background: SB, borderRadius: 8, padding: 2, gap: 2 }}>
-          {[{ id: "today", label: "Aujourd'hui" }, { id: "week", label: "Semaine" }, { id: "month", label: "A venir" }].map(v => (
-            <button key={v.id} onClick={() => { setViewMode(v.id); setWeekOffset(0); }} style={{ flex: 1, padding: "7px 4px", border: "none", borderRadius: 6, fontSize: 11, fontWeight: viewMode === v.id ? 700 : 500, cursor: "pointer", fontFamily: "inherit", background: viewMode === v.id ? WH : "transparent", color: viewMode === v.id ? TX : TX3, boxShadow: viewMode === v.id ? "0 1px 3px rgba(0,0,0,0.06)" : "none", transition: "all 0.12s" }}>{v.label}</button>
-          ))}
-        </div>
-
-        {/* Type filter chips — horizontal scroll */}
-        <div style={{ display: "flex", gap: 5, overflowX: "auto", scrollbarWidth: "none" }}>
+        {/* Filter chips — centered */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 6 }}>
           {[
             { id: "all", label: "Tous", color: TX },
-            { id: "meeting", label: "Reunions", color: BL },
+            { id: "meeting", label: "Réunions", color: BL },
             { id: "action", label: "Actions", color: AC },
             { id: "lot", label: "Lots", color: GR },
             { id: "alert", label: "Alertes", color: RD },
           ].map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", border: `1px solid ${filter === f.id ? f.color + "40" : SBB}`, borderRadius: 16, background: filter === f.id ? f.color + "10" : WH, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, transition: "all 0.1s" }}>
-              <div style={{ width: 5, height: 5, borderRadius: "50%", background: f.color, opacity: filter === f.id ? 1 : 0.4 }} />
-              <span style={{ fontSize: 10, fontWeight: filter === f.id ? 600 : 500, color: filter === f.id ? f.color : TX3 }}>{f.label}</span>
+            <button key={f.id} onClick={() => setFilter(f.id)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", border: `1px solid ${filter === f.id ? f.color + "40" : SBB}`, borderRadius: 14, background: filter === f.id ? f.color + "10" : WH, cursor: "pointer", fontFamily: "inherit" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: f.color, opacity: filter === f.id ? 1 : 0.3 }} />
+              <span style={{ fontSize: 11, fontWeight: filter === f.id ? 700 : 500, color: filter === f.id ? f.color : TX3 }}>{f.label}</span>
             </button>
           ))}
         </div>
 
         {/* Agenda list */}
         {grouped.length === 0 ? (
-          <div style={{ padding: "40px 0", textAlign: "center" }}>
-            <Ico name="calendar" size={24} color={SBB} />
-            <div style={{ fontSize: 12, color: TX3, marginTop: 8 }}>Aucun evenement {viewMode === "today" ? "aujourd'hui" : viewMode === "week" ? "cette semaine" : "a venir"}</div>
+          <div style={{ padding: "32px 0", textAlign: "center" }}>
+            <Ico name="calendar" size={22} color={SBB} />
+            <div style={{ fontSize: 12, color: TX3, marginTop: 6 }}>
+              {viewMode === "today" ? "Rien de prevu aujourd'hui" : viewMode === "week" ? "Aucun evenement cette semaine" : "Rien a venir pour le moment"}
+            </div>
+            <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>
+              {filter !== "all" ? "Essayez un autre filtre" : "Vos reunions et actions apparaitront ici"}
+            </div>
           </div>
         ) : grouped.map((group, gi) => (
           <div key={gi}>
             {/* Day header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0 4px" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: isSameDay(group.date, today) ? AC : TX, textTransform: "capitalize" }}>{dayLabel(group.date)}</span>
-              <div style={{ flex: 1, height: 1, background: SBB }} />
-              <span style={{ fontSize: 9, color: TX3 }}>{group.events.length}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 0 3px" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: isSameDay(group.date, today) ? AC : TX, textTransform: "capitalize" }}>{dayLabel(group.date)}</span>
+              <div style={{ flex: 1, height: 1, background: isSameDay(group.date, today) ? AC + "30" : SBB }} />
+              <span style={{ fontSize: 9, color: TX3 }}>{group.events.length} elem.</span>
             </div>
             {/* Events */}
             {group.events.map((ev, ei) => (
-              <button key={ei} onClick={() => setMobileDetail(ev)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", background: WH, border: `1px solid ${SBB}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", marginBottom: 4, borderLeft: `3px solid ${ev.color}`, transition: "all 0.1s" }}>
-                <Ico name={typeIcon[ev.type] || "file"} size={14} color={ev.color} />
+              <button key={ei} onClick={() => setMobileDetail(ev)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: WH, border: `1px solid ${SBB}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", marginBottom: 6, borderLeft: `3px solid ${ev.color}` }}>
+                <Ico name={typeIcon[ev.type] || "file"} size={13} color={ev.color} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
-                  <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>{ev.project.name}{ev.who ? ` · ${ev.who}` : ""}{ev.contractor ? ` · ${ev.contractor}` : ""}</div>
+                  <div style={{ fontSize: 9, color: TX3, marginTop: 1, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span>{ev.project.name}</span>
+                    {ev.who && <><span style={{ color: SBB }}>·</span><span>{ev.who}</span></>}
+                    {ev.type === "lot" && <><span style={{ color: SBB }}>·</span><span style={{ color: ev.lotStatus?.id === "delayed" ? RD : ev.color, fontWeight: 600 }}>{lotContext(ev)}</span></>}
+                  </div>
                 </div>
-                {ev.urgent && <div style={{ width: 6, height: 6, borderRadius: "50%", background: RD, flexShrink: 0 }} />}
-                {ev.lotStatus && <span style={{ fontSize: 8, fontWeight: 600, color: ev.lotStatus.color, background: ev.lotStatus.bg, padding: "1px 5px", borderRadius: 3, flexShrink: 0 }}>{ev.lotStatus.label}</span>}
-                <Ico name="arrowr" size={9} color={TX3} />
+                {ev.urgent && <div style={{ width: 5, height: 5, borderRadius: "50%", background: RD, flexShrink: 0 }} />}
+                {ev.lotStatus && ev.lotStatus.id === "delayed" && <span style={{ fontSize: 7, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "1px 4px", borderRadius: 3, flexShrink: 0 }}>!</span>}
+                <Ico name="arrowr" size={8} color={SBB} />
               </button>
             ))}
           </div>
@@ -9303,7 +9312,7 @@ function ProfileView({ profile, onSave }) {
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
-      <div className="ap-profile-mobile" style={{ maxWidth: 480, margin: "0 auto", padding: `0 ${SP.lg}px`, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
+      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: "0 5%", display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
         {/* Avatar + Name — centered */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 14, flexShrink: 0 }}>
           <div style={{ position: "relative", marginBottom: 6 }}>
@@ -11044,7 +11053,7 @@ export default function App() {
               <div style={{ display: "flex", background: SB, borderRadius: 10, padding: 3, gap: 3 }}>
                 {["projects", "dashboard"].map(tab => {
                   const isActive = pickerTab === tab;
-                  const label = tab === "projects" ? "Projets" : "Dashboard";
+                  const label = tab === "projects" ? "Projets" : "Pilotage";
                   const icon = tab === "projects" ? "building" : "chart";
                   return (
                     <button key={tab} onClick={() => setPickerTab(tab)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 10px", borderRadius: 8, background: isActive ? WH : "transparent", boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none", border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
@@ -11098,37 +11107,23 @@ export default function App() {
               </>
             )}
 
-            {/* Tab: Dashboard */}
+            {/* Tab: Pilotage */}
             {pickerTab === "dashboard" && (
-              <div style={{ flex: 1, overflowY: "auto", padding: `0 ${SP.lg}px ${SP.lg}px` }}>
-                {/* Quick stats */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                  {[
-                    { label: "Projets actifs", value: activeProjects.length, icon: "building", color: TX },
-                    { label: "Actions urgentes", value: projects.reduce((s, p) => s + (p.actions || []).filter(a => a.open && a.urgent).length, 0), icon: "alert", color: RD },
-                    { label: "PV brouillons", value: projects.reduce((s, p) => s + (p.pvHistory || []).filter(pv => !pv.status || pv.status === "draft" || pv.status === "review").length, 0), icon: "edit", color: AC },
-                    { label: "Lots en retard", value: projects.reduce((s, p) => s + (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").length, 0), icon: "clock", color: RD },
-                  ].map((k, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: SB, borderRadius: 8 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 7, background: WH, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <Ico name={k.icon} size={12} color={k.value > 0 ? k.color : TX3} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: k.value > 0 ? k.color : TX3, lineHeight: 1 }}>{k.value}</div>
-                        <div style={{ fontSize: 9, color: TX3 }}>{k.label}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* CTAs */}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => { setProjectPicker(false); setView("stats"); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 12px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    <Ico name="chart" size={14} color="#fff" />Dashboard
-                  </button>
-                  <button onClick={() => { setProjectPicker(false); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 12px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    <Ico name="calendar" size={14} color={AC} />Planning
-                  </button>
-                </div>
+              <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, display: "flex", gap: 8 }}>
+                <button onClick={() => { setProjectPicker(false); setView("stats"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: ACL, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="chart" size={18} color={AC} />
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Dashboard</div>
+                  <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Vue globale</div>
+                </button>
+                <button onClick={() => { setProjectPicker(false); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: BLB, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="calendar" size={18} color={BL} />
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Planning</div>
+                  <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Coordination</div>
+                </button>
               </div>
             )}
           </div>
