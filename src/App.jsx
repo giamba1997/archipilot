@@ -9441,7 +9441,7 @@ function ProfileView({ profile, onSave }) {
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
-      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: 0, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflow: "hidden" }}>
+      <div className="ap-profile-mobile" style={{ maxWidth: "100%", margin: 0, padding: 0, display: "flex", flexDirection: "column", height: "calc(100dvh - 52px - 88px)", justifyContent: "center", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
         {/* Avatar + Name — centered */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16, flexShrink: 0 }}>
           <div style={{ position: "relative", marginBottom: 8 }}>
@@ -9497,11 +9497,50 @@ function ProfileView({ profile, onSave }) {
             <div onClick={e => e.stopPropagation()} style={{ position: "relative", background: WH, borderRadius: "20px 20px 0 0", maxHeight: "85vh", overflowY: "auto", animation: "sheetUp 0.25s ease-out", padding: `${SP.xl}px ${SP.lg}px`, paddingBottom: `max(${SP.xl}px, env(safe-area-inset-bottom, 20px))` }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: `0 auto ${SP.lg}px` }} />
 
-              {mobileSection === "plan" && (
+              {mobileSection === "plan" && (() => {
+                const curPlan = form.plan || "free";
+                const planList = [
+                  { ...PLANS.free, features: ["1 projet", "3 PV / mois", "3 IA / mois"] },
+                  { ...PLANS.pro, popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email", "Galerie photos", "Planning & Lots", "3 collabs / projet"] },
+                  { ...PLANS.team, features: ["Tout le Pro", "Collabs illimités", "Rôles & permissions", "Dashboard complet", "Export CSV", "PDF logo"] },
+                ];
+                return (
                 <div style={{ padding: "0 4px" }}>
-                  <PricingSection currentPlan={form.plan || "free"} onSelectPlan={(p) => { set("plan")(p); onSave({ ...form, plan: p }); setSaved(true); setTimeout(() => setSaved(false), 2500); setMobileSection(null); }} />
+                  <div style={{ fontSize: FS.lg + 1, fontWeight: 700, color: TX, marginBottom: 4 }}>Abonnement</div>
+                  <div style={{ fontSize: FS.sm, color: TX3, marginBottom: 14 }}>Plan actuel : <strong style={{ color: AC }}>{PLANS[curPlan]?.label}</strong></div>
+
+                  {/* Plan toggle */}
+                  <div style={{ display: "flex", background: SB, borderRadius: 10, padding: 3, gap: 3, marginBottom: 14 }}>
+                    {planList.map(p => (
+                      <button key={p.id} onClick={() => set("plan")(p.id)} style={{ flex: 1, padding: "8px 4px", border: "none", borderRadius: 8, fontSize: 12, fontWeight: curPlan === p.id ? 700 : 500, cursor: "pointer", fontFamily: "inherit", background: curPlan === p.id ? WH : "transparent", color: curPlan === p.id ? AC : TX3, boxShadow: curPlan === p.id ? "0 1px 3px rgba(0,0,0,0.06)" : "none", transition: "all 0.12s" }}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Selected plan details */}
+                  {(() => { const p = planList.find(pl => pl.id === curPlan) || planList[0]; return (
+                    <div style={{ background: WH, border: `1px solid ${p.popular ? AC : SBB}`, borderRadius: 12, padding: "16px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 10 }}>
+                        <span style={{ fontSize: 28, fontWeight: 800, color: TX }}>{p.price}€</span>
+                        <span style={{ fontSize: 12, color: TX3 }}>/mois</span>
+                        {p.popular && <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: AC, background: ACL, padding: "2px 8px", borderRadius: 8, marginLeft: 6 }}>Populaire</span>}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+                        {p.features.map((f, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: TX2 }}>
+                            <Ico name="check" size={11} color={GR} />{f}
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => { onSave({ ...form, plan: curPlan }); setSaved(true); setTimeout(() => setSaved(false), 2500); setMobileSection(null); }} style={{ width: "100%", padding: "11px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                        Confirmer ce plan
+                      </button>
+                    </div>
+                  ); })()}
                 </div>
-              )}
+                );
+              })()}
 
               {mobileSection === "info" && (
                 <>
