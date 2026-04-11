@@ -1130,8 +1130,8 @@ function MobileBottomBar({ view, onNavigate, onCapture }) {
   const Tab = ({ id, icon, label }) => {
     const active = isActive(id);
     return (
-      <button onClick={() => onNavigate(id)} aria-label={label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 3, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", padding: "0 0 8px", borderRadius: 0, transition: "color 0.15s", minHeight: 48, position: "relative" }}>
-        {active && <div style={{ position: "absolute", top: 2, left: "50%", transform: "translateX(-50%)", width: 20, height: 3, borderRadius: 2, background: AC }} />}
+      <button onClick={() => onNavigate(id)} aria-label={label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 3, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", padding: "0 0 5px", borderRadius: 0, transition: "color 0.15s", minHeight: 48, position: "relative" }}>
+        {active && <div style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 20, height: 3, borderRadius: 2, background: AC }} />}
         <Ico name={icon} size={23} color={active ? AC : TAB_MUTED} />
         <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? AC : TAB_MUTED, lineHeight: 1, textAlign: "center", width: "100%" }}>{label}</span>
       </button>
@@ -1140,9 +1140,9 @@ function MobileBottomBar({ view, onNavigate, onCapture }) {
   return (
     <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {/* Background shape — full width, deep bump hugging the 56px circle */}
-      <svg style={{ position: "absolute", top: -32, left: 0, width: "100%", height: "calc(100% + 32px)", pointerEvents: "none", filter: "drop-shadow(0 -1px 3px rgba(0,0,0,0.06))" }} viewBox="0 0 400 94" preserveAspectRatio="none">
-        <path d="M0,32 L150,32 C158,32 162,31 167,26 C173,18 180,4 200,4 C220,4 227,18 233,26 C238,31 242,32 250,32 L400,32 L400,94 L0,94 Z" fill={WH} />
-        <path d="M0,32 L150,32 C158,32 162,31 167,26 C173,18 180,4 200,4 C220,4 227,18 233,26 C238,31 242,32 250,32 L400,32" fill="none" stroke={SBB} strokeWidth="0.7" />
+      <svg style={{ position: "absolute", top: -36, left: 0, width: "100%", height: "calc(100% + 36px)", pointerEvents: "none", filter: "drop-shadow(0 -1px 3px rgba(0,0,0,0.06))" }} viewBox="0 0 400 98" preserveAspectRatio="none">
+        <path d="M0,36 L140,36 C150,36 155,35 160,30 C168,20 177,2 200,2 C223,2 232,20 240,30 C245,35 250,36 260,36 L400,36 L400,98 L0,98 Z" fill={WH} />
+        <path d="M0,36 L140,36 C150,36 155,35 160,30 C168,20 177,2 200,2 C223,2 232,20 240,30 C245,35 250,36 260,36 L400,36" fill="none" stroke={SBB} strokeWidth="0.7" />
       </svg>
       <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: 60, padding: "0 4px" }}>
         {/* Left tabs */}
@@ -3955,18 +3955,8 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
     <div className="ap-note-container" data-mobile-step={mobileStep} style={{ maxWidth: 960, margin: "0 auto", paddingBottom: 32 }}>
 
       {/* ── Mobile top bar — back + stepper ── */}
-      <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "6px 0 4px", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Back button */}
-          <button
-            onClick={() => mobileStep === 0 ? onBack() : setMobileStep(mobileStep === 2 && project.participants.length === 0 ? 0 : mobileStep - 1)}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, minWidth: 28, minHeight: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, flexShrink: 0 }}
-          >
-            <Ico name="back" color={TX2} size={16} />
-          </button>
-
-          {/* Step indicators — all labels visible */}
-          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 0 }}>
+      <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "8px 0 10px", flexShrink: 0, borderBottom: `1px solid ${SB2}`, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
             {stepsData.map((s, i) => {
               const isDone = s.done;
               const isActive = i === mobileStep;
@@ -3974,20 +3964,19 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
                 <div key={s.step} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
                   <div
                     onClick={() => setMobileStep(i)}
-                    style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", flex: 1, minWidth: 0 }}
+                    style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", flex: 1, minWidth: 0, padding: "3px 4px", borderRadius: 6, background: isActive ? ACL : "transparent", transition: "all 0.15s" }}
                   >
-                    <div style={{ width: 20, height: 20, borderRadius: "50%", background: isDone ? AC : isActive ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
-                      {isDone ? <Ico name="check" size={8} color="#fff" /> : <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "#fff" : TX3 }}>{s.step}</span>}
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", background: isDone ? AC : isActive ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                      {isDone ? <Ico name="check" size={9} color="#fff" /> : <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "#fff" : TX3 }}>{s.step}</span>}
                     </div>
                     <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? TX : isDone ? AC : TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
                   </div>
                   {i < stepsData.length - 1 && (
-                    <div style={{ width: 20, height: 1.5, background: isDone ? AC : SBB, borderRadius: 1, flexShrink: 0, margin: "0 2px" }} />
+                    <div style={{ width: 12, height: 2, background: isDone ? AC : SBB, borderRadius: 1, flexShrink: 0, margin: "0 2px" }} />
                   )}
                 </div>
               );
             })}
-          </div>
         </div>
       </div>
 
@@ -10402,8 +10391,8 @@ export default function App() {
           .ap-note-container {
             display: flex !important;
             flex-direction: column !important;
-            height: calc(100dvh - 52px - 88px) !important;
-            max-height: calc(100dvh - 52px - 88px) !important;
+            height: calc(100dvh - 52px - 72px) !important;
+            max-height: calc(100dvh - 52px - 72px) !important;
             overflow: hidden !important;
             padding: 0 8px !important;
             margin: 0 !important;
@@ -10427,10 +10416,11 @@ export default function App() {
           }
           .ap-note-step-content {
             flex: 1 1 0 !important;
-            overflow: hidden !important;
+            overflow-y: auto !important;
             min-height: 0 !important;
             display: flex !important;
             flex-direction: column !important;
+            -webkit-overflow-scrolling: touch;
           }
           .ap-section-card {
             flex: 1 1 0 !important;
@@ -10445,7 +10435,7 @@ export default function App() {
           .ap-note-step-nav {
             display: block !important;
             flex-shrink: 0;
-            padding: 8px 0 0;
+            padding: 8px 0 6px;
           }
           /* Method chooser — cards are horizontal on mobile, no need to compact */
           /* Post list — compact rows + scrollable */
