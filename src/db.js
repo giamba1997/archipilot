@@ -301,39 +301,53 @@ export async function respondToInvitation(memberId, accept) {
 
 export async function loadSharedProjects() {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+  if (!user) { console.log("[Shared] No user"); return []; }
+  console.log("[Shared] User:", user.id, user.email);
 
   // Get all accepted memberships
   const { data: memberships, error: mErr } = await supabase
     .from("project_members")
-    .select("project_id, owner_id, role")
+    .select("project_id, owner_id, role, status, user_id, invited_email")
     .eq("user_id", user.id)
     .eq("status", "accepted");
 
-  if (mErr || !memberships?.length) return [];
+  console.log("[Shared] Memberships query:", { memberships, error: mErr });
+
+  // Also check if there are any memberships at all for this email (even pending)
+  const { data: allByEmail } = await supabase
+    .from("project_members")
+    .select("id, project_id, owner_id, role, status, user_id, invited_email")
+    .eq("invited_email", user.email?.toLowerCase());
+  console.log("[Shared] All memberships by email:", allByEmail);
+
+  if (mErr || !memberships?.length) { console.log("[Shared] No accepted memberships found"); return []; }
 
   // Group by owner
   const ownerIds = [...new Set(memberships.map(m => m.owner_id))];
   const shared = [];
 
   for (const ownerId of ownerIds) {
-    const { data: ownerData } = await supabase
+    console.log("[Shared] Loading user_data for owner:", ownerId);
+    const { data: ownerData, error: odErr } = await supabase
       .from("user_data")
       .select("projects")
       .eq("user_id", ownerId)
       .single();
 
+    console.log("[Shared] Owner data:", { hasProjects: !!ownerData?.projects, projectCount: ownerData?.projects?.length, error: odErr });
     if (!ownerData?.projects) continue;
 
     const ownerMemberships = memberships.filter(m => m.owner_id === ownerId);
     for (const mem of ownerMemberships) {
       const project = ownerData.projects.find(p => String(p.id) === String(mem.project_id));
+      console.log("[Shared] Matching project_id:", mem.project_id, "found:", !!project);
       if (project) {
         shared.push({ ...project, _shared: true, _ownerId: ownerId, _role: mem.role });
       }
     }
   }
 
+  console.log("[Shared] Final result:", shared.length, "projects");
   return shared;
 }
 
