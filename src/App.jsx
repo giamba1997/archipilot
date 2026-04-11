@@ -9845,7 +9845,7 @@ export default function App() {
           .plan-file-row:active { background: ${SB} !important; }
 
           /* Content area tighter padding */
-          .ap-content { padding: 6px !important; max-width: 100% !important; margin: 0 !important; }
+          .ap-content { padding: 14px 5% 0 !important; max-width: 100% !important; margin: 0 !important; width: 100% !important; box-sizing: border-box !important; }
 
           /* Overview: single column */
           .ap-overview-grid { flex-direction: column !important; }
@@ -9980,7 +9980,9 @@ export default function App() {
           .ap-quick-tools { display: none !important; }
           .ap-mobile-quickstats { display: none !important; }
           .ap-cta-newpv { padding: 12px 16px !important; font-size: 13px !important; border-radius: 10px !important; }
-          .ap-overview-wrap { max-width: 100% !important; margin: 0 !important; }
+          .ap-overview-wrap { max-width: 100% !important; margin: 0 !important; width: 100% !important; }
+          .ap-mobile-dashboard { width: 100% !important; }
+          .ap-cta-newpv { width: 100% !important; box-sizing: border-box !important; }
           .ap-info-grid { grid-template-columns: 1fr !important; gap: ${SP.md}px !important; }
           .ap-admin-actions { flex-direction: column !important; }
           .ap-admin-actions button { width: 100% !important; justify-content: center !important; padding: ${SP.sm + 2}px ${SP.lg}px !important; }
