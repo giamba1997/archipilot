@@ -498,3 +498,29 @@ export async function loadPvReads(pvId) {
   if (error) { console.error("loadPvReads error:", error); return []; }
   return data || [];
 }
+
+// ── Analytics ─────────────────────────────────────────────
+
+let _sessionId = null;
+function getSessionId() {
+  if (!_sessionId) _sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return _sessionId;
+}
+
+export async function track(event, properties = {}) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const device = typeof window !== "undefined" && window.innerWidth < 768 ? "mobile" : "desktop";
+    await supabase.from("analytics_events").insert({
+      user_id: user.id,
+      event,
+      properties,
+      device,
+      page: properties._page || "",
+      session_id: getSessionId(),
+    });
+  } catch (e) {
+    // Non-blocking — never break the app for analytics
+  }
+}

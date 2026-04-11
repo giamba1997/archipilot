@@ -36,7 +36,7 @@ class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track } from "./db";
 
 // ── Design Tokens ──────────────────────────────────────────
 // Colors
@@ -1646,6 +1646,7 @@ function CollabModal({ project, ownerId, onClose, showToast, profile }) {
     if (res.error) { setError(res.error); return; }
     setEmail("");
     showToast(t("collab.inviteSent"));
+    track("invite_sent", { role, project_name: project.name, _page: "collab" });
     loadProjectMembers(String(project.id), ownerId).then(setMembers);
   };
 
@@ -6282,6 +6283,7 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
     })).filter(po => po.remarks.length > 0 || po.notes.trim());
 
     setSavedPvNum(pvNum);
+    track("pv_generated", { pv_number: pvNum, project_name: project.name, _page: "result" });
     setProjects((prev) => prev.map((p) => p.id === project.id ? {
       ...p,
       pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: result.slice(0, 100) + "...", content: result, inputNotes, status: "draft" }, ...p.pvHistory],
@@ -9533,7 +9535,7 @@ function ProfileView({ profile, onSave }) {
                           </div>
                         ))}
                       </div>
-                      <button onClick={() => { onSave({ ...form, plan: curPlan }); setSaved(true); setTimeout(() => setSaved(false), 2500); setMobileSection(null); }} style={{ width: "100%", padding: "11px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      <button onClick={() => { onSave({ ...form, plan: curPlan }); setSaved(true); setTimeout(() => setSaved(false), 2500); setMobileSection(null); track("plan_selected", { plan: curPlan, _page: "profile" }); }} style={{ width: "100%", padding: "11px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                         Confirmer ce plan
                       </button>
                     </div>
@@ -10223,7 +10225,8 @@ export default function App() {
   const [projects, setProjects] = useState(INIT_PROJECTS);
   const [activeId, setActiveId] = useState(1);
   const [dbLoaded, setDbLoaded] = useState(false);
-  const [view, setView] = useState("overview");
+  const [view, _setView] = useState("overview");
+  const setView = (v) => { _setView(v); track("page_viewed", { _page: v }); };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);
@@ -10280,6 +10283,7 @@ export default function App() {
         if (cloudProfile) setProfile(cloudProfile);
       } catch (e) { console.error("Initial load error:", e); }
       setDbLoaded(true);
+      track("login", { _page: "app" });
       // Load collaboration data (non-blocking)
       loadSharedProjects().then(setSharedProjects).catch(() => {});
       loadNotifications().then(setNotifications).catch(() => {});
@@ -10396,6 +10400,7 @@ export default function App() {
     setProjects((prev) => [...prev, { id, ...newP, address, progress: 0, bureau: profile.structure, endDate: "", nextMeeting: "", archived: false, participants: [{ role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone }], posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }], pvHistory: [], actions: [], planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [], customFields: [] }]);
     setActiveId(id); setView("overview"); setModal(null);
     setNewP({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none" });
+    track("project_created", { project_name: newP.name, _page: "overview" });
   };
 
   const duplicateProject = () => {
@@ -10795,7 +10800,7 @@ export default function App() {
                       {t("notif.invite", { actor: inv.invited_name || "Quelqu'un", project: inv.project_id })}
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={async () => { await respondToInvitation(inv.id, true); setInvitations(prev => prev.filter(i => i.id !== inv.id)); showToast("Invitation acceptée"); setTimeout(() => loadSharedProjects().then(sp => { console.log("Shared projects loaded:", sp.length, sp); setSharedProjects(sp); }), 500); }} style={{ padding: "5px 14px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.accept")}</button>
+                      <button onClick={async () => { await respondToInvitation(inv.id, true); setInvitations(prev => prev.filter(i => i.id !== inv.id)); showToast("Invitation acceptée"); track("invite_accepted", { _page: "notifications" }); setTimeout(() => loadSharedProjects().then(sp => { console.log("Shared projects loaded:", sp.length, sp); setSharedProjects(sp); }), 500); }} style={{ padding: "5px 14px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.accept")}</button>
                       <button onClick={async () => { await respondToInvitation(inv.id, false); setInvitations(prev => prev.filter(i => i.id !== inv.id)); }} style={{ padding: "5px 14px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX2, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{t("collab.decline")}</button>
                     </div>
                   </div>
@@ -11152,6 +11157,7 @@ export default function App() {
                 pvHistory: p.pvHistory.map(pv => String(pv.number) === String(modalData.number) ? { ...pv, status: "sent" } : pv),
               } : p));
               showToast(`PV envoyé à ${to.length} destinataire${to.length > 1 ? "s" : ""}`);
+              track("pv_sent", { recipients: to.length, _page: "viewpv" });
             }}
           />
         )}
@@ -11354,6 +11360,7 @@ export default function App() {
             const dataUrl = ev.target.result;
             const photoId = Date.now() + Math.random();
             setProjects(prev => prev.map(p => p.id === activeId ? { ...p, gallery: [...(p.gallery || []), { id: photoId, dataUrl, date: new Date().toISOString() }] } : p));
+            track("photo_captured", { _page: "gallery" });
             if (navigator.onLine) {
               const result = await uploadPhoto(dataUrl);
               if (result) {
