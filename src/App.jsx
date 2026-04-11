@@ -3642,7 +3642,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
           if (result) {
             setProjects((prev) => prev.map((p) => p.id === project.id ? {
               ...p, posts: p.posts.map((po) => po.id === postId ? {
-                ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath, dataUrl: undefined } : ph)
+                ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph)
               } : po)
             } : p));
           }
@@ -3682,7 +3682,7 @@ function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
       // Update with new URL
       setProjects((prev) => prev.map((p) => p.id === project.id ? {
         ...p, posts: p.posts.map((po) => po.id === postId ? {
-          ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath, dataUrl: undefined } : ph)
+          ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph)
         } : po)
       } : p));
     }
@@ -4843,29 +4843,12 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
     let pdfFileName = null;
     if (includePdf) {
       try {
-        const { jsPDF } = await import("jspdf");
-        const doc = new jsPDF({ unit: "mm", format: "a4" });
-        const margin = 15;
-        const pageW = doc.internal.pageSize.getWidth();
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(16);
-        doc.setTextColor(217, 123, 13);
-        doc.text(`PV n°${pvNumber} — ${project.name}`, margin, 20);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(30, 30, 27);
-        doc.text(`Date : ${pvDate}  |  Rédigé par : ${profile.name}`, margin, 28);
-        doc.line(margin, 32, pageW - margin, 32);
-        doc.setFontSize(10);
-        const lines = doc.splitTextToSize(pvContent || "", pageW - margin * 2);
-        let y = 38;
-        for (const line of lines) {
-          if (y > 280) { doc.addPage(); y = 15; }
-          doc.text(line, margin, y);
-          y += 5;
+        await import("jspdf"); // ensure jsPDF is loaded
+        const res = await generatePDF(project, pvNumber, pvDate, pvContent, profile, { returnDataUrl: true });
+        if (res?.dataUrl) {
+          pdfBase64 = res.dataUrl.split(",")[1];
+          pdfFileName = res.fileName;
         }
-        pdfBase64 = doc.output("datauristring").split(",")[1];
-        pdfFileName = `PV-${pvNumber}-${project.name.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.pdf`;
       } catch (e) {
         console.error("PDF generation for email failed:", e);
       }
@@ -4877,7 +4860,7 @@ function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, o
       pvNumber,
       pvDate,
       pvContent,
-      authorName: profile.name,
+      authorName: profile.name || profile.email || "L'architecte",
       structureName: profile.structure,
       pdfBase64,
       pdfFileName,
@@ -5832,7 +5815,7 @@ function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecip
                 // Update PV status to "sent"
                 setProjects(prev => prev.map(p => p.id === project.id ? {
                   ...p,
-                  pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: "sent" } : pv),
+                  pvHistory: p.pvHistory.map(pv => String(pv.number) === String(pvNum) ? { ...pv, status: "sent" } : pv),
                 } : p));
               }}
             />
@@ -10474,7 +10457,7 @@ export default function App() {
             onSent={(to) => {
               setProjects(prev => prev.map(p => p.id === project.id ? {
                 ...p,
-                pvHistory: p.pvHistory.map(pv => pv.number === modalData.number ? { ...pv, status: "sent" } : pv),
+                pvHistory: p.pvHistory.map(pv => String(pv.number) === String(modalData.number) ? { ...pv, status: "sent" } : pv),
               } : p));
               showToast(`PV envoyé à ${to.length} destinataire${to.length > 1 ? "s" : ""}`);
             }}

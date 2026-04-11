@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const APP_URL = Deno.env.get("APP_URL") || "https://archipilot.app";
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archipilot.app>";
+const APP_URL = Deno.env.get("APP_URL") || "https://archipilot-delta.vercel.app";
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archi-pilot.com>";
 
 serve(async (req) => {
   // CORS
@@ -20,17 +17,6 @@ serve(async (req) => {
   }
 
   try {
-    // Verify auth
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization");
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // Get requesting user from JWT
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) throw new Error("Unauthorized");
-
     const { email, projectName, inviterName, role } = await req.json();
     if (!email || !projectName) throw new Error("Missing required fields");
 
@@ -41,30 +27,24 @@ serve(async (req) => {
     };
 
     const html = `
-<div style="font-family: system-ui, -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-  <div style="text-align: center; margin-bottom: 32px;">
-    <div style="width: 48px; height: 48px; border-radius: 12px; background: #D97B0D; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">A</div>
-    <div style="font-size: 18px; font-weight: 700; color: #1D1D1B; margin-top: 12px;">ArchiPilot</div>
-    <div style="font-size: 12px; color: #767672; margin-top: 2px;">Gestion de chantier</div>
+<div style="font-family: system-ui, -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 20px;">
+  <div style="text-align: center; margin-bottom: 24px;">
+    <table role="presentation" style="margin: 0 auto;"><tr><td style="width: 40px; height: 40px; border-radius: 10px; background: #D97B0D; color: #fff; font-size: 18px; font-weight: 800; text-align: center; vertical-align: middle;">A</td></tr></table>
+    <div style="font-size: 18px; font-weight: 700; color: #1D1D1B; margin-top: 8px;">ArchiPilot</div>
   </div>
-
-  <div style="background: #fff; border-radius: 16px; border: 1px solid #E2E1DD; padding: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
-    <h2 style="font-size: 20px; font-weight: 700; color: #1D1D1B; text-align: center; margin: 0 0 8px;">Vous êtes invité !</h2>
-    <p style="font-size: 14px; color: #6B6B66; text-align: center; line-height: 1.6; margin: 0 0 24px;">
-      <strong style="color: #1D1D1B;">${inviterName || "Un architecte"}</strong> vous invite à collaborer sur le projet
-      <strong style="color: #1D1D1B;">${projectName}</strong> en tant que <strong style="color: #D97B0D;">${roleFr[role] || role}</strong>.
-    </p>
-    <a href="${APP_URL}" style="display: block; text-align: center; padding: 13px 20px; border-radius: 10px; background: linear-gradient(135deg, #D97B0D 0%, #C06A08 100%); color: #fff; font-size: 15px; font-weight: 700; text-decoration: none; box-shadow: 0 3px 12px rgba(217,123,13,0.25);">
-      Ouvrir ArchiPilot
-    </a>
-    <p style="font-size: 12px; color: #767672; text-align: center; margin-top: 20px;">
-      Connectez-vous pour accepter l'invitation et accéder au projet.
-    </p>
+  <h2 style="font-size: 18px; font-weight: 700; color: #1D1D1B; text-align: center; margin: 0 0 4px;">Vous êtes invité</h2>
+  <p style="font-size: 13px; color: #767672; text-align: center; margin: 0 0 16px;">You've been invited</p>
+  <p style="font-size: 14px; color: #6B6B66; text-align: center; line-height: 1.6; margin: 0 0 4px;">
+    <strong style="color: #1D1D1B;">${inviterName || "Un architecte"}</strong> vous invite à collaborer sur le projet
+    <strong style="color: #1D1D1B;">${projectName}</strong> en tant que <strong style="color: #D97B0D;">${roleFr[role] || role}</strong>.
+  </p>
+  <p style="font-size: 12px; color: #767672; text-align: center; line-height: 1.5; margin: 0 0 20px;">
+    Click below to accept and access the project.
+  </p>
+  <div style="text-align: center; margin-bottom: 24px;">
+    <a href="${APP_URL}" style="display: inline-block; padding: 12px 32px; background: #D97B0D; color: #fff; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 8px;">Accepter l'invitation · Accept</a>
   </div>
-
-  <div style="text-align: center; margin-top: 20px; font-size: 11px; color: #767672;">
-    &copy; ${new Date().getFullYear()} ArchiPilot &middot; DEWIL architecten
-  </div>
+  <p style="font-size: 11px; color: #767672; text-align: center; word-break: break-all;">${APP_URL}</p>
 </div>`;
 
     // Send email via Resend

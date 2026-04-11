@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-const APP_URL = Deno.env.get("APP_URL") || "https://archipilot.app";
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archipilot.app>";
+const APP_URL = Deno.env.get("APP_URL") || "https://archipilot-delta.vercel.app";
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archi-pilot.com>";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 
 serve(async (req) => {
@@ -41,20 +41,20 @@ serve(async (req) => {
       ? `<img src="${SUPABASE_URL}/functions/v1/track-pv-read?pvId=${pvId}&t=${Date.now()}" width="1" height="1" style="display:none;" />`
       : "";
 
-    // Build a clean preview of the PV content (first 500 chars)
-    const preview = (pvContent || "").slice(0, 500).replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
+    // Full PV content formatted for email
+    const fullContent = (pvContent || "").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
 
     // Custom message is already HTML from the rich editor
     const messageHtml = customMessage || "";
 
     const html = `
-<div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
-  <div style="text-align: center; margin-bottom: 28px;">
-    <div style="width: 44px; height: 44px; border-radius: 11px; background: #D97B0D; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: 800;">A</div>
-    <div style="font-size: 16px; font-weight: 700; color: #1D1D1B; margin-top: 10px;">ArchiPilot</div>
+<div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 20px;">
+  <div style="text-align: center; margin-bottom: 24px;">
+    <table role="presentation" style="margin: 0 auto;"><tr><td style="width: 40px; height: 40px; border-radius: 10px; background: #D97B0D; color: #fff; font-size: 18px; font-weight: 800; text-align: center; vertical-align: middle;">A</td></tr></table>
+    <div style="font-size: 18px; font-weight: 700; color: #1D1D1B; margin-top: 8px;">ArchiPilot</div>
   </div>
 
-  <div style="background: #fff; border-radius: 16px; border: 1px solid #E2E1DD; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
+  <div style="background: #fff; border-radius: 16px; border: 1px solid #E2E1DD; padding: 24px;">
     ${messageHtml ? `<div style="font-size: 13px; line-height: 1.7; color: #1D1D1B; margin-bottom: 20px;">${messageHtml}</div><hr style="border: none; border-top: 1px solid #E2E1DD; margin-bottom: 20px;" />` : ""}
 
     <div style="text-align: center; margin-bottom: 20px;">
@@ -65,20 +65,20 @@ serve(async (req) => {
       <div style="font-size: 13px; color: #767672;">${projectName} — ${pvDate}</div>
     </div>
 
-    <div style="background: #F7F6F4; border-radius: 10px; padding: 16px; margin-bottom: 20px; font-size: 12px; line-height: 1.7; color: #1D1D1B; max-height: 300px; overflow: hidden;">
-      ${preview}${(pvContent || "").length > 500 ? '<div style="text-align: center; padding-top: 8px; font-size: 11px; color: #767672;">…</div>' : ""}
+    <div style="background: #F7F6F4; border-radius: 10px; padding: 16px; margin-bottom: 20px; font-size: 12px; line-height: 1.8; color: #1D1D1B;">
+      ${fullContent}
     </div>
 
     <div style="text-align: center; font-size: 12px; color: #6B6B66; margin-bottom: 16px;">
       Rédigé par <strong>${authorName || "l'architecte"}</strong>${structureName ? ` — ${structureName}` : ""}
     </div>
 
-    ${pdfBase64 ? '<div style="text-align: center; padding: 10px 0 4px; font-size: 12px; color: #767672;">📎 Le PV complet est joint en pièce jointe (PDF)</div>' : ""}
+    ${pdfBase64 ? '<div style="text-align: center; padding: 10px 0 4px; font-size: 12px; color: #767672;">Le PV complet est joint en pièce jointe (PDF)</div>' : ""}
   </div>
 
   <div style="text-align: center; margin-top: 20px; font-size: 11px; color: #767672;">
-    Envoyé via <strong>ArchiPilot</strong> — Gestion de chantier pour architectes<br/>
-    &copy; ${new Date().getFullYear()} DEWIL architecten
+    Envoyé via <strong>ArchiPilot</strong><br/>
+    &copy; ${new Date().getFullYear()} ArchiPilot
   </div>
   ${trackingPixel}
 </div>`;

@@ -150,6 +150,16 @@ export function AuthPage() {
     setError("");
     if (!validateFields()) return;
     setLoading(true);
+    // Check if user exists by attempting a dummy signup
+    const { data: checkData } = await supabase.auth.signUp({ email, password: "CheckOnly_000!" });
+    // If identities array is not empty, the user doesn't exist yet (new signup succeeded or was created)
+    if (checkData?.user?.identities?.length > 0) {
+      // User didn't exist — clean up by noting this, and show error
+      setLoading(false);
+      setError("Aucun compte n'est associé à cet email. Créez un compte d'abord.");
+      return;
+    }
+    // User exists (identities is empty = already registered), proceed with reset
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
@@ -204,22 +214,22 @@ export function AuthPage() {
         </div>
       )}
 
-      {/* OAuth buttons — compact */}
+      {/* OAuth buttons */}
       {mode !== "forgot" && (
-        <div style={{ marginBottom: 12 }}>
+        <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={() => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } })}
               onMouseEnter={() => setHovered("google")}
               onMouseLeave={() => setHovered(null)}
               style={{
-                flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8,
+                flex: 1, padding: "11px 14px", border: `1px solid ${SBB}`, borderRadius: 10,
                 background: hovered === "google" ? SB : WH, cursor: "pointer", fontFamily: "inherit",
-                fontSize: 12, fontWeight: 500, color: TX2, display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 7, transition: "all 0.15s",
+                fontSize: 13, fontWeight: 500, color: TX2, display: "flex", alignItems: "center",
+                justifyContent: "center", gap: 8, transition: "all 0.15s",
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
               Google
             </button>
             <button
@@ -227,20 +237,20 @@ export function AuthPage() {
               onMouseEnter={() => setHovered("apple")}
               onMouseLeave={() => setHovered(null)}
               style={{
-                flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8,
+                flex: 1, padding: "11px 14px", border: `1px solid ${SBB}`, borderRadius: 10,
                 background: hovered === "apple" ? "#2A2A28" : TX, cursor: "pointer", fontFamily: "inherit",
-                fontSize: 12, fontWeight: 500, color: WH, display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 7, transition: "all 0.15s",
+                fontSize: 13, fontWeight: 500, color: WH, display: "flex", alignItems: "center",
+                justifyContent: "center", gap: 8, transition: "all 0.15s",
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
               Apple
             </button>
           </div>
           {/* Separator */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "14px 0 0" }}>
             <div style={{ flex: 1, height: 1, background: SBB }} />
-            <span style={{ fontSize: 10, color: TX3, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>ou par email</span>
+            <span style={{ fontSize: 11, color: TX3, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>ou par email</span>
             <div style={{ flex: 1, height: 1, background: SBB }} />
           </div>
         </div>
@@ -333,7 +343,7 @@ export function AuthPage() {
 
         {/* Forgot password link */}
         {mode === "login" && (
-          <div style={{ textAlign: "right", marginBottom: 10, marginTop: -2 }}>
+          <div style={{ textAlign: "right", marginBottom: 14, marginTop: -4 }}>
             <button
               type="button"
               onClick={() => { reset(); setMode("forgot"); }}
@@ -360,7 +370,7 @@ export function AuthPage() {
           onMouseEnter={() => !loading && setHovered("submit")}
           onMouseLeave={() => setHovered(null)}
           style={{
-            width: "100%", padding: "11px 20px", border: "none", borderRadius: 10,
+            width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
             background: loading ? "#D3D1C7" : hovered === "submit"
               ? "linear-gradient(135deg, #C06A08 0%, #A85A06 100%)"
               : `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
@@ -381,7 +391,7 @@ export function AuthPage() {
       </form>
 
       {/* Switch mode — text link only */}
-      <div style={{ textAlign: "center", marginTop: 12 }}>
+      <div style={{ textAlign: "center", marginTop: 16 }}>
         {mode === "login" && (
           <span style={{ fontSize: 12, color: TX3 }}>
             Pas encore de compte ?{" "}
@@ -426,7 +436,7 @@ export function AuthPage() {
 // ── Field Group with inline error ──────────────────────────
 function FieldGroup({ label, error, children }) {
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginBottom: 14 }}>
       <label style={labelStyle}>{label}</label>
       {children}
       {error && (
@@ -764,34 +774,34 @@ function PageShell({ children }) {
         }
         .auth-input::placeholder { color: #A8A8A3; }
       `}</style>
-      <div style={{ width: "100%", maxWidth: 380 }}>
+      <div style={{ width: "100%", maxWidth: 440 }}>
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 20 }}>
           <div style={{
-            width: 34, height: 34, borderRadius: 9, background: AC,
+            width: 40, height: 40, borderRadius: 10, background: AC,
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontSize: 16, fontWeight: 800, letterSpacing: "-0.5px",
+            color: "#fff", fontSize: 19, fontWeight: 800, letterSpacing: "-0.5px",
             boxShadow: "0 2px 8px rgba(217,123,13,0.25)", flexShrink: 0,
           }}>A</div>
-          <span style={{ fontSize: 17, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>ArchiPilot</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>ArchiPilot</span>
         </div>
 
         {/* Value props */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 28, marginBottom: 20 }}>
           {benefits.map((b, i) => (
-            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={AC} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={AC} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d={b.icon} />
               </svg>
-              <span style={{ fontSize: 9, color: TX3, fontWeight: 500, whiteSpace: "nowrap", textAlign: "center" }}>{b.label}</span>
+              <span style={{ fontSize: 10, color: TX3, fontWeight: 500, whiteSpace: "nowrap", textAlign: "center" }}>{b.label}</span>
             </div>
           ))}
         </div>
 
         {/* Card */}
         <div style={{
-          background: WH, borderRadius: 14, border: `1px solid ${SBB}`,
-          padding: "18px 20px 16px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+          background: WH, borderRadius: 16, border: `1px solid ${SBB}`,
+          padding: "24px 28px 22px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
           animation: "fadeSlide 0.3s ease-out",
         }}>
           {children}
@@ -808,12 +818,12 @@ function PageShell({ children }) {
 
 // ── Shared Styles ──────────────────────────────────────────
 const labelStyle = {
-  display: "block", fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 3,
+  display: "block", fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 5,
 };
 
 const inputStyle = {
-  width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8,
-  fontSize: 13, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box",
+  width: "100%", padding: "11px 14px", border: `1px solid ${SBB}`, borderRadius: 8,
+  fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box",
   outline: "none", transition: "border-color 0.15s, box-shadow 0.15s",
 };
 
