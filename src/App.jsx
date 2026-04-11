@@ -10224,7 +10224,7 @@ function SearchModal({ projects, onClose, onOpen }) {
 }
 
 export default function App() {
-  const [projects, setProjects] = useState(INIT_PROJECTS);
+  const [projects, setProjects] = useState([]);
   const [activeId, setActiveId] = useState(1);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [view, _setView] = useState("overview");
