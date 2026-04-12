@@ -50,7 +50,7 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: 8, background: AC, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 15, fontWeight: 800, letterSpacing: "-0.5px", flexShrink: 0 }}>A</div>
           <div style={{ flex: 1 }}>
-            <div style={{ color: TX, fontSize: 14, fontWeight: 800, letterSpacing: "-0.3px", fontFamily: "'Manrope', system-ui, sans-serif" }}>ArchiPilot</div>
+            <div style={{ color: "#4A3428", fontSize: 14, fontWeight: 800, letterSpacing: "0.5px", fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase" }}>ArchiPilot</div>
             <div style={{ color: TX3, fontSize: 10, marginTop: 1 }}>{t("app.tagline")}</div>
           </div>
           <button onClick={onClose} title="Réduire la barre latérale" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = SB2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
