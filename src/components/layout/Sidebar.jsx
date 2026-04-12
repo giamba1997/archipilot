@@ -48,7 +48,7 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
       {/* ── Branding + collapse ── */}
       <div style={{ padding: "16px 18px 14px", borderBottom: `1px solid ${SBB}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/icon-512.svg" alt="ArchiPilot" style={{ width: 30, height: 30, flexShrink: 0 }} />
+          <img src="/icon-512.svg" alt="ArchiPilot" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 8 }} />
           <div style={{ flex: 1 }}>
             <div style={{ color: "#4A3428", fontSize: 14, fontWeight: 800, letterSpacing: "0.5px", fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase" }}>ArchiPilot</div>
             <div style={{ color: TX3, fontSize: 10, marginTop: 1 }}>{t("app.tagline")}</div>
