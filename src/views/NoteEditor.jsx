@@ -34,6 +34,35 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
   const t = useT();
   const tp = useTP();
 
+  // ── Auto-carry unresolved remarks from previous PV ──
+  const [carryDone, setCarryDone] = useState(false);
+  useEffect(() => {
+    if (carryDone) return;
+    const lastPvNum = project.pvHistory.length;
+    if (lastPvNum === 0) { setCarryDone(true); return; }
+    // Check if any remark already has carriedFrom for this PV — means carry was already done
+    const alreadyCarried = project.posts.some(p => (p.remarks || []).some(r => r.carriedFrom === lastPvNum));
+    if (alreadyCarried) { setCarryDone(true); return; }
+    // Find posts with unresolved remarks (status !== "done")
+    let hasChanges = false;
+    const updatedPosts = project.posts.map(post => {
+      const remarks = post.remarks || [];
+      if (remarks.length === 0) return post;
+      const updated = remarks.map(r => {
+        if (r.status !== "done" && !r.carriedFrom) {
+          hasChanges = true;
+          return { ...r, carriedFrom: lastPvNum };
+        }
+        return r;
+      });
+      return { ...post, remarks: updated };
+    });
+    if (hasChanges) {
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: updatedPosts } : p));
+    }
+    setCarryDone(true);
+  }, [carryDone, project.id]);
+
   // ── Attendance tracking ──
   const [attendance, setAttendance] = useState(
     () => project.participants.map(p => ({ ...p, present: true }))

@@ -599,6 +599,14 @@ export function PlanViewer({ project, setProjects, onBack }) {
           </div>
         </div>
 
+        {/* Sauvegarder */}
+        {(markers.length + planStrokes.length > 0) && (
+          <button onClick={() => { setSavedFlash(true); if (savedTimerRef.current) clearTimeout(savedTimerRef.current); savedTimerRef.current = setTimeout(() => setSavedFlash(false), 2200); }} style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: savedFlash ? GR : AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0, transition: "background 0.2s" }}>
+            <Ico name={savedFlash ? "check" : "save"} size={14} color="#fff" />
+            {savedFlash ? "Enregistré !" : "Sauvegarder"}
+          </button>
+        )}
+
         {/* Changer de plan (secondaire) */}
         {planImageSrc && (
           <button onClick={() => uploadRef.current.click()} style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, color: TX2, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>

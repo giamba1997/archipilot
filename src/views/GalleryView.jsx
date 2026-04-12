@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS } from "../constants/tokens";
+import { AC, ACL, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
-import { CropTool } from "./CropTool";
+import { PlanViewer } from "./PlanViewer";
 
 export function GalleryView({ project, setProjects, onBack }) {
   const uploadRef = useRef(null);
-  const [lightbox, setLightbox] = useState(null); // photo id
+  const [activePhotoId, setActivePhotoId] = useState(null); // open in PlanViewer
+  const [lightbox, setLightbox] = useState(null); // simple preview
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const photos = (project.gallery || []).slice().reverse();
@@ -49,11 +50,43 @@ export function GalleryView({ project, setProjects, onBack }) {
     if (lightbox === photoId) setLightbox(null);
   };
 
+  // ── PlanViewer mode: same pattern as PlanManager ──
+  const activePhoto = photos.find(ph => ph.id === activePhotoId);
+  if (activePhoto) {
+    const photoProject = {
+      ...project,
+      planImage: getPhotoUrl(activePhoto),
+      planMarkers: activePhoto.markers || [],
+      planStrokes: activePhoto.strokes || [],
+    };
+    const photoSetProjects = (fn) => {
+      setProjects(prev => {
+        const virtualPrev = prev.map(p => p.id === project.id ? photoProject : p);
+        const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
+        const updated = virtualNext.find(p => p.id === project.id);
+        if (!updated) return prev;
+        return prev.map(p => {
+          if (p.id !== project.id) return p;
+          return {
+            ...p,
+            gallery: (p.gallery || []).map(ph => ph.id === activePhotoId ? {
+              ...ph,
+              markers: updated.planMarkers || [],
+              strokes: updated.planStrokes || [],
+              annotated: (updated.planMarkers || []).length > 0 || (updated.planStrokes || []).length > 0,
+            } : ph),
+          };
+        });
+      });
+    };
+    return <PlanViewer project={photoProject} setProjects={photoSetProjects} onBack={() => setActivePhotoId(null)} />;
+  }
+
   const lbPhoto = lightbox ? photos.find(ph => ph.id === lightbox) : null;
   const lbIdx = lightbox ? photos.findIndex(ph => ph.id === lightbox) : -1;
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
+    <div style={{ animation: "fadeIn 0.2s ease" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -111,6 +144,7 @@ export function GalleryView({ project, setProjects, onBack }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
           {photos.map(ph => {
             const isSel = selected.has(ph.id);
+            const hasAnnotations = (ph.markers?.length > 0) || (ph.strokes?.length > 0) || ph.annotated;
             return (
               <div key={ph.id} style={{ position: "relative", aspectRatio: "1", borderRadius: 10, overflow: "hidden", background: SB, cursor: "pointer", border: `2px solid ${selecting && isSel ? AC : SBB}`, transition: "border-color 0.15s" }} onClick={() => selecting ? toggleSelect(ph.id) : setLightbox(ph.id)}>
                 <img src={getPhotoUrl(ph)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: selecting && isSel ? 0.7 : 1, transition: "opacity 0.15s" }} />
@@ -118,6 +152,13 @@ export function GalleryView({ project, setProjects, onBack }) {
                 {selecting && (
                   <div style={{ position: "absolute", top: 6, left: 6, width: 22, height: 22, borderRadius: 6, background: isSel ? AC : "rgba(255,255,255,0.85)", border: `2px solid ${isSel ? AC : "rgba(0,0,0,0.2)"}`, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
                     {isSel && <Ico name="check" size={12} color="#fff" />}
+                  </div>
+                )}
+                {/* Annotated badge */}
+                {hasAnnotations && (
+                  <div style={{ position: "absolute", top: 6, right: 6, padding: "2px 6px", borderRadius: 4, background: AC, display: "flex", alignItems: "center", gap: 3 }}>
+                    <Ico name="edit" size={9} color="#fff" />
+                    <span style={{ fontSize: 9, fontWeight: 600, color: "#fff" }}>Annoté</span>
                   </div>
                 )}
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 6px", background: "linear-gradient(transparent, rgba(0,0,0,0.45))" }}>
@@ -136,6 +177,10 @@ export function GalleryView({ project, setProjects, onBack }) {
           <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", zIndex: 2 }}>
             <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{lbIdx + 1} / {photos.length} — {new Date(lbPhoto.date).toLocaleDateString("fr-BE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setActivePhotoId(lbPhoto.id); setLightbox(null); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: AC, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                <Ico name="edit" size={13} color="#fff" />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Annoter</span>
+              </button>
               <button onClick={() => { removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
                 <Ico name="trash" size={13} color="#fff" />
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
