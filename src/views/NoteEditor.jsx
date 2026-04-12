@@ -315,7 +315,59 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
     return post.remarks || [];
   };
 
-  const setRemarks = (postId, remarks) => updatePost(postId, { remarks, notes: "" });
+  // ── Undo / Redo ──
+  const historyRef = useRef({}); // { [postId]: { past: [[...remarks]], future: [[...remarks]] } }
+  const getHistory = (postId) => {
+    if (!historyRef.current[postId]) historyRef.current[postId] = { past: [], future: [] };
+    return historyRef.current[postId];
+  };
+  const canUndo = (postId) => (getHistory(postId).past.length > 0);
+  const canRedo = (postId) => (getHistory(postId).future.length > 0);
+  const [, forceUpdate] = useState(0); // trigger re-render after undo/redo
+
+  const setRemarks = (postId, remarks) => {
+    // Push current state to undo stack before applying change
+    const post = project.posts.find(p => p.id === postId);
+    const current = post?.remarks || [];
+    const h = getHistory(postId);
+    h.past.push(JSON.parse(JSON.stringify(current)));
+    if (h.past.length > 50) h.past.shift(); // cap history
+    h.future = []; // clear redo on new action
+    updatePost(postId, { remarks, notes: "" });
+  };
+
+  const undo = (postId) => {
+    const h = getHistory(postId);
+    if (h.past.length === 0) return;
+    const post = project.posts.find(p => p.id === postId);
+    const current = post?.remarks || [];
+    h.future.push(JSON.parse(JSON.stringify(current)));
+    const prev = h.past.pop();
+    updatePost(postId, { remarks: prev, notes: "" });
+    forceUpdate(n => n + 1);
+  };
+
+  const redo = (postId) => {
+    const h = getHistory(postId);
+    if (h.future.length === 0) return;
+    const post = project.posts.find(p => p.id === postId);
+    const current = post?.remarks || [];
+    h.past.push(JSON.parse(JSON.stringify(current)));
+    const next = h.future.pop();
+    updatePost(postId, { remarks: next, notes: "" });
+    forceUpdate(n => n + 1);
+  };
+
+  // Ctrl+Z / Ctrl+Shift+Z keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || !activePost) return;
+      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(activePost); }
+      if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(activePost); }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [activePost]);
 
   const addRemark = (postId) => {
     if (!addText.trim()) return;
@@ -647,7 +699,15 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 12, color: TX3 }}>{remarks.length} remarque{remarks.length !== 1 ? "s" : ""} · {photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button onClick={() => undo(activePost)} disabled={!canUndo(activePost)} title="Annuler (Ctrl+Z)" style={{ width: 30, height: 30, border: `1px solid ${SBB}`, borderRadius: 6, background: canUndo(activePost) ? WH : SB, cursor: canUndo(activePost) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", opacity: canUndo(activePost) ? 1 : 0.4 }}>
+              <Ico name="undo" size={14} color={canUndo(activePost) ? TX2 : TX3} />
+            </button>
+            <button onClick={() => redo(activePost)} disabled={!canRedo(activePost)} title="Rétablir (Ctrl+Shift+Z)" style={{ width: 30, height: 30, border: `1px solid ${SBB}`, borderRadius: 6, background: canRedo(activePost) ? WH : SB, cursor: canRedo(activePost) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", opacity: canRedo(activePost) ? 1 : 0.4 }}>
+              <Ico name="repeat" size={14} color={canRedo(activePost) ? TX2 : TX3} />
+            </button>
+            <span style={{ fontSize: 12, color: TX3, marginLeft: 4 }}>{remarks.length} remarque{remarks.length !== 1 ? "s" : ""} · {photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
+          </div>
           <button onClick={() => setActivePost(null)} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{t("validate")}</button>
         </div>
       </div>
