@@ -12,7 +12,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-512.svg'],
+      includeAssets: ['icon-512.png'],
       manifest: {
         name: 'ArchiPilot',
         short_name: 'ArchiPilot',
@@ -27,15 +27,15 @@ export default defineConfig({
         categories: ['business', 'productivity'],
         icons: [
           {
-            src: 'icon-512.svg',
+            src: 'icon-512.png',
             sizes: 'any',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any',
           },
           {
-            src: 'icon-512.svg',
+            src: 'icon-512.png',
             sizes: 'any',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'maskable',
           },
         ],
