@@ -777,7 +777,7 @@ function PageShell({ children }) {
       <div style={{ width: "100%", maxWidth: 440 }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 20 }}>
-          <img src="/icon-512.svg" alt="ArchiPilot" style={{ width: 40, height: 40, borderRadius: 10, boxShadow: "0 2px 8px rgba(217,123,13,0.25)", flexShrink: 0 }} />
+          <img src="/icon-512.svg" alt="ArchiPilot" style={{ width: 40, height: 40, flexShrink: 0 }} />
           <span style={{ fontSize: 20, fontWeight: 800, color: "#4A3428", letterSpacing: "0.5px", fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
         </div>
 

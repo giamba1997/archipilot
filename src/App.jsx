@@ -313,7 +313,7 @@ export default function App() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "system-ui, -apple-system, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
-          <img src="/icon-512.svg" alt="ArchiPilot" style={{ width: 42, height: 42, borderRadius: 11, margin: "0 auto 12px", boxShadow: "0 2px 8px rgba(217,123,13,0.25)" }} />
+          <img src="/icon-512.svg" alt="ArchiPilot" style={{ width: 42, height: 42, margin: "0 auto 12px" }} />
           <div style={{ fontSize: 15, fontWeight: 800, color: "#4A3428", marginBottom: 8, fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
           <div style={{ width: 20, height: 20, border: `2.5px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "sp 0.6s linear infinite", margin: "0 auto" }} />
         </div>
