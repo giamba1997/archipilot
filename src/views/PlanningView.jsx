@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useT } from "../i18n";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, DIS, DIST } from "../constants/tokens";
 import { calcLotStatus, LOT_COLORS } from "../constants/statuses";
 import { Ico, PB, Modal } from "../components/ui";
 

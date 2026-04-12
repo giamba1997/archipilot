@@ -1,5 +1,5 @@
 import { useT } from "../../i18n";
-import { AC, SBB, TX, TX3, WH, GR } from "../../constants/tokens";
+import { AC, SB, SBB, TX, TX2, TX3, WH, GR } from "../../constants/tokens";
 import { PLANS } from "../../constants/config";
 import { Ico } from "../ui";
 
