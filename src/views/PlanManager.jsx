@@ -4,6 +4,7 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL,
 import { Ico } from "../components/ui";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
 import { CropTool } from "./CropTool";
+import { PlanViewer } from "./PlanViewer";
 
 export function PlanManager({ project, setProjects, onBack }) {
   const [activePlanId, setActivePlanId] = useState(null);
