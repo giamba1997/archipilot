@@ -314,7 +314,7 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "system-ui, -apple-system, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ width: 42, height: 42, borderRadius: 11, background: AC, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 800, margin: "0 auto 12px", boxShadow: "0 2px 8px rgba(217,123,13,0.25)" }}>A</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 8 }}>ArchiPilot</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: TX, marginBottom: 8, fontFamily: "'Manrope', system-ui, sans-serif" }}>ArchiPilot</div>
           <div style={{ width: 20, height: 20, border: `2.5px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "sp 0.6s linear infinite", margin: "0 auto" }} />
         </div>
       </div>

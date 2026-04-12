@@ -783,7 +783,7 @@ function PageShell({ children }) {
             color: "#fff", fontSize: 19, fontWeight: 800, letterSpacing: "-0.5px",
             boxShadow: "0 2px 8px rgba(217,123,13,0.25)", flexShrink: 0,
           }}>A</div>
-          <span style={{ fontSize: 20, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>ArchiPilot</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: TX, letterSpacing: "-0.3px", fontFamily: "'Manrope', system-ui, sans-serif" }}>ArchiPilot</span>
         </div>
 
         {/* Value props */}
