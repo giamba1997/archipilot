@@ -783,7 +783,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
   const currentStep = activeStepIdx === -1 ? stepsData.length - 1 : activeStepIdx;
 
   return (
-    <div className="ap-note-container" data-mobile-step={mobileStep} style={{ maxWidth: 960, margin: "0 auto", paddingBottom: 32 }}>
+    <div className="ap-note-container" data-mobile-step={mobileStep} style={{ paddingBottom: 32 }}>
 
       {/* ── Mobile top bar — back + stepper ── */}
       <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "8px 0 10px", flexShrink: 0, borderBottom: `1px solid ${SB2}`, marginBottom: 8 }}>
