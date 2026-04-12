@@ -10,7 +10,7 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#FAFAF9", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#FAFAF9", fontFamily: "'Inter', system-ui, sans-serif" }}>
           <div style={{ textAlign: "center", maxWidth: 400, padding: 32 }}>
             <div style={{ width: 56, height: 56, borderRadius: 14, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4392A" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4 M12 17h.01 M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg>
@@ -311,10 +311,10 @@ export default function App() {
   // Loading screen only if no cached data (first use)
   if (!dbLoaded && projects.length === 0) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "'Inter', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 42, height: 42, margin: "0 auto 12px" }} />
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#4A3428", marginBottom: 8, fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#4A3428", marginBottom: 8, fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
           <div style={{ width: 20, height: 20, border: `2.5px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "sp 0.6s linear infinite", margin: "0 auto" }} />
         </div>
       </div>
@@ -324,7 +324,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <LangContext.Provider value={profile.lang || "fr"}>
-    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
       <style>{`
         @keyframes sp { to { transform: rotate(360deg) } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
@@ -1182,7 +1182,7 @@ Règles :
                   </div>
                 ) : (
                   <div>
-                    <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "55vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
+                    <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "55vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
                     <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
                       <button onClick={() => { navigator.clipboard.writeText(modalData.content); }} style={{ padding: "10px 20px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 4 }}>
                         <Ico name="copy" size={14} color={TX3} />Copier

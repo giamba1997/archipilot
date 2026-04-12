@@ -201,7 +201,7 @@ export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onC
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 28, height: 28, flexShrink: 0 }} />
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "#4A3428", fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#4A3428", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
                       <div style={{ fontSize: 10, color: TX3 }}>noreply@archipilot.app</div>
                     </div>
                   </div>

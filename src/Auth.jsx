@@ -754,7 +754,7 @@ function PageShell({ children }) {
   return (
     <div style={{
       minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: BG, fontFamily: "system-ui, -apple-system, sans-serif", padding: "12px 20px",
+      background: BG, fontFamily: "'Inter', system-ui, sans-serif", padding: "12px 20px",
     }}>
       <style>{`
         @keyframes sp { to { transform: rotate(360deg) } }
@@ -778,7 +778,7 @@ function PageShell({ children }) {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 20 }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 40, height: 40, flexShrink: 0 }} />
-          <span style={{ fontSize: 20, fontWeight: 800, color: "#4A3428", letterSpacing: "0.5px", fontFamily: "'Manrope', system-ui, sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: "#4A3428", letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
         </div>
 
         {/* Value props */}

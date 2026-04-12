@@ -32,7 +32,7 @@ function Root() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAFAF9", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAFAF9", fontFamily: "'Inter', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 48, height: 48, margin: "0 auto 16px" }} />
           <div style={{ width: 24, height: 24, border: "2.5px solid #E2E1DD", borderTop: "2.5px solid #D97B0D", borderRadius: "50%", animation: "spin 0.7s linear infinite", margin: "0 auto" }} />
