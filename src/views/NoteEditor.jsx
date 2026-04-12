@@ -361,9 +361,19 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
   // Ctrl+Z / Ctrl+Shift+Z keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
-      if (!(e.ctrlKey || e.metaKey) || !activePost) return;
-      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(activePost); }
-      if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(activePost); }
+      if (!(e.ctrlKey || e.metaKey)) return;
+      // Don't intercept in text inputs
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (activePost) {
+        // Inside a post: undo/redo remarks
+        if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(activePost); }
+        if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redo(activePost); }
+      } else {
+        // Post list level: undo/redo post add/delete
+        if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoPosts(); }
+        if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); redoPosts(); }
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
@@ -491,7 +501,38 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
     setRenamingPost(null);
   };
 
+  // ── Global posts undo/redo (for add/delete post) ──
+  const postsHistoryRef = useRef({ past: [], future: [] });
+  const canUndoPosts = postsHistoryRef.current.past.length > 0;
+  const canRedoPosts = postsHistoryRef.current.future.length > 0;
+
+  const pushPostsHistory = () => {
+    const h = postsHistoryRef.current;
+    h.past.push(JSON.parse(JSON.stringify(project.posts)));
+    if (h.past.length > 30) h.past.shift();
+    h.future = [];
+  };
+
+  const undoPosts = () => {
+    const h = postsHistoryRef.current;
+    if (h.past.length === 0) return;
+    h.future.push(JSON.parse(JSON.stringify(project.posts)));
+    const prev = h.past.pop();
+    setProjects(p => p.map(pr => pr.id === project.id ? { ...pr, posts: prev } : pr));
+    forceUpdate(n => n + 1);
+  };
+
+  const redoPosts = () => {
+    const h = postsHistoryRef.current;
+    if (h.future.length === 0) return;
+    h.past.push(JSON.parse(JSON.stringify(project.posts)));
+    const next = h.future.pop();
+    setProjects(p => p.map(pr => pr.id === project.id ? { ...pr, posts: next } : pr));
+    forceUpdate(n => n + 1);
+  };
+
   const deletePost = (postId) => {
+    pushPostsHistory();
     setProjects(prev => prev.map(p => p.id === project.id ? {
       ...p, posts: p.posts.filter(po => po.id !== postId)
     } : p));
@@ -525,6 +566,21 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <button onClick={() => setActivePost(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}><Ico name="back" color={TX2} /></button>
+          <div style={{ flex: 1 }}>
+          </div>
+          {/* Undo / Redo — prominent in header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+            <button onClick={() => undo(activePost)} disabled={!canUndo(activePost)} title="Annuler (Ctrl+Z)" style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", border: `1px solid ${canUndo(activePost) ? SBB : "transparent"}`, borderRadius: 7, background: canUndo(activePost) ? WH : "transparent", cursor: canUndo(activePost) ? "pointer" : "default", fontFamily: "inherit", opacity: canUndo(activePost) ? 1 : 0.35, transition: "all 0.15s" }}>
+              <Ico name="undo" size={14} color={canUndo(activePost) ? TX : TX3} />
+              <span style={{ fontSize: 11, fontWeight: 500, color: canUndo(activePost) ? TX2 : TX3 }}>Annuler</span>
+            </button>
+            <button onClick={() => redo(activePost)} disabled={!canRedo(activePost)} title="Rétablir (Ctrl+Shift+Z)" style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 10px", border: `1px solid ${canRedo(activePost) ? SBB : "transparent"}`, borderRadius: 7, background: canRedo(activePost) ? WH : "transparent", cursor: canRedo(activePost) ? "pointer" : "default", fontFamily: "inherit", opacity: canRedo(activePost) ? 1 : 0.35, transition: "all 0.15s" }}>
+              <Ico name="repeat" size={14} color={canRedo(activePost) ? TX : TX3} />
+              <span style={{ fontSize: 11, fontWeight: 500, color: canRedo(activePost) ? TX2 : TX3 }}>Rétablir</span>
+            </button>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <div style={{ flex: 1 }}>
             {renamingPost === post.id ? (
               <input
@@ -699,15 +755,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button onClick={() => undo(activePost)} disabled={!canUndo(activePost)} title="Annuler (Ctrl+Z)" style={{ width: 30, height: 30, border: `1px solid ${SBB}`, borderRadius: 6, background: canUndo(activePost) ? WH : SB, cursor: canUndo(activePost) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", opacity: canUndo(activePost) ? 1 : 0.4 }}>
-              <Ico name="undo" size={14} color={canUndo(activePost) ? TX2 : TX3} />
-            </button>
-            <button onClick={() => redo(activePost)} disabled={!canRedo(activePost)} title="Rétablir (Ctrl+Shift+Z)" style={{ width: 30, height: 30, border: `1px solid ${SBB}`, borderRadius: 6, background: canRedo(activePost) ? WH : SB, cursor: canRedo(activePost) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", opacity: canRedo(activePost) ? 1 : 0.4 }}>
-              <Ico name="repeat" size={14} color={canRedo(activePost) ? TX2 : TX3} />
-            </button>
-            <span style={{ fontSize: 12, color: TX3, marginLeft: 4 }}>{remarks.length} remarque{remarks.length !== 1 ? "s" : ""} · {photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
-          </div>
+          <span style={{ fontSize: 12, color: TX3 }}>{remarks.length} remarque{remarks.length !== 1 ? "s" : ""} · {photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
           <button onClick={() => setActivePost(null)} style={{ padding: "8px 20px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>{t("validate")}</button>
         </div>
       </div>
@@ -915,11 +963,22 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
                 )}
               </div>
             )}
+            {/* Undo/Redo posts */}
+            {(canUndoPosts || canRedoPosts) && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 2, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "2px" }}>
+                <button onClick={undoPosts} disabled={!canUndoPosts} title="Annuler (Ctrl+Z)" style={{ width: 26, height: 26, border: "none", borderRadius: 4, background: canUndoPosts ? "transparent" : "transparent", cursor: canUndoPosts ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", opacity: canUndoPosts ? 1 : 0.3 }}>
+                  <Ico name="undo" size={12} color={TX2} />
+                </button>
+                <button onClick={redoPosts} disabled={!canRedoPosts} title="Rétablir (Ctrl+Shift+Z)" style={{ width: 26, height: 26, border: "none", borderRadius: 4, background: canRedoPosts ? "transparent" : "transparent", cursor: canRedoPosts ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", opacity: canRedoPosts ? 1 : 0.3 }}>
+                  <Ico name="repeat" size={12} color={TX2} />
+                </button>
+              </div>
+            )}
             {/* Delete all posts — hidden on mobile */}
             {project.posts.length > 0 && (
               <button
                 className="ap-delete-all-btn"
-                onClick={() => { if (confirm(`Supprimer les ${project.posts.length} postes et tout leur contenu ?`)) setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: [] } : p)); }}
+                onClick={() => { if (confirm(`Supprimer les ${project.posts.length} postes et tout leur contenu ?`)) { pushPostsHistory(); setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: [] } : p)); } }}
                 style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = RD; e.currentTarget.style.background = "#FEF2F2"; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = SBB; e.currentTarget.style.background = WH; }}
@@ -1272,6 +1331,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
         <div style={{ padding: "2px 8px 8px" }}>
           <button
             onClick={() => {
+              pushPostsHistory();
               const newId = String(project.posts.length + 1).padStart(2, "0");
               setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: [...p.posts, { id: newId, label: t("notes.newPost"), notes: "", remarks: [] }] } : p));
               setTimeout(() => { setRenamingPost(newId); setRenameVal(t("notes.newPost")); }, 100);
