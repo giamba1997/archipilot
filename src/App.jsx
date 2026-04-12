@@ -878,11 +878,95 @@ export default function App() {
 
       {/* Import PV modal */}
       <Modal open={modal === "importpv"} onClose={() => setModal(null)} title="Importer un ancien PV" wide>
-        <input ref={importPVRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={(e) => {
+        {(() => {
+          const [extractedText, setExtractedText] = [importPV._extractedText || "", (v) => setImportPV(p => ({ ...p, _extractedText: v }))];
+          const [aiResult, setAiResult] = [importPV._aiResult || null, (v) => setImportPV(p => ({ ...p, _aiResult: v }))];
+          const [aiLoading, setAiLoading] = [importPV._aiLoading || false, (v) => setImportPV(p => ({ ...p, _aiLoading: v }))];
+          const [aiError, setAiError] = [importPV._aiError || "", (v) => setImportPV(p => ({ ...p, _aiError: v }))];
+
+          const extractTextFromPdf = async (dataUrl) => {
+            try {
+              const pdfjsLib = await import("pdfjs-dist");
+              pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+              const arr = Uint8Array.from(atob(dataUrl.split(",")[1]), c => c.charCodeAt(0));
+              const pdf = await pdfjsLib.getDocument({ data: arr }).promise;
+              let text = "";
+              for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                text += content.items.map(item => item.str).join(" ") + "\n";
+              }
+              return text.trim();
+            } catch (e) { console.error("PDF text extraction failed:", e); return ""; }
+          };
+
+          const analyzeWithAI = async () => {
+            if (!extractedText) return;
+            setAiLoading(true);
+            setAiError("");
+            try {
+              const { data, error } = await supabase.functions.invoke("generate-pv", {
+                body: {
+                  systemPrompt: `Tu es un assistant qui analyse des procès-verbaux de chantier existants. À partir du texte brut d'un PV, extrais la structure en JSON strict.
+
+Retourne UNIQUEMENT un objet JSON valide (pas de markdown, pas de commentaire) avec cette structure :
+{
+  "number": <numéro du PV (entier)>,
+  "date": "<date au format dd/mm/yyyy>",
+  "author": "<auteur si trouvé>",
+  "posts": [
+    { "id": "<numéro du poste>", "label": "<intitulé du poste>", "remarks": [
+      { "text": "<texte de la remarque>", "urgent": <true/false>, "status": "open" }
+    ]}
+  ],
+  "actions": [
+    { "text": "<description de l'action>", "who": "<responsable>", "urgent": <true/false>, "open": true }
+  ],
+  "excerpt": "<résumé en 1 ligne du PV>"
+}
+
+Règles :
+- Identifie les postes/sections numérotés (01. Situation, 02. Généralités, etc.)
+- Les lignes commençant par ">" ou marquées comme urgentes → urgent: true
+- Les lignes commençant par "-" sont des remarques normales
+- Les actions sont souvent à la fin ou mentionnées comme "action", "à faire", "à réaliser"
+- Si le numéro de PV ou la date ne sont pas trouvés, mets des valeurs vides
+- Retourne UNIQUEMENT le JSON, rien d'autre`,
+                  userPrompt: `Analyse ce procès-verbal de chantier et extrais la structure :\n\n${extractedText.slice(0, 8000)}`,
+                  maxTokens: 3000,
+                },
+              });
+              if (error) throw new Error(error.message);
+              if (data?.error) throw new Error(data.error);
+              const content = data?.content || "";
+              // Parse JSON from response (might be wrapped in ```json)
+              const jsonStr = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+              const parsed = JSON.parse(jsonStr);
+              setAiResult(parsed);
+              // Auto-fill metadata from AI result
+              if (parsed.number) setImportPV(p => ({ ...p, number: String(parsed.number), _aiResult: parsed }));
+              if (parsed.date) setImportPV(p => ({ ...p, date: parsed.date, _aiResult: parsed }));
+              if (parsed.author) setImportPV(p => ({ ...p, author: parsed.author, _aiResult: parsed }));
+            } catch (e) {
+              console.error("AI analysis failed:", e);
+              setAiError(e.message || "Erreur lors de l'analyse");
+            }
+            setAiLoading(false);
+          };
+
+          return (
+            <>
+        <input ref={importPVRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={async (e) => {
           const file = e.target.files[0];
           if (!file) return;
           const reader = new FileReader();
-          reader.onload = (ev) => setImportPV((prev) => ({ ...prev, pdfDataUrl: ev.target.result, fileName: file.name }));
+          reader.onload = async (ev) => {
+            const dataUrl = ev.target.result;
+            setImportPV((prev) => ({ ...prev, pdfDataUrl: dataUrl, fileName: file.name, _extractedText: "", _aiResult: null, _aiError: "" }));
+            // Auto-extract text
+            const text = await extractTextFromPdf(dataUrl);
+            setImportPV(p => ({ ...p, _extractedText: text }));
+          };
           reader.readAsDataURL(file);
           e.target.value = "";
         }} />
@@ -898,7 +982,9 @@ export default function App() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{importPV.fileName}</div>
-                <div style={{ fontSize: 11, color: GR, marginTop: 2 }}>Fichier chargé</div>
+                <div style={{ fontSize: 11, color: GR, marginTop: 2 }}>
+                  {extractedText ? `${extractedText.split(/\s+/).length} mots extraits` : "Extraction du texte..."}
+                </div>
               </div>
               <button onClick={() => importPVRef.current?.click()} style={{ background: "none", border: `1px solid ${SBB}`, borderRadius: 6, cursor: "pointer", padding: "5px 10px", fontSize: 12, color: TX2, fontFamily: "inherit" }}>Changer</button>
             </div>
@@ -906,10 +992,45 @@ export default function App() {
             <button onClick={() => importPVRef.current?.click()} style={{ width: "100%", padding: "22px 16px", border: `2px dashed ${SBB}`, borderRadius: 10, background: SB, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
               <Ico name="upload" size={28} color={TX3} />
               <span style={{ fontSize: 13, color: TX2, fontWeight: 500 }}>Cliquer pour sélectionner un PDF</span>
-              <span style={{ fontSize: 11, color: TX3 }}>Le fichier sera stocké dans le projet</span>
+              <span style={{ fontSize: 11, color: TX3 }}>Le fichier sera analysé par l'IA pour extraire la structure</span>
             </button>
           )}
         </div>
+
+        {/* Bouton Analyse IA */}
+        {extractedText && !aiResult && (
+          <button
+            onClick={analyzeWithAI}
+            disabled={aiLoading}
+            style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: aiLoading ? DIS : AC, color: "#fff", fontSize: 14, fontWeight: 600, cursor: aiLoading ? "default" : "pointer", fontFamily: "inherit", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.2s" }}
+          >
+            {aiLoading ? (
+              <><div style={{ width: 16, height: 16, border: `2px solid rgba(255,255,255,0.3)`, borderTopColor: "#fff", borderRadius: "50%", animation: "sp 0.6s linear infinite" }} />Analyse en cours...</>
+            ) : (
+              <><Ico name="send" size={16} color="#fff" />Analyser avec l'IA</>
+            )}
+          </button>
+        )}
+        {aiError && <div style={{ padding: "10px 14px", background: REDBG, border: `1px solid ${REDBRD}`, borderRadius: 8, color: RD, fontSize: 12, marginBottom: 16 }}>{aiError}</div>}
+
+        {/* Résultat IA : aperçu structuré */}
+        {aiResult && (
+          <div style={{ marginBottom: 16, padding: "12px 14px", background: GRBG, border: `1px solid #c6e6a8`, borderRadius: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <Ico name="check" size={14} color={GR} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: GR }}>Structure extraite par l'IA</span>
+            </div>
+            <div style={{ fontSize: 12, color: TX2, lineHeight: 1.6 }}>
+              <div><strong>{(aiResult.posts || []).length}</strong> postes · <strong>{(aiResult.posts || []).reduce((s, p) => s + (p.remarks || []).length, 0)}</strong> remarques · <strong>{(aiResult.actions || []).length}</strong> actions</div>
+              {(aiResult.posts || []).map((p, i) => (
+                <div key={i} style={{ marginTop: 4, padding: "4px 8px", background: "rgba(255,255,255,0.6)", borderRadius: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{p.id}. {p.label}</span>
+                  <span style={{ color: TX3 }}> — {(p.remarks || []).length} remarque{(p.remarks || []).length !== 1 ? "s" : ""}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Métadonnées */}
         <div style={{ display: "flex", gap: 10 }}>
@@ -931,24 +1052,83 @@ export default function App() {
           disabled={!importPV.pdfDataUrl || !importPV.number.trim() || !importPV.date.trim()}
           onClick={() => {
             const num = parseInt(importPV.number) || importPV.number;
+            const content = aiResult ? (aiResult.posts || []).map(p =>
+              `${p.id}. ${p.label}\n${(p.remarks || []).map(r => `${r.urgent ? "> " : "- "}${r.text}`).join("\n")}`
+            ).join("\n\n") : "";
+            const excerpt = aiResult?.excerpt || `PV importé — ${importPV.fileName}`;
             const entry = {
               number: num,
               date: importPV.date.trim(),
               author: importPV.author.trim() || "—",
-              postsCount: 0,
-              excerpt: `PV importé — ${importPV.fileName}`,
-              content: "",
+              postsCount: aiResult ? (aiResult.posts || []).length : 0,
+              excerpt,
+              content,
               pdfDataUrl: importPV.pdfDataUrl,
               fileName: importPV.fileName,
               imported: true,
             };
-            setProjects((prev) => prev.map((p) => p.id === activeId ? { ...p, pvHistory: [entry, ...p.pvHistory] } : p));
+            // Update project: add PV to history + merge posts/remarks if AI extracted them
+            setProjects((prev) => prev.map((p) => {
+              if (p.id !== activeId) return p;
+              let updatedProject = { ...p, pvHistory: [entry, ...p.pvHistory] };
+              // If AI extracted posts, merge remarks into existing posts
+              if (aiResult?.posts) {
+                const updatedPosts = [...p.posts];
+                aiResult.posts.forEach(aiPost => {
+                  const existing = updatedPosts.find(ep => ep.id === aiPost.id);
+                  if (existing) {
+                    // Add AI remarks to existing post (with carriedFrom tag)
+                    const newRemarks = (aiPost.remarks || []).map(r => ({
+                      id: Date.now() + Math.random(),
+                      text: r.text,
+                      urgent: r.urgent || false,
+                      status: r.status || "open",
+                      carriedFrom: num,
+                    }));
+                    existing.remarks = [...(existing.remarks || []), ...newRemarks];
+                  } else {
+                    // Create new post
+                    updatedPosts.push({
+                      id: aiPost.id,
+                      label: aiPost.label,
+                      notes: "",
+                      remarks: (aiPost.remarks || []).map(r => ({
+                        id: Date.now() + Math.random(),
+                        text: r.text,
+                        urgent: r.urgent || false,
+                        status: r.status || "open",
+                        carriedFrom: num,
+                      })),
+                    });
+                  }
+                });
+                updatedProject.posts = updatedPosts;
+              }
+              // If AI extracted actions, add them
+              if (aiResult?.actions) {
+                const newActions = aiResult.actions.map(a => ({
+                  id: Date.now() + Math.random(),
+                  text: a.text,
+                  who: a.who || "",
+                  urgent: a.urgent || false,
+                  open: true,
+                  since: `PV ${num}`,
+                }));
+                updatedProject.actions = [...(p.actions || []), ...newActions];
+              }
+              return updatedProject;
+            }));
             setModal(null);
+            showToast(aiResult ? `PV importé — ${(aiResult.posts || []).length} postes et ${(aiResult.actions || []).length} actions extraits` : "PV importé");
+            track("pv_imported", { ai_extracted: !!aiResult, _page: "importpv" });
           }}
           style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: importPV.pdfDataUrl && importPV.number.trim() && importPV.date.trim() ? AC : DIS, color: importPV.pdfDataUrl && importPV.number.trim() && importPV.date.trim() ? "#fff" : DIST, fontSize: 15, fontWeight: 600, cursor: importPV.pdfDataUrl && importPV.number.trim() && importPV.date.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.2s" }}
         >
-          Importer le PV
+          {aiResult ? "Importer avec structure IA" : "Importer le PV"}
         </button>
+            </>
+          );
+        })()}
       </Modal>
 
       <Modal open={modal === "viewpv"} onClose={() => { setModal(null); setModalData(d => d ? { ...d, _showSend: false } : d); }} title={modalData ? `PV n°${modalData.number} — ${modalData.date}` : ""} wide>
