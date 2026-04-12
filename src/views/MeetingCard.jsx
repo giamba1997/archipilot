@@ -2,8 +2,22 @@ import { useState } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SBB, TX, TX2, TX3, WH, RD, BL, VI } from "../constants/tokens";
 import { Ico } from "../components/ui";
-import { daysUntil, calcNextMeeting } from "../utils/dates";
+import { daysUntil, calcNextMeeting, parseDateFR } from "../utils/dates";
 import { getGoogleCalendarUrl, downloadICS } from "../utils/csv";
+
+// Convert dd/mm/yyyy → yyyy-mm-dd for input[type=date]
+const toISO = (fr) => {
+  if (!fr) return "";
+  const d = parseDateFR(fr);
+  if (!d) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+// Convert yyyy-mm-dd → dd/mm/yyyy
+const toFR = (iso) => {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+};
 
 export const MEETING_MODES = [
   { id: "onsite", label: "Sur site", icon: "building", color: AC },
@@ -35,13 +49,13 @@ export function MeetingCard({ project, setProjects, rec }) {
 
       {editing ? (
         <div>
-          {/* Date input */}
+          {/* Date picker */}
           <div style={{ marginBottom: 10 }}>
             <label style={{ fontSize: 11, fontWeight: 500, color: TX2, display: "block", marginBottom: 4 }}>Date</label>
             <input
-              type="text" value={dateVal} onChange={e => setDateVal(e.target.value)}
-              placeholder="dd/mm/yyyy" autoFocus
-              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box" }}
+              type="date" value={toISO(dateVal)} onChange={e => setDateVal(toFR(e.target.value))}
+              autoFocus
+              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", cursor: "pointer" }}
             />
           </div>
           {/* Meeting mode */}
