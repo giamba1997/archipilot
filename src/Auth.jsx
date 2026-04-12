@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { supabase } from "./supabase";
 
 // ── Colors (matching App.jsx DA) ───────────────────────────
-const AC  = "#D97B0D";
+const AC  = "#C95A1B";
 const ACD = "#B8680A";
 const ACL = "#FDF4E7";
 const ACL2= "#FAE9CF";
@@ -372,13 +372,13 @@ export function AuthPage() {
           style={{
             width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
             background: loading ? "#D3D1C7" : hovered === "submit"
-              ? "linear-gradient(135deg, #C06A08 0%, #A85A06 100%)"
-              : `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+              ? "linear-gradient(135deg, #A54814 0%, #A85A06 100%)"
+              : `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`,
             color: "#fff", fontSize: 14, fontWeight: 700, cursor: loading ? "wait" : "pointer",
             fontFamily: "inherit", letterSpacing: "-0.1px",
             boxShadow: loading ? "none" : hovered === "submit"
-              ? "0 4px 16px rgba(217,123,13,0.35)"
-              : "0 3px 12px rgba(217,123,13,0.25)",
+              ? "0 4px 16px rgba(201,90,27,0.35)"
+              : "0 3px 12px rgba(201,90,27,0.25)",
             transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transform: hovered === "submit" && !loading ? "translateY(-1px)" : "none",
           }}
@@ -501,7 +501,7 @@ function PasswordStrength({ password }) {
     { ok: /[^A-Za-z0-9]/.test(password), label: "1 spécial" },
   ];
   const passed = checks.filter(c => c.ok).length;
-  const color = passed === 3 ? GR : passed >= 2 ? "#D97B0D" : RD;
+  const color = passed === 3 ? GR : passed >= 2 ? "#C95A1B" : RD;
 
   return (
     <div style={{ marginTop: 6 }}>
@@ -627,13 +627,13 @@ export function ResetPasswordPage() {
             style={{
               width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
               background: loading ? "#D3D1C7" : hovered === "reset"
-                ? "linear-gradient(135deg, #C06A08 0%, #A85A06 100%)"
-                : `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+                ? "linear-gradient(135deg, #A54814 0%, #A85A06 100%)"
+                : `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`,
               color: "#fff", fontSize: 15, fontWeight: 700, cursor: loading ? "wait" : "pointer",
               fontFamily: "inherit", letterSpacing: "-0.1px",
               boxShadow: loading ? "none" : hovered === "reset"
-                ? "0 4px 16px rgba(217,123,13,0.35)"
-                : "0 3px 12px rgba(217,123,13,0.25)",
+                ? "0 4px 16px rgba(201,90,27,0.35)"
+                : "0 3px 12px rgba(201,90,27,0.25)",
               transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               transform: hovered === "reset" && !loading ? "translateY(-1px)" : "none",
             }}
@@ -718,14 +718,14 @@ export function MfaVerifyPage() {
           style={{
             width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
             background: loading || code.length !== 6 ? "#D3D1C7" : hovered === "verify"
-              ? "linear-gradient(135deg, #C06A08 0%, #A85A06 100%)"
-              : `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+              ? "linear-gradient(135deg, #A54814 0%, #A85A06 100%)"
+              : `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`,
             color: "#fff", fontSize: 15, fontWeight: 700,
             cursor: loading || code.length !== 6 ? "not-allowed" : "pointer",
             fontFamily: "inherit", letterSpacing: "-0.1px",
             boxShadow: loading || code.length !== 6 ? "none" : hovered === "verify"
-              ? "0 4px 16px rgba(217,123,13,0.35)"
-              : "0 3px 12px rgba(217,123,13,0.25)",
+              ? "0 4px 16px rgba(201,90,27,0.35)"
+              : "0 3px 12px rgba(201,90,27,0.25)",
             transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transform: hovered === "verify" && !(loading || code.length !== 6) ? "translateY(-1px)" : "none",
           }}
@@ -769,7 +769,7 @@ function PageShell({ children }) {
         }
         .auth-input:focus {
           border-color: ${AC} !important;
-          box-shadow: 0 0 0 3px rgba(217,123,13,0.12) !important;
+          box-shadow: 0 0 0 3px rgba(201,90,27,0.12) !important;
           outline: none !important;
         }
         .auth-input::placeholder { color: #A8A8A3; }

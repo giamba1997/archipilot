@@ -13,7 +13,7 @@ export function CaptureSheet({ open, onClose, onPhoto, onGallery, photoCount }) 
         <div style={{ display: "flex", gap: SP.md }}>
           {/* Prendre une photo */}
           <button onClick={onPhoto} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: SP.sm, padding: `${SP.xl}px ${SP.md}px`, border: `2px solid ${AC}`, borderRadius: RAD.xxl, background: `linear-gradient(180deg, ${ACL} 0%, #FFF8F0 100%)`, cursor: "pointer", fontFamily: "inherit" }}>
-            <div style={{ width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(217,123,13,0.3)" }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(201,90,27,0.3)" }}>
               <Ico name="camera" size={24} color="#fff" />
             </div>
             <div style={{ fontSize: FS.md + 1, fontWeight: 700, color: TX }}>Prendre</div>

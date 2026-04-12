@@ -1,7 +1,7 @@
 import { AC, SB, SBB, TX, TX2, TX3, WH, RD, SP, FS, RAD } from "../constants/tokens";
 
 export function PDFPreview({ form }) {
-  const color = form.pdfColor || "#D97B0D";
+  const color = form.pdfColor || "#C95A1B";
   const ff = form.pdfFont === "times" ? "Georgia,'Times New Roman',serif" : "system-ui,-apple-system,sans-serif";
   return (
     <div style={{ border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden", background: WH, userSelect: "none" }}>

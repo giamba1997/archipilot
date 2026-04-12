@@ -1,7 +1,46 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "WebSearch",
+      "WebFetch(domain:www.archireport.com)",
+      "WebFetch(domain:www.batiscript.com)",
+      "WebFetch(domain:www.planradar.com)",
+      "WebFetch(domain:www.finalcad.com)",
+      "WebFetch(domain:construction.orisha.com)",
+      "WebFetch(domain:www.bimcollab.com)",
+      "WebFetch(domain:construction.autodesk.com)",
+      "WebFetch(domain:www.kalm.ai)",
+      "WebFetch(domain:www.archilid.fr)",
+      "WebFetch(domain:archipad.com)",
+      "Bash(node -e ':*)",
+      "Bash(npm install:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npx netlify:*)",
+      "Bash(npx vercel:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.\\(css|scss|less\\)$\")",
+      "Bash(curl -s -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpanJyY2ltbnR6em1iaGNicGNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MDc0NTEsImV4cCI6MjA5MTA4MzQ1MX0.gSh4L4oLZwMXxyqHI508p5WGayzAcM34pkRS0S6J0SI\" \"https://vijrrcimntzzmbhcbpcl.supabase.co/auth/v1/settings\")",
+      "Bash(curl:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(grep:*)",
+      "WebFetch(domain:www.bulldozair.com)",
+      "WebFetch(domain:www.there.do)",
+      "Bash(cat)",
+      "Bash(bash /tmp/analyze.sh)",
+      "Bash(npx vitest:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(sed -n '5839,5997p' src/App.jsx)",
+      "Bash(sed -i 's/^function GalleryView/export function GalleryView/' src/views/GalleryView.jsx)",
+      "Bash(sed -n '1,109p' src/App.jsx)",
+      "Bash(sed -n '9055,$p' src/App.jsx)",
+      "Bash(node:*)",
+      "Bash(bash /tmp/check_imports.sh)",
+      "Bash(git checkout:*)"
     ]
   }
 }

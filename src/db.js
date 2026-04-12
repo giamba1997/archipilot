@@ -61,7 +61,7 @@ export async function loadProfile() {
     phone: data.phone || "",
     email: data.email || user.email || "",
     picture: data.picture_url || null,
-    pdfColor: data.pdf_color || "#D97B0D",
+    pdfColor: data.pdf_color || "#C95A1B",
     pdfFont: data.pdf_font || "helvetica",
     apiKey: data.api_key || "",
     lang: data.lang || "fr",

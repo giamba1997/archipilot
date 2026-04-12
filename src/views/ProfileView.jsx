@@ -126,7 +126,7 @@ export function ProfileView({ profile, onSave }) {
       { id: "security", icon: "lock", label: "Sécurité", desc: "Authentification à deux facteurs" },
       { id: "signature", icon: "edit", label: "Signature email", desc: form.emailSignature ? "Configurée" : "Non configurée" },
       { id: "lang", icon: "building", label: "Langue", desc: form.lang === "fr" ? "Français" : "English" },
-      { id: "appearance", icon: "chart", label: "Apparence du PV", desc: `${(form.pdfColor || "#D97B0D").toUpperCase()} · ${form.pdfFont || "helvetica"}` },
+      { id: "appearance", icon: "chart", label: "Apparence du PV", desc: `${(form.pdfColor || "#C95A1B").toUpperCase()} · ${form.pdfFont || "helvetica"}` },
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
@@ -555,10 +555,10 @@ export function ProfileView({ profile, onSave }) {
             ))}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 4 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: form.pdfColor, border: `2px solid ${SBB}`, overflow: "hidden", flexShrink: 0 }}>
-                <input type="color" value={form.pdfColor || "#D97B0D"} onChange={(e) => set("pdfColor")(e.target.value)} style={{ width: 48, height: 48, border: "none", padding: 0, cursor: "pointer", marginTop: -8, marginLeft: -8, opacity: 0, position: "absolute" }} />
-                <input type="color" value={form.pdfColor || "#D97B0D"} onChange={(e) => set("pdfColor")(e.target.value)} style={{ width: "100%", height: "100%", border: "none", padding: 0, cursor: "pointer", opacity: 0 }} />
+                <input type="color" value={form.pdfColor || "#C95A1B"} onChange={(e) => set("pdfColor")(e.target.value)} style={{ width: 48, height: 48, border: "none", padding: 0, cursor: "pointer", marginTop: -8, marginLeft: -8, opacity: 0, position: "absolute" }} />
+                <input type="color" value={form.pdfColor || "#C95A1B"} onChange={(e) => set("pdfColor")(e.target.value)} style={{ width: "100%", height: "100%", border: "none", padding: 0, cursor: "pointer", opacity: 0 }} />
               </div>
-              <span style={{ fontSize: 12, color: TX3, fontFamily: "monospace" }}>{(form.pdfColor || "#D97B0D").toUpperCase()}</span>
+              <span style={{ fontSize: 12, color: TX3, fontFamily: "monospace" }}>{(form.pdfColor || "#C95A1B").toUpperCase()}</span>
             </div>
           </div>
         </div>

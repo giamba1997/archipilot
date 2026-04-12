@@ -13,19 +13,19 @@ export const STATUSES = [
 export const getStatus = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 
 export const REMARK_STATUSES = [
-  { id: "open",     label: "À traiter", color: "#B91C1C", bg: "#FEF2F2", dot: "#EF4444" },
-  { id: "progress", label: "En cours",  color: "#92400E", bg: "#FFFBEB", dot: AC },
-  { id: "done",     label: "Résolu",    color: "#166534", bg: "#F0FDF4", dot: GR },
+  { id: "open",     label: "À traiter", color: "#DC2626", bg: "#FEF2F2", dot: "#EF4444" },
+  { id: "progress", label: "En cours",  color: "#D97706", bg: "#FFFBEB", dot: "#F59E0B" },
+  { id: "done",     label: "Résolu",    color: "#16A34A", bg: "#F0FDF4", dot: GR },
 ];
 export const nextStatus = (s) => s === "open" ? "progress" : s === "progress" ? "done" : "open";
 export const getRemarkStatus = (id) => REMARK_STATUSES.find((s) => s.id === id) || REMARK_STATUSES[0];
 
 export const PV_STATUSES = [
-  { id: "draft",     label: "Brouillon", color: GRY,      bg: GRYB,  dot: "#8A8A85" },
-  { id: "review",    label: "À relire",  color: "#92400E", bg: "#FFFBEB", dot: AC },
-  { id: "validated", label: "Validé",    color: "#166534", bg: "#F0FDF4", dot: GR },
+  { id: "draft",     label: "Brouillon", color: GRY,      bg: GRYB,  dot: "#9CA3AF" },
+  { id: "review",    label: "À relire",  color: "#D97706", bg: "#FFFBEB", dot: "#F59E0B" },
+  { id: "validated", label: "Validé",    color: "#16A34A", bg: "#F0FDF4", dot: GR },
   { id: "sent",      label: "Envoyé",    color: BL,       bg: BLB,   dot: BL },
-  { id: "late",      label: "En retard", color: "#B91C1C", bg: "#FEF2F2", dot: "#EF4444" },
+  { id: "late",      label: "En retard", color: "#DC2626", bg: "#FEF2F2", dot: "#EF4444" },
 ];
 export const getPvStatus  = (id) => PV_STATUSES.find((s) => s.id === id) || PV_STATUSES[0];
 export const nextPvStatus = (id) => { const i = PV_STATUSES.findIndex(s => s.id === id); return PV_STATUSES[(i + 1) % PV_STATUSES.length].id; };

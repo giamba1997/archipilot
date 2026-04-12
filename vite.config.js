@@ -18,7 +18,7 @@ export default defineConfig({
         short_name: 'ArchiPilot',
         description: 'Copilote IA pour architectes — gestion de chantier et génération de PV',
         lang: 'fr',
-        theme_color: '#D97B0D',
+        theme_color: '#C95A1B',
         background_color: '#FAFAF9',
         display: 'standalone',
         orientation: 'portrait-primary',

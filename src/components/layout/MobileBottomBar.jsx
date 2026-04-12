@@ -27,7 +27,7 @@ export function MobileBottomBar({ view, onNavigate, onCapture }) {
         <Tab id="notes" icon="file" label="PV" />
         {/* Center FAB — raised into the bump */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <button onClick={onCapture} aria-label="Photo" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #C06A08 100%)`, border: "none", boxShadow: `0 0 20px rgba(217,123,13,0.4), 0 0 40px rgba(217,123,13,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
+          <button onClick={onCapture} aria-label="Photo" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
             <Ico name="camera" size={26} color="#fff" />
             <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Photo</span>
           </button>
