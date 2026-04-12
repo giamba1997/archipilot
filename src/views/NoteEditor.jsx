@@ -38,28 +38,43 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
   const [carryDone, setCarryDone] = useState(false);
   useEffect(() => {
     if (carryDone) return;
-    const lastPvNum = project.pvHistory.length;
+    const lastPv = project.pvHistory?.[0]; // pvHistory is newest-first
+    const lastPvNum = lastPv?.number || project.pvHistory?.length || 0;
     if (lastPvNum === 0) { setCarryDone(true); return; }
-    // Check if any remark already has carriedFrom for this PV — means carry was already done
-    const alreadyCarried = project.posts.some(p => (p.remarks || []).some(r => r.carriedFrom === lastPvNum));
-    if (alreadyCarried) { setCarryDone(true); return; }
-    // Find posts with unresolved remarks (status !== "done")
-    let hasChanges = false;
+
+    // Count unresolved remarks without carriedFrom
+    let unresolvedCount = 0;
+    project.posts.forEach(post => {
+      (post.remarks || []).forEach(r => {
+        if (r.status !== "done" && !r.carriedFrom) unresolvedCount++;
+      });
+      // Also check legacy notes (not yet converted to remarks)
+      if ((post.remarks || []).length === 0 && post.notes?.trim()) {
+        unresolvedCount++; // notes exist = unprocessed content
+      }
+    });
+
+    if (unresolvedCount === 0) { setCarryDone(true); return; }
+
+    // Mark unresolved remarks with carriedFrom
     const updatedPosts = project.posts.map(post => {
       const remarks = post.remarks || [];
-      if (remarks.length === 0) return post;
-      const updated = remarks.map(r => {
+      // Convert legacy notes to remarks first
+      let finalRemarks = remarks;
+      if (remarks.length === 0 && post.notes?.trim()) {
+        finalRemarks = parseNotesToRemarks(post.notes);
+      }
+      if (finalRemarks.length === 0) return post;
+      const updated = finalRemarks.map(r => {
         if (r.status !== "done" && !r.carriedFrom) {
-          hasChanges = true;
           return { ...r, carriedFrom: lastPvNum };
         }
         return r;
       });
-      return { ...post, remarks: updated };
+      return { ...post, remarks: updated, notes: "" };
     });
-    if (hasChanges) {
-      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: updatedPosts } : p));
-    }
+
+    setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: updatedPosts } : p));
     setCarryDone(true);
   }, [carryDone, project.id]);
 
