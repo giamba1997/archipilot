@@ -52,7 +52,7 @@ export const INIT_PROFILE = {
   phone: "0474 50 85 80",
   email: "gaelle@dewil-architect.be",
   picture: null,
-  pdfColor: "#D97B0D",
+  pdfColor: "#D65A1F",
   pdfFont: "helvetica",
   apiKey: "",
   lang: "fr",
@@ -64,12 +64,12 @@ export const INIT_PROFILE = {
 };
 
 export const COLOR_PRESETS = [
-  { value: "#D97B0D", label: "Ambre" },
-  { value: "#2B6CB0", label: "Bleu" },
-  { value: "#2D8A4E", label: "Vert" },
-  { value: "#6366F1", label: "Indigo" },
-  { value: "#C4392A", label: "Terre cuite" },
-  { value: "#2D2D2A", label: "Anthracite" },
+  { value: "#D65A1F", label: "Burnt Orange" },
+  { value: "#5B7B8A", label: "Slate Blue" },
+  { value: "#6F8F7A", label: "Sage Green" },
+  { value: "#E7A33C", label: "Mustard" },
+  { value: "#C4704F", label: "Terracotta" },
+  { value: "#4A3428", label: "Dark Brown" },
 ];
 
 export const FONT_OPTIONS = [
