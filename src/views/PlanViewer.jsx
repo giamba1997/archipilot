@@ -3,6 +3,7 @@ import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, DIST, GRBG } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { getPhotoUrl } from "../db";
+import { ANNO_TOOLS, ANNO_COLORS } from "./AnnotationEditor";
 
 
 // PDF render cache — avoid re-rendering the same PDF
