@@ -90,7 +90,7 @@ export function GalleryView({ project, setProjects, onBack }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={selecting ? exitSelect : onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
+          <button onClick={selecting ? exitSelect : onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
             <Ico name={selecting ? "x" : "back"} color={TX2} size={16} />
           </button>
           <div>
