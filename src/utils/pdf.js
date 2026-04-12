@@ -273,9 +273,43 @@ export async function generatePDF(project, pvNum, date, result, profile, options
     }
   }
 
+  // ── ACTIONS OUVERTES ────────────────────────────────────────
+  const openActions = (project.actions || []).filter(a => a.open);
+  if (openActions.length > 0) {
+    checkY(20);
+    y += 4;
+    doc.setFillColor(...AMBER);
+    doc.rect(ML, y, CW, 0.8, "F");
+    y += 9;
+    doc.setFont(font, "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    doc.text("ACTIONS OUVERTES", ML, y);
+    y += 8;
+
+    openActions.forEach((a, i) => {
+      checkY(10);
+      if (i % 2 === 0) { doc.setFillColor(...BGGRAY); doc.rect(ML, y - 3.5, CW, 7, "F"); }
+      if (a.urgent) { doc.setFillColor(...RED); doc.rect(ML, y - 3.5, 2, 7, "F"); }
+      doc.setFont(font, a.urgent ? "bold" : "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...(a.urgent ? RED : DARK));
+      const actionText = doc.splitTextToSize(a.text, CW - 65);
+      doc.text(actionText[0], ML + 5, y);
+      doc.setFont(font, "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...GRAY);
+      if (a.who) doc.text(a.who, ML + CW - 55, y);
+      if (a.since) doc.text(a.since, ML + CW - 15, y);
+      y += 7;
+    });
+    y += 4;
+  }
+
   // ── PLAN DU CHANTIER ───────────────────────────────────────
   const markers = project.planMarkers || [];
-  if (project.planImage && markers.length > 0) {
+  const hasStrokes = (project.planStrokes || []).length > 0;
+  if (project.planImage && (markers.length > 0 || hasStrokes)) {
     const composite = await compositePlanImage(project);
     if (composite) {
       checkY(20);
@@ -364,6 +398,44 @@ export async function generatePDF(project, pvNum, date, result, profile, options
       });
       y += imgH + 8;
     });
+  }
+
+  // ── PHOTOS DE CHANTIER (galerie) ────────────────────────────
+  const galleryPhotos = (project.gallery || []).filter(ph => ph.dataUrl || ph.url);
+  if (galleryPhotos.length > 0) {
+    checkY(20);
+    y += 4;
+    doc.setFillColor(...AMBER);
+    doc.rect(ML, y, CW, 0.8, "F");
+    y += 9;
+    doc.setFont(font, "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    doc.text(`PHOTOS DE CHANTIER (${galleryPhotos.length})`, ML, y);
+    y += 8;
+
+    const cols = 3;
+    const gap = 3;
+    const imgW = (CW - gap * (cols - 1)) / cols;
+    const imgH = imgW * 0.65;
+
+    galleryPhotos.forEach((ph, idx) => {
+      const col = idx % cols;
+      if (col === 0 && idx > 0) { y += imgH + gap; }
+      if (col === 0) checkY(imgH + gap);
+      try {
+        const phUrl = ph.dataUrl || ph.url;
+        doc.addImage(phUrl, imgFmt(phUrl), ML + col * (imgW + gap), y, imgW, imgH);
+      } catch (_) {}
+      // Date caption
+      if (ph.date) {
+        doc.setFont(font, "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(...GRAY);
+        doc.text(new Date(ph.date).toLocaleDateString("fr-BE", { day: "numeric", month: "short" }), ML + col * (imgW + gap) + 1, y + imgH - 1);
+      }
+    });
+    y += imgH + 8;
   }
 
   // ── PIED DE PAGE (toutes les pages) ────────────────────────
