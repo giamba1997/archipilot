@@ -132,7 +132,7 @@ export function AuthPage() {
     setError("");
     if (!validateFields()) return;
     setLoading(true);
-    const { error: err } = await supabase.auth.signUp({
+    const { data: signUpData, error: err } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name: name.trim() } },
@@ -141,6 +141,9 @@ export function AuthPage() {
     if (err) {
       if (err.message.includes("already registered")) setError("Cet email est déjà utilisé.");
       else setError(err.message);
+    } else if (signUpData?.user?.identities?.length === 0) {
+      // Supabase returns empty identities when email already exists
+      setError("Un compte existe déjà avec cet email. Connectez-vous ou réinitialisez votre mot de passe.");
     } else {
       setMode("check-email");
     }
