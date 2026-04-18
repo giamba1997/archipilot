@@ -1475,6 +1475,21 @@ Règles :
         <OnboardingWizard
           profile={profile}
           onUpdateProfile={(p) => { setProfile(p); saveProfile(p); }}
+          onCreateProject={(proj) => {
+            const id = Math.max(...projects.map((p) => p.id), 0) + 1;
+            const tpl = POST_TEMPLATES.find(t => t.id === (profile.postTemplate || "general")) || POST_TEMPLATES[0];
+            const posts = tpl.posts.map(p => ({ id: p.id, label: p.label, notes: "", remarks: [] }));
+            const address = [proj.city].filter(Boolean).join(", ");
+            setProjects((prev) => [...prev, { id, name: proj.name, client: proj.client || "", contractor: proj.contractor || "", address, city: proj.city || "", startDate: proj.startDate || "", endDate: proj.endDate || "", progress: 0, bureau: profile.structure, statusId: "sketch", recurrence: "none", archived: false, participants: [{ role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone }], posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }], pvHistory: [], actions: [], planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [], customFields: [], pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none", postTemplate: profile.postTemplate || "general" }]);
+            setActiveId(id);
+            track("project_created", { project_name: proj.name, _page: "onboarding" });
+          }}
+          onNavigate={(action) => {
+            if (action === "pv") setView("notes");
+            else if (action === "dashboard") setView("stats");
+            else if (action === "collab") setModal("collab");
+            else if (action === "plan") setView("plan");
+          }}
           onComplete={() => { setShowOnboarding(false); try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch {} }}
         />
       )}
