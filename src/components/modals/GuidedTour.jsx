@@ -3,62 +3,95 @@ import { AC, ACL, TX, TX2, TX3, SB, SBB, WH, GR } from "../../constants/tokens";
 import { Ico } from "../ui";
 
 /**
- * Guided Tour — shows tooltip bubbles pointing to real UI elements.
- * Each step targets a CSS selector and shows a message.
+ * Guided Tour — tooltip bubbles pointing to real UI elements.
+ * Uses an SVG overlay with a cutout to keep the highlighted area sharp (no blur).
  */
 
 const TOUR_STEPS = [
   {
-    title: "Votre projet",
-    message: "Voici la vue d'ensemble de votre projet. Vous y trouverez les infos clés, les participants, et l'historique des PV.",
-    selector: ".ap-content",
-    position: "center",
+    title: "Vue d'ensemble du projet",
+    message: "Voici la page principale de votre projet. Vous y trouverez les infos clés, les participants, l'historique des PV et les actions en cours.",
+    selector: ".ap-overview-wrap",
+    fallback: ".ap-content",
+    align: "center",
     icon: "building",
   },
   {
-    title: "La barre latérale",
-    message: "Naviguez entre vos projets depuis le menu. Vous pouvez en créer de nouveaux avec le bouton \"+\".",
+    title: "Menu de navigation",
+    message: "Le menu latéral vous permet de basculer entre vos projets. Cliquez sur \"+\" pour en créer un nouveau.",
     selector: ".ap-sidebar-desktop",
-    position: "right",
+    align: "right",
     icon: "menu",
   },
   {
-    title: "Rédiger un PV",
-    message: "Cliquez sur \"Rédiger\" dans la vue projet pour commencer un procès-verbal. Ajoutez vos remarques poste par poste, puis générez le PV par IA.",
+    title: "Barre d'outils",
+    message: "La barre en haut contient la recherche, les notifications et l'accès rapide à votre profil. Le nom de la vue active s'affiche à gauche.",
     selector: ".ap-header",
-    position: "bottom",
+    align: "bottom",
     icon: "edit",
   },
   {
-    title: "Navigation du projet",
-    message: "Depuis la vue projet, accédez à la Galerie photos, aux Documents, au Planning et aux Checklists via les onglets en haut.",
-    selector: ".ap-header",
-    position: "bottom",
+    title: "Rédiger un PV",
+    message: "Depuis la vue projet, cliquez sur le bouton \"Rédiger un PV\" pour commencer. Ajoutez vos remarques poste par poste, puis laissez l'IA générer le procès-verbal.",
+    selector: ".ap-overview-wrap",
+    fallback: ".ap-content",
+    align: "center",
     icon: "file",
   },
   {
     title: "Collaboration",
-    message: "Invitez vos collaborateurs sur un projet via le bouton de partage. Ils pourront contribuer ou consulter selon leur rôle.",
-    selector: ".ap-header",
-    position: "bottom",
+    message: "Invitez des collaborateurs sur vos projets via le bouton de partage. Vous pouvez leur attribuer un rôle : administrateur, contributeur ou lecteur.",
+    selector: ".ap-overview-wrap",
+    fallback: ".ap-content",
+    align: "center",
     icon: "users",
   },
   {
-    title: "Votre profil",
-    message: "Configurez vos informations dans le Profil : nom, structure, apparence du PDF, langue, et abonnement. C'est aussi là que vous retrouverez vos données.",
+    title: "Paramètres du profil",
+    message: "Dans votre Profil, configurez : vos informations personnelles, l'apparence de vos PDF, la langue, votre abonnement et l'export de vos données.",
     selector: ".ap-sidebar-desktop",
-    position: "right",
+    align: "right",
     icon: "user",
   },
   {
     title: "Vous êtes prêt !",
-    message: "Commencez par rédiger votre premier PV. ArchiPilot vous guide tout au long du processus avec l'aide de l'IA.",
+    message: "Vous avez toutes les clés en main. Commencez par rédiger votre premier PV — ArchiPilot vous accompagne à chaque étape.",
     selector: null,
-    position: "center",
+    align: "center",
     icon: "check",
     final: true,
   },
 ];
+
+function TourOverlay({ rect }) {
+  // SVG overlay with a rectangular cutout for the highlighted element
+  // This keeps the target element fully visible and sharp (no blur)
+  if (!rect) {
+    return <div style={{ position: "fixed", inset: 0, background: "rgba(31,41,55,0.55)", zIndex: 10003 }} />;
+  }
+
+  const pad = 6;
+  const r = 12;
+  const x = rect.left - pad;
+  const y = rect.top - pad;
+  const w = rect.width + pad * 2;
+  const h = rect.height + pad * 2;
+
+  return (
+    <svg style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 10003, pointerEvents: "none" }}>
+      <defs>
+        <mask id="tour-mask">
+          <rect width="100%" height="100%" fill="white" />
+          <rect x={x} y={y} width={w} height={h} rx={r} ry={r} fill="black" />
+        </mask>
+      </defs>
+      <rect width="100%" height="100%" fill="rgba(31,41,55,0.55)" mask="url(#tour-mask)" />
+      <rect x={x} y={y} width={w} height={h} rx={r} ry={r}
+        fill="none" stroke={AC} strokeWidth="2"
+        style={{ transition: "all .4s cubic-bezier(.5,.1,.25,1)" }} />
+    </svg>
+  );
+}
 
 function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
   const [rect, setRect] = useState(null);
@@ -68,56 +101,58 @@ function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
       setRect(null);
       return;
     }
-    const el = document.querySelector(currentStep.selector);
+    let el = document.querySelector(currentStep.selector);
+    if (!el && currentStep.fallback) {
+      el = document.querySelector(currentStep.fallback);
+    }
     if (el) {
       setRect(el.getBoundingClientRect());
+    } else {
+      setRect(null);
     }
-  }, [currentStep.selector]);
+  }, [currentStep.selector, currentStep.fallback]);
 
   useEffect(() => {
     updatePosition();
     window.addEventListener("resize", updatePosition);
-    return () => window.removeEventListener("resize", updatePosition);
-  }, [updatePosition]);
+    // Re-measure after a small delay (DOM may still be rendering)
+    const t = setTimeout(updatePosition, 100);
+    return () => { window.removeEventListener("resize", updatePosition); clearTimeout(t); };
+  }, [updatePosition, step]);
 
-  // Calculate tooltip position
+  // Position the tooltip card relative to the highlighted element
   let tooltipStyle = {};
-  if (currentStep.position === "center" || !rect) {
+  if (currentStep.align === "center" || !rect) {
     tooltipStyle = { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
-  } else if (currentStep.position === "right") {
-    tooltipStyle = { top: Math.max(80, rect.top + 20), left: rect.right + 16 };
-  } else if (currentStep.position === "bottom") {
-    tooltipStyle = { top: rect.bottom + 16, left: Math.max(280, rect.left + rect.width / 2 - 180) };
+  } else if (currentStep.align === "right") {
+    const top = Math.min(Math.max(80, rect.top + rect.height / 2 - 100), window.innerHeight - 320);
+    const left = Math.min(rect.right + 20, window.innerWidth - 400);
+    tooltipStyle = { top, left };
+  } else if (currentStep.align === "bottom") {
+    const top = Math.min(rect.bottom + 16, window.innerHeight - 280);
+    const left = Math.max(20, Math.min(rect.left + rect.width / 2 - 190, window.innerWidth - 400));
+    tooltipStyle = { top, left };
   }
 
   return (
     <>
-      {/* Scrim */}
-      <div style={{ position: "fixed", inset: 0, background: "rgba(31,41,55,0.50)", backdropFilter: "blur(2px)", zIndex: 10003 }} />
+      {/* Overlay with cutout */}
+      <TourOverlay rect={currentStep.final ? null : rect} />
 
-      {/* Highlight target element */}
-      {rect && !currentStep.final && (
-        <div style={{
-          position: "fixed", top: rect.top - 4, left: rect.left - 4,
-          width: rect.width + 8, height: rect.height + 8,
-          borderRadius: 12, border: `2px solid ${AC}`,
-          boxShadow: `0 0 0 9999px rgba(31,41,55,0.50)`,
-          zIndex: 10004, pointerEvents: "none",
-          transition: "all .4s cubic-bezier(.5,.1,.25,1)",
-        }} />
-      )}
+      {/* Click blocker (allows clicking "next" but blocks the rest) */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 10004 }} />
 
       {/* Tooltip card */}
-      <div style={{
+      <div key={step} style={{
         position: "fixed", ...tooltipStyle,
-        maxWidth: 380, width: "90%",
+        maxWidth: 380, width: "calc(100% - 40px)",
         background: WH, borderRadius: 16, padding: "24px 24px 20px",
         boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
         zIndex: 10005,
-        animation: "onbFadeUp .3s ease both",
+        animation: "tourFadeUp .3s ease both",
         fontFamily: "'Inter', system-ui, sans-serif",
       }}>
-        <style>{`@keyframes onbFadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }`}</style>
+        <style>{`@keyframes tourFadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }`}</style>
 
         {/* Icon + title */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -129,7 +164,7 @@ function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
             <Ico name={currentStep.icon} size={16} color={currentStep.final ? GR : AC} />
           </div>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: currentStep.final ? GR : AC, textTransform: "uppercase", letterSpacing: "0.1em" }}>
               {currentStep.final ? "C'est parti" : `${step + 1} / ${total}`}
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>{currentStep.title}</div>
@@ -139,6 +174,13 @@ function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
         {/* Message */}
         <div style={{ fontSize: 13, color: TX2, lineHeight: 1.6, marginBottom: 20 }}>
           {currentStep.message}
+        </div>
+
+        {/* Progress dots */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+          {Array.from({ length: total }).map((_, i) => (
+            <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 3, background: i <= step ? AC : SBB, transition: "all .3s" }} />
+          ))}
         </div>
 
         {/* Navigation */}
