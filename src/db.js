@@ -68,6 +68,7 @@ export async function loadProfile() {
     postTemplate: data.post_template || "general",
     pvTemplate: data.pv_template || "standard",
     remarkNumbering: data.remark_numbering || "none",
+    plan: data.plan || "free",
   };
 }
 
@@ -92,6 +93,7 @@ export async function saveProfile(profile) {
       post_template: profile.postTemplate,
       pv_template: profile.pvTemplate,
       remark_numbering: profile.remarkNumbering,
+      plan: profile.plan || "free",
     })
     .eq("id", user.id);
 
