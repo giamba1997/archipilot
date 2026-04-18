@@ -18,7 +18,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [addUrgent,  setAddUrgent]  = useState(false);
   const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
   const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
-  const [inputMethod, setInputMethod] = useState(() => initialMode || (hasExistingRemarks ? "write" : null)); // null = choose, "write" | "dictate"
+  const [inputMethod, setInputMethod] = useState(() => initialMode || "write"); // "write" | "dictate"
   const [pendingDictation, setPendingDictation] = useState(initialMode === "dictate"); // show waiting state until recording starts
   const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
