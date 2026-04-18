@@ -87,7 +87,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                   {navigator.onLine && (
                     <button onClick={() => {
                       removePvDraft(d.id);
-                      onStartNotes();
+                      onStartNotes("write");
                     }} style={{ padding: "5px 12px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ fontSize: 10 }}>✦</span> Générer
                     </button>
@@ -211,7 +211,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           </div>
 
           {/* CTA Nouveau PV */}
-          {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={onStartNotes} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(217,123,13,0.22)", letterSpacing: "-0.1px" }}>
+          {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={() => onStartNotes()} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(192,90,44,0.22)", letterSpacing: "-0.1px" }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Ico name="edit" size={16} color="#fff" />
             </div>
@@ -221,7 +221,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                 {project.nextMeeting ? t("project.meetingOn", { date: project.nextMeeting }) : t("project.prepareNextPV")}
               </div>
             </div>
-            <Ico name="arrowr" size={18} color="rgba(255,255,255,0.8)" style={{ marginLeft: "auto" }} />
+            <Ico name="arrowr" size={18} color="rgba(255,255,255,0.8)" />
           </button>}
 
           {/* Outils rapides — masqués sur mobile (bottom bar remplace) */}
@@ -266,7 +266,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             {project.pvHistory.length === 0 ? (
               <div style={{ padding: "16px 0", textAlign: "center" }}>
                 <div style={{ fontSize: 13, color: TX3, marginBottom: 10 }}>{t("project.noPV")}</div>
-                <button onClick={onStartNotes} style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <button onClick={() => onStartNotes("write")} style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
                   <Ico name="edit" size={13} color="#fff" />{t("project.createFirstPV")}
                 </button>
               </div>
