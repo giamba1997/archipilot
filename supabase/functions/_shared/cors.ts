@@ -10,6 +10,7 @@ const ALLOWED_ORIGINS = [
   "https://archi-pilot.com",
   "https://www.archi-pilot.com",
   "http://localhost:3000",
+  "http://localhost:3001",
   "http://localhost:5173",
 ];
 

@@ -19,6 +19,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
   const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
   const [inputMethod, setInputMethod] = useState(() => initialMode || (hasExistingRemarks ? "write" : null)); // null = choose, "write" | "dictate"
+  const [pendingDictation, setPendingDictation] = useState(initialMode === "dictate"); // show waiting state until recording starts
   const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
   const [currentStep, setCurrentStep] = useState(0);
@@ -208,9 +209,13 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
       dictateStartedRef.current = true;
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SR) {
-        // Wait for component to be fully mounted before starting
-        const timer = setTimeout(() => startContinuous(), 800);
+        const timer = setTimeout(() => {
+          startContinuous();
+          setPendingDictation(false);
+        }, 500);
         return () => clearTimeout(timer);
+      } else {
+        setPendingDictation(false);
       }
     }
   }, [initialMode, inputMethod]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1088,6 +1093,17 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 </button>
               </div>
               {contErr && <div style={{ marginTop: 10, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
+            </div>
+          </div>
+        ) : pendingDictation ? (
+          /* Waiting for dictation to start */
+          <div style={{ padding: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <div style={{ width: 22, height: 22, border: `3px solid ${RD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 4 }}>Démarrage de la dictée...</div>
+              <div style={{ fontSize: 12, color: TX3 }}>Autorisez l'accès au microphone si demandé</div>
             </div>
           </div>
         ) : !inputMethod ? (
