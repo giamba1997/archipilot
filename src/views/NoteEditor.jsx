@@ -21,7 +21,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [inputMethod, setInputMethod] = useState(() => initialMode || (hasExistingRemarks ? "write" : null)); // null = choose, "write" | "dictate"
   const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
-  const [mobileStep, setMobileStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const [renamingPost, setRenamingPost] = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
   const [inputMode,    setInputMode]    = useState("write"); // "write" | "voice"
@@ -202,12 +202,18 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   };
 
   // Auto-start dictation when initialMode is "dictate"
+  const dictateStartedRef = useRef(false);
   useEffect(() => {
-    if (initialMode === "dictate" && inputMethod === "dictate") {
+    if (initialMode === "dictate" && inputMethod === "dictate" && !dictateStartedRef.current) {
+      dictateStartedRef.current = true;
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SR) setTimeout(() => startContinuous(), 300);
+      if (SR) {
+        // Wait for component to be fully mounted before starting
+        const timer = setTimeout(() => startContinuous(), 800);
+        return () => clearTimeout(timer);
+      }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialMode, inputMethod]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopContinuous = () => {
     // Disable auto-restart BEFORE stopping
@@ -787,22 +793,21 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     { step: 2, label: "Destinataires", sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? "Tous" : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
     { step: 3, label: "Génération", sub: readyToGenerate ? "Prêt" : "En attente", icon: "send", done: false },
   ];
-  const activeStepIdx = stepsData.findIndex(s => !s.done);
-  const currentStep = activeStepIdx === -1 ? stepsData.length - 1 : activeStepIdx;
+  // currentStep is now managed by useState above — no auto-calculation needed
 
   return (
-    <div className="ap-note-container" data-mobile-step={mobileStep} style={{ paddingBottom: 32 }}>
+    <div className="ap-note-container" data-mobile-step={currentStep} style={{ paddingBottom: 32 }}>
 
       {/* ── Mobile top bar — back + stepper ── */}
       <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "8px 0 10px", flexShrink: 0, borderBottom: `1px solid ${SB2}`, marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
             {stepsData.map((s, i) => {
               const isDone = s.done;
-              const isActive = i === mobileStep;
+              const isActive = i === currentStep;
               return (
                 <div key={s.step} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
                   <div
-                    onClick={() => setMobileStep(i)}
+                    onClick={() => setCurrentStep(i)}
                     style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", flex: 1, minWidth: 0, padding: "3px 4px", borderRadius: 6, background: isActive ? ACL : "transparent", transition: "all 0.15s" }}
                   >
                     <div style={{ width: 22, height: 22, borderRadius: "50%", background: isDone ? AC : isActive ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
@@ -844,35 +849,35 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
           <button onClick={loadSamples} style={{ padding: "6px 12px", border: `1px solid ${SBB}`, borderRadius: 7, background: WH, cursor: "pointer", fontSize: 10, color: TX3, fontFamily: "inherit", flexShrink: 0, fontWeight: 500 }}>{t("examples")}</button>
         </div>
 
-        {/* Barre de progression intégrée au header */}
+        {/* Barre de progression — cliquable, basée sur currentStep */}
         {(() => {
           const steps = [
-            { step: 1, label: t("notes.stepPosts"), sub: `${filledCount}/${project.posts.length}`, icon: "listcheck", done: filledCount > 0 },
-            { step: 2, label: t("notes.stepRecipients"), sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
-            { step: 3, label: t("notes.stepGeneration"), sub: readyToGenerate ? t("notes.stepReady") : t("notes.stepWaiting"), icon: "send", done: false },
+            { step: 0, label: t("notes.stepPosts"), sub: `${filledCount}/${project.posts.length}`, icon: "listcheck", done: filledCount > 0 },
+            { step: 1, label: t("notes.stepRecipients"), sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
+            { step: 2, label: t("notes.stepGeneration"), sub: readyToGenerate ? t("notes.stepReady") : t("notes.stepWaiting"), icon: "send", done: false },
           ];
-          const activeIdx = steps.findIndex(s => !s.done);
-          const activeStep = activeIdx === -1 ? steps.length - 1 : activeIdx;
           return (
             <div style={{ marginTop: 14, background: SB, borderRadius: 10, padding: "4px 4px", display: "flex", alignItems: "stretch", gap: 3 }}>
               {steps.map((s, i) => {
                 const isDone = s.done;
-                const isActive = i === activeStep;
+                const isActive = i === currentStep;
                 return (
                   <div key={s.step} style={{ flex: 1, display: "flex", alignItems: "center", gap: 0, minWidth: 0 }}>
-                    <div style={{
-                      flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
-                      background: isActive ? WH : "transparent",
-                      borderRadius: 8,
-                      boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                      transition: "all 0.25s",
-                    }}>
+                    <div
+                      onClick={() => setCurrentStep(i)}
+                      style={{
+                        flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                        background: isActive ? WH : "transparent",
+                        borderRadius: 8, cursor: "pointer",
+                        boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                        transition: "all 0.25s",
+                      }}>
                       <div style={{
                         width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
                         background: isDone ? AC : isActive ? AC + "14" : SB2,
                         border: isActive ? `2px solid ${AC}` : "2px solid transparent",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: isDone ? "0 1px 3px rgba(217,123,13,0.25)" : "none",
+                        boxShadow: isDone ? "0 1px 3px rgba(192,90,44,0.25)" : "none",
                         transition: "all 0.3s",
                       }}>
                         {isDone
@@ -903,7 +908,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
       </div>
 
       {/* ── Step 0: Saisie ── */}
-      <div className="ap-note-section-0">
+      <div className="ap-note-section-0" style={{ display: currentStep === 0 ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
 
       {/* Content area for step 0 */}
       <div className="ap-note-step-content">
@@ -1355,21 +1360,24 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
 
       </div>{/* end ap-note-step-content step 0 */}
 
-      {/* Mobile: go to next step */}
-      <div className="ap-note-step-nav">
+      {/* Step 0 navigation */}
+      <div style={{ padding: "12px 16px", borderTop: `1px solid ${SBB}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="back" size={14} color={TX2} /> Retour
+        </button>
         <button
-          onClick={() => setMobileStep(project.participants.length > 0 ? 1 : 2)}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          onClick={() => setCurrentStep(project.participants.length > 0 ? 1 : 2)}
+          disabled={filledCount === 0}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", border: "none", borderRadius: 10, background: filledCount > 0 ? AC : SBB, color: filledCount > 0 ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: filledCount > 0 ? "pointer" : "not-allowed", fontFamily: "inherit" }}
         >
-          Étape suivante : {project.participants.length > 0 ? "Destinataires" : "Génération"}
-          <Ico name="arrowr" size={12} color="#fff" />
+          Destinataires <Ico name="arrowr" size={13} color={filledCount > 0 ? "#fff" : TX3} />
         </button>
       </div>
 
       </div>{/* end step 0 */}
 
       {/* ── Step 1: Destinataires ── */}
-      <div className="ap-note-section-1">
+      <div className="ap-note-section-1" style={{ display: currentStep === 1 ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
 
       {/* Scrollable content area for step 1 */}
       <div className="ap-note-step-content">
@@ -1441,21 +1449,24 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
 
       </div>{/* end ap-note-step-content step 1 */}
 
-      {/* Mobile: go to next step */}
-      <div className="ap-note-step-nav">
+      {/* Step 1 navigation */}
+      <div style={{ padding: "12px 16px", borderTop: `1px solid ${SBB}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+        <button onClick={() => setCurrentStep(0)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="back" size={14} color={TX2} /> Saisie
+        </button>
         <button
-          onClick={() => setMobileStep(2)}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          onClick={() => setCurrentStep(2)}
+          disabled={recipientFilters === null}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", border: "none", borderRadius: 10, background: recipientFilters !== null ? AC : SBB, color: recipientFilters !== null ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: recipientFilters !== null ? "pointer" : "not-allowed", fontFamily: "inherit" }}
         >
-          Étape suivante : Génération
-          <Ico name="arrowr" size={12} color="#fff" />
+          Génération <Ico name="arrowr" size={13} color={recipientFilters !== null ? "#fff" : TX3} />
         </button>
       </div>
 
       </div>{/* end step 1 */}
 
       {/* ── Step 2: Générer ── */}
-      <div className="ap-note-section-2">
+      <div className="ap-note-section-2" style={{ display: currentStep === 2 ? "flex" : "none", flexDirection: "column", flex: 1, minHeight: 0 }}>
 
       {/* Scrollable content area for step 2 */}
       <div className="ap-note-step-content">

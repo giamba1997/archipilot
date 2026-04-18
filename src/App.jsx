@@ -497,9 +497,8 @@ export default function App() {
           .ap-hamburger { display: none !important; }
           .ap-back-btn { display: none !important; }
 
-          /* NoteEditor — mobile stepper */
-          .ap-note-mobile-stepper { display: block !important; }
-          .ap-note-desktop-header { display: none !important; }
+          /* NoteEditor — stepper is now universal, hide old mobile-only stepper */
+          .ap-note-mobile-stepper { display: none !important; }
 
           /* Mobile step process — viewport-fit wizard */
           .ap-note-container {
@@ -514,20 +513,7 @@ export default function App() {
           .ap-note-mobile-stepper {
             flex-shrink: 0 !important;
           }
-          .ap-note-section-0,
-          .ap-note-section-1,
-          .ap-note-section-2 {
-            display: none !important;
-            flex-direction: column;
-            min-height: 0;
-          }
-          .ap-note-container[data-mobile-step="0"] .ap-note-section-0,
-          .ap-note-container[data-mobile-step="1"] .ap-note-section-1,
-          .ap-note-container[data-mobile-step="2"] .ap-note-section-2 {
-            display: flex !important;
-            flex: 1 1 0 !important;
-            min-height: 0 !important;
-          }
+          /* Sections visibility is now controlled by JS inline styles */
           .ap-note-step-content {
             flex: 1 1 0 !important;
             overflow-y: auto !important;
