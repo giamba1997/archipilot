@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, LH, RAD, GRBG, REDBG, REDBRD, BL, BLB, TE, TEB } from "../constants/tokens";
 import { getStatus, STATUSES, nextPvStatus } from "../constants/statuses";
+const updateProjectField = (project, setProjects, field, value) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, [field]: value } : p));
 import { RECURRENCES } from "../constants/templates";
 import { Ico, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "../components/ui";
 import { relativeDate } from "../utils/dates";
@@ -46,7 +47,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
       {/* ── Barre contexte projet — masquée sur mobile (redondant avec header) ── */}
       <div className="ap-context-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <StatusBadge statusId={project.statusId} />
+          <ProjectStatusSelector statusId={project.statusId} onChange={(id) => updateProjectField(project, setProjects, "statusId", id)} />
           {project.client     && <span style={{ fontSize: 12, color: TX3 }}>MO <strong style={{ color: TX2, fontWeight: 600 }}>{project.client}</strong></span>}
           {project.contractor && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}>Entr. <strong style={{ color: TX2, fontWeight: 600 }}>{project.contractor}</strong></span></>}
           {(project.city || project.address) && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}><Ico name="mappin" size={10} color={TX3} /> {project.city || project.address}</span></>}
@@ -651,6 +652,38 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         </div>
       )}
 
+    </div>
+  );
+}
+
+// ── Project Status Selector (clickable badge with dropdown) ──
+function ProjectStatusSelector({ statusId, onChange }) {
+  const [open, setOpen] = useState(false);
+  const s = getStatus(statusId);
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button onClick={() => setOpen(!open)} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: s.color, background: s.bg, padding: "3px 10px 3px 7px", borderRadius: 20, border: "none", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+        {s.label}
+        <Ico name="back" size={9} color={s.color} style={{ transform: open ? "rotate(90deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, background: WH, border: `1px solid ${SBB}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: 160, padding: 4, animation: "fadeIn 0.15s ease" }}>
+            {STATUSES.map(st => (
+              <button key={st.id} onClick={() => { onChange(st.id); setOpen(false); }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", borderRadius: 7, background: st.id === statusId ? st.bg : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "background 0.1s" }}
+                onMouseEnter={e => { if (st.id !== statusId) e.currentTarget.style.background = SB; }}
+                onMouseLeave={e => { if (st.id !== statusId) e.currentTarget.style.background = "transparent"; }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: st.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: st.id === statusId ? 700 : 500, color: st.id === statusId ? st.color : TX }}>{st.label}</span>
+                {st.id === statusId && <Ico name="check" size={12} color={st.color} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
