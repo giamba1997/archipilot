@@ -11,14 +11,14 @@ import { AnnotationEditor } from "./AnnotationEditor";
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
-export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }) {
+export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, initialMode }) {
   const [activePost,      setActivePost]      = useState(null);
   const [annotatingPhoto, setAnnotatingPhoto] = useState(null);
   const [addText,    setAddText]    = useState("");
   const [addUrgent,  setAddUrgent]  = useState(false);
   const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
   const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
-  const [inputMethod, setInputMethod] = useState(() => hasExistingRemarks ? "write" : null); // null = choose, "write" | "dictate"
+  const [inputMethod, setInputMethod] = useState(() => initialMode || (hasExistingRemarks ? "write" : null)); // null = choose, "write" | "dictate"
   const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
   const [mobileStep, setMobileStep] = useState(0);
@@ -200,6 +200,14 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate }
     setContRecording(true);
     contTimerRef.current = setInterval(() => setContSeconds(s => s + 1), 1000);
   };
+
+  // Auto-start dictation when initialMode is "dictate"
+  useEffect(() => {
+    if (initialMode === "dictate" && inputMethod === "dictate") {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SR) setTimeout(() => startContinuous(), 300);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopContinuous = () => {
     // Disable auto-restart BEFORE stopping

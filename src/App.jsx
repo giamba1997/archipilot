@@ -138,6 +138,7 @@ export default function App() {
   const [showReconnected, setShowReconnected] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [pvStartMode, setPvStartMode] = useState(null); // "write" | "dictate" — passed to NoteEditor
   const [pvRecipients, setPvRecipients] = useState([]); // [] = tous
   const [pvTitle, setPvTitle] = useState("");
   const [pvFieldData, setPvFieldData] = useState({}); // attendance, visitStart, visitEnd
@@ -754,8 +755,8 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => setView("notes")} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} onGallery={() => { if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
-          {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => { const hasRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim()); if (hasRemarks) { setPvStartMode("write"); setView("notes"); } else { setModal("pvmethod"); } }} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onCollab={() => setModal("collab")} onGallery={() => { if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
+          {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => { setView("overview"); setPvStartMode(null); }} initialMode={pvStartMode} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
           {view !== "profile" && project && view === "notes" && isReadOnly(project) && (() => { setView("overview"); return null; })()}
           {view !== "profile" && project && view === "result" && !isReadOnly(project) && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
           {view !== "profile" && project && view === "gallery" && <GalleryView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
@@ -770,6 +771,44 @@ export default function App() {
       {/* Collaboration modal */}
       {modal === "collab" && project && (
         <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} />
+      )}
+
+      {/* PV method chooser modal */}
+      {modal === "pvmethod" && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: SP.lg }} onClick={() => setModal(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: WH, borderRadius: 20, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.15)", animation: "modalIn 0.18s ease", padding: "28px 24px" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: TX, marginBottom: 4 }}>Rédiger un PV</div>
+            <div style={{ fontSize: 13, color: TX2, marginBottom: 20 }}>Comment souhaitez-vous procéder ?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Dictate option */}
+              {!!(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+                <button onClick={() => { setPvStartMode("dictate"); setModal(null); setView("notes"); }} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: `1.5px solid ${SBB}`, borderRadius: 14, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = AC; e.currentTarget.style.background = ACL; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = SBB; e.currentTarget.style.background = WH; }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: `${RD}12`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name="mic" size={22} color={RD} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: TX }}>Dictée vocale</div>
+                    <div style={{ fontSize: 12, color: TX2, marginTop: 2, lineHeight: 1.4 }}>Parlez librement, l'IA répartit vos remarques automatiquement dans les postes.</div>
+                  </div>
+                </button>
+              )}
+              {/* Write option */}
+              <button onClick={() => { setPvStartMode("write"); setModal(null); setView("notes"); }} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", border: `1.5px solid ${SBB}`, borderRadius: 14, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = AC; e.currentTarget.style.background = ACL; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = SBB; e.currentTarget.style.background = WH; }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: `${AC}12`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="edit" size={22} color={AC} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: TX }}>Rédaction écrite</div>
+                  <div style={{ fontSize: 12, color: TX2, marginTop: 2, lineHeight: 1.4 }}>Ajoutez vos remarques manuellement, poste par poste, avec photos et annotations.</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Modal open={modal === "new"} onClose={() => setModal(null)} title="Nouveau projet">
