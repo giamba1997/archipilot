@@ -175,12 +175,11 @@ export default function App() {
         }
         if (cloudProfile) {
           setProfile(cloudProfile);
-          // Show onboarding for new users who haven't completed it yet
-          if (!localStorage.getItem("archipilot_onboarding_done") && cloudProfile.name === INIT_PROFILE.name) {
-            setShowOnboarding(true);
-          }
-        } else if (!localStorage.getItem("archipilot_onboarding_done")) {
-          setShowOnboarding(true);
+        }
+        // Show onboarding for new users who haven't completed it yet
+        if (!localStorage.getItem("archipilot_onboarding_done")) {
+          const isNewUser = !cloudProfile || !cloudProfile.name || !cloudProfile.structure;
+          if (isNewUser) setShowOnboarding(true);
         }
       } catch (e) { console.error("Initial load error:", e); }
       setDbLoaded(true);
