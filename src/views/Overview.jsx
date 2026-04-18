@@ -23,7 +23,7 @@ const CardHeader = ({ title, action }) => (
   </div>
 );
 
-export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery }) {
+export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
@@ -224,6 +224,37 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             <Ico name="arrowr" size={18} color="rgba(255,255,255,0.8)" />
           </button>}
 
+          {/* OPR Summary Card */}
+          {(project.statusId === "reception" || (project.reserves || []).length > 0) && (() => {
+            const res = project.reserves || [];
+            const total = res.length;
+            const levees = res.filter(r => r.status === "levee").length;
+            const pct = total > 0 ? Math.round((levees / total) * 100) : 0;
+            return (
+              <div style={{ background: WH, border: `1px solid ${total > 0 && pct < 100 ? REDBRD : SBB}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: total > 0 ? 10 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: total > 0 && pct < 100 ? REDBG : GRBG, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name={pct === 100 ? "check" : "alert"} size={14} color={pct === 100 ? GR : RD} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Réserves OPR</div>
+                      <div style={{ fontSize: 11, color: TX3 }}>{total === 0 ? "Aucune réserve" : `${levees}/${total} levées`}</div>
+                    </div>
+                  </div>
+                  <button onClick={onOpr} style={{ padding: "7px 14px", border: "none", borderRadius: 8, background: total === 0 ? AC : SB, color: total === 0 ? "#fff" : TX, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                    {total === 0 ? "Démarrer l'OPR" : "Gérer"}
+                  </button>
+                </div>
+                {total > 0 && (
+                  <div style={{ height: 6, background: SB, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? GR : AC, borderRadius: 3, transition: "width 0.4s" }} />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Outils rapides — masqués sur mobile (bottom bar remplace) */}
           <div className="ap-quick-tools" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[
@@ -231,6 +262,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               { label: "Photos",               icon: "camera",    color: AC,  bg: ACL,  count: (project.gallery||[]).length,     onClick: onGallery },
               { label: t("project.planning"),  icon: "gantt",     color: GR,  bg: GRBG, count: (project.lots||[]).length,        onClick: onViewPlanning },
               { label: t("project.lists"),     icon: "listcheck", color: TE,  bg: TEB,  count: (project.checklists||[]).length,  onClick: onViewChecklists },
+              ...((project.statusId === "reception" || (project.reserves || []).length > 0) ? [{ label: "Réserves", icon: "alert", color: RD, bg: REDBG, count: (project.reserves || []).filter(r => r.status !== "levee").length, onClick: onOpr }] : []),
             ].map((tb) => (
               <button key={tb.label} onClick={tb.onClick} style={{ flex: "1 1 80px", padding: "10px 8px", border: `1px solid ${tb.color}25`, borderRadius: 10, background: tb.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                 <Ico name={tb.icon} size={16} color={tb.color} />

@@ -30,6 +30,7 @@ export const PLAN_FEATURES = {
   exportCsv:        { free: false, pro: false,    team: true },
   pdfNoWatermark:   { free: false, pro: true,     team: true },
   pdfCustomLogo:    { free: false, pro: false,    team: true },
+  opr:              { free: false, pro: true,     team: true },
 };
 export const hasFeature = (plan, feature) => {
   const p = plan || "free";

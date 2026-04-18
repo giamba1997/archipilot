@@ -39,6 +39,22 @@ export const LOT_COLORS = [
   { id: "teal",   value: TE,  bg: TEB  },
 ];
 
+// ── Reserve statuses (OPR) ──
+export const RESERVE_STATUSES = [
+  { id: "non_levee",           label: "Non levée",           color: "#DC2626", bg: "#FEF2F2", dot: "#EF4444" },
+  { id: "partiellement_levee", label: "Partiellement levée", color: "#D97706", bg: "#FFFBEB", dot: "#F59E0B" },
+  { id: "levee",               label: "Levée",               color: "#16A34A", bg: "#F0FDF4", dot: GR },
+];
+export const RESERVE_SEVERITIES = [
+  { id: "critical", label: "Critique",    color: "#DC2626", bg: "#FEF2F2" },
+  { id: "major",    label: "Majeure",     color: "#D97706", bg: "#FFFBEB" },
+  { id: "minor",    label: "Mineure",     color: "#3B82F6", bg: "#EFF6FF" },
+  { id: "cosmetic", label: "Esthétique",  color: "#6B7280", bg: "#F3F4F6" },
+];
+export const getReserveStatus = (id) => RESERVE_STATUSES.find(s => s.id === id) || RESERVE_STATUSES[0];
+export const getReserveSeverity = (id) => RESERVE_SEVERITIES.find(s => s.id === id) || RESERVE_SEVERITIES[3];
+export const nextReserveStatus = (s) => s === "non_levee" ? "partiellement_levee" : s === "partiellement_levee" ? "levee" : "non_levee";
+
 export const calcLotStatus = (lot) => {
   const now   = new Date(); now.setHours(0,0,0,0);
   const start = lot.startDate ? new Date(lot.startDate) : null;
