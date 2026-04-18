@@ -41,17 +41,17 @@ const TOUR_STEPS = [
   },
   {
     title: "Collaboration",
-    message: "Invitez des collaborateurs sur vos projets via le bouton de partage. Vous pouvez leur attribuer un rôle : administrateur, contributeur ou lecteur.",
-    selector: ".ap-overview-wrap",
-    fallback: ".ap-content",
-    align: "center",
+    message: "Invitez des collaborateurs sur vos projets via ce bouton. Vous pouvez leur attribuer un rôle : administrateur, contributeur ou lecteur.",
+    selector: ".ap-cta-collab",
+    fallback: ".ap-overview-wrap",
+    align: "bottom",
     icon: "users",
   },
   {
     title: "Paramètres du profil",
-    message: "Dans votre Profil, configurez : vos informations personnelles, l'apparence de vos PDF, la langue, votre abonnement et l'export de vos données.",
-    selector: ".ap-sidebar-desktop > div",
-    fallback: ".ap-sidebar-desktop",
+    message: "Cliquez sur votre avatar pour accéder au Profil. Configurez vos informations, l'apparence de vos PDF, la langue, votre abonnement et l'export de vos données.",
+    selector: ".sb-avatar",
+    fallback: ".ap-sidebar-desktop > div",
     align: "right",
     icon: "user",
   },
@@ -123,9 +123,12 @@ function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
   }, [updatePosition, step]);
 
   // Position the tooltip card relative to the highlighted element
+  // Account for the sidebar (264px) when centering in the main content area
+  const sidebarWidth = document.querySelector(".ap-sidebar-desktop > div")?.getBoundingClientRect().width || 0;
   let tooltipStyle = {};
   if (currentStep.align === "center" || !rect) {
-    tooltipStyle = { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
+    const centerX = sidebarWidth + (window.innerWidth - sidebarWidth) / 2;
+    tooltipStyle = { top: "50%", left: centerX, transform: "translate(-50%, -50%)" };
   } else if (currentStep.align === "right") {
     const top = Math.min(Math.max(80, rect.top + rect.height / 2 - 100), window.innerHeight - 320);
     const left = Math.min(rect.right + 20, window.innerWidth - 400);

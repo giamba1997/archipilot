@@ -1502,8 +1502,8 @@ Règles :
         <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch {} }} />
       )}
 
-      {/* Cookie consent banner */}
-      <CookieBanner />
+      {/* Cookie consent banner — only show after onboarding & tour are done */}
+      {!showOnboarding && !showGuidedTour && <CookieBanner />}
 
       {/* Legal pages overlay */}
       {legalPage && (
