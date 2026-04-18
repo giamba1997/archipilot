@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { LegalPage, LegalLinks } from "./views/LegalPages";
 
 // ── Colors (matching App.jsx DA) ───────────────────────────
-const AC  = "#C95A1B";
+const AC  = "#C05A2C";
 const ACD = "#B8680A";
 const ACL = "#FDF4E7";
 const ACL2= "#FAE9CF";
@@ -505,7 +505,7 @@ function PasswordStrength({ password }) {
     { ok: /[^A-Za-z0-9]/.test(password), label: "1 spécial" },
   ];
   const passed = checks.filter(c => c.ok).length;
-  const color = passed === 3 ? GR : passed >= 2 ? "#C95A1B" : RD;
+  const color = passed === 3 ? GR : passed >= 2 ? "#C05A2C" : RD;
 
   return (
     <div style={{ marginTop: 6 }}>

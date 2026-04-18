@@ -23,16 +23,16 @@
 //   ✗ NOT for section headers
 
 // ── Core ──
-export const AC   = "#C95A1B";   // Primary orange — CTAs, active states, key actions
-export const ACL  = "#F4E4D8";   // Soft orange bg — selected items, subtle highlights
-export const ACL2 = "#E8CCBA";   // Accent border — focus rings, selected borders
-export const SB   = "#F7F7F5";   // Surface (sidebar, inputs, subtle bg)
-export const SB2  = "#EEEEEB";   // Surface hover
-export const SBB  = "#E5E7EB";   // Borders (neutral grey, not warm)
-export const TX   = "#1F2937";   // Primary text (dark grey, not pure black)
-export const TX2  = "#6B7280";   // Secondary text
-export const TX3  = "#9CA3AF";   // Tertiary text (placeholders, timestamps)
-export const BG   = "#FAFAF9";   // Page background
+export const AC   = "#C05A2C";   // Terracotta — CTAs, active states, key actions
+export const ACL  = "#FAF0EA";   // Soft terracotta bg — selected items, subtle highlights
+export const ACL2 = "#F0DDD0";   // Accent border — focus rings, selected borders
+export const SB   = "#F8F7F4";   // Surface (sidebar, inputs, subtle bg) — warm
+export const SB2  = "#F0EFEB";   // Surface hover — warm
+export const SBB  = "#E2E0DB";   // Borders (warm grey)
+export const TX   = "#2C2926";   // Primary text (warm dark brown)
+export const TX2  = "#6B6862";   // Secondary text (warm grey)
+export const TX3  = "#A09D96";   // Tertiary text (warm placeholders)
+export const BG   = "#FAFAF8";   // Page background — slightly warm
 export const WH   = "#FFFFFF";   // White
 export const RD   = "#DC2626";   // Danger / urgent
 export const GR   = "#16A34A";   // Success / resolved

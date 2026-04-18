@@ -19,7 +19,7 @@ class ErrorBoundary extends Component {
             <p style={{ fontSize: 13, color: "#6B6B66", lineHeight: 1.6, marginBottom: 24 }}>
               Une erreur inattendue est survenue. Vos données sont en sécurité. Rechargez la page pour continuer.
             </p>
-            <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: "#C95A1B", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: "#C05A2C", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
               Recharger la page
             </button>
             {this.state.error && (

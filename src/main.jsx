@@ -21,7 +21,7 @@ class ErrorBoundary extends React.Component {
             {"\n\n"}
             {this.state.info?.componentStack}
           </pre>
-          <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 24px", background: "#C95A1B", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+          <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: "10px 24px", background: "#C05A2C", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
             Recharger
           </button>
         </div>

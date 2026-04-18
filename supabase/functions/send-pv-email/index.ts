@@ -61,7 +61,7 @@ serve(async (req) => {
     const html = `
 <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 20px;">
   <div style="text-align: center; margin-bottom: 24px;">
-    <table role="presentation" style="margin: 0 auto;"><tr><td style="width: 40px; height: 40px; border-radius: 10px; background: #D97B0D; color: #fff; font-size: 18px; font-weight: 800; text-align: center; vertical-align: middle;">A</td></tr></table>
+    <table role="presentation" style="margin: 0 auto;"><tr><td style="width: 40px; height: 40px; border-radius: 10px; background: #C05A2C; color: #fff; font-size: 18px; font-weight: 800; text-align: center; vertical-align: middle;">A</td></tr></table>
     <div style="font-size: 18px; font-weight: 700; color: #1D1D1B; margin-top: 8px;">ArchiPilot</div>
   </div>
 
@@ -69,7 +69,7 @@ serve(async (req) => {
     ${messageHtml ? `<div style="font-size: 13px; line-height: 1.7; color: #1D1D1B; margin-bottom: 20px;">${messageHtml}</div><hr style="border: none; border-top: 1px solid #E2E1DD; margin-bottom: 20px;" />` : ""}
 
     <div style="text-align: center; margin-bottom: 20px;">
-      <div style="display: inline-block; padding: 4px 12px; background: #FDF4E7; border-radius: 6px; font-size: 11px; font-weight: 700; color: #D97B0D; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+      <div style="display: inline-block; padding: 4px 12px; background: #FDF4E7; border-radius: 6px; font-size: 11px; font-weight: 700; color: #C05A2C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
         PV de chantier
       </div>
       <h2 style="font-size: 20px; font-weight: 700; color: #1D1D1B; margin: 0 0 4px;">PV n\u00b0${pvNumber}</h2>
