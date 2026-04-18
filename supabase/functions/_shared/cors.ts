@@ -9,12 +9,9 @@ const ALLOWED_ORIGINS = [
   "https://archipilot-delta.vercel.app",
   "https://archi-pilot.com",
   "https://www.archi-pilot.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
 ];
-
-// In development, also allow localhost
-if (Deno.env.get("ENVIRONMENT") !== "production") {
-  ALLOWED_ORIGINS.push("http://localhost:3000", "http://localhost:5173");
-}
 
 /** Determine the Access-Control-Allow-Origin value based on the request origin. */
 function getAllowedOrigin(req: Request): string {
