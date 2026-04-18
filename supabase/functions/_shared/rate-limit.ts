@@ -42,8 +42,11 @@ export async function checkRateLimit(
   config: RateLimitConfig,
 ): Promise<RateLimitResult> {
   const { action, maxCalls, windowSeconds = 3600 } = config;
-  const supabase = getAdminClient();
   const now = new Date();
+
+  // Wrap in try/catch — if rate_limits table doesn't exist, allow by default
+  try {
+  const supabase = getAdminClient();
 
   // Try to get existing rate limit entry
   const { data: existing } = await supabase
@@ -51,7 +54,7 @@ export async function checkRateLimit(
     .select("*")
     .eq("user_id", userId)
     .eq("action", action)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     const windowStart = new Date(existing.window_start);
@@ -112,4 +115,10 @@ export async function checkRateLimit(
     limit: maxCalls,
     resetAt: new Date(now.getTime() + windowSeconds * 1000).toISOString(),
   };
+
+  } catch (e) {
+    // If rate limiting fails (table missing, RLS issue), allow the request
+    console.error("Rate limiting failed, allowing request:", e);
+    return { allowed: true, current: 0, limit: maxCalls, resetAt: new Date(now.getTime() + windowSeconds * 1000).toISOString() };
+  }
 }

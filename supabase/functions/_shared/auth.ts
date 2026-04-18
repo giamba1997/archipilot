@@ -48,17 +48,23 @@ export async function authenticateUser(req: Request): Promise<AuthenticatedUser>
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) throw new Error("Unauthorized");
 
-  // Fetch the user's plan from the profiles table
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("plan")
-    .eq("id", user.id)
-    .single();
+  // Fetch the user's plan from the profiles table (non-blocking — default to free)
+  let plan = "free";
+  try {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("plan")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.plan) plan = profile.plan;
+  } catch (e) {
+    console.error("Failed to fetch profile plan, defaulting to free:", e);
+  }
 
   return {
     id: user.id,
     email: user.email || "",
-    plan: profile?.plan || "free",
+    plan,
   };
 }
 
