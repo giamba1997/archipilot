@@ -12,6 +12,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@sentry/react": "^10.49.0",
     "@supabase/supabase-js": "^2.101.1",
     "jspdf": "^4.2.1",
     "pdfjs-dist": "^5.4.624",

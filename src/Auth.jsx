@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { supabase } from "./supabase";
+import { LegalPage, LegalLinks } from "./views/LegalPages";
 
 // ── Colors (matching App.jsx DA) ───────────────────────────
 const AC  = "#C95A1B";
@@ -751,6 +752,12 @@ export function MfaVerifyPage() {
 
 // ── Page Shell ─────────────────────────────────────────────
 function PageShell({ children }) {
+  const [legalPage, setLegalPage] = useState(null);
+
+  if (legalPage) {
+    return <LegalPage page={legalPage} onBack={() => setLegalPage(null)} />;
+  }
+
   return (
     <div style={{
       minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center",
@@ -802,9 +809,12 @@ function PageShell({ children }) {
           {children}
         </div>
 
-        {/* Footer */}
-        <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: TX3, opacity: 0.6 }}>
-          © {new Date().getFullYear()} ArchiPilot
+        {/* Footer with legal links */}
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <div style={{ fontSize: 10, color: TX3, opacity: 0.6, marginBottom: 6 }}>
+            © {new Date().getFullYear()} ArchiPilot
+          </div>
+          <LegalLinks onNavigate={setLegalPage} />
         </div>
       </div>
     </div>

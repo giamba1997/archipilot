@@ -53,7 +53,8 @@ import { Ico, Skeleton, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
 import { CollabModalWrapper, UpgradeGate, PricingSection, SendPvModal, SearchModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
-import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, AnnotationEditor, ANNO_TOOLS, ANNO_COLORS, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView } from "./views";
+import { OnboardingWizard } from "./components/modals/OnboardingWizard";
+import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, AnnotationEditor, ANNO_TOOLS, ANNO_COLORS, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks } from "./views";
 
 const INIT_PROJECTS = [
   {
@@ -141,6 +142,8 @@ export default function App() {
   const [pvFieldData, setPvFieldData] = useState({}); // attendance, visitStart, visitEnd
   const [showSearch, setShowSearch] = useState(false);
   const [importPV, setImportPV] = useState({ number: "", date: "", author: "", pdfDataUrl: null, fileName: "" });
+  const [legalPage, setLegalPage] = useState(null); // "privacy" | "terms" | null
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -148,6 +151,9 @@ export default function App() {
   };
   const importPVRef = useRef(null);
   const t = useT();
+
+  // Expose legal page navigation for CookieBanner
+  useEffect(() => { window.__showLegal = setLegalPage; return () => { delete window.__showLegal; }; }, []);
 
   // ── Collaboration state ──
   const [sharedProjects, setSharedProjects] = useState([]);
@@ -167,7 +173,15 @@ export default function App() {
           if (cloudData.projects && cloudData.projects.length > 0) setProjects(cloudData.projects);
           if (cloudData.activeId) setActiveId(cloudData.activeId);
         }
-        if (cloudProfile) setProfile(cloudProfile);
+        if (cloudProfile) {
+          setProfile(cloudProfile);
+          // Show onboarding for new users who haven't completed it yet
+          if (!localStorage.getItem("archipilot_onboarding_done") && cloudProfile.name === INIT_PROFILE.name) {
+            setShowOnboarding(true);
+          }
+        } else if (!localStorage.getItem("archipilot_onboarding_done")) {
+          setShowOnboarding(true);
+        }
       } catch (e) { console.error("Initial load error:", e); }
       setDbLoaded(true);
       track("login", { _page: "app" });
@@ -325,6 +339,15 @@ export default function App() {
     <ErrorBoundary>
     <LangContext.Provider value={profile.lang || "fr"}>
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
+      {/* Skip to content link (accessibility) */}
+      <a href="#main-content" style={{
+        position: "absolute", top: -40, left: 0, padding: "8px 16px",
+        background: AC, color: "#fff", fontSize: 14, fontWeight: 600,
+        zIndex: 100000, textDecoration: "none", borderRadius: "0 0 8px 0",
+        transition: "top 0.2s",
+      }} onFocus={(e) => { e.target.style.top = "0"; }} onBlur={(e) => { e.target.style.top = "-40px"; }}>
+        Aller au contenu principal
+      </a>
       <style>{`
         @keyframes sp { to { transform: rotate(360deg) } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
@@ -585,14 +608,14 @@ export default function App() {
 
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
-      <div className="ap-sidebar-desktop">
+      <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
         <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { setView("stats"); }} onPlanning={() => { setView("planningDashboard"); }} />
-      </div>
+      </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
       {sidebarOpen && <div className="ap-sidebar-overlay open" onClick={() => setSidebarOpen(false)} />}
 
-      <div className="ap-main" style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
+      <main id="main-content" className="ap-main" role="main" style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
         <div className="ap-header" style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
           {/* Gauche — hamburger + retour + contexte projet */}
           <div style={{ display: "flex", alignItems: "center", gap: SP.sm, flex: "0 0 auto", minWidth: 0 }}>
@@ -741,7 +764,7 @@ export default function App() {
           {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { setActiveId(id); setView("notes"); }} onNewProject={() => setModal("new")} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
         </div>
-      </div>
+      </main>
 
       {/* Collaboration modal */}
       {modal === "collab" && project && (
@@ -1446,6 +1469,25 @@ Règles :
         });
         e.target.value = "";
       }} />
+
+      {/* Onboarding wizard for new users */}
+      {showOnboarding && (
+        <OnboardingWizard
+          profile={profile}
+          onUpdateProfile={(p) => { setProfile(p); saveProfile(p); }}
+          onComplete={() => { setShowOnboarding(false); try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch {} }}
+        />
+      )}
+
+      {/* Cookie consent banner */}
+      <CookieBanner />
+
+      {/* Legal pages overlay */}
+      {legalPage && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: BG, overflow: "auto" }}>
+          <LegalPage page={legalPage} onBack={() => setLegalPage(null)} />
+        </div>
+      )}
 
     </div>
     </LangContext.Provider>

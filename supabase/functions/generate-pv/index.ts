@@ -1,55 +1,31 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { authenticateUser, getLimit } from "../_shared/auth.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-// Simple in-memory rate limiter
-const rateMap = new Map<string, { count: number; reset: number }>();
-const RATE_LIMIT = 10; // max calls per hour
-const RATE_WINDOW = 3600_000;
-
-function checkRate(userId: string): boolean {
-  const now = Date.now();
-  const entry = rateMap.get(userId);
-  if (!entry || now > entry.reset) {
-    rateMap.set(userId, { count: 1, reset: now + RATE_WINDOW });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT) return false;
-  entry.count++;
-  return true;
-}
 
 serve(async (req) => {
-  // CORS
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-      },
-    });
-  }
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
 
   try {
-    // Auth check
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization");
+    // Auth + plan check
+    const user = await authenticateUser(req);
+    const aiLimit = getLimit(user.plan, "maxAiPerMonth");
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) throw new Error("Unauthorized");
+    // Persistent rate limiting (per hour)
+    const rateResult = await checkRateLimit(user.id, {
+      action: "generate_pv",
+      maxCalls: Math.min(aiLimit === Infinity ? 60 : aiLimit, 60),
+      windowSeconds: 3600,
+    });
 
-    // Rate limit
-    if (!checkRate(user.id)) {
-      return new Response(JSON.stringify({ error: "Trop de requêtes. Réessayez dans quelques minutes." }), {
-        status: 429,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-      });
+    if (!rateResult.allowed) {
+      return jsonResponse(req, {
+        error: "Trop de requêtes. Réessayez dans quelques minutes.",
+        resetAt: rateResult.resetAt,
+      }, 429);
     }
 
     let body = await req.json();
@@ -89,14 +65,9 @@ serve(async (req) => {
 
     if (!content.trim()) throw new Error("Empty response from AI");
 
-    return new Response(JSON.stringify({ content }), {
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-    });
+    return jsonResponse(req, { content });
   } catch (err) {
     console.error("generate-pv error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-    });
+    return jsonResponse(req, { error: err.message }, 400);
   }
 });

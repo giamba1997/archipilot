@@ -553,3 +553,86 @@ export function track(event, properties = {}) {
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", () => flushEvents());
 }
+
+// ── Stripe: Checkout & Portal ────────────────────────────────
+
+export async function createCheckoutSession(plan, period = "month") {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("stripe-checkout", {
+    body: { plan, period },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Erreur lors de la création du checkout");
+  if (res.data?.url) {
+    window.location.href = res.data.url;
+  } else {
+    throw new Error("Pas d'URL de checkout reçue");
+  }
+}
+
+export async function openBillingPortal() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("stripe-portal", {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Erreur lors de l'ouverture du portail");
+  if (res.data?.url) {
+    window.location.href = res.data.url;
+  } else {
+    throw new Error("Pas d'URL de portail reçue");
+  }
+}
+
+// ── GDPR: Export & Delete Account ────────────────────────────
+
+export async function exportUserData() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("export-data", {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Erreur lors de l'export");
+
+  // Download the JSON file
+  const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `archipilot-export-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export async function deleteAccount() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("delete-account", {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Erreur lors de la suppression");
+
+  // Clear local data
+  try {
+    localStorage.removeItem("archipilot_projects");
+    localStorage.removeItem("archipilot_activeId");
+    localStorage.removeItem("archipilot_profile");
+    localStorage.removeItem("archipilot_offline_queue");
+    localStorage.removeItem("archipilot_pv_drafts");
+    localStorage.removeItem("archipilot_cookie_consent");
+  } catch {}
+
+  // Sign out
+  await supabase.auth.signOut();
+}

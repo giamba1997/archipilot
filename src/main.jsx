@@ -1,12 +1,16 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { initSentry, Sentry } from './sentry'
 import { AuthProvider, useAuth, AuthPage, ResetPasswordPage, MfaVerifyPage } from './Auth.jsx'
 import App from './App.jsx'
+
+// Initialize Sentry before anything else
+initSentry();
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null, info: null }; }
   static getDerivedStateFromError(error) { return { error }; }
-  componentDidCatch(error, info) { this.setState({ info }); console.error("ErrorBoundary caught:", error, info); }
+  componentDidCatch(error, info) { this.setState({ info }); console.error("ErrorBoundary caught:", error, info); Sentry.captureException(error, { extra: { componentStack: info?.componentStack } }); }
   render() {
     if (this.state.error) {
       return (

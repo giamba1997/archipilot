@@ -1,22 +1,34 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { authenticateUser } from "../_shared/auth.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const APP_URL = Deno.env.get("APP_URL") || "https://archipilot-delta.vercel.app";
 const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archi-pilot.com>";
 
 serve(async (req) => {
-  // CORS
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-      },
-    });
-  }
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
 
   try {
+    // Auth check
+    const user = await authenticateUser(req);
+
+    // Rate limiting: max 20 invites per hour
+    const rateResult = await checkRateLimit(user.id, {
+      action: "send_invite",
+      maxCalls: 20,
+      windowSeconds: 3600,
+    });
+
+    if (!rateResult.allowed) {
+      return jsonResponse(req, {
+        error: "Trop d'invitations envoyées. Réessayez plus tard.",
+        resetAt: rateResult.resetAt,
+      }, 429);
+    }
+
     const { email, projectName, inviterName, role } = await req.json();
     if (!email || !projectName) throw new Error("Missing required fields");
 
@@ -47,7 +59,6 @@ serve(async (req) => {
   <p style="font-size: 11px; color: #767672; text-align: center; word-break: break-all;">${APP_URL}</p>
 </div>`;
 
-    // Send email via Resend
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -70,20 +81,9 @@ serve(async (req) => {
 
     const result = await resendRes.json();
 
-    return new Response(JSON.stringify({ success: true, id: result.id }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    return jsonResponse(req, { success: true, id: result.id });
   } catch (err) {
     console.error("send-invite-email error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    return jsonResponse(req, { error: err.message }, 400);
   }
 });

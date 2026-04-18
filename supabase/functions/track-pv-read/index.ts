@@ -31,7 +31,8 @@ serve(async (req) => {
     headers: {
       "Content-Type": "image/png",
       "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-      "Access-Control-Allow-Origin": "*",
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
     },
   });
 });

@@ -18,3 +18,4 @@ export { PDFPreview } from "./PDFPreview";
 export { MfaSection } from "./MfaSection";
 export { ProfileView } from "./ProfileView";
 export { ChecklistsView } from "./ChecklistsView";
+export { LegalPage, CookieBanner, LegalLinks } from "./LegalPages";

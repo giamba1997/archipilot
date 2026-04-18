@@ -5,7 +5,7 @@ import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, DIS, DIST, LH } from "../constants/tokens";
 import { PLANS, hasFeature, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, STRUCTURE_TYPES } from "../constants/config";
 import { Ico, Field } from "../components/ui";
-import { uploadPhoto, getPhotoUrl, track } from "../db";
+import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount } from "../db";
 import { PricingSection } from "../components/modals/PricingSection";
 import { MfaSection } from "./MfaSection";
 import { PDFPreview } from "./PDFPreview";
@@ -20,6 +20,7 @@ const PROFILE_SECTIONS = [
   { id: "lang", icon: "building", label: "Langue" },
   { id: "appearance", icon: "chart", label: "Apparence PV" },
   { id: "preview", icon: "eye", label: "Aperçu" },
+  { id: "data", icon: "file", label: "Données" },
 ];
 
 export function ProfileView({ profile, onSave }) {
@@ -587,6 +588,9 @@ export function ProfileView({ profile, onSave }) {
         <PDFPreview form={form} />
       </div>
 
+      {/* Données & Compte */}
+      <DataSection refFor={refFor} />
+
       <button
         onClick={() => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); }}
         disabled={!form.name.trim() || !form.structure.trim()}
@@ -595,6 +599,137 @@ export function ProfileView({ profile, onSave }) {
         {saved ? <><Ico name="check" size={18} color="#fff" />Enregistré !</> : t("profile.saveSettings")}
       </button>
       </div>{/* end scroll container */}
+    </div>
+  );
+}
+
+// ── Data & Account Management (GDPR) ─────────────────────────
+function DataSection({ refFor }) {
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [error, setError] = useState("");
+
+  const handleExport = async () => {
+    setExporting(true);
+    setError("");
+    try {
+      await exportUserData();
+    } catch (e) {
+      setError(e.message || "Erreur lors de l'export");
+    }
+    setExporting(false);
+  };
+
+  const handleDelete = async () => {
+    if (confirmText !== "SUPPRIMER") return;
+    setDeleting(true);
+    setError("");
+    try {
+      await deleteAccount();
+      // Page will redirect to auth after signOut
+    } catch (e) {
+      setError(e.message || "Erreur lors de la suppression");
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div ref={refFor("data")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>
+        Données & Compte
+      </div>
+
+      {error && (
+        <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, marginBottom: 14, fontSize: 13, color: RD }}>
+          {error}
+        </div>
+      )}
+
+      {/* Export data */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginBottom: 4 }}>Exporter mes données</div>
+        <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 10 }}>
+          Téléchargez une copie complète de toutes vos données (profil, projets, PV, remarques, photos) au format JSON. Conformément au RGPD (Art. 20).
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          style={{
+            padding: "9px 18px", border: `1px solid ${SBB}`, borderRadius: 8,
+            background: exporting ? SB : WH, color: TX, fontSize: 13, fontWeight: 600,
+            cursor: exporting ? "wait" : "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", gap: 8,
+          }}
+        >
+          <Ico name="file" size={16} color={TX2} />
+          {exporting ? "Export en cours..." : "Télécharger mes données"}
+        </button>
+      </div>
+
+      {/* Delete account */}
+      <div style={{ borderTop: `1px solid ${SBB}`, paddingTop: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: RD, marginBottom: 4 }}>Supprimer mon compte</div>
+        <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 10 }}>
+          Cette action est irréversible. Toutes vos données seront définitivement supprimées : projets, PV, photos, collaborations. Votre abonnement sera automatiquement résilié.
+        </div>
+
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            style={{
+              padding: "9px 18px", border: `1px solid #FECACA`, borderRadius: 8,
+              background: "#FEF2F2", color: RD, fontSize: 13, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            Supprimer mon compte
+          </button>
+        ) : (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 8 }}>
+              Êtes-vous sûr ? Tapez SUPPRIMER pour confirmer.
+            </div>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Tapez SUPPRIMER"
+              style={{
+                width: "100%", padding: "9px 12px", border: `1px solid #FECACA`, borderRadius: 8,
+                fontSize: 14, fontFamily: "inherit", background: WH, color: TX,
+                boxSizing: "border-box", marginBottom: 10, outline: "none",
+              }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={handleDelete}
+                disabled={confirmText !== "SUPPRIMER" || deleting}
+                style={{
+                  padding: "9px 18px", border: "none", borderRadius: 8,
+                  background: confirmText === "SUPPRIMER" ? RD : DIS,
+                  color: confirmText === "SUPPRIMER" ? "#fff" : DIST,
+                  fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                  cursor: confirmText === "SUPPRIMER" && !deleting ? "pointer" : "not-allowed",
+                }}
+              >
+                {deleting ? "Suppression..." : "Confirmer la suppression"}
+              </button>
+              <button
+                onClick={() => { setConfirmDelete(false); setConfirmText(""); }}
+                style={{
+                  padding: "9px 18px", border: `1px solid ${SBB}`, borderRadius: 8,
+                  background: WH, color: TX2, fontSize: 13, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
