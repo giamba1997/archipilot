@@ -54,6 +54,7 @@ import { Ico, Skeleton, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } 
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
 import { CollabModalWrapper, UpgradeGate, PricingSection, SendPvModal, SearchModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
+import { GuidedTour } from "./components/modals/GuidedTour";
 import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, AnnotationEditor, ANNO_TOOLS, ANNO_COLORS, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks } from "./views";
 
 const INIT_PROJECTS = [
@@ -144,6 +145,7 @@ export default function App() {
   const [importPV, setImportPV] = useState({ number: "", date: "", author: "", pdfDataUrl: null, fileName: "" });
   const [legalPage, setLegalPage] = useState(null); // "privacy" | "terms" | null
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -1483,14 +1485,21 @@ Règles :
             setActiveId(id);
             track("project_created", { project_name: proj.name, _page: "onboarding" });
           }}
-          onNavigate={(action) => {
-            if (action === "pv") setView("notes");
-            else if (action === "dashboard") setView("stats");
-            else if (action === "collab") setModal("collab");
-            else if (action === "plan") setView("plan");
+          onComplete={() => {
+            setShowOnboarding(false);
+            setView("overview");
+            try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch {}
+            // Start guided tour after a short delay to let the UI render
+            setTimeout(() => {
+              if (!localStorage.getItem("archipilot_tour_done")) setShowGuidedTour(true);
+            }, 600);
           }}
-          onComplete={() => { setShowOnboarding(false); try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch {} }}
         />
+      )}
+
+      {/* Guided tour — shown after onboarding on real UI */}
+      {showGuidedTour && (
+        <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch {} }} />
       )}
 
       {/* Cookie consent banner */}
