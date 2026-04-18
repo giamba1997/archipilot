@@ -19,7 +19,8 @@ const TOUR_STEPS = [
   {
     title: "Menu de navigation",
     message: "Le menu latéral vous permet de basculer entre vos projets. Cliquez sur \"+\" pour en créer un nouveau.",
-    selector: ".ap-sidebar-desktop",
+    selector: ".ap-sidebar-desktop > div",
+    fallback: ".ap-sidebar-desktop",
     align: "right",
     icon: "menu",
   },
@@ -32,10 +33,10 @@ const TOUR_STEPS = [
   },
   {
     title: "Rédiger un PV",
-    message: "Depuis la vue projet, cliquez sur le bouton \"Rédiger un PV\" pour commencer. Ajoutez vos remarques poste par poste, puis laissez l'IA générer le procès-verbal.",
-    selector: ".ap-overview-wrap",
-    fallback: ".ap-content",
-    align: "center",
+    message: "Ce bouton lance la rédaction d'un procès-verbal. Ajoutez vos remarques poste par poste, puis laissez l'IA générer le PV complet.",
+    selector: ".ap-cta-newpv",
+    fallback: ".ap-overview-wrap",
+    align: "bottom",
     icon: "file",
   },
   {
@@ -49,7 +50,8 @@ const TOUR_STEPS = [
   {
     title: "Paramètres du profil",
     message: "Dans votre Profil, configurez : vos informations personnelles, l'apparence de vos PDF, la langue, votre abonnement et l'export de vos données.",
-    selector: ".ap-sidebar-desktop",
+    selector: ".ap-sidebar-desktop > div",
+    fallback: ".ap-sidebar-desktop",
     align: "right",
     icon: "user",
   },
