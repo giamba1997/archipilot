@@ -123,93 +123,98 @@ function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
   }, [updatePosition, step]);
 
   // Position the tooltip card relative to the highlighted element
-  // Account for the sidebar (264px) when centering in the main content area
-  const sidebarWidth = document.querySelector(".ap-sidebar-desktop > div")?.getBoundingClientRect().width || 0;
+  const isCenter = currentStep.align === "center" || !rect;
   let tooltipStyle = {};
-  if (currentStep.align === "center" || !rect) {
-    const centerX = sidebarWidth + (window.innerWidth - sidebarWidth) / 2;
-    tooltipStyle = { top: "50%", left: centerX, transform: "translate(-50%, -50%)" };
-  } else if (currentStep.align === "right") {
+  if (!isCenter && currentStep.align === "right") {
     const top = Math.min(Math.max(80, rect.top + rect.height / 2 - 100), window.innerHeight - 320);
     const left = Math.min(rect.right + 20, window.innerWidth - 400);
     tooltipStyle = { top, left };
-  } else if (currentStep.align === "bottom") {
+  } else if (!isCenter && currentStep.align === "bottom") {
     const top = Math.min(rect.bottom + 16, window.innerHeight - 280);
     const left = Math.max(20, Math.min(rect.left + rect.width / 2 - 190, window.innerWidth - 400));
     tooltipStyle = { top, left };
   }
+
+  const cardStyle = {
+    maxWidth: 380, width: "calc(100% - 40px)",
+    background: WH, borderRadius: 16, padding: "24px 24px 20px",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+    zIndex: 10005,
+    animation: "tourFadeUp .3s ease both",
+    fontFamily: "'Inter', system-ui, sans-serif",
+  };
+
+  const card = (
+    <div key={step} style={isCenter ? cardStyle : { position: "fixed", ...tooltipStyle, ...cardStyle }}>
+      <style>{`@keyframes tourFadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }`}</style>
+
+      {/* Icon + title */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 8,
+          background: currentStep.final ? `${GR}18` : `${AC}15`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Ico name={currentStep.icon} size={16} color={currentStep.final ? GR : AC} />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: currentStep.final ? GR : AC, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            {currentStep.final ? "C'est parti" : `${step + 1} / ${total}`}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>{currentStep.title}</div>
+        </div>
+      </div>
+
+      {/* Message */}
+      <div style={{ fontSize: 13, color: TX2, lineHeight: 1.6, marginBottom: 20 }}>
+        {currentStep.message}
+      </div>
+
+      {/* Progress dots */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+        {Array.from({ length: total }).map((_, i) => (
+          <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 3, background: i <= step ? AC : SBB, transition: "all .3s" }} />
+        ))}
+      </div>
+
+      {/* Navigation */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {!currentStep.final ? (
+          <button onClick={onSkip}
+            style={{ border: "none", background: "transparent", color: TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", padding: "6px 0" }}>
+            Passer le tour
+          </button>
+        ) : <div />}
+        <div style={{ display: "flex", gap: 8 }}>
+          {step > 0 && !currentStep.final && (
+            <button onClick={onPrev}
+              style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Précédent
+            </button>
+          )}
+          <button onClick={onNext}
+            style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: currentStep.final ? GR : AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+            {currentStep.final ? "Commencer" : "Suivant"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
       {/* Overlay with cutout */}
       <TourOverlay rect={currentStep.final ? null : rect} />
 
-      {/* Click blocker (allows clicking "next" but blocks the rest) */}
+      {/* Click blocker */}
       <div style={{ position: "fixed", inset: 0, zIndex: 10004 }} />
 
-      {/* Tooltip card */}
-      <div key={step} style={{
-        position: "fixed", ...tooltipStyle,
-        maxWidth: 380, width: "calc(100% - 40px)",
-        background: WH, borderRadius: 16, padding: "24px 24px 20px",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-        zIndex: 10005,
-        animation: "tourFadeUp .3s ease both",
-        fontFamily: "'Inter', system-ui, sans-serif",
-      }}>
-        <style>{`@keyframes tourFadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }`}</style>
-
-        {/* Icon + title */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: currentStep.final ? `${GR}18` : `${AC}15`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Ico name={currentStep.icon} size={16} color={currentStep.final ? GR : AC} />
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: currentStep.final ? GR : AC, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              {currentStep.final ? "C'est parti" : `${step + 1} / ${total}`}
-            </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>{currentStep.title}</div>
-          </div>
+      {/* Tooltip — centered via flex wrapper when no target element */}
+      {isCenter ? (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10005, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {card}
         </div>
-
-        {/* Message */}
-        <div style={{ fontSize: 13, color: TX2, lineHeight: 1.6, marginBottom: 20 }}>
-          {currentStep.message}
-        </div>
-
-        {/* Progress dots */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
-          {Array.from({ length: total }).map((_, i) => (
-            <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 3, background: i <= step ? AC : SBB, transition: "all .3s" }} />
-          ))}
-        </div>
-
-        {/* Navigation */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          {!currentStep.final ? (
-            <button onClick={onSkip}
-              style={{ border: "none", background: "transparent", color: TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", padding: "6px 0" }}>
-              Passer le tour
-            </button>
-          ) : <div />}
-          <div style={{ display: "flex", gap: 8 }}>
-            {step > 0 && !currentStep.final && (
-              <button onClick={onPrev}
-                style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Précédent
-              </button>
-            )}
-            <button onClick={onNext}
-              style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: currentStep.final ? GR : AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
-              {currentStep.final ? "Commencer" : "Suivant"}
-            </button>
-          </div>
-        </div>
-      </div>
+      ) : card}
     </>
   );
 }
