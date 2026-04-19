@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { getPhotoUrl } from "../db";
+import { hasFeature } from "../constants/config";
 
 export const hexToRgb = (hex) => {
   const h = hex.replace("#", "");
@@ -440,6 +441,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
 
   // ── PIED DE PAGE (toutes les pages) ────────────────────────
   const total = doc.internal.getNumberOfPages();
+  const showWatermark = !hasFeature(profile?.plan, "pdfNoWatermark");
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
     doc.setDrawColor(...LGRAY);
@@ -452,6 +454,31 @@ export async function generatePDF(project, pvNum, date, result, profile, options
     if (contactParts) doc.text(contactParts, ML, H - 6);
     doc.text(`PV n\u00B0${pvNum}  \u2014  ${date}`, W - MR, H - 10, { align: "right" });
     doc.text(`Page ${i} / ${total}`, W - MR, H - 6, { align: "right" });
+
+    // Free plan: diagonal watermark + footer CTA line on every page.
+    if (showWatermark) {
+      try {
+        if (typeof doc.saveGraphicsState === "function" && typeof doc.GState === "function") {
+          doc.saveGraphicsState();
+          doc.setGState(new doc.GState({ opacity: 0.08 }));
+          doc.setFont(font, "bold");
+          doc.setFontSize(64);
+          doc.setTextColor(...AMBER);
+          doc.text("ArchiPilot Free", W / 2, H / 2, { align: "center", angle: 45 });
+          doc.restoreGraphicsState();
+        } else {
+          // Fallback: light gray diagonal text (no opacity control)
+          doc.setFont(font, "bold");
+          doc.setFontSize(64);
+          doc.setTextColor(230, 225, 220);
+          doc.text("ArchiPilot Free", W / 2, H / 2, { align: "center", angle: 45 });
+        }
+      } catch (_) { /* watermark failed, continue without */ }
+      doc.setFont(font, "italic");
+      doc.setFontSize(7);
+      doc.setTextColor(...GRAY);
+      doc.text("Généré avec ArchiPilot — Passez à Pro pour supprimer ce filigrane (archipilot.app)", W / 2, H - 3, { align: "center" });
+    }
   }
 
   const safeName = project.name.replace(/[^\w\s\u00C0-\u024F]/g, "").replace(/\s+/g, "_");

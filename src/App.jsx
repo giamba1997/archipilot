@@ -52,7 +52,8 @@ import { Ico, Skeleton, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } 
 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
-import { CollabModalWrapper, UpgradeGate, PricingSection, SendPvModal, SearchModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { UPGRADE_MESSAGES, FEATURE_MIN_PLAN } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
 import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, AnnotationEditor, ANNO_TOOLS, ANNO_COLORS, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView } from "./views";
@@ -125,6 +126,7 @@ export default function App() {
   const galleryInputRef = useRef(null);
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
+  const [upgradeFeature, setUpgradeFeature] = useState(null);
   const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none" });
   const [editInfo, setEditInfo] = useState({});
   const [editParts, setEditParts] = useState([]);
@@ -289,6 +291,38 @@ export default function App() {
   const updateProject = (id, u) => setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...u } : p));
   const canCreate = newP.name.trim() && newP.client.trim() && newP.contractor.trim() && newP.city?.trim() && newP.startDate.trim();
 
+  // Gate the "Nouveau projet" entry: open upgrade modal if plan limit reached.
+  const tryOpenNewProject = () => {
+    const limit = getLimit(profile.plan, "maxProjects");
+    if (projects.length >= limit) { setUpgradeFeature("maxProjects"); return; }
+    setModal("new");
+  };
+
+  // Count PVs created in the current calendar month across all owned projects.
+  // PV dates are stored as fr-BE (dd/mm/yyyy) strings in pvHistory[].date.
+  const countPvThisMonth = () => {
+    const now = new Date();
+    const m = now.getMonth(), y = now.getFullYear();
+    let count = 0;
+    for (const p of projects) {
+      for (const pv of (p.pvHistory || [])) {
+        if (!pv.date) continue;
+        const parts = String(pv.date).split("/");
+        if (parts.length !== 3) continue;
+        const pvDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (pvDate.getMonth() === m && pvDate.getFullYear() === y) count++;
+      }
+    }
+    return count;
+  };
+
+  // Gate starting a new PV: open upgrade modal if monthly limit reached.
+  const tryStartNewPv = () => {
+    const limit = getLimit(profile.plan, "maxPvPerMonth");
+    if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; }
+    setPvStartMode(null); setView("notes");
+  };
+
   const createProject = () => {
     const id = Math.max(...projects.map((p) => p.id), 0) + 1;
     const address = formatAddress(newP);
@@ -317,7 +351,7 @@ export default function App() {
       if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.contentEditable === "true") return;
       const ctrl = e.ctrlKey || e.metaKey;
       if (ctrl && e.key === "k") { e.preventDefault(); setShowSearch(true); }
-      if (ctrl && e.key === "n") { e.preventDefault(); setModal("new"); }
+      if (ctrl && e.key === "n") { e.preventDefault(); tryOpenNewProject(); }
       if (ctrl && e.key === "b") { e.preventDefault(); setSidebarOpen(v => !v); }
     };
     document.addEventListener("keydown", onKey);
@@ -597,7 +631,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={() => setModal("new")} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { setView("stats"); }} onPlanning={() => { setView("planningDashboard"); }} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planningDashboard"); }} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -741,7 +775,7 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={() => { setPvStartMode(null); setView("notes"); }} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => setView("planning")} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => setView("checklists")} onOpr={() => setView("opr")} onCollab={() => setModal("collab")} onGallery={() => { if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => { if (!hasFeature(profile.plan, "checklists")) return setUpgradeFeature("checklists"); setView("checklists"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
           {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => { setView("overview"); setPvStartMode(null); }} initialMode={pvStartMode} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} />}
           {view !== "profile" && project && view === "notes" && isReadOnly(project) && (() => { setView("overview"); return null; })()}
           {view !== "profile" && project && view === "result" && !isReadOnly(project) && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} onOpenPlans={() => setView("profile")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
@@ -750,14 +784,14 @@ export default function App() {
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { setActiveId(id); setView("notes"); }} onNewProject={() => setModal("new")} />}
+          {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
         </div>
       </main>
 
       {/* Collaboration modal */}
       {modal === "collab" && project && (
-        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} />
+        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} onUpgrade={() => { setModal(null); setUpgradeFeature("maxCollabPerProj"); }} />
       )}
 
       {/* PV method chooser modal */}
@@ -1392,7 +1426,7 @@ Règles :
                   <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Dashboard</div>
                   <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Vue globale</div>
                 </button>
-                <button onClick={() => { setProjectPicker(false); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: BLB, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="calendar" size={18} color={BL} />
                   </div>
@@ -1500,6 +1534,18 @@ Règles :
         <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: BG, overflow: "auto" }}>
           <LegalPage page={legalPage} onBack={() => setLegalPage(null)} />
         </div>
+      )}
+
+      {/* Global upgrade modal — triggered by feature gates anywhere in the app */}
+      {upgradeFeature && (
+        <UpgradeRequiredModal
+          feature={upgradeFeature}
+          message={UPGRADE_MESSAGES[upgradeFeature]}
+          currentPlan={profile.plan || "free"}
+          requiredPlan={FEATURE_MIN_PLAN[upgradeFeature] || "pro"}
+          onClose={() => setUpgradeFeature(null)}
+          onUpgrade={() => { setUpgradeFeature(null); setView("profile"); }}
+        />
       )}
 
     </div>

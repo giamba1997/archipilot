@@ -10,6 +10,7 @@ import { SendPvModal } from "../components/modals/SendPvModal";
 import { parseNotesToRemarks } from "../utils/helpers";
 import { formatAddress } from "../utils/address";
 import { PV_TEMPLATES } from "../constants/templates";
+import { hasFeature } from "../constants/config";
 
 export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPlans, profile, pvRecipients, pvTitle, pvFieldData }) {
   const [result, setResult] = useState("");
@@ -253,6 +254,24 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
             }
           </button>
           {pdfErr && <div style={{ marginTop: 6, padding: 10, background: REDBG, borderRadius: 8, color: RD, fontSize: 12 }}>{pdfErr}</div>}
+
+          {/* Free plan: watermark notice + upgrade CTA */}
+          {!hasFeature(profile?.plan, "pdfNoWatermark") && (
+            <button
+              onClick={() => onOpenPlans?.()}
+              style={{
+                width: "100%", marginTop: 8, padding: "11px 14px",
+                border: `1px solid ${ACL2}`, borderRadius: RAD.md, background: ACL,
+                cursor: "pointer", fontFamily: "inherit", color: AC,
+                fontSize: FS.sm, fontWeight: 600,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              <Ico name="lock" size={13} color={AC} />
+              Votre PDF contient un filigrane&nbsp;— passez à Pro pour le supprimer
+              <Ico name="arrowr" size={13} color={AC} />
+            </button>
+          )}
 
           {/* Send by email button */}
           {saved && (

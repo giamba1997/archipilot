@@ -3,6 +3,7 @@ import { useT } from "../../i18n";
 import { AC, ACL, SB, SBB, TX, TX2, TX3, WH, RD, GR } from "../../constants/tokens";
 import { Ico } from "../ui";
 import { inviteMember, loadProjectMembers, updateMemberRole, removeMember, track } from "../../db";
+import { getLimit } from "../../constants/config";
 
 // ── Project Permissions Helper ──────────────────────────────
 export const getProjectRole = (project) => {
@@ -14,7 +15,7 @@ export const canManageMembers = (project) => { const r = getProjectRole(project)
 export const canManageSettings = (project) => { const r = getProjectRole(project); return r === "owner" || r === "admin"; };
 export const isReadOnly = (project) => getProjectRole(project) === "reader";
 
-export function CollabModal({ project, ownerId, onClose, showToast, profile }) {
+export function CollabModal({ project, ownerId, onClose, showToast, profile, onUpgrade }) {
   const t = useT();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("contributor");
@@ -32,6 +33,9 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile }) {
   const handleInvite = async (e) => {
     e.preventDefault();
     if (!email.trim()) return;
+    // Plan gate — Free has 0 collaborators, Pro has 3/project, Team unlimited.
+    const limit = getLimit(profile?.plan || "free", "maxCollabPerProj");
+    if (members.length >= limit) { onUpgrade?.(); return; }
     setError(""); setLoading(true);
     const res = await inviteMember(String(project.id), ownerId, email.trim(), role, project.name, profile?.name || profile?.email || "");
     setLoading(false);
