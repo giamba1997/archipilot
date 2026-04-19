@@ -11,7 +11,7 @@ import { REMARK_STATUSES, getRemarkStatus } from "../constants/statuses";
 // PDF render cache — avoid re-rendering the same PDF
 const _pdfCache = {};
 
-export function PlanViewer({ project, setProjects, onBack }) {
+export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksChange, onBack }) {
   const [pdfRendered, setPdfRendered] = useState(null);
   const isPdf = project.planImage?.startsWith("data:application/pdf");
 
@@ -92,57 +92,33 @@ export function PlanViewer({ project, setProjects, onBack }) {
   planStrokesRef.current = planStrokes;
   selectedIdRef.current  = selectedId;
 
-  // ── Located remarks (new pin system) ─────────────────────
-  // Remarks with x,y coords live in posts[].remarks[] — flatten for rendering.
-  const locatedRemarks = useMemo(() => {
-    const out = [];
-    (project.posts || []).forEach((post) => {
-      (post.remarks || []).forEach((r) => {
-        if (r.x != null && r.y != null) {
-          out.push({ ...r, postId: r.postId || post.id, _postLabel: post.label });
-        }
-      });
-    });
-    return out;
-  }, [project.posts]);
+  // ── Located remarks (per plan-file, provided by PlanManager) ─────────
+  // Source of truth: planFiles[activeId].remarks — not post.remarks, so
+  // plan remarks stay fully separate from post remarks and photo pins.
+  const locatedRemarks = useMemo(
+    () => (planRemarks || []).filter((r) => r.x != null && r.y != null),
+    [planRemarks],
+  );
 
   const [editingRemark, setEditingRemark] = useState(null); // {x,y,...} when creating or existing remark
   const [hoverPinId, setHoverPinId] = useState(null);
   const dragPinRef = useRef(null); // { id, moved }
 
-  // Add/update a remark in posts[].remarks[] (inserts into the target post).
   const saveRemark = (r) => {
-    setProjects((prev) => prev.map((p) => {
-      if (p.id !== project.id) return p;
-      const posts = (p.posts || []).map((post) => ({ ...post, remarks: [...(post.remarks || [])] }));
-      // Remove the remark from any post it might currently live in.
-      posts.forEach((post) => {
-        post.remarks = post.remarks.filter((x) => x.id !== r.id);
-      });
-      const target = posts.find((post) => post.id === r.postId) || posts[0];
-      if (target) target.remarks.push(r);
-      return { ...p, posts };
-    }));
+    onPlanRemarksChange?.((list) => {
+      const without = list.filter((x) => x.id !== r.id);
+      return [...without, r];
+    });
     setEditingRemark(null);
   };
 
   const deleteRemark = (id) => {
-    setProjects((prev) => prev.map((p) => p.id !== project.id ? p : {
-      ...p,
-      posts: (p.posts || []).map((post) => ({ ...post, remarks: (post.remarks || []).filter((r) => r.id !== id) })),
-    }));
+    onPlanRemarksChange?.((list) => list.filter((r) => r.id !== id));
     setEditingRemark(null);
   };
 
-  // Update just the coords (used during drag).
   const moveRemark = (id, x, y) => {
-    setProjects((prev) => prev.map((p) => p.id !== project.id ? p : {
-      ...p,
-      posts: (p.posts || []).map((post) => ({
-        ...post,
-        remarks: (post.remarks || []).map((r) => r.id === id ? { ...r, x, y } : r),
-      })),
-    }));
+    onPlanRemarksChange?.((list) => list.map((r) => r.id === id ? { ...r, x, y } : r));
   };
 
   const uploadPlan = (file) => {
@@ -746,7 +722,7 @@ export function PlanViewer({ project, setProjects, onBack }) {
                             <div style={{ fontSize: 11, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
                               {r.text || "(sans texte)"}
                             </div>
-                            <div style={{ fontSize: 10, color: TX3 }}>{r._postLabel} · {r.date || "—"}</div>
+                            <div style={{ fontSize: 10, color: TX3 }}>{r.date || "—"}</div>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteRemark(r.id); }}
@@ -829,7 +805,7 @@ export function PlanViewer({ project, setProjects, onBack }) {
                             <div style={{ fontSize: 11, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
                               {r.text || "(sans texte)"}
                             </div>
-                            <div style={{ fontSize: 10, color: TX3 }}>{r._postLabel} · {r.date || "—"}</div>
+                            <div style={{ fontSize: 10, color: TX3 }}>{r.date || "—"}</div>
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteRemark(r.id); }}
@@ -1157,7 +1133,7 @@ export function PlanViewer({ project, setProjects, onBack }) {
                           {r.text ? (r.text.length > 120 ? r.text.slice(0, 120) + "…" : r.text) : <span style={{ fontStyle: "italic", color: TX3 }}>(sans texte)</span>}
                         </div>
                         <div style={{ fontSize: FS.xs, color: TX3 }}>
-                          {r._postLabel}{r.date ? ` · ${r.date}` : ""}
+                          {r.date || "—"}
                         </div>
                         {r.photos?.length > 0 && (
                           <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
@@ -1234,15 +1210,17 @@ export function PlanViewer({ project, setProjects, onBack }) {
         </div>
       )}
 
-      {/* Remark create / edit modal — opens from plan click or pin click */}
+      {/* Remark create / edit modal — opens from plan click or pin click.
+          Plan remarks are self-contained (no post link), so hide the post
+          selector entirely. */}
       {editingRemark && (
         <RemarkEditModal
           initial={editingRemark.id ? editingRemark : null}
-          posts={project.posts || []}
-          defaultPostId={editingRemark.postId}
+          hidePost
+          subtitle="Localisée sur le plan"
           onSave={(r) => {
-            // Carry over position from the pending click when creating.
-            saveRemark({ ...r, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y });
+            const { postId: _p, ...rest } = r;
+            saveRemark({ ...rest, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y });
           }}
           onDelete={editingRemark.id ? () => deleteRemark(editingRemark.id) : undefined}
           onClose={() => setEditingRemark(null)}

@@ -38,13 +38,14 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   const [textPending, setTextPending] = useState(null);
   const [textValue,   setTextValue]   = useState("");
 
-  // Remark pins — persisted on photo.remarks via setProjects.
-  // Flatten the live photo remarks for rendering.
+  // Pins on this photo — stored on photo.pins (distinct field from
+  // post.remarks used by PlanViewer) so the two annotation systems are
+  // guaranteed independent even if same shape.
   const photoRemarks = useMemo(() => {
     if (!project || !postId) return [];
     const post = project.posts?.find((p) => p.id === postId);
     const ph = post?.photos?.find((x) => x.id === photo.id);
-    return (ph?.remarks || []).filter((r) => r.x != null && r.y != null);
+    return (ph?.pins || []).filter((r) => r.x != null && r.y != null);
   }, [project, postId, photo.id]);
 
   const [editingRemark, setEditingRemark] = useState(null);
@@ -61,7 +62,7 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
           ...post,
           photos: (post.photos || []).map((ph) => ph.id !== photo.id ? ph : {
             ...ph,
-            remarks: fn(ph.remarks || []),
+            pins: fn(ph.pins || []),
           }),
         }),
       };
@@ -964,6 +965,7 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
         <RemarkEditModal
           initial={editingRemark.id ? editingRemark : null}
           hidePost
+          subtitle="Localisée sur la photo"
           onSave={(r) => {
             const { postId: _p, ...rest } = r;
             saveRemark({ ...rest, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y });

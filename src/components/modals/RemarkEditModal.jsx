@@ -16,13 +16,14 @@ function todayStr() {
  * - initial: existing remark to edit (or null/undefined to create a new one)
  * - posts: [{id, label}] for the post selector (omitted when hidePost is true)
  * - defaultPostId: preselected post when creating
- * - hidePost: hide the post selector (for photo-attached remarks that don't
- *   belong to a project post)
+ * - hidePost: hide the post selector (for photo- or plan-attached remarks
+ *   that don't belong to a project post)
+ * - subtitle: small caption under the title (e.g. "Localisée sur le plan")
  * - onSave(remark): called with the full remark object
  * - onDelete(): optional — shown only when editing an existing remark
  * - onClose(): dismiss without saving
  */
-export function RemarkEditModal({ initial, posts, defaultPostId, hidePost, onSave, onDelete, onClose }) {
+export function RemarkEditModal({ initial, posts, defaultPostId, hidePost, subtitle, onSave, onDelete, onClose }) {
   const isEdit = !!initial?.id;
   const [text, setText]       = useState(initial?.text || "");
   const [status, setStatus]   = useState(initial?.status || "open");
@@ -113,7 +114,7 @@ export function RemarkEditModal({ initial, posts, defaultPostId, hidePost, onSav
               {isEdit ? "Modifier la remarque" : "Nouvelle remarque"}
             </div>
             <div style={{ fontSize: FS.xs, color: TX3 }}>
-              {hidePost ? "Localisée sur la photo" : "Localisée sur le plan"}
+              {subtitle || (hidePost ? "Remarque localisée" : "Localisée sur le plan")}
             </div>
           </div>
           <button

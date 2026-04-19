@@ -111,7 +111,7 @@ export function PlanManager({ project, setProjects, onBack }) {
     return options;
   };
 
-  // If viewing an image or PDF → PlanViewer with per-file markers/strokes
+  // If viewing an image or PDF → PlanViewer with per-file markers/strokes/remarks
   const activePlan = planFiles.find(f => f.id === activePlanId);
   if (activePlan && (activePlan.type === "image" || activePlan.type === "pdf")) {
     const fileProject = {
@@ -120,21 +120,20 @@ export function PlanManager({ project, setProjects, onBack }) {
       planMarkers: activePlan.markers || project.planMarkers || [],
       planStrokes: activePlan.strokes || project.planStrokes || [],
     };
-    // Proxy setProjects: intercept changes to planMarkers/planStrokes/planImage and store on the file
+    // Proxy setProjects: intercept changes to planMarkers/planStrokes/planImage
+    // and store them on the active plan file. Posts are NOT written back —
+    // plan remarks live per-file on planFiles[i].remarks, fully decoupled
+    // from post.remarks and photo.pins.
     const fileSetProjects = (fn) => {
       setProjects(prev => {
-        // Let PlanViewer's updater run on a virtual projects array
         const virtualPrev = prev.map(p => p.id === project.id ? fileProject : p);
         const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
         const updated = virtualNext.find(p => p.id === project.id);
         if (!updated) return prev;
-        // Write back: markers/strokes/dataUrl on the active planFile, and
-        // posts on the project (where located remarks live).
         return prev.map(p => {
           if (p.id !== project.id) return p;
           return {
             ...p,
-            posts: updated.posts || p.posts,
             planFiles: (p.planFiles || []).map(f => f.id === activePlanId ? {
               ...f,
               markers: updated.planMarkers || [],
@@ -145,7 +144,27 @@ export function PlanManager({ project, setProjects, onBack }) {
         });
       });
     };
-    return <PlanViewer project={fileProject} setProjects={fileSetProjects} onBack={() => setActivePlanId(null)} />;
+    // Located remarks for this plan file — self-contained, not shared with
+    // post.remarks. Updates go directly to planFiles[i].remarks.
+    const planRemarks = activePlan.remarks || [];
+    const onPlanRemarksChange = (updater) => setProjects(prev => prev.map(p => {
+      if (p.id !== project.id) return p;
+      return {
+        ...p,
+        planFiles: (p.planFiles || []).map(f => f.id !== activePlanId ? f : {
+          ...f, remarks: typeof updater === "function" ? updater(f.remarks || []) : updater,
+        }),
+      };
+    }));
+    return (
+      <PlanViewer
+        project={fileProject}
+        setProjects={fileSetProjects}
+        planRemarks={planRemarks}
+        onPlanRemarksChange={onPlanRemarksChange}
+        onBack={() => setActivePlanId(null)}
+      />
+    );
   }
 
   const hasLegacy = project.planImage && planFiles.length === 0;
