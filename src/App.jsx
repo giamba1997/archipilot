@@ -212,21 +212,26 @@ export default function App() {
   }, []);
 
   // Save projects + activeId to Supabase + localStorage.
-  // Photos already uploaded (with storagePath) ship their base64 dataUrl via
-  // Supabase — duplicating it in localStorage blows the ~5 MB quota once you
-  // hit a handful of photos. Strip those dataUrls for the cache but keep them
-  // for photos still pending upload (no storagePath yet).
-  const stripCachedDataUrls = (projs) => projs.map((p) => ({
-    ...p,
-    posts: (p.posts || []).map((post) => ({
-      ...post,
-      photos: (post.photos || []).map((ph) => ph.storagePath ? { ...ph, dataUrl: undefined } : ph),
-    })),
-    gallery: (p.gallery || []).map((ph) => ph.storagePath ? { ...ph, dataUrl: undefined } : ph),
-  }));
+  // The cache blows the ~5 MB quota quickly because photos (and plan files)
+  // carry big base64 dataUrls. Since everything is also mirrored to Supabase,
+  // we strip heavy binary payloads before writing to localStorage. Offline
+  // reloads may miss a few images but sync restores them online.
   useEffect(() => {
     if (!dbLoaded) return;
-    try { localStorage.setItem("archipilot_projects", JSON.stringify(stripCachedDataUrls(projects))); } catch { setStorageWarning(true); setTimeout(() => setStorageWarning(false), 5000); }
+    const lite = JSON.stringify(projects, (key, value) => {
+      if (key === "dataUrl") return undefined;
+      // Legacy/planImage and any other inline base64 string — heavy, drop it.
+      if (typeof value === "string" && value.length > 2000 && value.startsWith("data:")) return undefined;
+      return value;
+    });
+    try {
+      localStorage.setItem("archipilot_projects", lite);
+    } catch {
+      // Last resort: clear the cache entirely (Supabase is still authoritative)
+      try { localStorage.removeItem("archipilot_projects"); } catch {}
+      setStorageWarning(true);
+      setTimeout(() => setStorageWarning(false), 5000);
+    }
     try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch {}
     dbSaveProjects(projects, activeId);
   }, [projects, activeId, dbLoaded]);
