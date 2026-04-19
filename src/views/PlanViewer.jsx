@@ -423,7 +423,11 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
   }, [planImageSrc]);
 
   // ── Flash "Enregistré" à chaque modification ────────────────
+  // Skip the first render so loading existing strokes/markers from a photo
+  // or plan doesn't falsely flash the Save button green on open.
+  const flashMountRef = useRef(true);
   useEffect(() => {
+    if (flashMountRef.current) { flashMountRef.current = false; return; }
     if (planStrokes.length === 0 && markers.length === 0) return;
     setSavedFlash(true);
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
