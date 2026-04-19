@@ -83,11 +83,25 @@ export function getLimit(plan: string, feature: string): number {
   return typeof val === "number" ? val : Infinity;
 }
 
+/** Per-feature upgrade messages — actionable, in French, ready to show in the UI. */
+const FEATURE_UPGRADE_MESSAGES: Record<string, string> = {
+  sendEmail: "L'envoi de PV par email est réservé aux plans Pro et Team. Passez à Pro dans vos paramètres pour activer cette fonctionnalité.",
+  gallery:   "La galerie photos est réservée aux plans Pro et Team. Passez à Pro dans vos paramètres pour stocker vos photos.",
+  planning:  "Le planning de chantier est réservé aux plans Pro et Team. Passez à Pro dans vos paramètres pour l'activer.",
+  lots:      "La gestion des lots est réservée aux plans Pro et Team. Passez à Pro dans vos paramètres.",
+  checklists:"Les checklists sont réservées aux plans Pro et Team. Passez à Pro dans vos paramètres.",
+  roles:     "La gestion des rôles est réservée au plan Team. Passez à Team dans vos paramètres.",
+  exportCsv: "L'export CSV est réservé au plan Team. Passez à Team dans vos paramètres.",
+};
+
 /**
  * Throw if the user's plan does not have access to the given feature.
+ * Error messages are user-facing — kept descriptive and actionable.
  */
 export function requirePlan(user: AuthenticatedUser, feature: string): void {
   if (!hasFeature(user.plan, feature)) {
-    throw new Error(`Cette fonctionnalité nécessite un plan supérieur (actuel : ${user.plan}).`);
+    const msg = FEATURE_UPGRADE_MESSAGES[feature]
+      || `Cette fonctionnalité nécessite un plan supérieur (votre plan actuel : ${user.plan}).`;
+    throw new Error(msg);
   }
 }

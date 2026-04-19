@@ -1,5 +1,16 @@
 import { supabase } from "./supabase";
 
+// supabase-js wraps non-2xx Edge Function responses in a FunctionsHttpError
+// whose .message is generic ("Edge Function returned a non-2xx status code").
+// The actual JSON body (where our user-facing messages live) is on .context.
+async function extractFunctionError(error) {
+  try {
+    const body = await error?.context?.json?.();
+    if (body?.error) return body.error;
+  } catch { /* body not JSON or already consumed */ }
+  return error?.message || "Erreur inconnue";
+}
+
 // ── Projects (JSONB cloud sync) ────────────────────────────
 
 export async function loadProjects() {
@@ -461,7 +472,10 @@ export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvConte
     body: { to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName, pvId, subject, customMessage },
   });
 
-  if (error) { console.error("sendPvByEmail error:", error); return { error: error.message }; }
+  if (error) {
+    console.error("sendPvByEmail error:", error);
+    return { error: await extractFunctionError(error) };
+  }
 
   // Record the send
   const { data: { user } } = await supabase.auth.getUser();
