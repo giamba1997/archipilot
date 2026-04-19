@@ -634,10 +634,10 @@ export function PlanViewer({ project, setProjects, onBack }) {
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: GR, background: GRBG, padding: "1px 7px 1px 5px", borderRadius: 10, flexShrink: 0 }}>
                 <Ico name="check" size={10} color={GR} />Enregistré
               </span>
-            ) : (markers.length + planStrokes.length > 0) ? (
+            ) : (locatedRemarks.length + markers.length + planStrokes.length > 0) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 500, color: TX3, flexShrink: 0 }}>
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: GR, display: "inline-block", flexShrink: 0 }} />
-                {markers.length + planStrokes.length} élément{markers.length + planStrokes.length !== 1 ? "s" : ""}
+                {locatedRemarks.length + markers.length + planStrokes.length} élément{locatedRemarks.length + markers.length + planStrokes.length !== 1 ? "s" : ""}
               </span>
             ) : (
               <span style={{ fontSize: 10, color: DIST }}>Aucune annotation</span>
@@ -646,7 +646,7 @@ export function PlanViewer({ project, setProjects, onBack }) {
         </div>
 
         {/* Sauvegarder */}
-        {(markers.length + planStrokes.length > 0) && (
+        {(locatedRemarks.length + markers.length + planStrokes.length > 0) && (
           <button onClick={() => { setSavedFlash(true); if (savedTimerRef.current) clearTimeout(savedTimerRef.current); savedTimerRef.current = setTimeout(() => setSavedFlash(false), 2200); }} style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: savedFlash ? GR : AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0, transition: "background 0.2s" }}>
             <Ico name={savedFlash ? "check" : "save"} size={14} color="#fff" />
             {savedFlash ? "Enregistré !" : "Sauvegarder"}
@@ -720,8 +720,8 @@ export function PlanViewer({ project, setProjects, onBack }) {
                 {/* Résumé */}
                 <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
                   <div style={{ flex: 1, background: WH, border: `1px solid ${SBB}`, borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: AC, lineHeight: 1 }}>{markers.length}</div>
-                    <div style={{ fontSize: 9, color: TX3, marginTop: 3, fontWeight: 500 }}>marqueur{markers.length !== 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: AC, lineHeight: 1 }}>{locatedRemarks.length}</div>
+                    <div style={{ fontSize: 9, color: TX3, marginTop: 3, fontWeight: 500 }}>remarque{locatedRemarks.length !== 1 ? "s" : ""}</div>
                   </div>
                   <div style={{ flex: 1, background: WH, border: `1px solid ${SBB}`, borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
                     <div style={{ fontSize: 20, fontWeight: 700, color: TX2, lineHeight: 1 }}>{planStrokes.length}</div>
@@ -729,15 +729,46 @@ export function PlanViewer({ project, setProjects, onBack }) {
                   </div>
                 </div>
 
-                {/* Liste marqueurs */}
+                {/* Liste remarques localisées */}
+                {locatedRemarks.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 8 }}>Remarques</div>
+                    {locatedRemarks.map((r, i) => {
+                      const st = getRemarkStatus(r.status);
+                      return (
+                        <div
+                          key={r.id}
+                          onClick={() => setEditingRemark(r)}
+                          style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}`, cursor: "pointer" }}
+                        >
+                          <div style={{ width: 22, height: 22, borderRadius: "50%", background: st.dot, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+                              {r.text || "(sans texte)"}
+                            </div>
+                            <div style={{ fontSize: 10, color: TX3 }}>{r._postLabel} · {r.date || "—"}</div>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteRemark(r.id); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0, opacity: 0.4 }}
+                          >
+                            <Ico name="trash" size={11} color={TX3} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+
+                {/* Anciens marqueurs numériques — conservés pour compat */}
                 {markers.length > 0 && (
                   <>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 8 }}>Marqueurs</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginTop: locatedRemarks.length > 0 ? 14 : 0, marginBottom: 8 }}>Anciens marqueurs</div>
                     {markers.map((m) => {
                       const post = project.posts.find((p) => p.id === m.postId);
                       return (
-                        <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}` }}>
-                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: AC, color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
+                        <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}`, opacity: 0.7 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: "50%", background: TX3, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
                           <span style={{ fontSize: 11, color: TX2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post ? `${post.id}. ${post.label}` : "—"}</span>
                           <button onClick={() => removeMarker(m.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0, opacity: 0.4 }}><Ico name="trash" size={11} color={TX3} /></button>
                         </div>
@@ -766,8 +797,8 @@ export function PlanViewer({ project, setProjects, onBack }) {
                   </>
                 )}
 
-                {markers.length === 0 && planStrokes.length === 0 && (
-                  <div style={{ padding: "14px 6px", textAlign: "center", color: TX3, fontSize: 11, lineHeight: 1.7 }}>Aucune annotation.<br />Utilisez les modes<br />Marqueur ou Dessin.</div>
+                {locatedRemarks.length === 0 && markers.length === 0 && planStrokes.length === 0 && (
+                  <div style={{ padding: "14px 6px", textAlign: "center", color: TX3, fontSize: 11, lineHeight: 1.7 }}>Aucune annotation.<br />Utilisez les modes<br />Remarques ou Dessin.</div>
                 )}
               </div>
             )}
