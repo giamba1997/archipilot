@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { PlanViewer } from "./PlanViewer";
+import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 
 /**
  * PhotoAnnotationViewer — reuses the PlanViewer UI to annotate a photo.
@@ -24,27 +25,19 @@ export function PhotoAnnotationViewer({ photo, project, setProjects, postId, onB
 
   // Proxy setProjects: PlanViewer updates planStrokes on a virtual project,
   // we persist them back onto the real photo.
-  const proxySetProjects = useCallback((fn) => {
-    setProjects((prev) => {
-      const virtualPrev = prev.map((p) => p.id === project.id ? photoAsPlan : p);
-      const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
-      const updated = virtualNext.find((p) => p.id === project.id);
-      if (!updated) return prev;
-      return prev.map((p) => {
-        if (p.id !== project.id) return p;
-        return {
-          ...p,
-          posts: (p.posts || []).map((post) => post.id !== postId ? post : {
-            ...post,
-            photos: (post.photos || []).map((ph) => ph.id !== photo.id ? ph : {
-              ...ph,
-              strokes: updated.planStrokes || [],
-            }),
-          }),
-        };
-      });
-    });
-  }, [setProjects, project.id, postId, photo.id, photoAsPlan]);
+  const proxySetProjects = useMemo(
+    () => makeProxyPlanSetProjects(setProjects, project.id, photoAsPlan, (p, updated) => ({
+      ...p,
+      posts: (p.posts || []).map((post) => post.id !== postId ? post : {
+        ...post,
+        photos: (post.photos || []).map((ph) => ph.id !== photo.id ? ph : {
+          ...ph,
+          strokes: updated.planStrokes || [],
+        }),
+      }),
+    })),
+    [setProjects, project.id, postId, photo.id, photoAsPlan],
+  );
 
   // Read/write pins directly on the photo.
   const photoPins = useMemo(() => {

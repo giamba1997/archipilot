@@ -3,6 +3,7 @@ import { AC, ACL, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS } fro
 import { Ico } from "../components/ui";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
 import { PlanViewer } from "./PlanViewer";
+import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 
 export function GalleryView({ project, setProjects, onBack }) {
   const uploadRef = useRef(null);
@@ -59,26 +60,15 @@ export function GalleryView({ project, setProjects, onBack }) {
       planMarkers: activePhoto.markers || [],
       planStrokes: activePhoto.strokes || [],
     };
-    const photoSetProjects = (fn) => {
-      setProjects(prev => {
-        const virtualPrev = prev.map(p => p.id === project.id ? photoProject : p);
-        const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
-        const updated = virtualNext.find(p => p.id === project.id);
-        if (!updated) return prev;
-        return prev.map(p => {
-          if (p.id !== project.id) return p;
-          return {
-            ...p,
-            gallery: (p.gallery || []).map(ph => ph.id === activePhotoId ? {
-              ...ph,
-              markers: updated.planMarkers || [],
-              strokes: updated.planStrokes || [],
-              annotated: (updated.planMarkers || []).length > 0 || (updated.planStrokes || []).length > 0,
-            } : ph),
-          };
-        });
-      });
-    };
+    const photoSetProjects = makeProxyPlanSetProjects(setProjects, project.id, photoProject, (p, updated) => ({
+      ...p,
+      gallery: (p.gallery || []).map(ph => ph.id !== activePhotoId ? ph : {
+        ...ph,
+        markers: updated.planMarkers || [],
+        strokes: updated.planStrokes || [],
+        annotated: (updated.planMarkers || []).length > 0 || (updated.planStrokes || []).length > 0,
+      }),
+    }));
     // Located remarks on this photo — persisted per-photo on gallery[i].pins,
     // independent from plan remarks and post remarks.
     const photoPins = activePhoto.pins || [];

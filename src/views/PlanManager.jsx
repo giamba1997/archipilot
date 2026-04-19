@@ -3,6 +3,7 @@ import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, PU, PUB, REDBG, GRBG } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
+import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 import { CropTool } from "./CropTool";
 import { PlanViewer } from "./PlanViewer";
 
@@ -120,30 +121,19 @@ export function PlanManager({ project, setProjects, onBack }) {
       planMarkers: activePlan.markers || project.planMarkers || [],
       planStrokes: activePlan.strokes || project.planStrokes || [],
     };
-    // Proxy setProjects: intercept changes to planMarkers/planStrokes/planImage
-    // and store them on the active plan file. Posts are NOT written back —
-    // plan remarks live per-file on planFiles[i].remarks, fully decoupled
-    // from post.remarks and photo.pins.
-    const fileSetProjects = (fn) => {
-      setProjects(prev => {
-        const virtualPrev = prev.map(p => p.id === project.id ? fileProject : p);
-        const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
-        const updated = virtualNext.find(p => p.id === project.id);
-        if (!updated) return prev;
-        return prev.map(p => {
-          if (p.id !== project.id) return p;
-          return {
-            ...p,
-            planFiles: (p.planFiles || []).map(f => f.id === activePlanId ? {
-              ...f,
-              markers: updated.planMarkers || [],
-              strokes: updated.planStrokes || [],
-              dataUrl: updated.planImage || f.dataUrl,
-            } : f),
-          };
-        });
-      });
-    };
+    // Proxy setProjects: intercept planMarkers/planStrokes/planImage and
+    // store them on the active plan file. Plan remarks live per-file on
+    // planFiles[i].remarks (handled via onPlanRemarksChange below), fully
+    // decoupled from post.remarks and photo.pins.
+    const fileSetProjects = makeProxyPlanSetProjects(setProjects, project.id, fileProject, (p, updated) => ({
+      ...p,
+      planFiles: (p.planFiles || []).map(f => f.id !== activePlanId ? f : {
+        ...f,
+        markers: updated.planMarkers || [],
+        strokes: updated.planStrokes || [],
+        dataUrl: updated.planImage || f.dataUrl,
+      }),
+    }));
     // Located remarks for this plan file — self-contained, not shared with
     // post.remarks. Updates go directly to planFiles[i].remarks.
     const planRemarks = activePlan.remarks || [];

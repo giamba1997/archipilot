@@ -479,29 +479,13 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     } : p));
   };
 
-  const saveAnnotation = async (postId, photoId, newDataUrl) => {
-    // Update locally immediately
-    setProjects((prev) => prev.map((p) => p.id === project.id ? {
-      ...p, posts: p.posts.map((po) => po.id === postId ? {
-        ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, dataUrl: newDataUrl, annotated: true } : ph)
-      } : po)
-    } : p));
-    setAnnotatingPhoto(null);
-    // Re-upload annotated version to Storage
-    const result = await uploadPhoto(newDataUrl);
-    if (result) {
-      // Delete old file if exists
-      const post = project.posts.find(po => po.id === postId);
-      const oldPhoto = (post?.photos || []).find(ph => ph.id === photoId);
-      if (oldPhoto?.storagePath) deletePhoto(oldPhoto.storagePath);
-      // Update with new URL
-      setProjects((prev) => prev.map((p) => p.id === project.id ? {
-        ...p, posts: p.posts.map((po) => po.id === postId ? {
-          ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph)
-        } : po)
-      } : p));
-    }
-  };
+  // Tells if a photo has any annotation (strokes drawn, legacy markers, or
+  // located pins). Used to show the orange border + pen badge on thumbnails.
+  const isPhotoAnnotated = (ph) =>
+    (ph?.strokes?.length || 0) > 0 ||
+    (ph?.markers?.length || 0) > 0 ||
+    (ph?.pins?.length || 0) > 0 ||
+    !!ph?.annotated;
 
   const loadSamples = () => setProjects((prev) => prev.map((p) => p.id === project.id ? {
     ...p, posts: p.posts.map((po) => ({
@@ -759,11 +743,11 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {photos.map((ph) => (
                 <div key={ph.id} style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>
-                  <img src={getPhotoUrl(ph)} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: `2px solid ${ph.annotated ? AC : SBB}` }} />
+                  <img src={getPhotoUrl(ph)} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: `2px solid ${isPhotoAnnotated(ph) ? AC : SBB}` }} />
                   <button onClick={() => setAnnotatingPhoto({ postId: post.id, photo: ph })} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0)", borderRadius: 8, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.15s" }} onMouseEnter={(e) => e.currentTarget.style.opacity="1"} onMouseLeave={(e) => e.currentTarget.style.opacity="0"} onFocus={(e) => e.currentTarget.style.opacity="1"} onBlur={(e) => e.currentTarget.style.opacity="0"} title={t("notes.annotate")}>
                     <div style={{ background: "rgba(0,0,0,0.55)", borderRadius: 6, padding: "4px 6px" }}><Ico name="pen2" size={12} color="#fff" /></div>
                   </button>
-                  {ph.annotated && <div style={{ position: "absolute", bottom: 3, left: 3, background: AC, borderRadius: 4, padding: "1px 4px" }}><Ico name="pen2" size={9} color="#fff" /></div>}
+                  {isPhotoAnnotated(ph) && <div style={{ position: "absolute", bottom: 3, left: 3, background: AC, borderRadius: 4, padding: "1px 4px" }}><Ico name="pen2" size={9} color="#fff" /></div>}
                   <button onClick={() => removePhoto(post.id, ph.id)} aria-label="Supprimer la photo" style={{ position: "absolute", top: -6, right: -6, width: 24, height: 24, borderRadius: "50%", background: RD, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                     <Ico name="x" size={10} color="#fff" />
                   </button>
