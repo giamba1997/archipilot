@@ -6,7 +6,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const ALLOWED_ORIGINS = [
   "https://archipilot-delta.vercel.app",
-  "https://archi-pilot.com",
+  "https://app.archipilot.app",
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",

@@ -7,8 +7,7 @@
 
 const ALLOWED_ORIGINS = [
   "https://archipilot-delta.vercel.app",
-  "https://archi-pilot.com",
-  "https://www.archi-pilot.com",
+  "https://app.archipilot.app",
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",

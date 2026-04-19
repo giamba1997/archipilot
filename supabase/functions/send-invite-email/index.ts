@@ -5,7 +5,7 @@ import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const APP_URL = Deno.env.get("APP_URL") || "https://archipilot-delta.vercel.app";
-const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archi-pilot.com>";
+const FROM_EMAIL = Deno.env.get("FROM_EMAIL") || "ArchiPilot <noreply@archipilot.app>";
 
 serve(async (req) => {
   const corsRes = handleCors(req);

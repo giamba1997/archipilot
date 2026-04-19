@@ -12,9 +12,9 @@
 | 1 | **Stripe en production** | Code pret, pas active | Creer les produits/prix Stripe, mettre `STRIPE_ENABLED = true`, configurer le webhook |
 | 2 | **Textes legaux relus par un juriste** | Templates en place | Les CGU et Politique de Confidentialite sont des templates — un juriste belge doit les valider |
 | 3 | **Edge Functions stables** | Partiellement casse | `generate-pv` fonctionne en inline, les autres utilisent `_shared/` qui cause des `EarlyDrop` — il faut inliner toutes les fonctions |
-| 4 | **Domaine personnalise** | Non fait | `archipilot-delta.vercel.app` n'est pas commercial — configurer `app.archi-pilot.com` sur Vercel |
-| 5 | **Email expediteur verifie** | Partiellement | Verifier que le domaine `archi-pilot.com` est bien configure dans Resend (SPF, DKIM, DMARC) pour eviter les spams |
-| 6 | **Localisation de remarques sur plan** | Non fait | **Tous** les concurrents l'ont. Un architecte veut poser un pin sur le plan et y attacher une remarque. Sans ca, les pros ne prendront pas l'outil au serieux |
+| 4 | **Domaine personnalise** | Non fait | `archipilot-delta.vercel.app` n'est pas commercial — configurer `app.archipilot.app` sur Vercel |
+| 5 | **Email expediteur verifie** | Partiellement | Verifier que le domaine `archipilot.app` est bien configure dans Resend (SPF, DKIM, DMARC) pour eviter les spams |
+| 6 | **Localisation de remarques sur plan** | **Deja en place** | Markers sur plan associes aux postes (PlanViewer), comptes dans NoteEditor et inclus dans le PDF. Verifier que l'UX est au niveau des concurrents (drag & drop, filtrage par lot). |
 | 7 | **Test complet du flow de paiement** | Non fait | Creer un compte test, upgrader, downgrader, annuler — verifier que tout fonctionne end-to-end |
 
 ---
@@ -26,7 +26,7 @@
 | 8 | **OPR / Levee de reserves** | Non fait | Workflow dedie pour les operations prealables a reception — moment cle du chantier, attendu par les archi |
 | 9 | **Export PDF enrichi** | Basique | Ajouter : photos integrees au PV, tableau recapitulatif des remarques par lot/statut, remarques localisees sur plan |
 | 10 | **Sentry configure** | Code pret, DSN manquant | Creer le projet Sentry, ajouter `VITE_SENTRY_DSN` dans Vercel — sinon tu es aveugle en production |
-| 11 | **Landing page / site vitrine** | Non fait | Page marketing sur `archi-pilot.com` avec pricing, demo, temoignages — indispensable pour l'acquisition |
+| 11 | **Landing page / site vitrine** | Non fait | Page marketing sur `archipilot.app` avec pricing, demo, temoignages — indispensable pour l'acquisition |
 | 12 | **Signature electronique PV** | Non fait | Les entreprises signent le PV sur tablette a la fin de la reunion. Attendu par le marche |
 | 13 | **Notifications push (PWA)** | Non fait | Notifier quand un PV est envoye, une remarque assignee, une invitation recue |
 | 14 | **Rappels automatiques** | Non fait | Relance email automatique aux entreprises pour remarques non resolues apres X jours |
@@ -81,7 +81,7 @@
 | Envoi PV par email | oui | oui | oui | oui | non |
 | Suivi de lecture (tracking) | **oui** | non | non | non | non |
 | PWA / mode offline | oui | app native | app native | app native | app native |
-| Localisation sur plan | non | **avance** | **avance** | **avance** | **avance** |
+| Localisation sur plan | oui | **avance** | **avance** | **avance** | **avance** |
 | Checklists qualite | oui | oui | oui | oui | oui |
 | Planning / Gantt | basique | **avance** | **avance** | non | oui |
 | Appels d'offres / DCE | non | non | **oui** | non | non |
@@ -130,4 +130,4 @@ Les concurrents automatisent la **mise en forme** du PV. ArchiPilot automatise l
 | **Croissance** | Mois 2-3 | #16 a #25 (moyenne priorite) |
 | **Scaling** | Mois 4+ | #26 a #32 (basse priorite) |
 
-**Item critique** : le #6 (localisation sur plan) est la feature que chaque architecte demandera en premier. Sans elle, ils ne quitteront pas Archipad/BatiScript.
+**Item critique** : le #6 (localisation sur plan) est deja en place — c'est un avantage. Le vrai bloquant restant est le #1 (Stripe) et le #4 (domaine).

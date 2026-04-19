@@ -10,7 +10,7 @@ const LEGAL_CONTENT = {
       {
         title: "1. Responsable du traitement",
         content: `ArchiPilot est un service édité par ArchiPilot SRL, dont le siège social est situé en Belgique.
-Email de contact : privacy@archi-pilot.com
+Email de contact : privacy@archipilot.app
 
 En tant que responsable du traitement, nous déterminons les finalités et les moyens du traitement de vos données personnelles conformément au Règlement Général sur la Protection des Données (RGPD - Règlement UE 2016/679).`,
       },
@@ -62,7 +62,7 @@ Nous ne vendons jamais vos données à des tiers.`,
 • Droit d'opposition : vous opposer au traitement pour motif légitime.
 • Droit de limitation : restreindre le traitement dans certains cas.
 
-Pour exercer ces droits, contactez-nous à privacy@archi-pilot.com ou utilisez la fonction "Supprimer mon compte" dans vos paramètres.
+Pour exercer ces droits, contactez-nous à privacy@archipilot.app ou utilisez la fonction "Supprimer mon compte" dans vos paramètres.
 
 Vous pouvez également introduire une réclamation auprès de l'Autorité de Protection des Données (APD) belge : www.autoriteprotectiondonnees.be`,
       },
@@ -158,7 +158,7 @@ Nous n'utilisons pas de cookies publicitaires ni de trackers tiers. Aucun consen
       {
         title: "10. Contact",
         content: `Pour toute question relative aux présentes CGU :
-Email : contact@archi-pilot.com`,
+Email : contact@archipilot.app`,
       },
     ],
   },
