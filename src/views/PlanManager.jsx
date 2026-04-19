@@ -128,11 +128,13 @@ export function PlanManager({ project, setProjects, onBack }) {
         const virtualNext = typeof fn === "function" ? fn(virtualPrev) : virtualPrev;
         const updated = virtualNext.find(p => p.id === project.id);
         if (!updated) return prev;
-        // Write back markers/strokes to the planFile
+        // Write back: markers/strokes/dataUrl on the active planFile, and
+        // posts on the project (where located remarks live).
         return prev.map(p => {
           if (p.id !== project.id) return p;
           return {
             ...p,
+            posts: updated.posts || p.posts,
             planFiles: (p.planFiles || []).map(f => f.id === activePlanId ? {
               ...f,
               markers: updated.planMarkers || [],
