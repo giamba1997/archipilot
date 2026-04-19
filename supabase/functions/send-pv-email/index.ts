@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
-import { authenticateUser, requirePlan } from "../_shared/auth.ts";
+import { authenticateUser, requirePlan, PlanUpgradeError } from "../_shared/auth.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -135,6 +135,15 @@ serve(async (req) => {
     return jsonResponse(req, { success: true, id: result.id, sentTo: to });
   } catch (err) {
     console.error("send-pv-email error:", err);
+    if (err instanceof PlanUpgradeError) {
+      return jsonResponse(req, {
+        error: err.message,
+        code: err.code,
+        feature: err.feature,
+        currentPlan: err.currentPlan,
+        requiredPlan: err.requiredPlan,
+      }, 403);
+    }
     return jsonResponse(req, { error: err.message }, 400);
   }
 });

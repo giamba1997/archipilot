@@ -2,13 +2,14 @@ import { supabase } from "./supabase";
 
 // supabase-js wraps non-2xx Edge Function responses in a FunctionsHttpError
 // whose .message is generic ("Edge Function returned a non-2xx status code").
-// The actual JSON body (where our user-facing messages live) is on .context.
-async function extractFunctionError(error) {
+// The actual JSON body (where our user-facing messages + structured codes live)
+// is on .context. Returns the parsed body when available, else a fallback.
+async function parseFunctionError(error) {
   try {
     const body = await error?.context?.json?.();
-    if (body?.error) return body.error;
+    if (body) return body;
   } catch { /* body not JSON or already consumed */ }
-  return error?.message || "Erreur inconnue";
+  return { error: error?.message || "Erreur inconnue" };
 }
 
 // ── Projects (JSONB cloud sync) ────────────────────────────
@@ -474,7 +475,11 @@ export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvConte
 
   if (error) {
     console.error("sendPvByEmail error:", error);
-    return { error: await extractFunctionError(error) };
+    const body = await parseFunctionError(error);
+    if (body.code === "plan_upgrade_required") {
+      return { upgradeRequired: body };
+    }
+    return { error: body.error || "Erreur d'envoi" };
   }
 
   // Record the send

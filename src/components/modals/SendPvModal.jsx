@@ -4,8 +4,9 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, DIS, DIS
 import { Ico } from "../ui";
 import { sendPvByEmail } from "../../db";
 import { generatePDF } from "../../utils/pdf";
+import { UpgradeRequiredModal } from "./UpgradeRequiredModal";
 
-export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, onSent }) {
+export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, onSent, onUpgrade }) {
   const t = useT();
   const [step, setStep] = useState("recipients"); // "recipients" | "preview" | "sent"
   const [recipients, setRecipients] = useState(
@@ -14,6 +15,7 @@ export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onC
   const [extraEmail, setExtraEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [upgradeInfo, setUpgradeInfo] = useState(null);
   const [includePdf, setIncludePdf] = useState(true);
   const [subject, setSubject] = useState(`PV n\u00B0${pvNumber} \u2014 ${project.name} (${pvDate})`);
   const signatureHtml = profile.emailSignature?.trim() || `Cordialement,<br>${profile.name}${profile.structure ? `<br>${profile.structure}` : ""}`;
@@ -69,10 +71,24 @@ export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onC
     });
 
     setSending(false);
+    if (res.upgradeRequired) { setUpgradeInfo(res.upgradeRequired); return; }
     if (res.error) { setError(res.error); return; }
     setStep("sent");
     if (onSent) onSent(to);
   };
+
+  if (upgradeInfo) {
+    return (
+      <UpgradeRequiredModal
+        feature={upgradeInfo.feature}
+        message={upgradeInfo.error}
+        currentPlan={upgradeInfo.currentPlan}
+        requiredPlan={upgradeInfo.requiredPlan}
+        onClose={() => { setUpgradeInfo(null); onClose?.(); }}
+        onUpgrade={() => { setUpgradeInfo(null); onClose?.(); onUpgrade?.(); }}
+      />
+    );
+  }
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500 }} onClick={onClose}>

@@ -85,23 +85,48 @@ export function getLimit(plan: string, feature: string): number {
 
 /** Per-feature upgrade messages — actionable, in French, ready to show in the UI. */
 const FEATURE_UPGRADE_MESSAGES: Record<string, string> = {
-  sendEmail: "L'envoi de PV par email est réservé aux plans Pro et Team. Passez à Pro dans vos paramètres pour activer cette fonctionnalité.",
-  gallery:   "La galerie photos est réservée aux plans Pro et Team. Passez à Pro dans vos paramètres pour stocker vos photos.",
-  planning:  "Le planning de chantier est réservé aux plans Pro et Team. Passez à Pro dans vos paramètres pour l'activer.",
-  lots:      "La gestion des lots est réservée aux plans Pro et Team. Passez à Pro dans vos paramètres.",
-  checklists:"Les checklists sont réservées aux plans Pro et Team. Passez à Pro dans vos paramètres.",
-  roles:     "La gestion des rôles est réservée au plan Team. Passez à Team dans vos paramètres.",
-  exportCsv: "L'export CSV est réservé au plan Team. Passez à Team dans vos paramètres.",
+  sendEmail: "L'envoi de PV par email est réservé aux plans Pro et Team.",
+  gallery:   "La galerie photos est réservée aux plans Pro et Team.",
+  planning:  "Le planning de chantier est réservé aux plans Pro et Team.",
+  lots:      "La gestion des lots est réservée aux plans Pro et Team.",
+  checklists:"Les checklists sont réservées aux plans Pro et Team.",
+  roles:     "La gestion des rôles est réservée au plan Team.",
+  exportCsv: "L'export CSV est réservé au plan Team.",
+};
+
+/** Minimum plan required for each feature. */
+const FEATURE_MIN_PLAN: Record<string, string> = {
+  sendEmail: "pro", gallery: "pro", planning: "pro", lots: "pro",
+  checklists: "pro", roles: "team", exportCsv: "team",
 };
 
 /**
+ * Raised by requirePlan. Carries structured info so the API layer can
+ * return a machine-readable 403 body, and the UI can render an upgrade modal.
+ */
+export class PlanUpgradeError extends Error {
+  code = "plan_upgrade_required";
+  feature: string;
+  currentPlan: string;
+  requiredPlan: string;
+
+  constructor(feature: string, currentPlan: string, requiredPlan: string, message: string) {
+    super(message);
+    this.name = "PlanUpgradeError";
+    this.feature = feature;
+    this.currentPlan = currentPlan;
+    this.requiredPlan = requiredPlan;
+  }
+}
+
+/**
  * Throw if the user's plan does not have access to the given feature.
- * Error messages are user-facing — kept descriptive and actionable.
+ * Throws a PlanUpgradeError carrying feature + plan info for the UI.
  */
 export function requirePlan(user: AuthenticatedUser, feature: string): void {
   if (!hasFeature(user.plan, feature)) {
     const msg = FEATURE_UPGRADE_MESSAGES[feature]
       || `Cette fonctionnalité nécessite un plan supérieur (votre plan actuel : ${user.plan}).`;
-    throw new Error(msg);
+    throw new PlanUpgradeError(feature, user.plan, FEATURE_MIN_PLAN[feature] || "pro", msg);
   }
 }

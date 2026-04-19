@@ -11,7 +11,7 @@ import { parseNotesToRemarks } from "../utils/helpers";
 import { formatAddress } from "../utils/address";
 import { PV_TEMPLATES } from "../constants/templates";
 
-export function ResultView({ project, setProjects, onBack, onBackHome, profile, pvRecipients, pvTitle, pvFieldData }) {
+export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPlans, profile, pvRecipients, pvTitle, pvFieldData }) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -274,6 +274,7 @@ export function ResultView({ project, setProjects, onBack, onBackHome, profile, 
               pvDate={date}
               pvContent={result}
               profile={profile}
+              onUpgrade={() => { setShowSendModal(false); onOpenPlans?.(); }}
               onClose={() => setShowSendModal(false)}
               onSent={(to) => {
                 // Update PV status to "sent"
