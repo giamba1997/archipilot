@@ -1,0 +1,13 @@
+# Edge Functions — disable gateway JWT verification.
+# Each function validates the user's token itself via the Supabase Auth API
+# (see _shared/auth.ts and generate-pv/index.ts), so the gateway check is
+# redundant and was rejecting valid requests at the edge.
+
+[functions.generate-pv]
+verify_jwt = false
+
+[functions.send-invite-email]
+verify_jwt = false
+
+[functions.send-pv-email]
+verify_jwt = false
