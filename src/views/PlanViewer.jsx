@@ -4,6 +4,8 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL,
 import { Ico } from "../components/ui";
 import { getPhotoUrl } from "../db";
 import { ANNO_TOOLS, ANNO_COLORS } from "./AnnotationEditor";
+import { RemarkEditModal } from "../components/modals/RemarkEditModal";
+import { REMARK_STATUSES, getRemarkStatus } from "../constants/statuses";
 
 
 // PDF render cache — avoid re-rendering the same PDF
@@ -89,6 +91,59 @@ export function PlanViewer({ project, setProjects, onBack }) {
   const planStrokes = project.planStrokes  || [];
   planStrokesRef.current = planStrokes;
   selectedIdRef.current  = selectedId;
+
+  // ── Located remarks (new pin system) ─────────────────────
+  // Remarks with x,y coords live in posts[].remarks[] — flatten for rendering.
+  const locatedRemarks = useMemo(() => {
+    const out = [];
+    (project.posts || []).forEach((post) => {
+      (post.remarks || []).forEach((r) => {
+        if (r.x != null && r.y != null) {
+          out.push({ ...r, postId: r.postId || post.id, _postLabel: post.label });
+        }
+      });
+    });
+    return out;
+  }, [project.posts]);
+
+  const [editingRemark, setEditingRemark] = useState(null); // {x,y,...} when creating or existing remark
+  const [hoverPinId, setHoverPinId] = useState(null);
+  const dragPinRef = useRef(null); // { id, moved }
+
+  // Add/update a remark in posts[].remarks[] (inserts into the target post).
+  const saveRemark = (r) => {
+    setProjects((prev) => prev.map((p) => {
+      if (p.id !== project.id) return p;
+      const posts = (p.posts || []).map((post) => ({ ...post, remarks: [...(post.remarks || [])] }));
+      // Remove the remark from any post it might currently live in.
+      posts.forEach((post) => {
+        post.remarks = post.remarks.filter((x) => x.id !== r.id);
+      });
+      const target = posts.find((post) => post.id === r.postId) || posts[0];
+      if (target) target.remarks.push(r);
+      return { ...p, posts };
+    }));
+    setEditingRemark(null);
+  };
+
+  const deleteRemark = (id) => {
+    setProjects((prev) => prev.map((p) => p.id !== project.id ? p : {
+      ...p,
+      posts: (p.posts || []).map((post) => ({ ...post, remarks: (post.remarks || []).filter((r) => r.id !== id) })),
+    }));
+    setEditingRemark(null);
+  };
+
+  // Update just the coords (used during drag).
+  const moveRemark = (id, x, y) => {
+    setProjects((prev) => prev.map((p) => p.id !== project.id ? p : {
+      ...p,
+      posts: (p.posts || []).map((post) => ({
+        ...post,
+        remarks: (post.remarks || []).map((r) => r.id === id ? { ...r, x, y } : r),
+      })),
+    }));
+  };
 
   const uploadPlan = (file) => {
     const reader = new FileReader();
@@ -527,27 +582,18 @@ export function PlanViewer({ project, setProjects, onBack }) {
     setTextPending(null); setTextValue("");
   };
 
-  // ── Marker helpers ──────────────────────────────────────────
+  // ── Remark pin: click plan to create ─────────────────────
   const handlePlanClick = (e) => {
-    if (mode !== "marker" || pendingMarker || spaceHeldRef.current) return;
+    if (mode !== "marker" || spaceHeldRef.current) return;
+    if (dragPinRef.current?.moved) { dragPinRef.current = null; return; }
     const rect = planRef.current.getBoundingClientRect();
     const x = Math.max(1, Math.min(99, ((e.clientX - rect.left) / rect.width) * 100));
     const y = Math.max(1, Math.min(99, ((e.clientY - rect.top) / rect.height) * 100));
-    setPendingMarker({ x, y });
-    setSelectedPostId(project.posts[0]?.id || "");
+    // Open the remark modal with captured coords — user fills text/status/etc.
+    setEditingRemark({ x, y, postId: project.posts?.[0]?.id || "" });
   };
 
-  const confirmMarker = () => {
-    if (!selectedPostId || !pendingMarker) return;
-    setProjects((prev) => prev.map((p) => p.id === project.id ? {
-      ...p, planMarkers: [...(p.planMarkers || []), {
-        id: Date.now(), x: pendingMarker.x, y: pendingMarker.y,
-        postId: selectedPostId, number: (p.planMarkers || []).length + 1,
-      }]
-    } : p));
-    setPendingMarker(null); setSelectedPostId("");
-  };
-
+  // Legacy planMarkers removal (kept for old data). The new system uses remarks.
   const removeMarker = (markerId) => setProjects((prev) => prev.map((p) => p.id === project.id ? {
     ...p, planMarkers: (p.planMarkers || []).filter((m) => m.id !== markerId).map((m, i) => ({ ...m, number: i + 1 }))
   } : p));
@@ -653,7 +699,7 @@ export function PlanViewer({ project, setProjects, onBack }) {
               <div style={{ display: "flex", background: SB2, borderRadius: 8, padding: 3 }}>
                 {[
                   { id: "view",   label: "Vue",      icon: "eye"    },
-                  { id: "marker", label: "Marqueur", icon: "mappin" },
+                  { id: "marker", label: "Remarques", icon: "mappin" },
                   { id: "anno",   label: "Dessin",   icon: "pen2"   },
                 ].map((m) => (
                   <button key={m.id} onClick={() => switchMode(m.id)}
@@ -731,32 +777,50 @@ export function PlanViewer({ project, setProjects, onBack }) {
             {/* ────────────────────────────── */}
             {mode === "marker" && (
               <div style={{ padding: "12px 12px 14px" }}>
-                {!pendingMarker ? (
-                  <div style={{ padding: "8px 10px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 7, fontSize: 11, color: AC, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
-                    <Ico name="mappin" size={12} color={AC} />
-                    Cliquez sur le plan pour placer un marqueur
-                  </div>
-                ) : (
-                  <div style={{ padding: "10px 10px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 8, marginBottom: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: AC, marginBottom: 6 }}>Lier au poste</div>
-                    <select value={selectedPostId} onChange={(e) => setSelectedPostId(e.target.value)} style={{ width: "100%", padding: "6px 8px", border: `1px solid ${ACL2}`, borderRadius: 6, fontSize: 12, background: WH, color: TX, fontFamily: "inherit", marginBottom: 8 }}>
-                      {project.posts.map((p) => <option key={p.id} value={p.id}>{p.id}. {p.label}</option>)}
-                    </select>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button onClick={confirmMarker} style={{ flex: 1, padding: "6px 0", border: "none", borderRadius: 6, background: AC, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Confirmer</button>
-                      <button onClick={() => setPendingMarker(null)} style={{ padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, color: TX2, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
-                    </div>
-                  </div>
+                <div style={{ padding: "8px 10px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 7, fontSize: 11, color: AC, fontWeight: 500, display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+                  <Ico name="mappin" size={12} color={AC} />
+                  Cliquez sur le plan pour ajouter une remarque
+                </div>
+
+                {locatedRemarks.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 8 }}>Remarques · {locatedRemarks.length}</div>
+                    {locatedRemarks.map((r, i) => {
+                      const st = getRemarkStatus(r.status);
+                      return (
+                        <div
+                          key={r.id}
+                          onClick={() => setEditingRemark(r)}
+                          style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}`, cursor: "pointer" }}
+                        >
+                          <div style={{ width: 22, height: 22, borderRadius: "50%", background: st.dot, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+                              {r.text || "(sans texte)"}
+                            </div>
+                            <div style={{ fontSize: 10, color: TX3 }}>{r._postLabel} · {r.date || "—"}</div>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteRemark(r.id); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}
+                          >
+                            <Ico name="trash" size={11} color={TX3} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
 
+                {/* Legacy numeric markers (kept for backward compatibility) */}
                 {markers.length > 0 && (
                   <>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 8 }}>Placés · {markers.length}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginTop: 14, marginBottom: 8 }}>Anciens marqueurs · {markers.length}</div>
                     {markers.map((m) => {
                       const post = project.posts.find((p) => p.id === m.postId);
                       return (
-                        <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}` }}>
-                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: AC, color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
+                        <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 0", borderBottom: `1px solid ${SB2}`, opacity: 0.7 }}>
+                          <div style={{ width: 22, height: 22, borderRadius: "50%", background: TX3, color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{m.number}</div>
                           <span style={{ fontSize: 11, color: TX2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post ? `${post.id}. ${post.label}` : "—"}</span>
                           <button onClick={() => removeMarker(m.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><Ico name="trash" size={11} color={TX3} /></button>
                         </div>
@@ -961,24 +1025,126 @@ export function PlanViewer({ project, setProjects, onBack }) {
                 onTouchEnd={mode === "anno" ? onUp : undefined}
               />
 
-              {/* Marqueurs (% sur le plan, scalent avec lui) */}
+              {/* Legacy numeric markers (kept for backward compatibility) */}
               {markers.map((m) => {
                 const post = project.posts.find((p) => p.id === m.postId);
                 return (
-                  <div key={m.id} onClick={(e) => e.stopPropagation()} title={post ? `${post.id}. ${post.label}` : ""} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", zIndex: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: AC, color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2.5px solid #fff", boxShadow: "0 2px 10px rgba(0,0,0,0.4)" }}>{m.number}</div>
-                    <div style={{ width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `7px solid ${AC}`, margin: "0 auto" }} />
+                  <div key={m.id} onClick={(e) => e.stopPropagation()} title={post ? `${post.id}. ${post.label}` : ""} style={{ position: "absolute", left: `${m.x}%`, top: `${m.y}%`, transform: "translate(-50%, -100%)", zIndex: 9, opacity: 0.75 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: TX3, color: "#fff", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2.5px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>{m.number}</div>
                   </div>
                 );
               })}
 
-              {/* Marqueur en attente */}
-              {pendingMarker && (
-                <div style={{ position: "absolute", left: `${pendingMarker.x}%`, top: `${pendingMarker.y}%`, transform: "translate(-50%, -100%)", zIndex: 11, pointerEvents: "none" }}>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: TX3, color: "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2.5px solid #fff", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}>?</div>
-                  <div style={{ width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `7px solid ${TX3}`, margin: "0 auto" }} />
-                </div>
-              )}
+              {/* Located remarks — interactive pins (drag, hover, click-to-edit) */}
+              {locatedRemarks.map((r, idx) => {
+                const st = getRemarkStatus(r.status);
+                const isHover = hoverPinId === r.id;
+                const onPinDown = (e) => {
+                  if (mode !== "marker" || spaceHeldRef.current) return;
+                  e.stopPropagation();
+                  e.preventDefault();
+                  const rect = planRef.current.getBoundingClientRect();
+                  dragPinRef.current = { id: r.id, moved: false, rect };
+                  const onMove = (ev) => {
+                    const t = ev.touches?.[0] || ev;
+                    const dx = t.clientX - (e.touches?.[0]?.clientX ?? e.clientX);
+                    const dy = t.clientY - (e.touches?.[0]?.clientY ?? e.clientY);
+                    if (Math.abs(dx) + Math.abs(dy) > 3) dragPinRef.current.moved = true;
+                    const nx = Math.max(1, Math.min(99, ((t.clientX - rect.left) / rect.width) * 100));
+                    const ny = Math.max(1, Math.min(99, ((t.clientY - rect.top) / rect.height) * 100));
+                    moveRemark(r.id, nx, ny);
+                  };
+                  const onUp = () => {
+                    window.removeEventListener("mousemove", onMove);
+                    window.removeEventListener("mouseup", onUp);
+                    window.removeEventListener("touchmove", onMove);
+                    window.removeEventListener("touchend", onUp);
+                  };
+                  window.addEventListener("mousemove", onMove);
+                  window.addEventListener("mouseup", onUp);
+                  window.addEventListener("touchmove", onMove, { passive: false });
+                  window.addEventListener("touchend", onUp);
+                };
+                const onPinClick = (e) => {
+                  e.stopPropagation();
+                  if (dragPinRef.current?.moved) { dragPinRef.current = null; return; }
+                  setEditingRemark(r);
+                };
+                return (
+                  <div
+                    key={r.id}
+                    onMouseDown={onPinDown}
+                    onTouchStart={onPinDown}
+                    onClick={onPinClick}
+                    onMouseEnter={() => setHoverPinId(r.id)}
+                    onMouseLeave={() => setHoverPinId((c) => c === r.id ? null : c)}
+                    style={{
+                      position: "absolute", left: `${r.x}%`, top: `${r.y}%`,
+                      transform: "translate(-50%, -100%)", zIndex: isHover ? 15 : 10,
+                      cursor: mode === "marker" ? "grab" : "pointer",
+                      touchAction: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 30, height: 30, borderRadius: "50%",
+                        background: st.dot, color: "#fff", fontSize: 11, fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        border: `2.5px solid ${WH}`,
+                        boxShadow: isHover ? "0 4px 16px rgba(0,0,0,0.35)" : "0 2px 10px rgba(0,0,0,0.35)",
+                        transition: "box-shadow 0.15s ease",
+                        position: "relative",
+                      }}
+                    >
+                      {idx + 1}
+                      {r.urgent && (
+                        <div style={{ position: "absolute", top: -3, right: -3, width: 10, height: 10, borderRadius: "50%", background: RD, border: `2px solid ${WH}` }} />
+                      )}
+                    </div>
+                    <div style={{ width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `7px solid ${st.dot}`, margin: "0 auto" }} />
+
+                    {/* Hover tooltip — popup summary */}
+                    {isHover && !dragPinRef.current && (
+                      <div
+                        onMouseDown={(e) => e.stopPropagation()}
+                        style={{
+                          position: "absolute", bottom: "calc(100% + 12px)", left: "50%",
+                          transform: "translateX(-50%)", zIndex: 20,
+                          background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg,
+                          padding: "10px 12px", minWidth: 200, maxWidth: 280,
+                          boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                          <div style={{ padding: "2px 8px", background: st.bg, borderRadius: RAD.sm, fontSize: 10, fontWeight: 700, color: st.color, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            {st.label}
+                          </div>
+                          {r.urgent && <div style={{ padding: "2px 8px", background: "#FEF2F2", color: RD, fontSize: 10, fontWeight: 700, borderRadius: RAD.sm, textTransform: "uppercase", letterSpacing: "0.05em" }}>Urgent</div>}
+                        </div>
+                        <div style={{ fontSize: FS.sm, color: TX, fontWeight: 500, lineHeight: 1.4, marginBottom: 4 }}>
+                          {r.text ? (r.text.length > 120 ? r.text.slice(0, 120) + "…" : r.text) : <span style={{ fontStyle: "italic", color: TX3 }}>(sans texte)</span>}
+                        </div>
+                        <div style={{ fontSize: FS.xs, color: TX3 }}>
+                          {r._postLabel}{r.date ? ` · ${r.date}` : ""}
+                        </div>
+                        {r.photos?.length > 0 && (
+                          <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                            {r.photos.slice(0, 4).map((ph, i) => (
+                              <img key={i} src={getPhotoUrl(ph)} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, border: `1px solid ${SBB}` }} />
+                            ))}
+                            {r.photos.length > 4 && (
+                              <div style={{ width: 36, height: 36, borderRadius: 4, background: SB, border: `1px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: TX3, fontWeight: 600 }}>
+                                +{r.photos.length - 4}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Saisie texte (taille fixe, indépendante du zoom) */}
@@ -1006,7 +1172,7 @@ export function PlanViewer({ project, setProjects, onBack }) {
             {/* Bannières mode actif (fixes dans planArea) */}
             {mode === "marker" && !pendingMarker && (
               <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", background: "rgba(217,123,13,0.92)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "5px 14px 5px 10px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(4px)", zIndex: 20 }}>
-                <Ico name="mappin" size={12} color="#fff" />Cliquez pour placer un marqueur
+                <Ico name="mappin" size={12} color="#fff" />Cliquez pour ajouter une remarque
               </div>
             )}
             {mode === "anno" && !textPending && annoTool !== "select" && (
@@ -1035,6 +1201,21 @@ export function PlanViewer({ project, setProjects, onBack }) {
           </div>
 
         </div>
+      )}
+
+      {/* Remark create / edit modal — opens from plan click or pin click */}
+      {editingRemark && (
+        <RemarkEditModal
+          initial={editingRemark.id ? editingRemark : null}
+          posts={project.posts || []}
+          defaultPostId={editingRemark.postId}
+          onSave={(r) => {
+            // Carry over position from the pending click when creating.
+            saveRemark({ ...r, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y });
+          }}
+          onDelete={editingRemark.id ? () => deleteRemark(editingRemark.id) : undefined}
+          onClose={() => setEditingRemark(null)}
+        />
       )}
     </div>
   );
