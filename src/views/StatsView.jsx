@@ -4,8 +4,9 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR } from "../consta
 import { getStatus, calcLotStatus } from "../constants/statuses";
 import { Ico, PvStatusBadge, KpiCard } from "../components/ui";
 import { exportProjectsCSV, exportActionsCSV, exportRemarksCSV } from "../utils/csv";
+import { hasFeature } from "../constants/config";
 
-export function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewProject }) {
+export function StatsView({ projects, profile, onBack, onSelectProject, onNewPV, onNewProject, onUpgrade }) {
   const t = useT();
   const active = projects.filter(p => !p.archived);
   const [showExport, setShowExport] = useState(false);
@@ -198,7 +199,7 @@ export function StatsView({ projects, onBack, onSelectProject, onNewPV, onNewPro
           <button onClick={onNewProject} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: TX2 }}>
             <Ico name="plus" size={12} color={TX3} />Projet
           </button>
-          <button onClick={() => setShowExport(p => !p)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: TX3 }}>
+          <button onClick={() => { if (!hasFeature(profile?.plan, "exportCsv")) { onUpgrade?.("exportCsv"); return; } setShowExport(p => !p); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: TX3 }}>
             <Ico name="download" size={12} color={TX3} />
           </button>
         </div>

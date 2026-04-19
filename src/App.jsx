@@ -53,7 +53,7 @@ import { Ico, Skeleton, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
 import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
-import { UPGRADE_MESSAGES, FEATURE_MIN_PLAN } from "./constants/upgradeMessages";
+import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
 import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, AnnotationEditor, ANNO_TOOLS, ANNO_COLORS, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView } from "./views";
@@ -631,7 +631,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planningDashboard"); }} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -784,14 +784,14 @@ export default function App() {
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view === "stats" && <StatsView projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
+          {view === "stats" && <StatsView projects={projects} profile={profile} onUpgrade={(feature) => setUpgradeFeature(feature || "exportCsv")} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
         </div>
       </main>
 
       {/* Collaboration modal */}
       {modal === "collab" && project && (
-        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} onUpgrade={() => { setModal(null); setUpgradeFeature("maxCollabPerProj"); }} />
+        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} onUpgrade={(feature) => { setModal(null); setUpgradeFeature(feature || "maxCollabPerProj"); }} />
       )}
 
       {/* PV method chooser modal */}
@@ -1426,7 +1426,7 @@ Règles :
                   <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Dashboard</div>
                   <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Vue globale</div>
                 </button>
-                <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: BLB, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="calendar" size={18} color={BL} />
                   </div>
@@ -1542,7 +1542,7 @@ Règles :
           feature={upgradeFeature}
           message={UPGRADE_MESSAGES[upgradeFeature]}
           currentPlan={profile.plan || "free"}
-          requiredPlan={FEATURE_MIN_PLAN[upgradeFeature] || "pro"}
+          requiredPlan={getRequiredPlan(upgradeFeature, profile.plan || "free")}
           onClose={() => setUpgradeFeature(null)}
           onUpgrade={() => { setUpgradeFeature(null); setView("profile"); }}
         />

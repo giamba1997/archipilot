@@ -409,6 +409,12 @@ export function ProfileView({ profile, onSave }) {
             )}
           </div>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePicture} />
+          {form.picture && !hasFeature(form.plan, "pdfCustomLogo") && (
+            <div style={{ marginTop: 10, fontSize: 11, color: TX3, display: "flex", alignItems: "center", gap: 6 }}>
+              <Ico name="lock" size={11} color={TX3} />
+              Logo sur PDF réservé au plan Team
+            </div>
+          )}
         </div>
       </div>
 

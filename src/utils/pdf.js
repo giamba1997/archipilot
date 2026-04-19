@@ -128,7 +128,9 @@ export async function generatePDF(project, pvNum, date, result, profile, options
 
   y = 19;
 
-  if (profile?.picture) {
+  // Custom logo is a Team feature — Pro/Free PDFs skip the logo image
+  // and lean on the structure name in the header instead.
+  if (profile?.picture && hasFeature(profile?.plan, "pdfCustomLogo")) {
     try { doc.addImage(profile.picture, imgFmt(profile.picture), W - MR - 22, 13, 22, 22); } catch (_) {}
   }
 

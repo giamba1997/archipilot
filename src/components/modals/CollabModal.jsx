@@ -3,7 +3,7 @@ import { useT } from "../../i18n";
 import { AC, ACL, SB, SBB, TX, TX2, TX3, WH, RD, GR } from "../../constants/tokens";
 import { Ico } from "../ui";
 import { inviteMember, loadProjectMembers, updateMemberRole, removeMember, track } from "../../db";
-import { getLimit } from "../../constants/config";
+import { getLimit, hasFeature } from "../../constants/config";
 
 // ── Project Permissions Helper ──────────────────────────────
 export const getProjectRole = (project) => {
@@ -29,13 +29,20 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
   }, [project.id, ownerId]);
 
   const adminCount = members.filter(m => m.role === "admin" && m.status === "accepted").length;
+  const canUseRoles = hasFeature(profile?.plan || "free", "roles");
+
+  // Prevents selecting non-contributor roles without Team plan — opens upgrade modal.
+  const guardRoleChoice = (newRole) => {
+    if (newRole !== "contributor" && !canUseRoles) { onUpgrade?.("roles"); return false; }
+    return true;
+  };
 
   const handleInvite = async (e) => {
     e.preventDefault();
     if (!email.trim()) return;
     // Plan gate — Free has 0 collaborators, Pro has 3/project, Team unlimited.
     const limit = getLimit(profile?.plan || "free", "maxCollabPerProj");
-    if (members.length >= limit) { onUpgrade?.(); return; }
+    if (members.length >= limit) { onUpgrade?.("maxCollabPerProj"); return; }
     setError(""); setLoading(true);
     const res = await inviteMember(String(project.id), ownerId, email.trim(), role, project.name, profile?.name || profile?.email || "");
     setLoading(false);
@@ -55,6 +62,7 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
   };
 
   const handleRoleChange = async (id, newRole) => {
+    if (!guardRoleChoice(newRole)) return;
     const member = members.find(m => m.id === id);
     if (member?.role === "admin" && newRole !== "admin" && adminCount <= 1) { setError(t("collab.lastAdmin")); return; }
     setError("");
@@ -88,8 +96,12 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
                 required
                 style={{ flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", minWidth: 0 }}
               />
-              <select value={role} onChange={e => setRole(e.target.value)} style={{ padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX, cursor: "pointer" }}>
-                {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+              <select value={role} onChange={e => { if (!guardRoleChoice(e.target.value)) return; setRole(e.target.value); }} style={{ padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: SB, color: TX, cursor: "pointer" }}>
+                {ROLES.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}{!canUseRoles && r.id !== "contributor" ? " · Team" : ""}
+                  </option>
+                ))}
               </select>
             </div>
             {/* Role description */}
@@ -130,7 +142,11 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
               {isAdmin ? (
                 <>
                   <select value={m.role} onChange={e => handleRoleChange(m.id, e.target.value)} style={{ padding: "4px 8px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: SB, color: TX2, cursor: "pointer" }}>
-                    {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    {ROLES.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.label}{!canUseRoles && r.id !== "contributor" ? " · Team" : ""}
+                      </option>
+                    ))}
                   </select>
                   <button onClick={() => handleRemove(m.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
                     <Ico name="x" size={14} color={TX3} />
