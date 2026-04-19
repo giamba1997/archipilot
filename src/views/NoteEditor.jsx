@@ -566,6 +566,9 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     return (
       <AnnotationEditor
         photo={annotatingPhoto.photo}
+        project={project}
+        setProjects={setProjects}
+        postId={annotatingPhoto.postId}
         onSave={(dataUrl) => saveAnnotation(annotatingPhoto.postId, annotatingPhoto.photo.id, dataUrl)}
         onClose={() => setAnnotatingPhoto(null)}
       />

@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BG, DIST } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { getPhotoUrl } from "../db";
+import { REMARK_STATUSES, getRemarkStatus } from "../constants/statuses";
+import { RemarkEditModal } from "../components/modals/RemarkEditModal";
 
 export const ANNO_TOOLS = [
   { id: "select", label: "Sélect.",   icon: "cursor"  },
@@ -14,7 +16,7 @@ export const ANNO_TOOLS = [
 ];
 export const ANNO_COLORS = ["#EF4444", "#F97316", AC, "#3B82F6", "#1D1D1B", "#FFFFFF"];
 
-export function AnnotationEditor({ photo, onSave, onClose }) {
+export function AnnotationEditor({ photo, project, setProjects, postId, onSave, onClose }) {
   const canvasRef      = useRef(null);
   const imgRef         = useRef(null);
   const containerRef   = useRef(null);
@@ -36,10 +38,52 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
   const [textPending, setTextPending] = useState(null);
   const [textValue,   setTextValue]   = useState("");
 
-  // Markers
-  const [markers, setMarkers] = useState([]);
-  const [markerLabel, setMarkerLabel] = useState("");
-  const [pendingMarkerPt, setPendingMarkerPt] = useState(null);
+  // Remark pins — persisted on photo.remarks via setProjects.
+  // Flatten the live photo remarks for rendering.
+  const photoRemarks = useMemo(() => {
+    if (!project || !postId) return [];
+    const post = project.posts?.find((p) => p.id === postId);
+    const ph = post?.photos?.find((x) => x.id === photo.id);
+    return (ph?.remarks || []).filter((r) => r.x != null && r.y != null);
+  }, [project, postId, photo.id]);
+
+  const [editingRemark, setEditingRemark] = useState(null);
+  const [hoverPinId, setHoverPinId] = useState(null);
+  const dragPinRef = useRef(null);
+
+  const updatePhotoRemarks = (fn) => {
+    if (!setProjects || !project || !postId) return;
+    setProjects((prev) => prev.map((p) => {
+      if (p.id !== project.id) return p;
+      return {
+        ...p,
+        posts: (p.posts || []).map((post) => post.id !== postId ? post : {
+          ...post,
+          photos: (post.photos || []).map((ph) => ph.id !== photo.id ? ph : {
+            ...ph,
+            remarks: fn(ph.remarks || []),
+          }),
+        }),
+      };
+    }));
+  };
+
+  const saveRemark = (r) => {
+    updatePhotoRemarks((list) => {
+      const without = list.filter((x) => x.id !== r.id);
+      return [...without, r];
+    });
+    setEditingRemark(null);
+  };
+
+  const deleteRemark = (id) => {
+    updatePhotoRemarks((list) => list.filter((x) => x.id !== id));
+    setEditingRemark(null);
+  };
+
+  const moveRemark = (id, x, y) => {
+    updatePhotoRemarks((list) => list.map((r) => r.id === id ? { ...r, x, y } : r));
+  };
 
   // Selection & transform
   const [selectedId,   setSelectedId]   = useState(null);
@@ -73,7 +117,6 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
   const switchMode = (m) => {
     setMode(m); setTextPending(null); setTextValue(""); setSelectedId(null);
     selectedIdRef.current = null; selDragRef.current = null;
-    setPendingMarkerPt(null); setMarkerLabel("");
     redrawCanvas(strokesRef.current);
   };
 
@@ -181,30 +224,15 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
     return "default";
   };
 
-  // Handle plan click for markers
+  // Click on the photo in "marqueur" mode → open the remark modal at that position.
   const handlePlanClick = (e) => {
     if (mode !== "marqueur" || spaceHeldRef.current) return;
+    if (dragPinRef.current?.moved) { dragPinRef.current = null; return; }
     const el = e.currentTarget;
     const rect = el.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setPendingMarkerPt({ x, y });
-    setMarkerLabel("");
-  };
-
-  const confirmMarker = () => {
-    if (!pendingMarkerPt) return;
-    const num = markers.length + 1;
-    setMarkers(prev => [...prev, { id: genId(), x: pendingMarkerPt.x, y: pendingMarkerPt.y, number: num, label: markerLabel.trim() || `#${num}` }]);
-    setPendingMarkerPt(null);
-    setMarkerLabel("");
-  };
-
-  const removeMarker = (id) => {
-    setMarkers(prev => {
-      const arr = prev.filter(m => m.id !== id);
-      return arr.map((m, i) => ({ ...m, number: i + 1 }));
-    });
+    const x = Math.max(1, Math.min(99, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(1, Math.min(99, ((e.clientY - rect.top) / rect.height) * 100));
+    setEditingRemark({ x, y, postId });
   };
 
   // Pipette (eyedropper)
@@ -464,32 +492,12 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
   const toggleLayerVisibility = (id) => setStrokes(prev => prev.map(s => s.id===id ? {...s, visible:s.visible===false} : s));
   const reorderLayerStrokes = (from, to) => setStrokes(prev => { const arr=[...prev]; const [item]=arr.splice(from,1); arr.splice(to,0,item); return arr; });
 
-  // ── Save (bake markers into canvas) ──────────────────────────
+  // Save: bake drawing strokes into the image (remarks persist as live data,
+  // so we never burn them into the pixels).
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Create a temp canvas to composite markers
-    const tmp = document.createElement("canvas");
-    tmp.width = canvas.width; tmp.height = canvas.height;
-    const ctx = tmp.getContext("2d");
-    ctx.drawImage(canvas, 0, 0);
-    // Draw markers
-    markers.forEach(m => {
-      const px = (m.x / 100) * tmp.width;
-      const py = (m.y / 100) * tmp.height;
-      const r = 14;
-      ctx.beginPath(); ctx.arc(px, py - r - 4, r, 0, 2 * Math.PI); ctx.fillStyle = AC; ctx.fill();
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.stroke();
-      ctx.fillStyle = "#fff"; ctx.font = "bold 11px system-ui,-apple-system,sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(m.number), px, py - r - 4);
-      // Triangle
-      ctx.beginPath();
-      ctx.moveTo(px - 6, py - 4); ctx.lineTo(px + 6, py - 4); ctx.lineTo(px, py + 3);
-      ctx.closePath(); ctx.fillStyle = AC; ctx.fill();
-      ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
-    });
-    onSave(tmp.toDataURL("image/jpeg", 0.92));
+    onSave(canvas.toDataURL("image/jpeg", 0.92));
   };
 
   return (
@@ -499,7 +507,7 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 16px", background:WH, borderBottom:`1px solid ${SBB}`, flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:15, fontWeight:700, color:TX }}>{t("photoAnno.title")}</span>
-          <span style={{ fontSize:11, color:TX3, fontWeight:500 }}>{strokes.length + markers.length} annotation{(strokes.length + markers.length) !== 1 ? "s" : ""}</span>
+          <span style={{ fontSize:11, color:TX3, fontWeight:500 }}>{strokes.length + photoRemarks.length} annotation{(strokes.length + photoRemarks.length) !== 1 ? "s" : ""}</span>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <button onClick={handleSave}
@@ -540,8 +548,8 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
             <div style={{ padding:"12px 12px 14px", flex:1 }}>
               <div style={{ display:"flex", gap:6, marginBottom:14 }}>
                 <div style={{ flex:1, background:WH, border:`1px solid ${SBB}`, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
-                  <div style={{ fontSize:20, fontWeight:700, color:AC, lineHeight:1 }}>{markers.length}</div>
-                  <div style={{ fontSize:9, color:TX3, marginTop:3, fontWeight:500 }}>marqueur{markers.length !== 1 ? "s" : ""}</div>
+                  <div style={{ fontSize:20, fontWeight:700, color:AC, lineHeight:1 }}>{photoRemarks.length}</div>
+                  <div style={{ fontSize:9, color:TX3, marginTop:3, fontWeight:500 }}>remarque{photoRemarks.length !== 1 ? "s" : ""}</div>
                 </div>
                 <div style={{ flex:1, background:WH, border:`1px solid ${SBB}`, borderRadius:8, padding:"8px 6px", textAlign:"center" }}>
                   <div style={{ fontSize:20, fontWeight:700, color:TX2, lineHeight:1 }}>{strokes.length}</div>
@@ -549,22 +557,30 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
                 </div>
               </div>
 
-              {markers.length > 0 && (
+              {photoRemarks.length > 0 && (
                 <>
-                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:TX3, marginBottom:8 }}>{t("photoAnno.markers")}</div>
-                  {markers.map(m => (
-                    <div key={m.id} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 0", borderBottom:`1px solid ${SB2}` }}>
-                      <div style={{ width:20, height:20, borderRadius:"50%", background:AC, color:"#fff", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{m.number}</div>
-                      <span style={{ fontSize:11, color:TX2, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.label}</span>
-                      <button onClick={() => removeMarker(m.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:2, flexShrink:0, opacity:0.4 }}><Ico name="trash" size={11} color={TX3} /></button>
-                    </div>
-                  ))}
+                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:TX3, marginBottom:8 }}>Remarques</div>
+                  {photoRemarks.map((r, i) => {
+                    const st = getRemarkStatus(r.status);
+                    return (
+                      <div key={r.id}
+                        onClick={() => setEditingRemark(r)}
+                        style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 0", borderBottom:`1px solid ${SB2}`, cursor:"pointer" }}>
+                        <div style={{ width:22, height:22, borderRadius:"50%", background:st.dot, color:"#fff", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i + 1}</div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:11, color:TX, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:500 }}>{r.text || "(sans texte)"}</div>
+                          <div style={{ fontSize:10, color:TX3 }}>{r.date || "—"}</div>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); deleteRemark(r.id); }} style={{ background:"none", border:"none", cursor:"pointer", padding:2, flexShrink:0, opacity:0.4 }}><Ico name="trash" size={11} color={TX3} /></button>
+                      </div>
+                    );
+                  })}
                 </>
               )}
 
               {strokes.length > 0 && (
                 <>
-                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:TX3, marginBottom:8, marginTop:markers.length > 0 ? 14 : 0 }}>Annotations</div>
+                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:TX3, marginBottom:8, marginTop:photoRemarks.length > 0 ? 14 : 0 }}>Annotations</div>
                   {strokes.map((s, idx) => {
                     const toolDef = ANNO_TOOLS.find(t => t.id === s.type);
                     return (
@@ -581,46 +597,38 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
                 </>
               )}
 
-              {markers.length === 0 && strokes.length === 0 && (
+              {photoRemarks.length === 0 && strokes.length === 0 && (
                 <div style={{ padding:"14px 6px", textAlign:"center", color:TX3, fontSize:11, lineHeight:1.7 }}>{t("photoAnno.noAnnotation")}</div>
               )}
             </div>
           )}
 
-          {/* ── MODE MARQUEUR ── */}
+          {/* ── MODE MARQUEUR (remarques localisées sur la photo) ── */}
           {mode === "marqueur" && (
             <div style={{ padding:"12px 12px 14px" }}>
-              {!pendingMarkerPt ? (
-                <div style={{ padding:"8px 10px", background:ACL, border:`1px solid ${ACL2}`, borderRadius:7, fontSize:11, color:AC, fontWeight:500, display:"flex", alignItems:"center", gap:6, marginBottom:14 }}>
-                  <Ico name="mappin" size={12} color={AC} />
-                  {t("photoAnno.clickPhoto")}
-                </div>
-              ) : (
-                <div style={{ padding:"10px 10px", background:ACL, border:`1px solid ${ACL2}`, borderRadius:8, marginBottom:14 }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:AC, marginBottom:6 }}>{t("photoAnno.markerLabel")}</div>
-                  <input value={markerLabel} onChange={e => setMarkerLabel(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") confirmMarker(); if (e.key === "Escape") { setPendingMarkerPt(null); setMarkerLabel(""); } }}
-                    placeholder={`Marqueur #${markers.length + 1}`}
-                    style={{ width:"100%", padding:"6px 8px", border:`1px solid ${ACL2}`, borderRadius:6, fontSize:12, background:WH, color:TX, fontFamily:"inherit", marginBottom:8, boxSizing:"border-box" }}
-                    autoFocus
-                  />
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={confirmMarker} style={{ flex:1, padding:"6px 0", border:"none", borderRadius:6, background:AC, color:"#fff", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{t("confirm")}</button>
-                    <button onClick={() => { setPendingMarkerPt(null); setMarkerLabel(""); }} style={{ padding:"6px 10px", border:`1px solid ${ACL2}`, borderRadius:6, background:WH, color:TX2, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
-                  </div>
-                </div>
-              )}
+              <div style={{ padding:"8px 10px", background:ACL, border:`1px solid ${ACL2}`, borderRadius:7, fontSize:11, color:AC, fontWeight:500, display:"flex", alignItems:"center", gap:6, marginBottom:14 }}>
+                <Ico name="mappin" size={12} color={AC} />
+                Cliquez sur la photo pour ajouter une remarque
+              </div>
 
-              {markers.length > 0 && (
+              {photoRemarks.length > 0 && (
                 <>
-                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:TX3, marginBottom:8 }}>{t("photoAnno.placed")} · {markers.length}</div>
-                  {markers.map(m => (
-                    <div key={m.id} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 0", borderBottom:`1px solid ${SB2}` }}>
-                      <div style={{ width:20, height:20, borderRadius:"50%", background:AC, color:"#fff", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{m.number}</div>
-                      <span style={{ fontSize:11, color:TX2, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.label}</span>
-                      <button onClick={() => removeMarker(m.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:2, flexShrink:0 }}><Ico name="trash" size={11} color={TX3} /></button>
-                    </div>
-                  ))}
+                  <div style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:TX3, marginBottom:8 }}>Remarques · {photoRemarks.length}</div>
+                  {photoRemarks.map((r, i) => {
+                    const st = getRemarkStatus(r.status);
+                    return (
+                      <div key={r.id}
+                        onClick={() => setEditingRemark(r)}
+                        style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 0", borderBottom:`1px solid ${SB2}`, cursor:"pointer" }}>
+                        <div style={{ width:22, height:22, borderRadius:"50%", background:st.dot, color:"#fff", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i + 1}</div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:11, color:TX, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:500 }}>{r.text || "(sans texte)"}</div>
+                          <div style={{ fontSize:10, color:TX3 }}>{r.date || "—"}</div>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); deleteRemark(r.id); }} style={{ background:"none", border:"none", cursor:"pointer", padding:2, flexShrink:0 }}><Ico name="trash" size={11} color={TX3} /></button>
+                      </div>
+                    );
+                  })}
                 </>
               )}
             </div>
@@ -805,21 +813,101 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
               onTouchEnd={mode==="dessin"?onUp:undefined}
             />
 
-            {/* Marqueurs affichés */}
-            {markers.map(m => (
-              <div key={m.id} onClick={e => e.stopPropagation()} title={m.label} style={{ position:"absolute", left:`${m.x}%`, top:`${m.y}%`, transform:"translate(-50%, -100%)", zIndex:10 }}>
-                <div style={{ width:28, height:28, borderRadius:"50%", background:AC, color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", border:"2.5px solid #fff", boxShadow:"0 2px 10px rgba(0,0,0,0.4)" }}>{m.number}</div>
-                <div style={{ width:0, height:0, borderLeft:"6px solid transparent", borderRight:"6px solid transparent", borderTop:`7px solid ${AC}`, margin:"0 auto" }} />
-              </div>
-            ))}
+            {/* Remarques localisées — pins interactifs (drag / hover / click) */}
+            {photoRemarks.map((r, idx) => {
+              const st = getRemarkStatus(r.status);
+              const isHover = hoverPinId === r.id;
+              const onPinDown = (e) => {
+                if (mode !== "marqueur" || spaceHeldRef.current) return;
+                e.stopPropagation(); e.preventDefault();
+                const parent = e.currentTarget.parentElement; // the plan area
+                const rect = parent.getBoundingClientRect();
+                dragPinRef.current = { id: r.id, moved: false, rect };
+                const startX = e.touches?.[0]?.clientX ?? e.clientX;
+                const startY = e.touches?.[0]?.clientY ?? e.clientY;
+                const onMoveEv = (ev) => {
+                  const t = ev.touches?.[0] || ev;
+                  if (Math.abs(t.clientX - startX) + Math.abs(t.clientY - startY) > 3) dragPinRef.current.moved = true;
+                  const nx = Math.max(1, Math.min(99, ((t.clientX - rect.left) / rect.width) * 100));
+                  const ny = Math.max(1, Math.min(99, ((t.clientY - rect.top) / rect.height) * 100));
+                  moveRemark(r.id, nx, ny);
+                };
+                const onUpEv = () => {
+                  window.removeEventListener("mousemove", onMoveEv);
+                  window.removeEventListener("mouseup", onUpEv);
+                  window.removeEventListener("touchmove", onMoveEv);
+                  window.removeEventListener("touchend", onUpEv);
+                };
+                window.addEventListener("mousemove", onMoveEv);
+                window.addEventListener("mouseup", onUpEv);
+                window.addEventListener("touchmove", onMoveEv, { passive: false });
+                window.addEventListener("touchend", onUpEv);
+              };
+              const onPinClick = (e) => {
+                e.stopPropagation();
+                if (dragPinRef.current?.moved) { dragPinRef.current = null; return; }
+                setEditingRemark(r);
+              };
+              return (
+                <div key={r.id}
+                  onMouseDown={onPinDown} onTouchStart={onPinDown}
+                  onClick={onPinClick}
+                  onMouseEnter={() => setHoverPinId(r.id)}
+                  onMouseLeave={() => setHoverPinId((c) => c === r.id ? null : c)}
+                  style={{
+                    position: "absolute", left: `${r.x}%`, top: `${r.y}%`,
+                    transform: "translate(-50%, -100%)", zIndex: isHover ? 15 : 10,
+                    cursor: mode === "marqueur" ? "grab" : "pointer", touchAction: "none",
+                  }}
+                >
+                  <div style={{
+                    width: 30, height: 30, borderRadius: "50%",
+                    background: st.dot, color: "#fff", fontSize: 11, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    border: `2.5px solid ${WH}`,
+                    boxShadow: isHover ? "0 4px 16px rgba(0,0,0,0.35)" : "0 2px 10px rgba(0,0,0,0.35)",
+                    transition: "box-shadow 0.15s ease", position: "relative",
+                  }}>
+                    {idx + 1}
+                    {r.urgent && (
+                      <div style={{ position: "absolute", top: -3, right: -3, width: 10, height: 10, borderRadius: "50%", background: RD, border: `2px solid ${WH}` }} />
+                    )}
+                  </div>
+                  <div style={{ width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `7px solid ${st.dot}`, margin: "0 auto" }} />
 
-            {/* Marqueur en attente */}
-            {pendingMarkerPt && (
-              <div style={{ position:"absolute", left:`${pendingMarkerPt.x}%`, top:`${pendingMarkerPt.y}%`, transform:"translate(-50%, -100%)", zIndex:11, pointerEvents:"none" }}>
-                <div style={{ width:28, height:28, borderRadius:"50%", background:TX3, color:"#fff", fontSize:14, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", border:"2.5px solid #fff", boxShadow:"0 2px 10px rgba(0,0,0,0.25)" }}>?</div>
-                <div style={{ width:0, height:0, borderLeft:"6px solid transparent", borderRight:"6px solid transparent", borderTop:`7px solid ${TX3}`, margin:"0 auto" }} />
-              </div>
-            )}
+                  {isHover && !dragPinRef.current?.moved && (
+                    <div onMouseDown={(e) => e.stopPropagation()}
+                      style={{
+                        position: "absolute", bottom: "calc(100% + 12px)", left: "50%",
+                        transform: "translateX(-50%)", zIndex: 20,
+                        background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg,
+                        padding: "10px 12px", minWidth: 200, maxWidth: 280,
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.15)", pointerEvents: "none",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                        <div style={{ padding: "2px 8px", background: st.bg, borderRadius: RAD.sm, fontSize: 10, fontWeight: 700, color: st.color, textTransform: "uppercase", letterSpacing: "0.05em" }}>{st.label}</div>
+                        {r.urgent && <div style={{ padding: "2px 8px", background: "#FEF2F2", color: RD, fontSize: 10, fontWeight: 700, borderRadius: RAD.sm, textTransform: "uppercase", letterSpacing: "0.05em" }}>Urgent</div>}
+                      </div>
+                      <div style={{ fontSize: FS.sm, color: TX, fontWeight: 500, lineHeight: 1.4, marginBottom: 4 }}>
+                        {r.text ? (r.text.length > 120 ? r.text.slice(0, 120) + "…" : r.text) : <span style={{ fontStyle: "italic", color: TX3 }}>(sans texte)</span>}
+                      </div>
+                      <div style={{ fontSize: FS.xs, color: TX3 }}>{r.date || "—"}</div>
+                      {r.photos?.length > 0 && (
+                        <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                          {r.photos.slice(0, 4).map((ph, i) => (
+                            <img key={i} src={getPhotoUrl(ph)} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, border: `1px solid ${SBB}` }} />
+                          ))}
+                          {r.photos.length > 4 && (
+                            <div style={{ width: 36, height: 36, borderRadius: 4, background: SB, border: `1px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: TX3, fontWeight: 600 }}>+{r.photos.length - 4}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Saisie texte */}
@@ -842,9 +930,9 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
           )}
 
           {/* Bannières mode actif */}
-          {mode === "marqueur" && !pendingMarkerPt && (
+          {mode === "marqueur" && (
             <div style={{ position:"absolute", top:14, left:"50%", transform:"translateX(-50%)", background:"rgba(217,123,13,0.92)", color:"#fff", fontSize:11, fontWeight:600, padding:"5px 14px 5px 10px", borderRadius:20, pointerEvents:"none", whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:6, backdropFilter:"blur(4px)", zIndex:20 }}>
-              <Ico name="mappin" size={12} color="#fff" />{t("anno.clickToPlaceMarker")}
+              <Ico name="mappin" size={12} color="#fff" />Cliquez pour ajouter une remarque
             </div>
           )}
           {mode === "dessin" && !textPending && tool !== "select" && (
@@ -868,6 +956,18 @@ export function AnnotationEditor({ photo, onSave, onClose }) {
           </div>
         </div>
       </div>
+
+      {/* Remark create / edit modal — opens from photo click or pin click */}
+      {editingRemark && (
+        <RemarkEditModal
+          initial={editingRemark.id ? editingRemark : null}
+          posts={project?.posts || [{ id: postId, label: "Photo" }]}
+          defaultPostId={postId}
+          onSave={(r) => saveRemark({ ...r, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y })}
+          onDelete={editingRemark.id ? () => deleteRemark(editingRemark.id) : undefined}
+          onClose={() => setEditingRemark(null)}
+        />
+      )}
     </div>
   );
 }
