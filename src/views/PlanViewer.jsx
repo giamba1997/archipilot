@@ -422,13 +422,16 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
     return () => el.removeEventListener("wheel", handler);
   }, [planImageSrc]);
 
-  // ── Flash "Enregistré" à chaque modification ────────────────
-  // Skip the first render so loading existing strokes/markers from a photo
-  // or plan doesn't falsely flash the Save button green on open.
-  const flashMountRef = useRef(true);
+  // ── Flash "Enregistré" seulement quand un élément est ajouté ──────
+  // Track the last seen total count so loading an existing photo / plan
+  // doesn't falsely flash the Save button green. Only increments
+  // (new stroke or marker committed) light it up.
+  const lastFlashLenRef = useRef(null);
   useEffect(() => {
-    if (flashMountRef.current) { flashMountRef.current = false; return; }
-    if (planStrokes.length === 0 && markers.length === 0) return;
+    const total = planStrokes.length + markers.length;
+    if (lastFlashLenRef.current === null) { lastFlashLenRef.current = total; return; }
+    if (total <= lastFlashLenRef.current) { lastFlashLenRef.current = total; return; }
+    lastFlashLenRef.current = total;
     setSavedFlash(true);
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     savedTimerRef.current = setTimeout(() => setSavedFlash(false), 2200);
