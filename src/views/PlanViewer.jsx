@@ -127,7 +127,11 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
     reader.readAsDataURL(file);
   };
 
-  // Size canvas + draw strokes whenever planImage changes
+  // Size canvas + draw strokes whenever planImage changes.
+  // Compute the fit-to-screen zoom synchronously so the first paint already
+  // shows the image at the right scale — avoids the "zoom in / zoom out"
+  // flicker that happened when imgBase rendered at scale 1 before the
+  // delayed setTimeout bumped it to the fit zoom.
   useEffect(() => {
     if (!planImageSrc || !canvasRef.current) return;
     const img = new Image();
@@ -142,17 +146,20 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
       canvas.height = bh;
       canvasSizeRef.current = { w: bw, h: bh };
       imgBaseRef.current    = { w: bw, h: bh };
+
+      // Compute fit-to-screen zoom now so the image appears already sized.
+      const el = planAreaRef.current;
+      if (el && bw) {
+        const aw = el.clientWidth, ah = el.clientHeight;
+        if (aw && ah) {
+          const fz = Math.min(aw / bw, ah / bh) * 0.92;
+          const next = { zoom: fz, panX: (aw - bw * fz) / 2, panY: Math.max(16, (ah - bh * fz) / 2) };
+          vpRef.current = next;
+          setVp(next);
+        }
+      }
       setImgBase({ w: bw, h: bh });
       redrawCanvas(planStrokes);
-      setTimeout(() => {
-        const el = planAreaRef.current;
-        if (!el || !bw) return;
-        const aw = el.clientWidth, ah = el.clientHeight;
-        if (!aw || !ah) return;
-        const fz = Math.min(aw / bw, ah / bh) * 0.92;
-        const next = { zoom: fz, panX: (aw - bw * fz) / 2, panY: Math.max(16, (ah - bh * fz) / 2) };
-        vpRef.current = next; setVp(next);
-      }, 60);
     };
     img.src = planImageSrc;
   }, [planImageSrc]);
