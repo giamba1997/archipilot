@@ -211,10 +211,22 @@ export default function App() {
     return () => { try { unsub?.(); } catch {} };
   }, []);
 
-  // Save projects + activeId to Supabase + localStorage
+  // Save projects + activeId to Supabase + localStorage.
+  // Photos already uploaded (with storagePath) ship their base64 dataUrl via
+  // Supabase — duplicating it in localStorage blows the ~5 MB quota once you
+  // hit a handful of photos. Strip those dataUrls for the cache but keep them
+  // for photos still pending upload (no storagePath yet).
+  const stripCachedDataUrls = (projs) => projs.map((p) => ({
+    ...p,
+    posts: (p.posts || []).map((post) => ({
+      ...post,
+      photos: (post.photos || []).map((ph) => ph.storagePath ? { ...ph, dataUrl: undefined } : ph),
+    })),
+    gallery: (p.gallery || []).map((ph) => ph.storagePath ? { ...ph, dataUrl: undefined } : ph),
+  }));
   useEffect(() => {
     if (!dbLoaded) return;
-    try { localStorage.setItem("archipilot_projects", JSON.stringify(projects)); } catch { setStorageWarning(true); setTimeout(() => setStorageWarning(false), 5000); }
+    try { localStorage.setItem("archipilot_projects", JSON.stringify(stripCachedDataUrls(projects))); } catch { setStorageWarning(true); setTimeout(() => setStorageWarning(false), 5000); }
     try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch {}
     dbSaveProjects(projects, activeId);
   }, [projects, activeId, dbLoaded]);
