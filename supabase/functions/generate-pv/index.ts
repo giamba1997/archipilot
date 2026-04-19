@@ -1,47 +1,21 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { authenticateUser, PlanUpgradeError } from "../_shared/auth.ts";
+import { checkAiUsage, incrementAiUsage } from "../_shared/ai-usage.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-const ALLOWED_ORIGINS = [
-  "https://archipilot-delta.vercel.app",
-  "https://app.archipilot.app",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-];
-
-function cors(req: Request) {
-  const o = req.headers.get("Origin") || "";
-  return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(o) ? o : ALLOWED_ORIGINS[0],
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-  };
-}
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: cors(req) });
-  }
+  const corsRes = handleCors(req);
+  if (corsRes) return corsRes;
 
   try {
-    // Verify auth via Supabase REST API (no SDK needed)
-    const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-    if (!token) throw new Error("Missing authorization");
-
-    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-      },
-    });
-    if (!userRes.ok) throw new Error("Unauthorized");
+    const user = await authenticateUser(req);
+    // Enforce monthly AI cap (throws PlanUpgradeError for Free users at limit).
+    await checkAiUsage(user);
 
     let body = await req.json();
-    if (typeof body === "string") { try { body = JSON.parse(body); } catch {} }
+    if (typeof body === "string") { try { body = JSON.parse(body); } catch { /* keep raw */ } }
     const { systemPrompt, userPrompt, maxTokens } = body;
     if (!userPrompt?.trim()) throw new Error("Missing required field: userPrompt");
 
@@ -68,14 +42,21 @@ serve(async (req) => {
     const content = data.choices?.[0]?.message?.content || "";
     if (!content.trim()) throw new Error("Empty response from AI");
 
-    return new Response(JSON.stringify({ content }), {
-      headers: { "Content-Type": "application/json", ...cors(req) },
-    });
+    // Bump usage only after a successful AI response — failed calls don't count.
+    await incrementAiUsage(user);
+
+    return jsonResponse(req, { content });
   } catch (err) {
     console.error("generate-pv error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", ...cors(req) },
-    });
+    if (err instanceof PlanUpgradeError) {
+      return jsonResponse(req, {
+        error: err.message,
+        code: err.code,
+        feature: err.feature,
+        currentPlan: err.currentPlan,
+        requiredPlan: err.requiredPlan,
+      }, 403);
+    }
+    return jsonResponse(req, { error: err.message }, 400);
   }
 });

@@ -5,14 +5,14 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS
 import { PV_STATUSES, getPvStatus, nextPvStatus } from "../constants/statuses";
 import { Ico, PB, PvStatusBadge } from "../components/ui";
 import { generatePDF } from "../utils/pdf";
-import { track, loadPvSends, getPhotoUrl } from "../db";
+import { track, loadPvSends, getPhotoUrl, parseFunctionError } from "../db";
 import { SendPvModal } from "../components/modals/SendPvModal";
 import { parseNotesToRemarks } from "../utils/helpers";
 import { formatAddress } from "../utils/address";
 import { PV_TEMPLATES } from "../constants/templates";
 import { hasFeature } from "../constants/config";
 
-export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPlans, profile, pvRecipients, pvTitle, pvFieldData }) {
+export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPlans, onRequireUpgrade, profile, pvRecipients, pvTitle, pvFieldData }) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -77,7 +77,14 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
       const { data, error } = await supabase.functions.invoke("generate-pv", {
         body: { systemPrompt: SYS, userPrompt, maxTokens: pvTpl?.id === "detailed" ? 3000 : 2000 },
       });
-      if (error) throw new Error(error.message || "Erreur serveur");
+      if (error) {
+        const body = await parseFunctionError(error);
+        if (body.code === "plan_upgrade_required") {
+          onRequireUpgrade?.(body.feature || "maxAiPerMonth");
+          return;
+        }
+        throw new Error(body.error || error.message || "Erreur serveur");
+      }
       if (data?.error) throw new Error(data.error);
       const txt = data?.content;
       if (txt) setResult(txt); else throw new Error(t("result.emptyResponse"));

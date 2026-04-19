@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 // whose .message is generic ("Edge Function returned a non-2xx status code").
 // The actual JSON body (where our user-facing messages + structured codes live)
 // is on .context. Returns the parsed body when available, else a fallback.
-async function parseFunctionError(error) {
+export async function parseFunctionError(error) {
   try {
     const body = await error?.context?.json?.();
     if (body) return body;
