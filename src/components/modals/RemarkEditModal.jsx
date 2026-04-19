@@ -14,13 +14,15 @@ function todayStr() {
  *
  * Props:
  * - initial: existing remark to edit (or null/undefined to create a new one)
- * - posts: [{id, label}] for the post selector
+ * - posts: [{id, label}] for the post selector (omitted when hidePost is true)
  * - defaultPostId: preselected post when creating
+ * - hidePost: hide the post selector (for photo-attached remarks that don't
+ *   belong to a project post)
  * - onSave(remark): called with the full remark object
  * - onDelete(): optional — shown only when editing an existing remark
  * - onClose(): dismiss without saving
  */
-export function RemarkEditModal({ initial, posts, defaultPostId, onSave, onDelete, onClose }) {
+export function RemarkEditModal({ initial, posts, defaultPostId, hidePost, onSave, onDelete, onClose }) {
   const isEdit = !!initial?.id;
   const [text, setText]       = useState(initial?.text || "");
   const [status, setStatus]   = useState(initial?.status || "open");
@@ -75,7 +77,7 @@ export function RemarkEditModal({ initial, posts, defaultPostId, onSave, onDelet
     });
   };
 
-  const canSave = text.trim() && postId;
+  const canSave = text.trim() && (hidePost || postId);
 
   return (
     <div
@@ -111,7 +113,7 @@ export function RemarkEditModal({ initial, posts, defaultPostId, onSave, onDelet
               {isEdit ? "Modifier la remarque" : "Nouvelle remarque"}
             </div>
             <div style={{ fontSize: FS.xs, color: TX3 }}>
-              Localisée sur le plan
+              {hidePost ? "Localisée sur la photo" : "Localisée sur le plan"}
             </div>
           </div>
           <button
@@ -166,26 +168,28 @@ export function RemarkEditModal({ initial, posts, defaultPostId, onSave, onDelet
             })}
           </div>
 
-          {/* Post + date */}
+          {/* Post + date (post hidden for photo-attached remarks) */}
           <div style={{ display: "flex", gap: SP.sm, marginTop: SP.md }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: "block", fontSize: FS.xs, fontWeight: 600, color: TX2, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Poste
-              </label>
-              <select
-                value={postId}
-                onChange={(e) => setPostId(e.target.value)}
-                style={{
-                  width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: RAD.md,
-                  fontSize: FS.md, fontFamily: "inherit", background: SB, color: TX, cursor: "pointer",
-                }}
-              >
-                {posts.map((p) => (
-                  <option key={p.id} value={p.id}>{p.id}. {p.label}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ width: 130 }}>
+            {!hidePost && (
+              <div style={{ flex: 1 }}>
+                <label style={{ display: "block", fontSize: FS.xs, fontWeight: 600, color: TX2, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Poste
+                </label>
+                <select
+                  value={postId}
+                  onChange={(e) => setPostId(e.target.value)}
+                  style={{
+                    width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: RAD.md,
+                    fontSize: FS.md, fontFamily: "inherit", background: SB, color: TX, cursor: "pointer",
+                  }}
+                >
+                  {posts.map((p) => (
+                    <option key={p.id} value={p.id}>{p.id}. {p.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div style={{ width: hidePost ? "100%" : 130 }}>
               <label style={{ display: "block", fontSize: FS.xs, fontWeight: 600, color: TX2, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Date
               </label>

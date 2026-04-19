@@ -957,13 +957,17 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
         </div>
       </div>
 
-      {/* Remark create / edit modal — opens from photo click or pin click */}
+      {/* Remark create / edit modal — opens from photo click or pin click.
+          Photo-attached remarks don't belong to a project post, so hide the
+          post selector entirely (decoupled from the plan remark system). */}
       {editingRemark && (
         <RemarkEditModal
           initial={editingRemark.id ? editingRemark : null}
-          posts={project?.posts || [{ id: postId, label: "Photo" }]}
-          defaultPostId={postId}
-          onSave={(r) => saveRemark({ ...r, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y })}
+          hidePost
+          onSave={(r) => {
+            const { postId: _p, ...rest } = r;
+            saveRemark({ ...rest, x: r.x ?? editingRemark.x, y: r.y ?? editingRemark.y });
+          }}
           onDelete={editingRemark.id ? () => deleteRemark(editingRemark.id) : undefined}
           onClose={() => setEditingRemark(null)}
         />
