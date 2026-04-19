@@ -79,7 +79,28 @@ export function GalleryView({ project, setProjects, onBack }) {
         });
       });
     };
-    return <PlanViewer project={photoProject} setProjects={photoSetProjects} onBack={() => setActivePhotoId(null)} />;
+    // Located remarks on this photo — persisted per-photo on gallery[i].pins,
+    // independent from plan remarks and post remarks.
+    const photoPins = activePhoto.pins || [];
+    const onPhotoPinsChange = (updater) => setProjects(prev => prev.map(p => {
+      if (p.id !== project.id) return p;
+      return {
+        ...p,
+        gallery: (p.gallery || []).map(ph => ph.id !== activePhotoId ? ph : {
+          ...ph, pins: typeof updater === "function" ? updater(ph.pins || []) : updater,
+        }),
+      };
+    }));
+    return (
+      <PlanViewer
+        project={photoProject}
+        setProjects={photoSetProjects}
+        planRemarks={photoPins}
+        onPlanRemarksChange={onPhotoPinsChange}
+        onBack={() => setActivePhotoId(null)}
+        hideUpload
+      />
+    );
   }
 
   const lbPhoto = lightbox ? photos.find(ph => ph.id === lightbox) : null;
