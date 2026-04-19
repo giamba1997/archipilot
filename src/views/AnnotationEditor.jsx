@@ -42,10 +42,12 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   // post.remarks used by PlanViewer) so the two annotation systems are
   // guaranteed independent even if same shape.
   const photoRemarks = useMemo(() => {
-    if (!project || !postId) return [];
+    if (!project || !postId) { console.log("[AnnoEd] photoRemarks: skip (no project/postId)", { project: !!project, postId }); return []; }
     const post = project.posts?.find((p) => p.id === postId);
     const ph = post?.photos?.find((x) => x.id === photo.id);
-    return (ph?.pins || []).filter((r) => r.x != null && r.y != null);
+    const out = (ph?.pins || []).filter((r) => r.x != null && r.y != null);
+    console.log("[AnnoEd] photoRemarks:", { postId, photoId: photo.id, postFound: !!post, photoFound: !!ph, pinsRaw: ph?.pins, filtered: out });
+    return out;
   }, [project, postId, photo.id]);
 
   const [editingRemark, setEditingRemark] = useState(null);
@@ -53,7 +55,8 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   const dragPinRef = useRef(null);
 
   const updatePhotoRemarks = (fn) => {
-    if (!setProjects || !project || !postId) return;
+    console.log("[AnnoEd] updatePhotoRemarks called", { hasSetProjects: !!setProjects, hasProject: !!project, postId, photoId: photo.id });
+    if (!setProjects || !project || !postId) { console.warn("[AnnoEd] updatePhotoRemarks aborted — missing props"); return; }
     setProjects((prev) => prev.map((p) => {
       if (p.id !== project.id) return p;
       return {
@@ -70,9 +73,12 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   };
 
   const saveRemark = (r) => {
+    console.log("[AnnoEd] saveRemark", r);
     updatePhotoRemarks((list) => {
       const without = list.filter((x) => x.id !== r.id);
-      return [...without, r];
+      const next = [...without, r];
+      console.log("[AnnoEd] new pins list", next);
+      return next;
     });
     setEditingRemark(null);
   };
