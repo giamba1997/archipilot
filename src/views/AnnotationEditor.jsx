@@ -38,12 +38,8 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   const [textPending, setTextPending] = useState(null);
   const [textValue,   setTextValue]   = useState("");
 
-  // DEBUG state: track last save attempt for the on-screen banner
-  const [dbgInfo, setDbgInfo] = useState({ lastSave: null, saveCount: 0 });
-
   // Pins on this photo — stored on photo.pins (distinct field from
-  // post.remarks used by PlanViewer) so the two annotation systems are
-  // guaranteed independent even if same shape.
+  // post.remarks used by PlanViewer).
   const photoRemarks = useMemo(() => {
     if (!project || !postId) return [];
     const post = project.posts?.find((p) => p.id === postId);
@@ -51,19 +47,12 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
     return (ph?.pins || []).filter((r) => r.x != null && r.y != null);
   }, [project, postId, photo.id]);
 
-  // Compute debug info for the on-screen banner
-  const dbgPost = project?.posts?.find((p) => p.id === postId);
-  const dbgPh = dbgPost?.photos?.find((x) => x.id === photo.id);
-
   const [editingRemark, setEditingRemark] = useState(null);
   const [hoverPinId, setHoverPinId] = useState(null);
   const dragPinRef = useRef(null);
 
   const updatePhotoRemarks = (fn) => {
-    if (!setProjects || !project || !postId) {
-      setDbgInfo((d) => ({ ...d, lastSave: `ABORT: setProjects=${!!setProjects}, project=${!!project}, postId=${postId}` }));
-      return;
-    }
+    if (!setProjects || !project || !postId) return;
     setProjects((prev) => prev.map((p) => {
       if (p.id !== project.id) return p;
       return {
@@ -80,7 +69,6 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   };
 
   const saveRemark = (r) => {
-    setDbgInfo((d) => ({ saveCount: d.saveCount + 1, lastSave: `CALLED id=${r.id} x=${r.x?.toFixed?.(1)} y=${r.y?.toFixed?.(1)}` }));
     updatePhotoRemarks((list) => {
       const without = list.filter((x) => x.id !== r.id);
       return [...without, r];
@@ -514,19 +502,6 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
 
   return (
     <div style={{ position:"fixed", inset:0, background:BG, zIndex:300, display:"flex", flexDirection:"column" }}>
-
-      {/* DEBUG BANNER — à retirer une fois le bug identifié */}
-      <div style={{ background: "#FEF3C7", color: "#78350F", padding: "4px 12px", fontSize: 11, fontFamily: "monospace", display: "flex", gap: 14, flexWrap: "wrap", borderBottom: "1px solid #F59E0B" }}>
-        <span>postId: <b>{String(postId)}</b></span>
-        <span>photoId: <b>{String(photo?.id)}</b></span>
-        <span>postFound: <b>{dbgPost ? "OUI" : "NON"}</b></span>
-        <span>photoFound: <b>{dbgPh ? "OUI" : "NON"}</b></span>
-        <span>pins stockés: <b>{dbgPh?.pins?.length ?? 0}</b></span>
-        <span>pins affichés: <b>{photoRemarks.length}</b></span>
-        <span>setProjects: <b>{setProjects ? "OUI" : "NON"}</b></span>
-        <span>saves: <b>{dbgInfo.saveCount}</b></span>
-        {dbgInfo.lastSave && <span>→ {dbgInfo.lastSave}</span>}
-      </div>
 
       {/* ── Header ── */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 16px", background:WH, borderBottom:`1px solid ${SBB}`, flexShrink:0 }}>

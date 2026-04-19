@@ -11,7 +11,7 @@ import { REMARK_STATUSES, getRemarkStatus } from "../constants/statuses";
 // PDF render cache — avoid re-rendering the same PDF
 const _pdfCache = {};
 
-export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksChange, onBack }) {
+export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksChange, onBack, hideUpload = false }) {
   const [pdfRendered, setPdfRendered] = useState(null);
   const isPdf = project.planImage?.startsWith("data:application/pdf");
 
@@ -629,8 +629,8 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
           </button>
         )}
 
-        {/* Changer de plan (secondaire) */}
-        {planImageSrc && (
+        {/* Changer de plan (secondaire) — hidden in photo context */}
+        {planImageSrc && !hideUpload && (
           <button onClick={() => uploadRef.current.click()} style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, color: TX2, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
             <Ico name="upload" size={13} color={TX3} />Changer de plan
           </button>

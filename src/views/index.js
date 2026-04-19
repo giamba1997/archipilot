@@ -13,6 +13,7 @@ export { GallerySheet } from "./GallerySheet";
 export { GalleryView } from "./GalleryView";
 export { PlanManager, PdfCropBridge } from "./PlanManager";
 export { PlanViewer } from "./PlanViewer";
+export { PhotoAnnotationViewer } from "./PhotoAnnotationViewer";
 export { PlanningView } from "./PlanningView";
 export { PDFPreview } from "./PDFPreview";
 export { MfaSection } from "./MfaSection";

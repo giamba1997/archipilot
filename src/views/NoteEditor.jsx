@@ -8,6 +8,7 @@ import { parseNotesToRemarks } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
 import { addToOfflineQueue, savePvDraft } from "../utils/offline";
 import { AnnotationEditor } from "./AnnotationEditor";
+import { PhotoAnnotationViewer } from "./PhotoAnnotationViewer";
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
@@ -564,13 +565,12 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
 
   if (annotatingPhoto) {
     return (
-      <AnnotationEditor
+      <PhotoAnnotationViewer
         photo={annotatingPhoto.photo}
         project={project}
         setProjects={setProjects}
         postId={annotatingPhoto.postId}
-        onSave={(dataUrl) => saveAnnotation(annotatingPhoto.postId, annotatingPhoto.photo.id, dataUrl)}
-        onClose={() => setAnnotatingPhoto(null)}
+        onBack={() => setAnnotatingPhoto(null)}
       />
     );
   }
