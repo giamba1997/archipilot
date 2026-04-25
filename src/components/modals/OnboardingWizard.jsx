@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AC, ACL, TX, TX2, TX3, SB, SBB, WH, BG, GR, RD } from "../../constants/tokens";
-import { STRUCTURE_TYPES } from "../../constants/config";
+import { STRUCTURE_TYPES, PLANS } from "../../constants/config";
 import { Ico } from "../ui";
 
 // ── Roles ──
@@ -79,12 +79,63 @@ function Step2({ data, set }) {
   );
 }
 
-// ── Step 3: First Project ──
+// ── Step 3: Plan selection (informational, non-blocking) ──
+const ONB_PLANS = [
+  { id: "free", label: PLANS.free.label, price: PLANS.free.price, tagline: "Pour découvrir", features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec filigrane"] },
+  { id: "pro",  label: PLANS.pro.label,  price: PLANS.pro.price,  tagline: "Pour les agences",   popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi PV par email", "Galerie photos", "Planning & lots"] },
+  { id: "team", label: PLANS.team.label, price: PLANS.team.price, tagline: "Pour les équipes",   features: ["Tout le Pro", "Collab. illimités", "Rôles & permissions", "Dashboard complet", "Export CSV", "Logo PDF perso."] },
+];
+
+function StepPlan({ data, onPick }) {
+  return (
+    <>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 3 · Votre plan</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Choisissez comment démarrer.</div>
+        <div style={{ fontSize: 13, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Vous pouvez changer de plan à tout moment depuis votre profil.</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        {ONB_PLANS.map(p => {
+          const isSel = data.plan === p.id;
+          const isFree = p.id === "free";
+          return (
+            <div key={p.id} style={{ position: "relative", border: `${p.popular ? 2 : 1.5}px solid ${isSel ? AC : (p.popular ? AC : SBB)}`, borderRadius: 12, padding: "14px 12px", background: isSel ? ACL : WH, display: "flex", flexDirection: "column", transition: "all .15s" }}>
+              {p.popular && <div style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#fff", background: AC, padding: "2px 8px", borderRadius: 8 }}>Populaire</div>}
+              <div style={{ fontSize: 14, fontWeight: 700, color: TX }}>{p.label}</div>
+              <div style={{ fontSize: 10, color: TX3, marginBottom: 6 }}>{p.tagline}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 10 }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: TX }}>{p.price}€</span>
+                <span style={{ fontSize: 10, color: TX3 }}>{p.price === 0 ? "" : "/mois"}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, marginBottom: 12 }}>
+                {p.features.map((f, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: TX2, lineHeight: 1.3 }}>
+                    <Ico name="check" size={9} color={GR} />{f}
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => onPick(p.id)}
+                style={{ width: "100%", padding: "8px 10px", border: "none", borderRadius: 8, background: isFree ? AC : (p.popular ? AC : SB), color: (isFree || p.popular) ? "#fff" : TX, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}>
+                {isFree ? "Démarrer en Free" : `Essayer ${p.label}`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 14, padding: "8px 12px", background: SB, border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 11, color: TX3, display: "flex", alignItems: "center", gap: 6 }}>
+        <Ico name="info" size={11} color={TX3} />
+        Pas de paiement requis pour le moment — vous testez le plan choisi.
+      </div>
+    </>
+  );
+}
+
+// ── Step 4: First Project ──
 function Step3({ data, set }) {
   return (
     <>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 3 · Premier projet</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 4 · Premier projet</div>
         <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Créons votre premier chantier.</div>
         <div style={{ fontSize: 14, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Vous pourrez ajuster ces informations à tout moment.</div>
       </div>
@@ -130,19 +181,21 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
     agency: profile.structure || "",
     address: profile.address || "",
     structureType: profile.structureType || "architecte",
+    plan: profile.plan || "free",
     pName: "", pClient: "", pContractor: "", pCity: "", pStart: "", pEnd: "",
   });
 
-  const total = 4;
+  const total = 5;
 
   const canNext = (
     step === 0 ? !!data.role :
     step === 1 ? !!(data.agency?.trim() && data.name?.trim()) :
-    step === 2 ? !!(data.pName?.trim()) :
+    step === 2 ? true : // plan step — advance via plan-card buttons; this only matters for retour-then-continuer
+    step === 3 ? !!(data.pName?.trim()) :
     true
   );
 
-  const nextLabels = ["Continuer", "Continuer", "Créer le projet", "Accéder à mon projet"];
+  const nextLabels = ["Continuer", "Continuer", "Continuer", "Créer le projet", "Accéder à mon projet"];
 
   const handleNext = () => {
     if (step === 1) {
@@ -154,7 +207,11 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
         address: data.address,
       });
     }
-    if (step === 2 && data.pName && onCreateProject) {
+    if (step === 2) {
+      // Persist whatever plan is currently in `data` (defaults to "free")
+      onUpdateProfile({ ...profile, plan: data.plan });
+    }
+    if (step === 3 && data.pName && onCreateProject) {
       onCreateProject({
         name: data.pName, client: data.pClient, contractor: data.pContractor,
         city: data.pCity, startDate: data.pStart, endDate: data.pEnd,
@@ -167,6 +224,12 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
     setStep(s => s + 1);
   };
 
+  const pickPlan = (planId) => {
+    setData(d => ({ ...d, plan: planId }));
+    onUpdateProfile({ ...profile, plan: planId });
+    setStep(s => s + 1);
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10002, background: "rgba(31,41,55,0.60)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <style>{`
@@ -174,7 +237,7 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
         .onb-card { animation: onbFadeUp .35s ease both; }
       `}</style>
 
-      <div className="onb-card" style={{ width: "100%", maxWidth: step === 2 ? 600 : 520, background: WH, borderRadius: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+      <div className="onb-card" style={{ width: "100%", maxWidth: step === 2 ? 720 : step === 3 ? 600 : 520, background: WH, borderRadius: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
         {/* Header with logo + progress */}
         <div style={{ padding: "20px 28px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -193,8 +256,9 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
         <div key={step} className="onb-card" style={{ padding: "24px 28px 28px" }}>
           {step === 0 && <Step1 data={data} set={setData} />}
           {step === 1 && <Step2 data={data} set={setData} />}
-          {step === 2 && <Step3 data={data} set={setData} />}
-          {step === 3 && <Step4 data={data} />}
+          {step === 2 && <StepPlan data={data} onPick={pickPlan} />}
+          {step === 3 && <Step3 data={data} set={setData} />}
+          {step === 4 && <Step4 data={data} />}
         </div>
 
         {/* Footer */}
