@@ -101,16 +101,25 @@ serve(async (req) => {
       }, 403);
     }
 
-    // 4. Check the email isn't already a member or already invited
-    const { data: existingMember } = await admin
-      .from("organization_members")
-      .select("user_id, profiles:profiles!inner(email)")
-      .eq("org_id", orgId);
-    const alreadyMember = (existingMember || []).some((m: { profiles?: { email?: string } }) =>
-      m.profiles?.email?.toLowerCase() === email
-    );
-    if (alreadyMember) {
-      return jsonResponse(req, { error: "Cette personne est déjà membre" }, 409);
+    // 4. Check the email isn't already a member.
+    //    Two-step lookup (no PostgREST join) — find the profile by email,
+    //    then look it up in this org's members.
+    const { data: profileForEmail } = await admin
+      .from("profiles")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle();
+
+    if (profileForEmail) {
+      const { data: alreadyMember } = await admin
+        .from("organization_members")
+        .select("user_id")
+        .eq("org_id", orgId)
+        .eq("user_id", profileForEmail.id)
+        .maybeSingle();
+      if (alreadyMember) {
+        return jsonResponse(req, { error: "Cette personne est déjà membre" }, 409);
+      }
     }
 
     const { data: existingInvite } = await admin

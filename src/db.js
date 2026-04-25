@@ -674,7 +674,10 @@ export async function createOrganization(name) {
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
-  if (res.error) throw new Error(res.error.message || "Création de l'agence impossible");
+  if (res.error) {
+    const parsed = await parseFunctionError(res.error);
+    throw new Error(parsed?.error || "Création de l'agence impossible");
+  }
   return res.data?.organization;
 }
 
@@ -759,56 +762,36 @@ export function saveOrgProjects(orgId, projects, activeId) {
 
 // ── Org invitations & member management ────────────────────
 
-export async function inviteOrgMember(orgId, email, role) {
+async function invokeOrgFn(name, body, fallback) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Non connecté");
 
-  const res = await supabase.functions.invoke("invite-org-member", {
-    body: { org_id: orgId, email, role },
+  const res = await supabase.functions.invoke(name, {
+    body,
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
-  if (res.error) throw new Error(res.error.message || "Invitation impossible");
-  return res.data; // { invitation, warning? }
+  if (res.error) {
+    const parsed = await parseFunctionError(res.error);
+    throw new Error(parsed?.error || fallback);
+  }
+  return res.data;
+}
+
+export async function inviteOrgMember(orgId, email, role) {
+  return invokeOrgFn("invite-org-member", { org_id: orgId, email, role }, "Invitation impossible");
 }
 
 export async function acceptOrgInvite(token) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Non connecté");
-
-  const res = await supabase.functions.invoke("accept-org-invite", {
-    body: { token },
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-
-  if (res.error) throw new Error(res.error.message || "Invitation invalide");
-  return res.data; // { org_id, org_name?, role?, alreadyMember? }
+  return invokeOrgFn("accept-org-invite", { token }, "Invitation invalide");
 }
 
 export async function revokeOrgInvite(invitationId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Non connecté");
-
-  const res = await supabase.functions.invoke("revoke-org-invite", {
-    body: { invitation_id: invitationId },
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-
-  if (res.error) throw new Error(res.error.message || "Révocation impossible");
-  return res.data;
+  return invokeOrgFn("revoke-org-invite", { invitation_id: invitationId }, "Révocation impossible");
 }
 
 export async function removeOrgMember(orgId, userId) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Non connecté");
-
-  const res = await supabase.functions.invoke("remove-org-member", {
-    body: { org_id: orgId, user_id: userId },
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-
-  if (res.error) throw new Error(res.error.message || "Suppression impossible");
-  return res.data;
+  return invokeOrgFn("remove-org-member", { org_id: orgId, user_id: userId }, "Suppression impossible");
 }
 
 export async function loadPendingOrgInvitations(orgId) {

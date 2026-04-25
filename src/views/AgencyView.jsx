@@ -90,8 +90,10 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
     }
   };
 
+  const [inviteError, setInviteError] = useState("");
   const handleInvite = async (email, role) => {
     setBusy(true);
+    setInviteError("");
     setError("");
     try {
       await inviteOrgMember(activeOrgId, email, role);
@@ -99,7 +101,8 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
       const invs = await loadPendingOrgInvitations(activeOrgId);
       setInvitations(invs);
     } catch (e) {
-      setError(e.message || "Invitation impossible");
+      console.error("inviteOrgMember failed:", e);
+      setInviteError(e.message || "Invitation impossible");
     } finally {
       setBusy(false);
     }
@@ -263,9 +266,10 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
       {showInvite && (
         <InviteModal
           onSubmit={handleInvite}
-          onClose={() => setShowInvite(false)}
+          onClose={() => { setShowInvite(false); setInviteError(""); }}
           busy={busy}
           remainingSeats={Math.max(0, seatsLimit - seatsUsed)}
+          errorMsg={inviteError}
         />
       )}
       {showCreate && <CreateOrgModal onSubmit={handleCreate} onClose={() => setShowCreate(false)} busy={busy} />}
@@ -328,7 +332,7 @@ function CreateOrgModal({ onSubmit, onClose, busy }) {
 // is overkill for a client-side gate.
 const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
 
-function InviteModal({ onSubmit, onClose, busy, remainingSeats }) {
+function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
   const valid = isValidEmail(email);
@@ -358,6 +362,11 @@ function InviteModal({ onSubmit, onClose, busy, remainingSeats }) {
           ))}
         </div>
 
+        {errorMsg && (
+          <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, marginBottom: 12, fontSize: 12, color: RD, lineHeight: 1.5 }}>
+            {errorMsg}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} disabled={busy}
             style={{ padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
