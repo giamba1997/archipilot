@@ -5,11 +5,12 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, SP, FS, RAD } from "
 import { getStatus } from "../../constants/statuses";
 import { Ico } from "../ui";
 
-export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning }) {
+export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning, activeContext, myOrgs, onSwitchContext, contextLoading, onCreateAgency }) {
   const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [collapsedClients, setCollapsedClients] = useState({});
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const t = useT();
   const active = useMemo(() => projects.filter((p) => !p.archived), [projects]);
   const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
@@ -61,6 +62,19 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
 
       {/* ── Scrollable body ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 10px 10px" }}>
+
+        {/* Context switcher — Personal vs Org workspaces */}
+        {onSwitchContext && (
+          <ContextSwitcher
+            activeContext={activeContext}
+            myOrgs={myOrgs || []}
+            onSwitch={onSwitchContext}
+            loading={contextLoading}
+            isOpen={contextMenuOpen}
+            setIsOpen={setContextMenuOpen}
+            onCreateAgency={onCreateAgency}
+          />
+        )}
 
         {/* CTA Nouveau projet — pleine largeur */}
         <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 }}>
@@ -301,6 +315,82 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
         )}
       </div>
 
+    </div>
+  );
+}
+
+// ─── Context switcher ──────────────────────────────────────────
+// Compact button that shows the active workspace and opens a list of
+// alternatives on click (Personnel + every org the user belongs to).
+function ContextSwitcher({ activeContext, myOrgs, onSwitch, loading, isOpen, setIsOpen, onCreateAgency }) {
+  const TX4 = "#8A8A85";
+  const isPersonal = activeContext === "personal";
+  const activeOrg = !isPersonal ? myOrgs.find(o => o.id === activeContext.slice(4)) : null;
+  const label = isPersonal ? "Personnel" : (activeOrg?.name || "Agence");
+  const icon = isPersonal ? "user" : "users";
+
+  // Don't show the switcher if the user has no orgs yet — they have only
+  // one possible context. Once they create or join an org, this appears.
+  const hasOrgs = myOrgs && myOrgs.length > 0;
+  if (!hasOrgs) return null;
+
+  const items = [
+    { key: "personal", label: "Personnel", icon: "user", sub: "Tes projets perso" },
+    ...myOrgs.map(o => ({ key: `org:${o.id}`, label: o.name, icon: "users", sub: `Agence · ${o._myRole === "owner" ? "Propriétaire" : o._myRole === "admin" ? "Admin" : o._myRole === "member" ? "Membre" : "Lecteur"}` })),
+  ];
+
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <button onClick={() => setIsOpen(v => !v)} disabled={loading}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", textAlign: "left", transition: "all .12s" }}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: isPersonal ? SB2 : ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Ico name={icon} size={12} color={isPersonal ? TX2 : AC} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: TX4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Espace</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+        </div>
+        {loading ? (
+          <div style={{ width: 12, height: 12, border: `2px solid ${SB2}`, borderTopColor: AC, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+        ) : (
+          <Ico name="arrowr" size={9} color={TX3} />
+        )}
+      </button>
+
+      {isOpen && !loading && (
+        <>
+          <div onClick={() => setIsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 200 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 201, background: WH, border: `1px solid ${SBB}`, borderRadius: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.12)", padding: 4, maxHeight: 280, overflowY: "auto" }}>
+            {items.map(it => {
+              const isActive = it.key === activeContext;
+              return (
+                <button key={it.key} onClick={() => { setIsOpen(false); onSwitch(it.key); }}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 8px", border: "none", borderRadius: 7, background: isActive ? ACL : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "background .1s" }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = SB; }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 6, background: isActive ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name={it.icon} size={11} color={isActive ? "#fff" : TX2} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: isActive ? AC : TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.label}</div>
+                    <div style={{ fontSize: 10, color: TX3 }}>{it.sub}</div>
+                  </div>
+                  {isActive && <Ico name="check" size={10} color={AC} />}
+                </button>
+              );
+            })}
+            {onCreateAgency && (
+              <button onClick={() => { setIsOpen(false); onCreateAgency(); }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 8px", border: "none", borderTop: `1px solid ${SB2}`, marginTop: 4, paddingTop: 10, borderRadius: 0, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", color: TX3 }}
+                onMouseEnter={e => e.currentTarget.style.background = SB}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <Ico name="plus" size={11} color={TX3} />
+                <span style={{ fontSize: 11, fontWeight: 600 }}>Créer une agence</span>
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

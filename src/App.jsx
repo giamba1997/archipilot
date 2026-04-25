@@ -35,7 +35,7 @@ class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadMyOrganizations, loadOrgProjects, saveOrgProjects } from "./db";
 
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST } from "./constants/tokens";
 import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_STATUSES, getPvStatus, nextPvStatus, LOT_COLORS, calcLotStatus } from "./constants/statuses";
@@ -112,9 +112,32 @@ const INIT_PROJECTS = [
 
 
 export default function App() {
-  const [projects, setProjects] = useState(() => { try { const s = localStorage.getItem("archipilot_projects"); return s ? JSON.parse(s) : []; } catch { return []; } });
-  const [activeId, setActiveId] = useState(() => { try { const s = localStorage.getItem("archipilot_activeId"); return s ? Number(s) || 1 : 1; } catch { return 1; } });
+  // ── Workspace context ───────────────────────────────────────
+  // "personal" = solo workspace (user_data table)
+  // "org:<uuid>" = team workspace (organization_data table)
+  const [activeContext, setActiveContext] = useState(() => {
+    try { return localStorage.getItem("archipilot_active_context") || "personal"; }
+    catch { return "personal"; }
+  });
+  const cacheKey = (ctx) => `archipilot_projects:${ctx}`;
+  const activeIdKey = (ctx) => `archipilot_activeId:${ctx}`;
+  const [projects, setProjects] = useState(() => {
+    try {
+      const ctx = localStorage.getItem("archipilot_active_context") || "personal";
+      const s = localStorage.getItem(cacheKey(ctx));
+      return s ? JSON.parse(s) : [];
+    } catch { return []; }
+  });
+  const [activeId, setActiveId] = useState(() => {
+    try {
+      const ctx = localStorage.getItem("archipilot_active_context") || "personal";
+      const s = localStorage.getItem(activeIdKey(ctx));
+      return s ? Number(s) || 1 : 1;
+    } catch { return 1; }
+  });
   const [dbLoaded, setDbLoaded] = useState(false);
+  const [myOrgs, setMyOrgs] = useState([]);
+  const [contextLoading, setContextLoading] = useState(false);
   const [view, _setView] = useState("overview");
   const setView = (v) => { _setView(v); track("page_viewed", { _page: v }); };
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -170,21 +193,39 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [invitations, setInvitations] = useState([]);
 
-  // Load data from Supabase on mount
+  // Load data from Supabase on mount. The data source depends on the active
+  // context: "personal" reads user_data, "org:<id>" reads organization_data.
   useEffect(() => {
     (async () => {
       try {
-        const [cloudData, cloudProfile] = await Promise.all([
-          dbLoadProjects().catch(e => { console.error("loadProjects failed:", e); return null; }),
+        const projectsLoader = activeContext === "personal"
+          ? dbLoadProjects().catch(e => { console.error("loadProjects failed:", e); return null; })
+          : loadOrgProjects(activeContext.slice(4)).catch(e => { console.error("loadOrgProjects failed:", e); return null; });
+
+        const [cloudData, cloudProfile, orgsList] = await Promise.all([
+          projectsLoader,
           dbLoadProfile().catch(e => { console.error("loadProfile failed:", e); return null; }),
+          loadMyOrganizations().catch(() => []),
         ]);
+
         if (cloudData) {
           if (cloudData.projects && cloudData.projects.length > 0) setProjects(cloudData.projects);
           if (cloudData.activeId) setActiveId(cloudData.activeId);
         }
-        if (cloudProfile) {
-          setProfile(cloudProfile);
+        if (cloudProfile) setProfile(cloudProfile);
+        if (orgsList) setMyOrgs(orgsList);
+
+        // If the persisted org context no longer corresponds to a current
+        // membership (kicked out, org deleted), fall back to personal.
+        if (activeContext.startsWith("org:")) {
+          const orgId = activeContext.slice(4);
+          const stillMember = (orgsList || []).some(o => o.id === orgId);
+          if (!stillMember) {
+            setActiveContext("personal");
+            try { localStorage.setItem("archipilot_active_context", "personal"); } catch { /* ignore */ }
+          }
         }
+
         // Show onboarding for new users who haven't completed it yet
         if (!localStorage.getItem("archipilot_onboarding_done")) {
           const isNewUser = !cloudProfile || !cloudProfile.name || !cloudProfile.structure;
@@ -198,7 +239,29 @@ export default function App() {
       loadNotifications().then(setNotifications).catch(() => {});
       loadMyInvitations().then(setInvitations).catch(() => {});
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Switch workspace context atomically ────────────────────
+  const refreshMyOrgs = () => loadMyOrganizations().then(setMyOrgs).catch(() => {});
+  const switchContext = async (newContext) => {
+    if (newContext === activeContext || contextLoading) return;
+    setContextLoading(true);
+    try {
+      const data = newContext === "personal"
+        ? await dbLoadProjects()
+        : await loadOrgProjects(newContext.slice(4));
+      setProjects(data?.projects || []);
+      setActiveId(data?.activeId || (data?.projects?.[0]?.id ?? 1));
+      setActiveContext(newContext);
+      try { localStorage.setItem("archipilot_active_context", newContext); } catch { /* ignore */ }
+      setView("overview");
+    } catch (e) {
+      console.error("Context switch error:", e);
+    } finally {
+      setContextLoading(false);
+    }
+  };
 
   // Subscribe to realtime notifications
   useEffect(() => {
@@ -215,13 +278,13 @@ export default function App() {
     return () => { try { unsub?.(); } catch { /* ignore */ } };
   }, []);
 
-  // Save projects + activeId to Supabase + localStorage.
+  // Save projects + activeId to the right cloud table + localStorage.
   // The cache blows the ~5 MB quota quickly because photos (and plan files)
   // carry big base64 dataUrls. Since everything is also mirrored to Supabase,
   // we strip heavy binary payloads before writing to localStorage. Offline
   // reloads may miss a few images but sync restores them online.
   useEffect(() => {
-    if (!dbLoaded) return;
+    if (!dbLoaded || contextLoading) return;
     const lite = JSON.stringify(projects, (key, value) => {
       if (key === "dataUrl") return undefined;
       // Legacy/planImage and any other inline base64 string — heavy, drop it.
@@ -229,16 +292,21 @@ export default function App() {
       return value;
     });
     try {
-      localStorage.setItem("archipilot_projects", lite);
+      localStorage.setItem(cacheKey(activeContext), lite);
     } catch {
       // Last resort: clear the cache entirely (Supabase is still authoritative)
-      try { localStorage.removeItem("archipilot_projects"); } catch { /* ignore */ }
+      try { localStorage.removeItem(cacheKey(activeContext)); } catch { /* ignore */ }
       setStorageWarning(true);
       setTimeout(() => setStorageWarning(false), 5000);
     }
-    try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch { /* ignore */ }
-    dbSaveProjects(projects, activeId);
-  }, [projects, activeId, dbLoaded]);
+    try { localStorage.setItem(activeIdKey(activeContext), String(activeId)); } catch { /* ignore */ }
+    if (activeContext === "personal") {
+      dbSaveProjects(projects, activeId);
+    } else {
+      saveOrgProjects(activeContext.slice(4), projects, activeId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, activeId, dbLoaded, activeContext, contextLoading]);
 
   // Détection online/offline + sync au retour
   useEffect(() => {
@@ -652,7 +720,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchContext} contextLoading={contextLoading} onCreateAgency={() => setView("agency")} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -807,7 +875,7 @@ export default function App() {
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view === "stats" && <StatsView projects={projects} profile={profile} onUpgrade={(feature) => setUpgradeFeature(feature || "exportCsv")} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
-          {view === "agency" && <AgencyView profile={profile} onBack={() => setView("profile")} onAgencyChanged={() => { /* placeholder for context-switcher refresh in phase 3 */ }} />}
+          {view === "agency" && <AgencyView profile={profile} onBack={() => setView("profile")} onAgencyChanged={refreshMyOrgs} />}
         </div>
       </main>
 
@@ -1562,7 +1630,7 @@ Règles :
           token={inviteToken}
           profile={profile}
           onClose={() => setInviteToken(null)}
-          onAccepted={() => { setView("agency"); }}
+          onAccepted={() => { refreshMyOrgs(); setView("agency"); }}
         />
       )}
 
