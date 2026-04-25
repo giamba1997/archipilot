@@ -323,10 +323,16 @@ function CreateOrgModal({ onSubmit, onClose, busy }) {
   );
 }
 
+// Loose-but-practical email check — non-empty local + @ + non-empty domain with a dot.
+// Matches what RFC-compliant servers actually accept day to day; strict RFC 5322
+// is overkill for a client-side gate.
+const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
+
 function InviteModal({ onSubmit, onClose, busy, remainingSeats }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
-  const submit = (e) => { e.preventDefault(); if (email.trim()) onSubmit(email.trim().toLowerCase(), role); };
+  const valid = isValidEmail(email);
+  const submit = (e) => { e.preventDefault(); if (valid) onSubmit(email.trim().toLowerCase(), role); };
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10005, background: "rgba(31,41,55,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <form onSubmit={submit} style={{ width: "100%", maxWidth: 460, background: WH, borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", padding: "24px 26px" }}>
@@ -355,8 +361,8 @@ function InviteModal({ onSubmit, onClose, busy, remainingSeats }) {
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} disabled={busy}
             style={{ padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
-          <button type="submit" disabled={busy || !email.trim()}
-            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: email.trim() ? AC : SBB, color: email.trim() ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: (busy || !email.trim()) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+          <button type="submit" disabled={busy || !valid}
+            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: valid ? AC : SBB, color: valid ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: (busy || !valid) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
             {busy ? "Envoi…" : "Envoyer l'invitation"}
           </button>
         </div>
