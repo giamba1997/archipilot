@@ -1567,9 +1567,13 @@ Règles :
         e.target.value = "";
       }} />
 
-      {/* Onboarding wizard for new users */}
-      {showOnboarding && (
+      {/* Onboarding wizard for new users — wait until any pending invite
+          modal has been processed so we know whether the user joined an
+          org (compact flow) or signs up solo (full flow). */}
+      {showOnboarding && !inviteToken && (
         <OnboardingWizard
+          compact={myOrgs.length > 0}
+          joinedOrgName={myOrgs[0]?.name || null}
           profile={profile}
           onUpdateProfile={(p) => { setProfile(p); saveProfile(p); }}
           onCreateProject={(proj) => {

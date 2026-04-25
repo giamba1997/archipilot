@@ -157,7 +157,7 @@ function Step3({ data, set }) {
 }
 
 // ── Step 4: Done ──
-function Step4({ data }) {
+function Step4({ data, joinedOrgName }) {
   return (
     <div style={{ textAlign: "center" }}>
       <div style={{ width: 64, height: 64, borderRadius: 16, background: `${GR}18`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
@@ -168,15 +168,42 @@ function Step4({ data }) {
         Bienvenue{data.name ? `, ${data.name.split(" ")[0]}` : ""}.
       </div>
       <div style={{ fontSize: 14, color: TX2, marginTop: 10, lineHeight: 1.6 }}>
-        Votre espace est configuré{data.pName ? <> et <strong style={{ color: TX, fontWeight: 600 }}>{data.pName}</strong> a été créé</> : ""}.
-        <br />Vous allez être redirigé vers votre projet.
+        {joinedOrgName ? (
+          <>Tu as rejoint <strong style={{ color: TX, fontWeight: 600 }}>{joinedOrgName}</strong>. Tu peux maintenant accéder aux projets partagés.</>
+        ) : (
+          <>Votre espace est configuré{data.pName ? <> et <strong style={{ color: TX, fontWeight: 600 }}>{data.pName}</strong> a été créé</> : ""}.<br />Vous allez être redirigé vers votre projet.</>
+        )}
       </div>
     </div>
   );
 }
 
+// ── Step (light) — invited members only need to share their personal name. ──
+function StepNameLight({ data, set, joinedOrgName }) {
+  return (
+    <>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 2 · Ton profil</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Comment tu t'appelles ?</div>
+        <div style={{ fontSize: 14, color: TX2, marginTop: 8, lineHeight: 1.5 }}>
+          C'est le nom qui apparaîtra sur les PV que tu rédiges{joinedOrgName ? <> au sein de <strong style={{ color: TX, fontWeight: 600 }}>{joinedOrgName}</strong></> : ""}.
+        </div>
+      </div>
+      <OField label="Ton nom" value={data.name || ""} onChange={v => set({ ...data, name: v })} placeholder="Marie Dupont" iconName="user" required />
+    </>
+  );
+}
+
 // ── Main Onboarding Wizard ──
-export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreateProject }) {
+// `compact` collapses the flow for users joining an existing agency:
+// they don't pick a structure name, plan, or first project — those
+// already exist in the org. We just need their role + their personal name.
+const FULL_STEPS = ["role", "structure", "plan", "project", "done"];
+const LIGHT_STEPS = ["role", "name", "done"];
+
+export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreateProject, compact, joinedOrgName }) {
+  // Lock the step list at mount — switching mid-flow would jump the user.
+  const [stepNames] = useState(compact ? LIGHT_STEPS : FULL_STEPS);
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     role: profile.structureType || "",
@@ -188,20 +215,26 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
     pName: "", pClient: "", pContractor: "", pCity: "", pStart: "", pEnd: "",
   });
 
-  const total = 5;
+  const total = stepNames.length;
+  const currentStep = stepNames[step];
 
-  const canNext = (
-    step === 0 ? !!data.role :
-    step === 1 ? !!(data.agency?.trim() && data.name?.trim()) :
-    step === 2 ? true : // plan step — advance via plan-card buttons; this only matters for retour-then-continuer
-    step === 3 ? !!(data.pName?.trim()) :
-    true
-  );
+  const canNext = (() => {
+    if (currentStep === "role") return !!data.role;
+    if (currentStep === "structure") return !!(data.agency?.trim() && data.name?.trim());
+    if (currentStep === "name") return !!data.name?.trim();
+    if (currentStep === "plan") return true;
+    if (currentStep === "project") return !!data.pName?.trim();
+    return true;
+  })();
 
-  const nextLabels = ["Continuer", "Continuer", "Continuer", "Créer le projet", "Accéder à mon projet"];
+  const nextLabel = (() => {
+    if (step === total - 1) return compact ? "Accéder à l'agence" : "Accéder à mon projet";
+    if (currentStep === "project") return "Créer le projet";
+    return "Continuer";
+  })();
 
   const handleNext = () => {
-    if (step === 1) {
+    if (currentStep === "structure") {
       onUpdateProfile({
         ...profile,
         name: data.name,
@@ -210,11 +243,17 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
         address: data.address,
       });
     }
-    if (step === 2) {
-      // Persist whatever plan is currently in `data` (defaults to "free")
+    if (currentStep === "name") {
+      onUpdateProfile({
+        ...profile,
+        name: data.name,
+        structureType: data.structureType || data.role,
+      });
+    }
+    if (currentStep === "plan") {
       onUpdateProfile({ ...profile, plan: data.plan });
     }
-    if (step === 3 && data.pName && onCreateProject) {
+    if (currentStep === "project" && data.pName && onCreateProject) {
       onCreateProject({
         name: data.pName, client: data.pClient, contractor: data.pContractor,
         city: data.pCity, startDate: data.pStart, endDate: data.pEnd,
@@ -240,7 +279,7 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
         .onb-card { animation: onbFadeUp .35s ease both; }
       `}</style>
 
-      <div className="onb-card" style={{ width: "100%", maxWidth: step === 2 ? 720 : step === 3 ? 600 : 520, background: WH, borderRadius: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+      <div className="onb-card" style={{ width: "100%", maxWidth: currentStep === "plan" ? 720 : currentStep === "project" ? 600 : 520, background: WH, borderRadius: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
         {/* Header with logo + progress */}
         <div style={{ padding: "20px 28px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -257,11 +296,12 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
 
         {/* Content */}
         <div key={step} className="onb-card" style={{ padding: "24px 28px 28px" }}>
-          {step === 0 && <Step1 data={data} set={setData} />}
-          {step === 1 && <Step2 data={data} set={setData} />}
-          {step === 2 && <StepPlan data={data} onPick={pickPlan} />}
-          {step === 3 && <Step3 data={data} set={setData} />}
-          {step === 4 && <Step4 data={data} />}
+          {currentStep === "role" && <Step1 data={data} set={setData} />}
+          {currentStep === "structure" && <Step2 data={data} set={setData} />}
+          {currentStep === "plan" && <StepPlan data={data} onPick={pickPlan} />}
+          {currentStep === "project" && <Step3 data={data} set={setData} />}
+          {currentStep === "name" && <StepNameLight data={data} set={setData} joinedOrgName={joinedOrgName} />}
+          {currentStep === "done" && <Step4 data={data} joinedOrgName={joinedOrgName} />}
         </div>
 
         {/* Footer */}
@@ -282,7 +322,7 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
           </div>
           <button onClick={handleNext} disabled={!canNext}
             style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: canNext ? AC : SBB, color: canNext ? "#fff" : TX3, fontSize: 13, fontWeight: 600, cursor: canNext ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, boxShadow: canNext ? "0 4px 12px rgba(201,90,27,0.25)" : "none", transition: "all .2s" }}>
-            {nextLabels[step]}
+            {nextLabel}
             {step < total - 1 && <Ico name="send" size={13} color="#fff" />}
           </button>
         </div>
