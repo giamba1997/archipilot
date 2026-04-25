@@ -5,7 +5,7 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, SP, FS, RAD } from "
 import { getStatus } from "../../constants/statuses";
 import { Ico } from "../ui";
 
-export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning, onAgency }) {
+export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning }) {
   const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
@@ -68,12 +68,11 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
           <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
         </button>
 
-        {/* Navigation — Dashboard + Planning + Agency */}
+        {/* Navigation — Dashboard + Planning */}
         <div style={{ display: "flex", gap: 4, marginBottom: SP.md }}>
           {[
             { id: "stats", label: "Dashboard", icon: "chart", onClick: onStats },
             { id: "planningDashboard", label: "Planning", icon: "calendar", onClick: onPlanning },
-            ...(onAgency ? [{ id: "agency", label: "Agence", icon: "users", onClick: onAgency }] : []),
           ].map(btn => {
             const isAct = view === btn.id;
             return (

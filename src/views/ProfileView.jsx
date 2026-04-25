@@ -5,7 +5,7 @@ import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, DIS, DIST, LH } from "../constants/tokens";
 import { PLANS, hasFeature, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, STRUCTURE_TYPES } from "../constants/config";
 import { Ico, Field } from "../components/ui";
-import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount } from "../db";
+import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, loadMyOrganizations } from "../db";
 import { PricingSection } from "../components/modals/PricingSection";
 import { MfaSection } from "./MfaSection";
 import { PDFPreview } from "./PDFPreview";
@@ -14,6 +14,7 @@ import { PDFPreview } from "./PDFPreview";
 const PROFILE_SECTIONS = [
   { id: "avatar", icon: "users", label: "Profil" },
   { id: "plan", icon: "chart", label: "Abonnement" },
+  { id: "agency", icon: "users", label: "Mon agence" },
   { id: "account", icon: "mail", label: "Compte" },
   { id: "security", icon: "lock", label: "Sécurité" },
   { id: "info", icon: "file", label: "Informations" },
@@ -23,7 +24,9 @@ const PROFILE_SECTIONS = [
   { id: "data", icon: "file", label: "Données" },
 ];
 
-export function ProfileView({ profile, onSave }) {
+const ROLE_LABEL = { owner: "Propriétaire", admin: "Administrateur", member: "Membre", viewer: "Lecteur" };
+
+export function ProfileView({ profile, onSave, onOpenAgency }) {
   const [form, setForm] = useState({ ...profile });
   const [saved, setSaved] = useState(false);
   const fileRef = useRef();
@@ -44,6 +47,12 @@ export function ProfileView({ profile, onSave }) {
       setNewAuthEmail(em);
     });
   }, []);
+
+  const [myOrgs, setMyOrgs] = useState(null);
+  useEffect(() => {
+    loadMyOrganizations().then(setMyOrgs).catch(() => setMyOrgs([]));
+  }, []);
+  const primaryOrg = myOrgs && myOrgs.length > 0 ? myOrgs[0] : null;
 
   // Track active section on scroll
   useEffect(() => {
@@ -421,6 +430,51 @@ export function ProfileView({ profile, onSave }) {
       {/* Abonnement */}
       <div ref={refFor("plan")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <PricingSection currentPlan={form.plan || "free"} onSelectPlan={(p) => { set("plan")(p); onSave({ ...form, plan: p }); setSaved(true); setTimeout(() => setSaved(false), 2500); }} />
+      </div>
+
+      {/* Mon agence */}
+      <div ref={refFor("agency")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>Mon agence</div>
+        <div style={{ fontSize: 12, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
+          Espace partagé multi-archi, rôles, dashboard cross-projets — réservé au plan Team.
+        </div>
+        {myOrgs === null ? (
+          <div style={{ fontSize: 12, color: TX3 }}>Chargement…</div>
+        ) : !primaryOrg ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", background: SB, border: `1px dashed ${SBB}`, borderRadius: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Ico name="users" size={16} color={AC} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Pas encore d'agence</div>
+              <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>
+                Crée une agence pour partager tes projets avec d'autres architectes.
+              </div>
+            </div>
+            <button onClick={onOpenAgency}
+              style={{ padding: "9px 14px", border: "none", borderRadius: 9, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0 }}>
+              <Ico name="plus" size={11} color="#fff" />
+              Créer
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", background: SB, border: `1px solid ${SBB}`, borderRadius: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Ico name="users" size={16} color={AC} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{primaryOrg.name}</div>
+              <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
+                Ton rôle : <strong style={{ color: TX2 }}>{ROLE_LABEL[primaryOrg._myRole] || primaryOrg._myRole}</strong>
+                {primaryOrg.seat_limit ? <> · Cap {primaryOrg.seat_limit} sièges</> : null}
+              </div>
+            </div>
+            <button onClick={onOpenAgency}
+              style={{ padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: AC, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0 }}>
+              Gérer <Ico name="arrowr" size={10} color={AC} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Compte — Email de connexion */}
