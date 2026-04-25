@@ -2,6 +2,24 @@ import { useState, useRef, useEffect } from "react";
 import { AC, SB, SBB, TX, TX2, TX3, WH, RD, SP, FS, RAD } from "../constants/tokens";
 import { Ico } from "../components/ui";
 
+const HANDLE_SIZE = 10;
+
+function Handle({ pos, cursor, crop, scale, onMouseDown }) {
+  const positions = {
+    nw: { left: crop.x * scale - HANDLE_SIZE / 2, top: crop.y * scale - HANDLE_SIZE / 2 },
+    ne: { left: (crop.x + crop.w) * scale - HANDLE_SIZE / 2, top: crop.y * scale - HANDLE_SIZE / 2 },
+    sw: { left: crop.x * scale - HANDLE_SIZE / 2, top: (crop.y + crop.h) * scale - HANDLE_SIZE / 2 },
+    se: { left: (crop.x + crop.w) * scale - HANDLE_SIZE / 2, top: (crop.y + crop.h) * scale - HANDLE_SIZE / 2 },
+  };
+  return (
+    <div onMouseDown={e => onMouseDown(e, pos)} style={{
+      position: "absolute", ...positions[pos], width: HANDLE_SIZE, height: HANDLE_SIZE,
+      background: WH, border: `2px solid ${AC}`, borderRadius: 2,
+      cursor, zIndex: 3,
+    }} />
+  );
+}
+
 export function CropTool({ imageSrc, fileName, onSave, onClose }) {
   const canvasRef = useRef(null);
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
@@ -80,23 +98,6 @@ export function CropTool({ imageSrc, fileName, onSave, onClose }) {
     img.src = imageSrc;
   };
 
-  const hs = 10; // handle size
-  const Handle = ({ pos, cursor }) => {
-    const positions = {
-      nw: { left: crop.x * scale - hs / 2, top: crop.y * scale - hs / 2 },
-      ne: { left: (crop.x + crop.w) * scale - hs / 2, top: crop.y * scale - hs / 2 },
-      sw: { left: crop.x * scale - hs / 2, top: (crop.y + crop.h) * scale - hs / 2 },
-      se: { left: (crop.x + crop.w) * scale - hs / 2, top: (crop.y + crop.h) * scale - hs / 2 },
-    };
-    return (
-      <div onMouseDown={e => onMouseDown(e, pos)} style={{
-        position: "absolute", ...positions[pos], width: hs, height: hs,
-        background: WH, border: `2px solid ${AC}`, borderRadius: 2,
-        cursor, zIndex: 3,
-      }} />
-    );
-  };
-
   return (
     <div ref={containerRef} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 600, display: "flex", flexDirection: "column" }}>
       {/* Header */}
@@ -140,10 +141,10 @@ export function CropTool({ imageSrc, fileName, onSave, onClose }) {
               <div style={{ position: "absolute", top: "66.66%", left: 0, right: 0, height: 1, background: "rgba(255,255,255,0.2)", pointerEvents: "none" }} />
             </div>
             {/* Resize handles */}
-            <Handle pos="nw" cursor="nw-resize" />
-            <Handle pos="ne" cursor="ne-resize" />
-            <Handle pos="sw" cursor="sw-resize" />
-            <Handle pos="se" cursor="se-resize" />
+            <Handle pos="nw" cursor="nw-resize" crop={crop} scale={scale} onMouseDown={onMouseDown} />
+            <Handle pos="ne" cursor="ne-resize" crop={crop} scale={scale} onMouseDown={onMouseDown} />
+            <Handle pos="sw" cursor="sw-resize" crop={crop} scale={scale} onMouseDown={onMouseDown} />
+            <Handle pos="se" cursor="se-resize" crop={crop} scale={scale} onMouseDown={onMouseDown} />
           </div>
         )}
       </div>

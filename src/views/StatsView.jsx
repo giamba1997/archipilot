@@ -6,6 +6,27 @@ import { Ico, PvStatusBadge, KpiCard } from "../components/ui";
 import { exportProjectsCSV, exportActionsCSV, exportRemarksCSV } from "../utils/csv";
 import { hasFeature } from "../constants/config";
 
+function Bar({ value, max, color }) {
+  return (
+    <div style={{ flex: 1, height: 6, background: SB2, borderRadius: 3, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${max > 0 ? (value / max) * 100 : 0}%`, background: color || AC, borderRadius: 3, transition: "width 0.3s" }} />
+    </div>
+  );
+}
+
+function SectionTitle({ children, action }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>{children}</span>
+      {action}
+    </div>
+  );
+}
+
+function DashCard({ children, style: s = {} }) {
+  return <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", ...s }}>{children}</div>;
+}
+
 export function StatsView({ projects, profile, onBack, onSelectProject, onNewPV, onNewProject, onUpgrade }) {
   const t = useT();
   const active = projects.filter(p => !p.archived);
@@ -77,21 +98,6 @@ export function StatsView({ projects, profile, onBack, onSelectProject, onNewPV,
   const contractors = {};
   projects.forEach(p => { (p.actions || []).forEach(a => { const who = a.who?.trim(); if (!who) return; if (!contractors[who]) contractors[who] = { total: 0, open: 0, urgent: 0, closed: 0 }; contractors[who].total++; if (a.open) { contractors[who].open++; if (a.urgent) contractors[who].urgent++; } else contractors[who].closed++; }); });
   const contractorList = Object.entries(contractors).map(([name, s]) => ({ name, ...s })).sort((a, b) => b.open - a.open);
-
-  const Bar = ({ value, max, color }) => (
-    <div style={{ flex: 1, height: 6, background: SB2, borderRadius: 3, overflow: "hidden" }}>
-      <div style={{ height: "100%", width: `${max > 0 ? (value / max) * 100 : 0}%`, background: color || AC, borderRadius: 3, transition: "width 0.3s" }} />
-    </div>
-  );
-  const SectionTitle = ({ children, action }) => (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>{children}</span>
-      {action}
-    </div>
-  );
-  const DashCard = ({ children, style: s = {} }) => (
-    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", ...s }}>{children}</div>
-  );
 
   // Upcoming meetings sorted by date
   const upcomingMeetings = active.filter(p => p.nextMeeting).map(p => {

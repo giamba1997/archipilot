@@ -1,19 +1,20 @@
 import { AC, WH, SBB } from "../../constants/tokens";
 import { Ico } from "../ui";
 
+const TAB_MUTED = "#B5B5B0";
+
+function Tab({ id, icon, label, active, onNavigate }) {
+  return (
+    <button onClick={() => onNavigate(id)} aria-label={label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 3, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", padding: "0 0 5px", borderRadius: 0, transition: "color 0.15s", minHeight: 48, position: "relative" }}>
+      {active && <div style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 20, height: 3, borderRadius: 2, background: AC }} />}
+      <Ico name={icon} size={23} color={active ? AC : TAB_MUTED} />
+      <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? AC : TAB_MUTED, lineHeight: 1, textAlign: "center", width: "100%" }}>{label}</span>
+    </button>
+  );
+}
+
 export function MobileBottomBar({ view, onNavigate, onCapture }) {
   const isActive = (id) => view === id || (id === "overview" && view === "overview") || (id === "notes" && (view === "notes" || view === "result")) || (id === "plan" && (view === "plan" || view === "planning" || view === "checklists"));
-  const TAB_MUTED = "#B5B5B0";
-  const Tab = ({ id, icon, label }) => {
-    const active = isActive(id);
-    return (
-      <button onClick={() => onNavigate(id)} aria-label={label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 3, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", padding: "0 0 5px", borderRadius: 0, transition: "color 0.15s", minHeight: 48, position: "relative" }}>
-        {active && <div style={{ position: "absolute", top: 4, left: "50%", transform: "translateX(-50%)", width: 20, height: 3, borderRadius: 2, background: AC }} />}
-        <Ico name={icon} size={23} color={active ? AC : TAB_MUTED} />
-        <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? AC : TAB_MUTED, lineHeight: 1, textAlign: "center", width: "100%" }}>{label}</span>
-      </button>
-    );
-  };
   return (
     <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {/* Background shape — full width, deep bump hugging the 56px circle */}
@@ -23,8 +24,8 @@ export function MobileBottomBar({ view, onNavigate, onCapture }) {
       </svg>
       <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: 60, padding: "0 4px" }}>
         {/* Left tabs */}
-        <Tab id="overview" icon="building" label="Projet" />
-        <Tab id="notes" icon="file" label="PV" />
+        <Tab id="overview" icon="building" label="Projet" active={isActive("overview")} onNavigate={onNavigate} />
+        <Tab id="notes" icon="file" label="PV" active={isActive("notes")} onNavigate={onNavigate} />
         {/* Center FAB — raised into the bump */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
           <button onClick={onCapture} aria-label="Photo" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
@@ -33,8 +34,8 @@ export function MobileBottomBar({ view, onNavigate, onCapture }) {
           </button>
         </div>
         {/* Right tabs */}
-        <Tab id="plan" icon="folder" label="Docs" />
-        <Tab id="profile" icon="user" label="Profil" />
+        <Tab id="plan" icon="folder" label="Docs" active={isActive("plan")} onNavigate={onNavigate} />
+        <Tab id="profile" icon="user" label="Profil" active={isActive("profile")} onNavigate={onNavigate} />
       </div>
     </nav>
   );

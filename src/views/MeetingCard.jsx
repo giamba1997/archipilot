@@ -25,6 +25,10 @@ export const MEETING_MODES = [
   { id: "hybrid", label: "Hybride", icon: "repeat", color: VI },
 ];
 
+function Card({ children, style = {} }) {
+  return <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "16px 18px", ...style }}>{children}</div>;
+}
+
 export function MeetingCard({ project, setProjects, rec }) {
   const [editing, setEditing] = useState(false);
   const [dateVal, setDateVal] = useState(project.nextMeeting || "");
@@ -38,10 +42,6 @@ export function MeetingCard({ project, setProjects, rec }) {
   const isSoon = days !== null && days > 0 && days <= 2;
   const mode = MEETING_MODES.find(m => m.id === meetingMode) || MEETING_MODES[0];
   const suggested = rec && rec.id !== "none" ? calcNextMeeting(project.nextMeeting, project.recurrence) : null;
-
-  const Card = ({ children, style = {} }) => (
-    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "16px 18px", ...style }}>{children}</div>
-  );
 
   return (
     <Card style={{ background: project.nextMeeting ? ACL : WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}` }}>
