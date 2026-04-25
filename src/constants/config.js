@@ -9,10 +9,11 @@ export const STRUCTURE_TYPES = [
 ];
 
 // ── Plans & Feature Gates ──────────────────────────────────
+// Team includes 3 seats; extra seats billed at +9.99 €/mo each.
 export const PLANS = {
   free: { id: "free", label: "Free", price: 0, priceYear: 0 },
-  pro: { id: "pro", label: "Pro", price: 29, priceYear: 290 },
-  team: { id: "team", label: "Team", price: 59, priceYear: 590 },
+  pro:  { id: "pro",  label: "Pro",  price: 39, priceYear: 390 },
+  team: { id: "team", label: "Team", price: 89, priceYear: 890, seatsIncluded: 3, extraSeatPrice: 9.99 },
 };
 export const PLAN_FEATURES = {
   maxProjects:      { free: 1,     pro: Infinity, team: Infinity },
@@ -29,7 +30,7 @@ export const PLAN_FEATURES = {
   planningCross:    { free: false, pro: false,    team: true },
   exportCsv:        { free: false, pro: false,    team: true },
   pdfNoWatermark:   { free: false, pro: true,     team: true },
-  pdfCustomLogo:    { free: false, pro: false,    team: true },
+  pdfCustomLogo:    { free: false, pro: true,     team: true },
   opr:              { free: false, pro: true,     team: true },
 };
 export const hasFeature = (plan, feature) => {

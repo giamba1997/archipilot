@@ -17,8 +17,8 @@ export function PricingSection({ currentPlan, onSelectPlan }) {
 
   const plans = [
     { ...PLANS.free, desc: t("plan.freeDesc"), features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec watermark"] },
-    { ...PLANS.pro, desc: t("plan.proDesc"), popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email PV", "Galerie photos", "Planning & Lots", "3 collaborateurs / projet", "PDF sans watermark"] },
-    { ...PLANS.team, desc: t("plan.teamDesc"), features: ["Tout le Pro", "Collaborateurs illimités", "Rôles & permissions", "Dashboard complet", "Planning cross-projets", "Export CSV", "PDF logo personnalisé", "Support prioritaire"] },
+    { ...PLANS.pro, desc: t("plan.proDesc"), popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email PV", "Galerie photos", "Planning & Lots", "3 collaborateurs / projet", "PDF sans watermark", "Logo PDF personnalisé"] },
+    { ...PLANS.team, desc: t("plan.teamDesc"), seatsNote: `${PLANS.team.seatsIncluded} sièges inclus · +${PLANS.team.extraSeatPrice} €/siège supplémentaire`, features: ["Tout le Pro", "Espace partagé multi-archi", "Rôles & permissions", "Dashboard cross-projets", "Planning cross-projets", "Export CSV", "Support prioritaire"] },
   ];
 
   const handleSelectPlan = async (planId) => {
@@ -107,13 +107,16 @@ export function PricingSection({ currentPlan, onSelectPlan }) {
               {p.popular && <div style={{ position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#fff", background: AC, padding: "2px 10px", borderRadius: 10 }}>Populaire</div>}
               <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>{p.label}</div>
               <div style={{ fontSize: 11, color: TX3, marginBottom: 10 }}>{p.desc}</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: p.seatsNote ? 4 : 12 }}>
                 <span style={{ fontSize: 28, fontWeight: 800, color: TX }}>{displayPrice}€</span>
                 <span style={{ fontSize: 11, color: TX3 }}>/mois</span>
                 {period === "year" && p.price > 0 && (
                   <span style={{ fontSize: 10, color: TX3, marginLeft: 4, textDecoration: "line-through" }}>{p.price}€</span>
                 )}
               </div>
+              {p.seatsNote && (
+                <div style={{ fontSize: 10, color: TX3, marginBottom: 12, lineHeight: 1.4 }}>{p.seatsNote}</div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
                 {p.features.map((f, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: TX2 }}>

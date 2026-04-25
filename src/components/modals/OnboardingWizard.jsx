@@ -82,8 +82,8 @@ function Step2({ data, set }) {
 // ── Step 3: Plan selection (informational, non-blocking) ──
 const ONB_PLANS = [
   { id: "free", label: PLANS.free.label, price: PLANS.free.price, tagline: "Pour découvrir", features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec filigrane"] },
-  { id: "pro",  label: PLANS.pro.label,  price: PLANS.pro.price,  tagline: "Pour les agences",   popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi PV par email", "Galerie photos", "Planning & lots"] },
-  { id: "team", label: PLANS.team.label, price: PLANS.team.price, tagline: "Pour les équipes",   features: ["Tout le Pro", "Collab. illimités", "Rôles & permissions", "Dashboard complet", "Export CSV", "Logo PDF perso."] },
+  { id: "pro",  label: PLANS.pro.label,  price: PLANS.pro.price,  tagline: "Pour les indépendants", popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi PV par email", "Logo PDF perso.", "Planning & lots"] },
+  { id: "team", label: PLANS.team.label, price: PLANS.team.price, tagline: "Pour les agences", seatsNote: `${PLANS.team.seatsIncluded} sièges inclus · +${PLANS.team.extraSeatPrice} €/siège`, features: ["Tout le Pro", "Espace partagé", "Rôles & permissions", "Dashboard cross-projets", "Export CSV", "Support prioritaire"] },
 ];
 
 function StepPlan({ data, onPick }) {
@@ -103,10 +103,13 @@ function StepPlan({ data, onPick }) {
               {p.popular && <div style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#fff", background: AC, padding: "2px 8px", borderRadius: 8 }}>Populaire</div>}
               <div style={{ fontSize: 14, fontWeight: 700, color: TX }}>{p.label}</div>
               <div style={{ fontSize: 10, color: TX3, marginBottom: 6 }}>{p.tagline}</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: p.seatsNote ? 2 : 10 }}>
                 <span style={{ fontSize: 22, fontWeight: 800, color: TX }}>{p.price}€</span>
                 <span style={{ fontSize: 10, color: TX3 }}>{p.price === 0 ? "" : "/mois"}</span>
               </div>
+              {p.seatsNote && (
+                <div style={{ fontSize: 9, color: TX3, marginBottom: 10, lineHeight: 1.3 }}>{p.seatsNote}</div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, marginBottom: 12 }}>
                 {p.features.map((f, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: TX2, lineHeight: 1.3 }}>
