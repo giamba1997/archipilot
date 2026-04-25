@@ -177,6 +177,7 @@ export default function App() {
     try { return new URLSearchParams(window.location.search).get("invite"); }
     catch { return null; }
   });
+  const [agencyModalOpen, setAgencyModalOpen] = useState(false);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -355,7 +356,7 @@ export default function App() {
   // Escape key closes modals
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === "Escape") { setModal(null); setShowSearch(false); }
+      if (e.key === "Escape") { setModal(null); setShowSearch(false); setAgencyModalOpen(false); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -720,7 +721,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchContext} contextLoading={contextLoading} onCreateAgency={() => setView("agency")} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchContext} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -861,7 +862,7 @@ export default function App() {
           {view === "profile" && (
             <div>
               {profileSaved && <div style={{ padding: "10px 16px", background: "#EAF3DE", borderRadius: 8, color: GR, fontSize: 13, marginBottom: 16, fontWeight: 500 }}>Profil enregistré !</div>}
-              <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setView("agency")} />
+              <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setAgencyModalOpen(true)} />
             </div>
           )}
           {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => { if (!hasFeature(profile.plan, "checklists")) return setUpgradeFeature("checklists"); setView("checklists"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} />}
@@ -875,7 +876,6 @@ export default function App() {
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view === "stats" && <StatsView projects={projects} profile={profile} onUpgrade={(feature) => setUpgradeFeature(feature || "exportCsv")} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
-          {view === "agency" && <AgencyView profile={profile} onBack={() => setView("profile")} onAgencyChanged={refreshMyOrgs} />}
         </div>
       </main>
 
@@ -1630,8 +1630,23 @@ Règles :
           token={inviteToken}
           profile={profile}
           onClose={() => setInviteToken(null)}
-          onAccepted={() => { refreshMyOrgs(); setView("agency"); }}
+          onAccepted={() => { refreshMyOrgs(); setAgencyModalOpen(true); }}
         />
+      )}
+
+      {/* Agency management modal — shown over the current page */}
+      {agencyModalOpen && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setAgencyModalOpen(false); }}
+          style={{ position: "fixed", inset: 0, zIndex: 10003, background: "rgba(31,41,55,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, overflowY: "auto" }}>
+          <div style={{ width: "100%", maxWidth: 720, maxHeight: "90vh", background: BG, borderRadius: 18, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", overflowY: "auto", padding: "20px 24px", position: "relative", animation: "modalIn 0.18s ease-out" }}>
+            <button onClick={() => setAgencyModalOpen(false)}
+              aria-label="Fermer"
+              style={{ position: "absolute", top: 14, right: 14, width: 30, height: 30, borderRadius: 8, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
+              <Ico name="x" size={13} color={TX2} />
+            </button>
+            <AgencyView profile={profile} onBack={() => setAgencyModalOpen(false)} onAgencyChanged={refreshMyOrgs} />
+          </div>
+        </div>
       )}
 
       {/* Cookie consent banner — only show after onboarding & tour are done */}
