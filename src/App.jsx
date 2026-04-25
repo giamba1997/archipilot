@@ -211,6 +211,28 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
+        // Detect a user change on this browser (e.g. someone signed in with
+        // a different account). Wipe the cached projects/active-context so
+        // we don't show the previous account's data while the cloud loads.
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const lastUserId = localStorage.getItem("archipilot_last_user_id");
+            if (lastUserId && lastUserId !== user.id) {
+              Object.keys(localStorage).forEach(k => {
+                if (k.startsWith("archipilot_projects:")
+                  || k.startsWith("archipilot_activeId:")
+                  || k === "archipilot_active_context"
+                  || k === "archipilot_profile") {
+                  localStorage.removeItem(k);
+                }
+              });
+              setProjects([]); setActiveId(1); setActiveContext("personal");
+            }
+            localStorage.setItem("archipilot_last_user_id", user.id);
+          }
+        } catch { /* ignore */ }
+
         const projectsLoader = activeContext === "personal"
           ? dbLoadProjects().catch(e => { console.error("loadProjects failed:", e); return null; })
           : loadOrgProjects(activeContext.slice(4)).catch(e => { console.error("loadOrgProjects failed:", e); return null; });
@@ -221,9 +243,11 @@ export default function App() {
           loadMyOrganizations().catch(() => []),
         ]);
 
+        // Always overwrite from cloud when it loaded, even if empty —
+        // otherwise the stale localStorage cache wins for any new account.
         if (cloudData) {
-          if (cloudData.projects && cloudData.projects.length > 0) setProjects(cloudData.projects);
-          if (cloudData.activeId) setActiveId(cloudData.activeId);
+          setProjects(cloudData.projects || []);
+          setActiveId(cloudData.activeId || 1);
         }
         if (cloudProfile) setProfile(cloudProfile);
         if (orgsList) setMyOrgs(orgsList);
