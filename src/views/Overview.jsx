@@ -13,6 +13,49 @@ import { WeatherWidget } from "./WeatherWidget";
 import { MeetingCard, MEETING_MODES } from "./MeetingCard";
 import { PvRow, SmallBtn } from "./PvRow";
 import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
+import { usePresence } from "../hooks/usePresence";
+
+// Compact stack of avatars for live presence — shows up to 4 distinct
+// users currently on the project, with a +N pill if there are more.
+function PresenceAvatars({ present, selfId }) {
+  // De-duplicate by user_id and exclude self.
+  const others = [];
+  const seen = new Set();
+  for (const u of present) {
+    if (u.user_id === selfId) continue;
+    if (seen.has(u.user_id)) continue;
+    seen.add(u.user_id);
+    others.push(u);
+  }
+  if (others.length === 0) return null;
+  const visible = others.slice(0, 4);
+  const overflow = others.length - visible.length;
+  const initials = (name) => (name || "?").trim().split(/\s+/).map(s => s[0] || "").join("").slice(0, 2).toUpperCase();
+  const titleAll = others.map(u => `${u.name || "?"}${u.viewing && u.viewing !== "overview" ? " · " + u.viewing : ""}`).join("\n");
+  return (
+    <div title={titleAll} style={{ display: "flex", alignItems: "center" }}>
+      {visible.map((u, i) => (
+        <div key={u.user_id}
+          style={{
+            width: 24, height: 24, borderRadius: "50%",
+            border: `2px solid ${WH}`,
+            background: u.avatar ? `url(${u.avatar}) center/cover` : SB2,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 9, fontWeight: 700, color: TX2,
+            marginLeft: i === 0 ? 0 : -7,
+            position: "relative", zIndex: visible.length - i,
+          }}>
+          {!u.avatar && initials(u.name)}
+        </div>
+      ))}
+      {overflow > 0 && (
+        <div style={{ marginLeft: -7, height: 24, padding: "0 7px", borderRadius: 12, background: SB, border: `2px solid ${WH}`, fontSize: 10, fontWeight: 700, color: TX2, display: "flex", alignItems: "center" }}>
+          +{overflow}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const Card = ({ children, style = {} }) => (
   <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.xl, padding: `${SP.lg}px ${SP.lg + 2}px`, ...style }}>{children}</div>
@@ -24,10 +67,21 @@ const CardHeader = ({ title, action }) => (
   </div>
 );
 
-export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery }) {
+export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
+  // Live presence — only meaningful when the project is shared via an
+  // organization. Personal projects don't broadcast presence.
+  const presenceKey = activeContext?.startsWith?.("org:")
+    ? `presence:${activeContext}:project:${project.id}`
+    : null;
+  const presenceInfo = useMemo(() => ({
+    name: profile?.name || "",
+    avatar: profile?.picture || null,
+    viewing: "overview",
+  }), [profile?.name, profile?.picture]);
+  const { present, selfId } = usePresence(presenceKey, presenceInfo);
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
   const urgent = project.actions.filter((a) => a.urgent && a.open);
   const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
@@ -53,6 +107,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           {(project.city || project.address) && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}><Ico name="mappin" size={10} color={TX3} /> {project.city || project.address}</span></>}
           {project.startDate  && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}>{project.startDate}{project.endDate ? ` → ${project.endDate}` : ""}</span></>}
         </div>
+        <PresenceAvatars present={present} selfId={selfId} />
       </div>
 
       {/* ── Bandeau urgences ── */}
