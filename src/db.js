@@ -81,6 +81,7 @@ export async function loadProfile() {
     pvTemplate: data.pv_template || "standard",
     remarkNumbering: data.remark_numbering || "none",
     plan: data.plan || "free",
+    onboardingCompletedAt: data.onboarding_completed_at || null,
   };
 }
 
@@ -106,6 +107,7 @@ export async function saveProfile(profile) {
       pv_template: profile.pvTemplate,
       remark_numbering: profile.remarkNumbering,
       plan: profile.plan || "free",
+      onboarding_completed_at: profile.onboardingCompletedAt || null,
     })
     .eq("id", user.id);
 
@@ -803,4 +805,26 @@ export async function loadPendingOrgInvitations(orgId) {
     .order("created_at", { ascending: false });
   if (error) { console.error("loadPendingOrgInvitations:", error); return []; }
   return data || [];
+}
+
+// Find a pending invitation addressed to the currently-logged-in user.
+// Returns the freshest one if multiple exist. Used as a server-side
+// fallback when the URL/localStorage token has been lost (cross-device
+// signup, cleared cache, etc.). RLS ensures users only see their own.
+export async function loadPendingInvitationForMe() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return null;
+
+  const { data, error } = await supabase
+    .from("organization_invitations")
+    .select("token, org_id, role, expires_at")
+    .eq("status", "pending")
+    .ilike("email", user.email)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) { console.error("loadPendingInvitationForMe:", error); return null; }
+  return data;
 }

@@ -35,7 +35,7 @@ class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadMyOrganizations, loadOrgProjects, saveOrgProjects } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadMyOrganizations, loadOrgProjects, saveOrgProjects, loadPendingInvitationForMe } from "./db";
 
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST } from "./constants/tokens";
 import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_STATUSES, getPvStatus, nextPvStatus, LOT_COLORS, calcLotStatus } from "./constants/statuses";
@@ -239,10 +239,22 @@ export default function App() {
           }
         }
 
-        // Show onboarding for new users who haven't completed it yet
-        if (!localStorage.getItem("archipilot_onboarding_done")) {
-          const isNewUser = !cloudProfile || !cloudProfile.name || !cloudProfile.structure;
-          if (isNewUser) setShowOnboarding(true);
+        // Show onboarding when the profile hasn't been marked complete yet.
+        // The flag now lives on profiles.onboarding_completed_at so it can't
+        // bleed across accounts on the same browser.
+        if (!cloudProfile?.onboardingCompletedAt) {
+          setShowOnboarding(true);
+        }
+
+        // Server-side fallback for invite tokens lost in transit (cross-
+        // device signup, cleared cache, email confirmation redirect). If we
+        // don't already have a token from URL/localStorage, look for any
+        // pending invitation addressed to the user's email and surface it.
+        if (!inviteToken) {
+          try {
+            const pendingInv = await loadPendingInvitationForMe();
+            if (pendingInv?.token) setInviteToken(pendingInv.token);
+          } catch (e) { console.error("Pending invitation lookup failed:", e); }
         }
       } catch (e) { console.error("Initial load error:", e); }
       setDbLoaded(true);
@@ -1622,7 +1634,12 @@ Règles :
           onComplete={() => {
             setShowOnboarding(false);
             setView("overview");
-            try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch { /* ignore */ }
+            // Persist completion on the profile so it can't leak across
+            // accounts on the same browser. saveProfile() handles both
+            // the local state update and the cloud upsert. Drop the
+            // legacy localStorage flag now that the profile is authoritative.
+            saveProfile({ ...profile, onboardingCompletedAt: new Date().toISOString() });
+            try { localStorage.removeItem("archipilot_onboarding_done"); } catch { /* ignore */ }
             // Start guided tour after a short delay to let the UI render
             setTimeout(() => {
               if (!localStorage.getItem("archipilot_tour_done")) setShowGuidedTour(true);
