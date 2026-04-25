@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useT, useTP } from "../i18n";
 import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG } from "../constants/tokens";
@@ -8,10 +8,34 @@ import { parseNotesToRemarks } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
 import { addToOfflineQueue, savePvDraft } from "../utils/offline";
 import { PhotoAnnotationViewer } from "./PhotoAnnotationViewer";
+import { usePresence } from "../hooks/usePresence";
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
-export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, initialMode }) {
+export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, initialMode, activeContext }) {
+  // ── Live presence + soft pessimistic lock ─────────────────────
+  // The editor is whoever has the most recent claim_at among users on
+  // the same project who are currently viewing the PV. "Reprendre la
+  // main" updates the local claim_at to now → other clients see they
+  // are no longer the latest claimant and switch to read-only.
+  const [claimAt, setClaimAt] = useState(() => Date.now());
+  const presenceKey = activeContext?.startsWith?.("org:")
+    ? `presence:${activeContext}:project:${project.id}`
+    : null;
+  const presenceInfo = useMemo(() => ({
+    name: profile?.name || "",
+    avatar: profile?.picture || null,
+    viewing: "pv",
+    claim_at: claimAt,
+  }), [profile?.name, profile?.picture, claimAt]);
+  const { present, selfId } = usePresence(presenceKey, presenceInfo);
+  const pvViewers = present.filter(u => u.viewing === "pv");
+  const editor = pvViewers.reduce((a, b) =>
+    !a || (Number(b.claim_at) || 0) > (Number(a.claim_at) || 0) ? b : a,
+  null);
+  const otherEditor = editor && editor.user_id !== selfId ? editor : null;
+  const takeOver = () => setClaimAt(Date.now());
+
   const [activePost,      setActivePost]      = useState(null);
   const [annotatingPhoto, setAnnotatingPhoto] = useState(null);
   const [addText,    setAddText]    = useState("");
@@ -787,7 +811,47 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   // currentStep is now managed by useState above — no auto-calculation needed
 
   return (
-    <div className="ap-note-container" data-mobile-step={currentStep} style={{ paddingBottom: 32 }}>
+    <div className="ap-note-container" data-mobile-step={currentStep} style={{ paddingBottom: 32, position: "relative" }}>
+
+      {/* ── Pessimistic lock overlay — shown when another agency member
+            has claimed the PV editor seat. Blocks interaction until the
+            user takes over. ── */}
+      {otherEditor && (
+        <div style={{
+          position: "absolute", inset: -12, zIndex: 50,
+          background: "rgba(255,255,255,0.78)", backdropFilter: "blur(2px)",
+          display: "flex", alignItems: "flex-start", justifyContent: "center",
+          paddingTop: 60,
+        }}>
+          <div style={{
+            maxWidth: 440, background: WH, border: `1px solid ${SBB}`,
+            borderRadius: 14, padding: "18px 20px",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: "50%",
+              background: otherEditor.avatar ? `url(${otherEditor.avatar}) center/cover` : ACL,
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              fontSize: 12, fontWeight: 700, color: AC,
+            }}>
+              {!otherEditor.avatar && (otherEditor.name || "?").trim().split(/\s+/).map(s => s[0] || "").join("").slice(0, 2).toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>
+                {otherEditor.name || "Un coéquipier"} édite ce PV
+              </div>
+              <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
+                Modifier en parallèle écraserait son travail.
+              </div>
+            </div>
+            <button onClick={takeOver}
+              style={{ padding: "9px 14px", border: "none", borderRadius: 9, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              Reprendre la main
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile top bar — back + stepper ── */}
       <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "8px 0 10px", flexShrink: 0, borderBottom: `1px solid ${SB2}`, marginBottom: 8 }}>
