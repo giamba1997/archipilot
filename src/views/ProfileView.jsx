@@ -5,7 +5,7 @@ import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, DIS, DIST, LH } from "../constants/tokens";
 import { PLANS, hasFeature, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, STRUCTURE_TYPES } from "../constants/config";
 import { Ico, Field } from "../components/ui";
-import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, loadMyOrganizations } from "../db";
+import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, loadMyOrganizations, deleteOrganization } from "../db";
 import { PricingSection } from "../components/modals/PricingSection";
 import { MfaSection } from "./MfaSection";
 import { PDFPreview } from "./PDFPreview";
@@ -670,6 +670,8 @@ function DataSection({ refFor }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState("");
+  const [blockingOrgs, setBlockingOrgs] = useState(null); // [{ id, name }] when delete is blocked
+  const [orgBusy, setOrgBusy] = useState(false);
 
   const handleExport = async () => {
     setExporting(true);
@@ -690,9 +692,33 @@ function DataSection({ refFor }) {
       await deleteAccount();
       // Page will redirect to auth after signOut
     } catch (e) {
-      setError(e.message || "Erreur lors de la suppression");
+      // If delete-account refused because the user owns orgs, surface the
+      // list inline so they can resolve each one without leaving the page.
+      if (e.code === "owner_of_orgs" && Array.isArray(e.orgs)) {
+        setBlockingOrgs(e.orgs);
+      } else {
+        setError(e.message || "Erreur lors de la suppression");
+      }
       setDeleting(false);
     }
+  };
+
+  const removeBlockingOrg = async (orgId) => {
+    setOrgBusy(true);
+    setError("");
+    try {
+      await deleteOrganization(orgId);
+      setBlockingOrgs(orgs => (orgs || []).filter(o => o.id !== orgId));
+    } catch (e) {
+      setError(e.message || "Suppression de l'agence impossible");
+    } finally {
+      setOrgBusy(false);
+    }
+  };
+
+  const retryDeleteAfterOrgs = async () => {
+    setBlockingOrgs(null);
+    await handleDelete();
   };
 
   return (
@@ -790,6 +816,60 @@ function DataSection({ refFor }) {
           </div>
         )}
       </div>
+
+      {/* Blocking orgs modal — shown when delete-account refuses because the
+          user still owns one or more agencies. Each row offers an in-place
+          delete; transfer is hinted at via "Mon agence". */}
+      {blockingOrgs && blockingOrgs.length > 0 && (
+        <div onClick={e => { if (e.target === e.currentTarget && !orgBusy) setBlockingOrgs(null); }}
+          style={{ position: "fixed", inset: 0, zIndex: 10020, background: "rgba(31,41,55,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ width: "100%", maxWidth: 520, background: WH, borderRadius: 16, padding: "22px 24px 20px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ico name="alert" size={17} color={RD} />
+              </div>
+              <div style={{ paddingTop: 4 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: TX, lineHeight: 1.25 }}>
+                  Tu es propriétaire d'agences
+                </div>
+                <div style={{ fontSize: 12, color: TX3, marginTop: 4 }}>
+                  Avant de supprimer ton compte, gère les agences ci-dessous (transfert ou suppression).
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14, maxHeight: 280, overflowY: "auto" }}>
+              {blockingOrgs.map(org => (
+                <div key={org.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${SBB}`, background: SB, borderRadius: 9 }}>
+                  <Ico name="users" size={13} color={AC} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{org.name}</div>
+                  </div>
+                  <button onClick={() => removeBlockingOrg(org.id)} disabled={orgBusy}
+                    style={{ padding: "6px 12px", border: `1px solid ${RD}33`, borderRadius: 7, background: WH, color: RD, fontSize: 11, fontWeight: 600, cursor: orgBusy ? "wait" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, color: TX3, marginBottom: 14, padding: "8px 12px", background: SB, borderRadius: 8 }}>
+              Pour <strong style={{ color: TX2 }}>transférer</strong> une agence (et la garder vivante avec un autre propriétaire), va dans <strong style={{ color: TX2 }}>Mon agence</strong> ci-dessus avant de revenir ici.
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setBlockingOrgs(null)} disabled={orgBusy}
+                style={{ padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                Plus tard
+              </button>
+              <button onClick={retryDeleteAfterOrgs} disabled={orgBusy || blockingOrgs.length > 0}
+                style={{ padding: "9px 18px", border: "none", borderRadius: 9, background: blockingOrgs.length === 0 ? RD : SBB, color: blockingOrgs.length === 0 ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: blockingOrgs.length === 0 ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                {blockingOrgs.length === 0 ? "Supprimer le compte" : `${blockingOrgs.length} agence${blockingOrgs.length > 1 ? "s" : ""} restante${blockingOrgs.length > 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

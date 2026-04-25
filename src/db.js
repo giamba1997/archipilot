@@ -644,7 +644,15 @@ export async function deleteAccount() {
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
-  if (res.error) throw new Error(res.error.message || "Erreur lors de la suppression");
+  if (res.error) {
+    // Extract the structured body (e.g. { code: "owner_of_orgs", orgs: [...] })
+    // so the caller can show an in-place fix-it UI instead of just a message.
+    const parsed = await parseFunctionError(res.error);
+    const err = new Error(parsed?.error || res.error.message || "Erreur lors de la suppression");
+    if (parsed?.code) err.code = parsed.code;
+    if (parsed?.orgs) err.orgs = parsed.orgs;
+    throw err;
+  }
 
   // Clear local data
   try {
