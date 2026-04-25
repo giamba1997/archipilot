@@ -270,6 +270,11 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
           busy={busy}
           remainingSeats={Math.max(0, seatsLimit - seatsUsed)}
           errorMsg={inviteError}
+          invitations={invitations}
+          onRevoke={async (id) => {
+            try { await revokeOrgInvite(id); setInvitations(invs => invs.filter(i => i.id !== id)); setInviteError(""); }
+            catch (e) { setInviteError(e.message || "Révocation impossible"); }
+          }}
         />
       )}
       {showCreate && <CreateOrgModal onSubmit={handleCreate} onClose={() => setShowCreate(false)} busy={busy} />}
@@ -332,11 +337,18 @@ function CreateOrgModal({ onSubmit, onClose, busy }) {
 // is overkill for a client-side gate.
 const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
 
-function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg }) {
+function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg, invitations = [], onRevoke }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
   const valid = isValidEmail(email);
   const submit = (e) => { e.preventDefault(); if (valid) onSubmit(email.trim().toLowerCase(), role); };
+  // If the user typed an email that matches a pending invite, highlight that row.
+  const conflictId = (() => {
+    const e = email.trim().toLowerCase();
+    if (!e) return null;
+    const row = invitations.find(inv => inv.email.toLowerCase() === e);
+    return row?.id || null;
+  })();
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10005, background: "rgba(31,41,55,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <form onSubmit={submit} style={{ width: "100%", maxWidth: 460, background: WH, borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", padding: "24px 26px" }}>
@@ -367,6 +379,37 @@ function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg }) {
             {errorMsg}
           </div>
         )}
+
+        {invitations.length > 0 && (
+          <div style={{ marginBottom: 18, paddingTop: 12, borderTop: `1px solid ${SB2}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+              Invitations déjà en attente ({invitations.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+              {invitations.map(inv => {
+                const isConflict = inv.id === conflictId;
+                return (
+                  <div key={inv.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: `1px solid ${isConflict ? RD : SBB}`, background: isConflict ? "#FEF2F2" : SB, borderRadius: 7 }}>
+                    <Ico name="send" size={11} color={isConflict ? RD : TX3} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: isConflict ? RD : TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inv.email}</div>
+                      <div style={{ fontSize: 10, color: TX3 }}>
+                        Rôle <strong style={{ color: TX2 }}>{ROLE_LABEL[inv.role] || inv.role}</strong> · expire le {new Date(inv.expires_at).toLocaleDateString("fr-BE")}
+                      </div>
+                    </div>
+                    {onRevoke && (
+                      <button type="button" onClick={() => onRevoke(inv.id)} disabled={busy}
+                        style={{ padding: "4px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX3, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                        Annuler
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} disabled={busy}
             style={{ padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
