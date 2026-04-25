@@ -14,3 +14,15 @@ verify_jwt = false
 
 [functions.create-org]
 verify_jwt = false
+
+[functions.invite-org-member]
+verify_jwt = false
+
+[functions.accept-org-invite]
+verify_jwt = false
+
+[functions.revoke-org-invite]
+verify_jwt = false
+
+[functions.remove-org-member]
+verify_jwt = false

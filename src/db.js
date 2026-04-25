@@ -756,3 +756,68 @@ export function saveOrgProjects(orgId, projects, activeId) {
     if (error) console.error("saveOrgProjects:", error);
   }, 1500);
 }
+
+// ── Org invitations & member management ────────────────────
+
+export async function inviteOrgMember(orgId, email, role) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("invite-org-member", {
+    body: { org_id: orgId, email, role },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Invitation impossible");
+  return res.data; // { invitation, warning? }
+}
+
+export async function acceptOrgInvite(token) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("accept-org-invite", {
+    body: { token },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Invitation invalide");
+  return res.data; // { org_id, org_name?, role?, alreadyMember? }
+}
+
+export async function revokeOrgInvite(invitationId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("revoke-org-invite", {
+    body: { invitation_id: invitationId },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Révocation impossible");
+  return res.data;
+}
+
+export async function removeOrgMember(orgId, userId) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("remove-org-member", {
+    body: { org_id: orgId, user_id: userId },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Suppression impossible");
+  return res.data;
+}
+
+export async function loadPendingOrgInvitations(orgId) {
+  const { data, error } = await supabase
+    .from("organization_invitations")
+    .select("id, email, role, invited_by, expires_at, created_at")
+    .eq("org_id", orgId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) { console.error("loadPendingOrgInvitations:", error); return []; }
+  return data || [];
+}
