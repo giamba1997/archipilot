@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AC, TX, TX2, TX3, SB, SBB, WH, BG } from "../constants/tokens";
 
 // ── Legal page content ─────────────────────────────────────
@@ -239,12 +239,21 @@ export function CookieBanner() {
     }
   });
 
-  if (!visible) return null;
-
   const accept = () => {
     try { localStorage.setItem("archipilot_cookie_consent", "accepted"); } catch { /* ignore */ }
     setVisible(false);
   };
+
+  // Only strictly-necessary cookies are used (see banner text), so auto-
+  // dismissing after 10s is RGPD-safe — it just prevents the banner from
+  // covering the profile/sidebar area indefinitely on desktop.
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(accept, 10000);
+    return () => clearTimeout(t);
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
     <div style={{
