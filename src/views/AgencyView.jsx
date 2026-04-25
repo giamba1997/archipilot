@@ -41,6 +41,9 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmState, setConfirmState] = useState(null);
+  const askConfirm = (config) => setConfirmState(config);
+  const closeConfirm = () => setConfirmState(null);
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
@@ -108,21 +111,34 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
     }
   };
 
-  const handleRevoke = async (invId) => {
-    if (!confirm("Annuler cette invitation ?")) return;
+  const doRevoke = async (invId) => {
     setBusy(true);
     try {
       await revokeOrgInvite(invId);
       setInvitations(invs => invs.filter(i => i.id !== invId));
+      setInviteError("");
+      setError("");
     } catch (e) {
       setError(e.message || "Révocation impossible");
     } finally {
       setBusy(false);
+      closeConfirm();
     }
   };
+  const handleRevoke = (invId) => {
+    const target = invitations.find(i => i.id === invId);
+    askConfirm({
+      title: "Annuler cette invitation ?",
+      message: target
+        ? <>L'invitation envoyée à <strong>{target.email}</strong> sera annulée. Le lien dans l'email ne fonctionnera plus, mais tu peux toujours réinviter cette personne plus tard.</>
+        : "Le lien dans l'email ne fonctionnera plus, mais tu peux toujours réinviter cette personne plus tard.",
+      confirmLabel: "Annuler l'invitation",
+      danger: true,
+      onConfirm: () => doRevoke(invId),
+    });
+  };
 
-  const handleRemove = async (m) => {
-    if (!confirm(`Retirer ${m.name || m.email} de l'agence ?`)) return;
+  const doRemove = async (m) => {
     setBusy(true);
     try {
       await removeOrgMember(activeOrgId, m.user_id);
@@ -131,7 +147,17 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
       setError(e.message || "Suppression impossible");
     } finally {
       setBusy(false);
+      closeConfirm();
     }
+  };
+  const handleRemove = (m) => {
+    askConfirm({
+      title: `Retirer ${m.name || m.email} de l'agence ?`,
+      message: <>Cette personne perdra l'accès aux projets partagés. Ses contributions passées (PV, photos, remarques) restent dans l'agence.</>,
+      confirmLabel: "Retirer",
+      danger: true,
+      onConfirm: () => doRemove(m),
+    });
   };
 
   // ── Render ──
@@ -271,13 +297,17 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
           remainingSeats={Math.max(0, seatsLimit - seatsUsed)}
           errorMsg={inviteError}
           invitations={invitations}
-          onRevoke={async (id) => {
-            try { await revokeOrgInvite(id); setInvitations(invs => invs.filter(i => i.id !== id)); setInviteError(""); }
-            catch (e) { setInviteError(e.message || "Révocation impossible"); }
-          }}
+          onRevoke={handleRevoke}
         />
       )}
       {showCreate && <CreateOrgModal onSubmit={handleCreate} onClose={() => setShowCreate(false)} busy={busy} />}
+      {confirmState && (
+        <ConfirmModal
+          {...confirmState}
+          busy={busy}
+          onCancel={closeConfirm}
+        />
+      )}
     </div>
   );
 }
@@ -336,6 +366,33 @@ function CreateOrgModal({ onSubmit, onClose, busy }) {
 // Matches what RFC-compliant servers actually accept day to day; strict RFC 5322
 // is overkill for a client-side gate.
 const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
+
+function ConfirmModal({ title, message, confirmLabel = "Confirmer", cancelLabel = "Annuler", danger = false, onConfirm, onCancel, busy }) {
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 10020, background: "rgba(31,41,55,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ width: "100%", maxWidth: 440, background: WH, borderRadius: 16, padding: "22px 26px 20px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", animation: "modalIn 0.18s ease-out" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: danger ? "#FEF2F2" : ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Ico name={danger ? "alert" : "check"} size={17} color={danger ? RD : AC} />
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: TX, lineHeight: 1.25, paddingTop: 6 }}>{title}</div>
+        </div>
+        {message && <div style={{ fontSize: 13, color: TX2, lineHeight: 1.55, marginBottom: 18 }}>{message}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button type="button" onClick={onCancel} disabled={busy}
+            style={{ padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {cancelLabel}
+          </button>
+          <button type="button" onClick={onConfirm} disabled={busy}
+            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: busy ? SBB : (danger ? RD : AC), color: "#fff", fontSize: 13, fontWeight: 700, cursor: busy ? "wait" : "pointer", fontFamily: "inherit" }}>
+            {busy ? "…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg, invitations = [], onRevoke }) {
   const [email, setEmail] = useState("");
