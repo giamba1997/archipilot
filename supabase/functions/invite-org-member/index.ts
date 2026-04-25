@@ -95,8 +95,13 @@ serve(async (req) => {
 
     const used = (activeMembers || 0) + (pendingInvites || 0);
     if (used >= org.seat_limit) {
+      const m = activeMembers || 0;
+      const p = pendingInvites || 0;
+      const detail = p > 0
+        ? `Tu as ${m} membre${m > 1 ? "s" : ""} et ${p} invitation${p > 1 ? "s" : ""} en attente. Annule une invitation inutile pour libérer un siège, ou augmente la limite.`
+        : `Augmente la limite avant d'inviter.`;
       return jsonResponse(req, {
-        error: `Tous les sièges sont utilisés (${used}/${org.seat_limit}). Augmentez la limite avant d'inviter.`,
+        error: `Tous les sièges sont utilisés (${used}/${org.seat_limit}). ${detail}`,
         code: "seat_limit_reached",
       }, 403);
     }
