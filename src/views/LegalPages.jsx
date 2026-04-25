@@ -242,7 +242,7 @@ export function CookieBanner() {
   if (!visible) return null;
 
   const accept = () => {
-    try { localStorage.setItem("archipilot_cookie_consent", "accepted"); } catch {}
+    try { localStorage.setItem("archipilot_cookie_consent", "accepted"); } catch { /* ignore */ }
     setVisible(false);
   };
 

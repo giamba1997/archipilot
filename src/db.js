@@ -652,7 +652,7 @@ export async function deleteAccount() {
     localStorage.removeItem("archipilot_offline_queue");
     localStorage.removeItem("archipilot_pv_drafts");
     localStorage.removeItem("archipilot_cookie_consent");
-  } catch {}
+  } catch { /* ignore */ }
 
   // Sign out
   await supabase.auth.signOut();

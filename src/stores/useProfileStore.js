@@ -10,7 +10,7 @@ const useProfileStore = create((set) => ({
 
   saveProfile: (data) => {
     set({ profile: data, profileSaved: true });
-    try { localStorage.setItem("archipilot_profile", JSON.stringify(data)); } catch {}
+    try { localStorage.setItem("archipilot_profile", JSON.stringify(data)); } catch { /* ignore */ }
     dbSaveProfile(data);
     setTimeout(() => set({ profileSaved: false }), 2000);
   },

@@ -208,7 +208,7 @@ export default function App() {
         });
       }).catch(() => {});
     } catch (e) { console.error("Notification subscription error:", e); }
-    return () => { try { unsub?.(); } catch {} };
+    return () => { try { unsub?.(); } catch { /* ignore */ } };
   }, []);
 
   // Save projects + activeId to Supabase + localStorage.
@@ -228,11 +228,11 @@ export default function App() {
       localStorage.setItem("archipilot_projects", lite);
     } catch {
       // Last resort: clear the cache entirely (Supabase is still authoritative)
-      try { localStorage.removeItem("archipilot_projects"); } catch {}
+      try { localStorage.removeItem("archipilot_projects"); } catch { /* ignore */ }
       setStorageWarning(true);
       setTimeout(() => setStorageWarning(false), 5000);
     }
-    try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch {}
+    try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch { /* ignore */ }
     dbSaveProjects(projects, activeId);
   }, [projects, activeId, dbLoaded]);
 
@@ -298,7 +298,7 @@ export default function App() {
 
   const saveProfile = (data) => {
     setProfile(data);
-    try { localStorage.setItem("archipilot_profile", JSON.stringify(data)); } catch {}
+    try { localStorage.setItem("archipilot_profile", JSON.stringify(data)); } catch { /* ignore */ }
     dbSaveProfile(data);
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2000);
@@ -1537,7 +1537,7 @@ Règles :
           onComplete={() => {
             setShowOnboarding(false);
             setView("overview");
-            try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch {}
+            try { localStorage.setItem("archipilot_onboarding_done", "1"); } catch { /* ignore */ }
             // Start guided tour after a short delay to let the UI render
             setTimeout(() => {
               if (!localStorage.getItem("archipilot_tour_done")) setShowGuidedTour(true);
@@ -1548,7 +1548,7 @@ Règles :
 
       {/* Guided tour — shown after onboarding on real UI */}
       {showGuidedTour && (
-        <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch {} }} />
+        <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch { /* ignore */ } }} />
       )}
 
       {/* Cookie consent banner — only show after onboarding & tour are done */}

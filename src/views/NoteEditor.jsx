@@ -192,7 +192,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
       // Auto-restart if still in continuous mode (browser stops after silence)
       // Check both _keepAlive AND that contRecRef still points to this instance
       if (rec._keepAlive && contRecRef.current === rec) {
-        try { rec.start(); } catch (_) {}
+        try { rec.start(); } catch (_) { /* ignore */ }
       }
     };
     rec._keepAlive = true;
@@ -228,7 +228,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     // Small delay to let the last onresult fire before we read the ref
     setTimeout(() => {
       if (contRecRef.current) {
-        try { contRecRef.current.stop(); } catch (_) {}
+        try { contRecRef.current.stop(); } catch (_) { /* ignore */ }
         contRecRef.current = null;
       }
       setContRecording(false);

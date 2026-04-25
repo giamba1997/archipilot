@@ -16,7 +16,7 @@ const useUIStore = create((set) => ({
 
   setView: (v) => {
     set({ view: v });
-    try { track("page_viewed", { _page: v }); } catch {}
+    try { track("page_viewed", { _page: v }); } catch { /* ignore */ }
   },
   setSidebarOpen: (v) => set(state => ({ sidebarOpen: typeof v === "function" ? v(state.sidebarOpen) : v })),
   setCaptureSheet: (v) => set({ captureSheet: v }),

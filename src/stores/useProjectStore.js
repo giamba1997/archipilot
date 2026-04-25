@@ -88,8 +88,8 @@ const useProjectStore = create((set, get) => ({
   persist: () => {
     const { projects, activeId, dbLoaded } = get();
     if (!dbLoaded) return;
-    try { localStorage.setItem("archipilot_projects", JSON.stringify(projects)); } catch {}
-    try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch {}
+    try { localStorage.setItem("archipilot_projects", JSON.stringify(projects)); } catch { /* ignore */ }
+    try { localStorage.setItem("archipilot_activeId", String(activeId)); } catch { /* ignore */ }
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => dbSaveProjects(projects, activeId), 1500);
   },

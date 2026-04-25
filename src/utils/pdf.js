@@ -131,7 +131,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
   // Custom logo is a Team feature — Pro/Free PDFs skip the logo image
   // and lean on the structure name in the header instead.
   if (profile?.picture && hasFeature(profile?.plan, "pdfCustomLogo")) {
-    try { doc.addImage(profile.picture, imgFmt(profile.picture), W - MR - 22, 13, 22, 22); } catch (_) {}
+    try { doc.addImage(profile.picture, imgFmt(profile.picture), W - MR - 22, 13, 22, 22); } catch (_) { /* ignore */ }
   }
 
   const bureauName = profile?.structure || "ArchiPilot";
@@ -226,7 +226,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
     const t = line.trim();
     if (!t) { y += 2; continue; }
 
-    const isSec     = /^\d{1,2}[.\-]\s/.test(t) && t.length < 90;
+    const isSec     = /^\d{1,2}[.-]\s/.test(t) && t.length < 90;
     const isUrgent  = t.startsWith(">");
     const isPoint   = t.startsWith("-");
 
@@ -331,7 +331,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
       const planW  = CW;
       const planH  = Math.min(planW / aspect, 110);
       checkY(planH + 5);
-      try { doc.addImage(composite.dataUrl, "JPEG", ML, y, planW, planH); } catch (_) {}
+      try { doc.addImage(composite.dataUrl, "JPEG", ML, y, planW, planH); } catch (_) { /* ignore */ }
       y += planH + 8;
 
       // Legend
@@ -397,7 +397,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
       photos.forEach((ph, idx) => {
         const col = idx % cols;
         if (col === 0 && idx > 0) { y += imgH + gap; checkY(imgH + gap); }
-        try { const phUrl = getPhotoUrl(ph); doc.addImage(phUrl, imgFmt(phUrl), ML + col * (imgW + gap), y, imgW, imgH); } catch (_) {}
+        try { const phUrl = getPhotoUrl(ph); doc.addImage(phUrl, imgFmt(phUrl), ML + col * (imgW + gap), y, imgW, imgH); } catch (_) { /* ignore */ }
       });
       y += imgH + 8;
     });
@@ -429,7 +429,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
       try {
         const phUrl = ph.dataUrl || ph.url;
         doc.addImage(phUrl, imgFmt(phUrl), ML + col * (imgW + gap), y, imgW, imgH);
-      } catch (_) {}
+      } catch (_) { /* ignore */ }
       // Date caption
       if (ph.date) {
         doc.setFont(font, "normal");

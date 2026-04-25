@@ -453,6 +453,7 @@ export function PlanManager({ project, setProjects, onBack }) {
 }
 
 // Helper: render PDF page to image, then open CropTool
+const _pdfCache = {};
 export function PdfCropBridge({ file, onSave, onClose }) {
   const [imgSrc, setImgSrc] = useState(null);
   useEffect(() => {

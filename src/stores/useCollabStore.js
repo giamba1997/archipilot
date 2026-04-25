@@ -34,7 +34,7 @@ const useCollabStore = create((set) => ({
         });
       }).catch(() => {});
     } catch (e) { console.error("Notification subscription error:", e); }
-    return () => { try { unsub?.(); } catch {} };
+    return () => { try { unsub?.(); } catch { /* ignore */ } };
   },
 }));
 
