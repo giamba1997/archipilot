@@ -86,6 +86,8 @@ export function AuthPage() {
   const [message, setMessage] = useState("");
   const [hovered, setHovered] = useState(null);
   const [showPw, setShowPw] = useState(false);
+  const [canResendConfirm, setCanResendConfirm] = useState(false);
+  const [resending, setResending] = useState(false);
   const emailRef = useRef(null);
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export function AuthPage() {
     }
   }, [mode]);
 
-  const reset = () => { setError(""); setMessage(""); setPassword(""); setFieldErrors({}); };
+  const reset = () => { setError(""); setMessage(""); setPassword(""); setFieldErrors({}); setCanResendConfirm(false); };
 
   const validateFields = () => {
     const errs = {};
@@ -116,14 +118,38 @@ export function AuthPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setCanResendConfirm(false);
     if (!validateFields()) return;
     setLoading(true);
     const { error: err } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (err) {
-      if (err.message.includes("Invalid login")) setError("Email ou mot de passe incorrect.");
-      else if (err.message.includes("Email not confirmed")) setError("Veuillez confirmer votre email avant de vous connecter.");
-      else setError(err.message);
+      // Supabase returns "Invalid login credentials" for both wrong password
+      // AND unconfirmed email (anti-enumeration). We can't tell which one,
+      // so we surface both possibilities and offer a resend shortcut.
+      if (err.message.includes("Invalid login")) {
+        setError("Email ou mot de passe incorrect. Si tu viens de créer ton compte, vérifie ta boîte mail pour le lien de confirmation.");
+        setCanResendConfirm(true);
+      } else if (err.message.includes("Email not confirmed")) {
+        setError("Email non confirmé. Vérifie ta boîte mail.");
+        setCanResendConfirm(true);
+      } else {
+        setError(err.message);
+      }
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) return;
+    setResending(true);
+    setMessage("");
+    const { error: err } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+    setResending(false);
+    if (err) {
+      setError(err.message || "Impossible de renvoyer l'email.");
+    } else {
+      setMessage("Email de confirmation renvoyé. Vérifie ta boîte mail (et le dossier spam).");
+      setCanResendConfirm(false);
     }
   };
 
@@ -265,14 +291,29 @@ export function AuthPage() {
         <div style={{
           padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA",
           borderRadius: 10, marginBottom: 16, fontSize: 13, color: RD,
-          display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5,
+          display: "flex", flexDirection: "column", gap: 8, lineHeight: 1.5,
           animation: "fadeSlide 0.25s ease-out",
         }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4 M12 16h.01" />
-          </svg>
-          <span>{error}</span>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4 M12 16h.01" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          {canResendConfirm && email.trim() && (
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={resending}
+              style={{
+                alignSelf: "flex-start", padding: "6px 12px", border: `1px solid ${RD}33`,
+                borderRadius: 7, background: "#fff", color: RD, fontSize: 12, fontWeight: 600,
+                cursor: resending ? "wait" : "pointer", fontFamily: "inherit",
+              }}>
+              {resending ? "Envoi…" : "Renvoyer le mail de confirmation"}
+            </button>
+          )}
         </div>
       )}
 
