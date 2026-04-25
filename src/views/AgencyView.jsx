@@ -293,9 +293,13 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
             <button onClick={() => setShowInvite(true)} disabled={busy || seatsFull}
               style={{ padding: "9px 16px", border: "none", borderRadius: 9, background: seatsFull ? SB : AC, color: seatsFull ? TX3 : "#fff", fontSize: 12, fontWeight: 700, cursor: seatsFull ? "not-allowed" : "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Ico name="plus" size={11} color={seatsFull ? TX3 : "#fff"} />
-              {seatsFull ? "Tous les sièges utilisés" : "Inviter un membre"}
+              {seatsFull ? "Tous les sièges utilisés" : "Inviter un archi de mon équipe"}
             </button>
           )}
+          <div style={{ marginTop: 12, padding: "10px 12px", background: SB, border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 11.5, color: TX3, lineHeight: 1.5 }}>
+            <Ico name="alert" size={11} color={TX3} /> Les membres accèdent automatiquement à <strong style={{ color: TX2 }}>tous les projets de l'agence</strong>.
+            Pour partager un projet précis avec un client (MO) ou un entrepreneur, utilise le bouton <strong style={{ color: TX2 }}>Collaborateurs</strong> sur la page du projet — c'est gratuit et sans siège consommé.
+          </div>
         </div>
       </div>
 

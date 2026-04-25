@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useT } from "../../i18n";
 import { AC, ACL, SB, SBB, TX, TX2, TX3, WH, RD, GR } from "../../constants/tokens";
 import { Ico } from "../ui";
-import { inviteMember, loadProjectMembers, updateMemberRole, removeMember, track } from "../../db";
+import { inviteMember, loadProjectMembers, updateMemberRole, removeMember, track, loadOrgMembers } from "../../db";
 import { getLimit, hasFeature } from "../../constants/config";
 
 // ── Project Permissions Helper ──────────────────────────────
@@ -15,18 +15,37 @@ export const canManageMembers = (project) => { const r = getProjectRole(project)
 export const canManageSettings = (project) => { const r = getProjectRole(project); return r === "owner" || r === "admin"; };
 export const isReadOnly = (project) => getProjectRole(project) === "reader";
 
-export function CollabModal({ project, ownerId, onClose, showToast, profile, onUpgrade }) {
+export function CollabModal({ project, ownerId, onClose, showToast, profile, onUpgrade, activeContext }) {
   const t = useT();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("contributor");
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [agencyEmails, setAgencyEmails] = useState([]);
   const isAdmin = canManageMembers(project) || !project._shared; // owner or admin
 
   useEffect(() => {
     loadProjectMembers(String(project.id), ownerId).then(setMembers);
   }, [project.id, ownerId]);
+
+  // When this project is shared via an organization, pre-load the agency
+  // member emails so we can warn the user if they're about to invite a
+  // teammate as an external collaborator (which would be redundant —
+  // agency members already have access to every org project).
+  useEffect(() => {
+    if (!activeContext?.startsWith?.("org:")) return;
+    const orgId = activeContext.slice(4);
+    let alive = true;
+    loadOrgMembers(orgId).then(list => {
+      if (!alive) return;
+      const emails = (list || []).map(m => (m.email || "").toLowerCase()).filter(Boolean);
+      if (emails.length > 0) setAgencyEmails(emails);
+    }).catch(() => { /* ignore — agencyEmails stays empty */ });
+    return () => { alive = false; };
+  }, [activeContext]);
+
+  const isAgencyMember = !!email.trim() && agencyEmails.includes(email.trim().toLowerCase());
 
   const adminCount = members.filter(m => m.role === "admin" && m.status === "accepted").length;
   const canUseRoles = hasFeature(profile?.plan || "free", "roles");
@@ -109,6 +128,15 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
               {ROLES.find(r => r.id === role)?.desc}
               <span style={{ display: "block", fontSize: 10, color: AC, marginTop: 3, fontWeight: 500 }}>{t("collab.roleNote")}</span>
             </div>
+            {/* Smart detection: this email is already in the agency */}
+            {isAgencyMember && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", background: ACL, border: `1px solid ${AC}33`, borderRadius: 8, marginBottom: 10, fontSize: 11.5, color: TX2, lineHeight: 1.45 }}>
+                <Ico name="alert" size={13} color={AC} />
+                <div>
+                  <strong style={{ color: AC }}>Cette personne est déjà dans ton agence.</strong> Elle a automatiquement accès à ce projet — pas besoin de la réinviter ici. Cette invitation lui donnerait juste un rôle externe parallèle, ce qui peut prêter à confusion.
+                </div>
+              </div>
+            )}
             {error && <div style={{ fontSize: 12, color: RD, marginBottom: 8 }}>{error}</div>}
             <button type="submit" disabled={loading} style={{ padding: "9px 20px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: "inherit" }}>
               {loading ? "..." : t("collab.send")}

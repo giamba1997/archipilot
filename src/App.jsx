@@ -855,7 +855,7 @@ export default function App() {
 
       {/* Collaboration modal */}
       {modal === "collab" && project && (
-        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} onUpgrade={(feature) => { setModal(null); setUpgradeFeature(feature || "maxCollabPerProj"); }} />
+        <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} onUpgrade={(feature) => { setModal(null); setUpgradeFeature(feature || "maxCollabPerProj"); }} activeContext={activeContext} />
       )}
 
       {/* PV method chooser modal */}

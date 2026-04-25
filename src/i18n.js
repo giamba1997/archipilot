@@ -509,8 +509,8 @@ fr: {
   // ── Collaboration ──
   "collab.members": "Membres",
   "collab.invite": "Inviter",
-  "collab.inviteTitle": "Inviter un collaborateur",
-  "collab.inviteDesc": "Ajoutez des membres à ce projet pour collaborer ensemble.",
+  "collab.inviteTitle": "Partager ce projet avec un externe",
+  "collab.inviteDesc": "Pour les MO, entrepreneurs et sous-traitants — accès à ce projet uniquement. Gratuit, ne consomme pas de siège. Pour un archi de ton équipe, utilise plutôt Profil → Mon agence.",
   "collab.email": "Adresse email",
   "collab.role": "Rôle",
   "collab.roleAdmin": "Admin",
@@ -1072,8 +1072,8 @@ en: {
   // ── Collaboration ──
   "collab.members": "Members",
   "collab.invite": "Invite",
-  "collab.inviteTitle": "Invite a collaborator",
-  "collab.inviteDesc": "Add members to this project to collaborate together.",
+  "collab.inviteTitle": "Share this project with an outsider",
+  "collab.inviteDesc": "For clients, contractors and sub-contractors — access to this project only. Free, no seat consumed. To add a teammate from your firm, use Profile → My agency instead.",
   "collab.email": "Email address",
   "collab.role": "Role",
   "collab.roleAdmin": "Admin",

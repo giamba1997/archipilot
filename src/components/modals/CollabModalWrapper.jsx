@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../supabase";
 import { CollabModal } from "./CollabModal";
 
-export function CollabModalWrapper({ project, onClose, showToast, profile, onUpgrade }) {
+export function CollabModalWrapper({ project, onClose, showToast, profile, onUpgrade, activeContext }) {
   const [ownerId, setOwnerId] = useState(project._ownerId || null);
   useEffect(() => {
     if (!ownerId) {
@@ -12,5 +12,5 @@ export function CollabModalWrapper({ project, onClose, showToast, profile, onUpg
     }
   }, [ownerId]);
   if (!ownerId) return null;
-  return <CollabModal project={project} ownerId={ownerId} onClose={onClose} showToast={showToast} profile={profile} onUpgrade={onUpgrade} />;
+  return <CollabModal project={project} ownerId={ownerId} onClose={onClose} showToast={showToast} profile={profile} onUpgrade={onUpgrade} activeContext={activeContext} />;
 }
