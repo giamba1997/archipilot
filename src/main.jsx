@@ -31,6 +31,15 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// Capture an org invite token from the URL the moment the page loads,
+// before any auth redirect can strip it. App.jsx will pick it up after
+// the user logs in (whether by signing up fresh or signing in to an
+// existing account).
+try {
+  const token = new URLSearchParams(window.location.search).get("invite");
+  if (token) localStorage.setItem("archipilot_pending_invite", token);
+} catch { /* ignore */ }
+
 function Root() {
   const { user, loading, recovery, mfaRequired } = useAuth();
 

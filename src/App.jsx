@@ -174,9 +174,21 @@ export default function App() {
   const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [toast, setToast] = useState(null);
   const [inviteToken, setInviteToken] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("invite"); }
-    catch { return null; }
+    // Read from URL first (just clicked a link), then localStorage (the URL
+    // got stripped by the auth redirect during signup/email confirmation).
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("invite");
+      if (fromUrl) {
+        try { localStorage.setItem("archipilot_pending_invite", fromUrl); } catch { /* ignore */ }
+        return fromUrl;
+      }
+      return localStorage.getItem("archipilot_pending_invite") || null;
+    } catch { return null; }
   });
+  const clearPendingInvite = () => {
+    setInviteToken(null);
+    try { localStorage.removeItem("archipilot_pending_invite"); } catch { /* ignore */ }
+  };
   const [agencyModalOpen, setAgencyModalOpen] = useState(false);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -1624,13 +1636,14 @@ Règles :
         <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch { /* ignore */ } }} />
       )}
 
-      {/* Org invitation acceptance — shown when ?invite=<token> is in the URL */}
+      {/* Org invitation acceptance — shown when ?invite=<token> is in the URL
+          OR when a pending token persisted across the login redirect. */}
       {inviteToken && (
         <OrgInviteModal
           token={inviteToken}
           profile={profile}
-          onClose={() => setInviteToken(null)}
-          onAccepted={() => { refreshMyOrgs(); setAgencyModalOpen(true); }}
+          onClose={clearPendingInvite}
+          onAccepted={() => { clearPendingInvite(); refreshMyOrgs(); setAgencyModalOpen(true); }}
         />
       )}
 
