@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.send-pv-email]
 verify_jwt = false
+
+[functions.create-org]
+verify_jwt = false

@@ -657,3 +657,102 @@ export async function deleteAccount() {
   // Sign out
   await supabase.auth.signOut();
 }
+
+// ── Organizations (Team plan tenants) ──────────────────────
+//
+// An "organization" groups several seats (architects of the same firm)
+// around a shared workspace. Personal projects keep using user_data;
+// shared projects live in organization_data. The client merges both
+// when needed.
+
+export async function createOrganization(name) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("Non connecté");
+
+  const res = await supabase.functions.invoke("create-org", {
+    body: { name },
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  if (res.error) throw new Error(res.error.message || "Création de l'agence impossible");
+  return res.data?.organization;
+}
+
+export async function loadMyOrganizations() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("organization_members")
+    .select(`
+      role,
+      joined_at,
+      org:organizations (
+        id, name, plan, seat_limit, status, grace_period_ends_at,
+        owner_user_id, created_at
+      )
+    `)
+    .eq("user_id", user.id);
+
+  if (error) { console.error("loadMyOrganizations:", error); return []; }
+  return (data || [])
+    .filter(row => row.org)
+    .map(row => ({ ...row.org, _myRole: row.role, _joinedAt: row.joined_at }));
+}
+
+export async function loadOrgMembers(orgId) {
+  // Two-step fetch — auth.users isn't directly readable, so we join via
+  // profiles.id (which mirrors auth.users.id).
+  const { data: members, error: mErr } = await supabase
+    .from("organization_members")
+    .select("user_id, role, joined_at, invited_by")
+    .eq("org_id", orgId);
+
+  if (mErr) { console.error("loadOrgMembers:", mErr); return []; }
+  if (!members?.length) return [];
+
+  const userIds = members.map(m => m.user_id);
+  const { data: profiles, error: pErr } = await supabase
+    .from("profiles")
+    .select("id, name, email, picture_url")
+    .in("id", userIds);
+
+  if (pErr) console.error("loadOrgMembers profiles:", pErr);
+
+  const profById = new Map((profiles || []).map(p => [p.id, p]));
+  return members.map(m => ({
+    user_id: m.user_id,
+    role: m.role,
+    joined_at: m.joined_at,
+    invited_by: m.invited_by,
+    name: profById.get(m.user_id)?.name || "",
+    email: profById.get(m.user_id)?.email || "",
+    avatar: profById.get(m.user_id)?.picture_url || null,
+  }));
+}
+
+export async function loadOrgProjects(orgId) {
+  const { data, error } = await supabase
+    .from("organization_data")
+    .select("projects, active_id")
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  if (error) { console.error("loadOrgProjects:", error); return null; }
+  if (!data) return { projects: [], activeId: null };
+  return { projects: data.projects || [], activeId: data.active_id };
+}
+
+let orgSaveTimer = null;
+export function saveOrgProjects(orgId, projects, activeId) {
+  // Mirror saveProjects()'s 1.5s debounce so multi-client edits don't hammer
+  // the DB. The latest call wins — fine for the single-active-window
+  // scenario; we'll layer presence/lock logic on top in Phase 4.
+  clearTimeout(orgSaveTimer);
+  orgSaveTimer = setTimeout(async () => {
+    const { error } = await supabase
+      .from("organization_data")
+      .upsert({ org_id: orgId, projects, active_id: activeId }, { onConflict: "org_id" });
+    if (error) console.error("saveOrgProjects:", error);
+  }, 1500);
+}
