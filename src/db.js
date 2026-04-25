@@ -796,6 +796,24 @@ export async function removeOrgMember(orgId, userId) {
   return invokeOrgFn("remove-org-member", { org_id: orgId, user_id: userId }, "Suppression impossible");
 }
 
+export async function transferOrgOwnership(orgId, newOwnerUserId) {
+  return invokeOrgFn("transfer-org-ownership", { org_id: orgId, new_owner_user_id: newOwnerUserId }, "Transfert impossible");
+}
+
+export async function leaveOrg(orgId) {
+  return invokeOrgFn("leave-org", { org_id: orgId }, "Sortie impossible");
+}
+
+// Delete an org (owner only). Cascades to members, invitations, data.
+// Goes through the supabase client; RLS only allows the owner to delete.
+export async function deleteOrganization(orgId) {
+  const { error } = await supabase
+    .from("organizations")
+    .delete()
+    .eq("id", orgId);
+  if (error) throw new Error(error.message || "Suppression de l'agence impossible");
+}
+
 export async function loadPendingOrgInvitations(orgId) {
   const { data, error } = await supabase
     .from("organization_invitations")

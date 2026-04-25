@@ -26,3 +26,9 @@ verify_jwt = false
 
 [functions.remove-org-member]
 verify_jwt = false
+
+[functions.transfer-org-ownership]
+verify_jwt = false
+
+[functions.leave-org]
+verify_jwt = false

@@ -10,6 +10,9 @@ import {
   revokeOrgInvite,
   removeOrgMember,
   createOrganization,
+  transferOrgOwnership,
+  leaveOrg,
+  deleteOrganization,
 } from "../db";
 
 const ROLES = [
@@ -160,6 +163,71 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
     });
   };
 
+  // ─── Lifecycle actions ─────────────────────────────────────
+  const [showTransfer, setShowTransfer] = useState(false);
+  const transferTargets = members.filter(m => m.role === "admin");
+
+  const doTransfer = async (newOwnerId) => {
+    setBusy(true);
+    setError("");
+    try {
+      await transferOrgOwnership(activeOrgId, newOwnerId);
+      setShowTransfer(false);
+      await refreshAll();
+      if (onAgencyChanged) onAgencyChanged();
+    } catch (e) {
+      setError(e.message || "Transfert impossible");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doLeave = async () => {
+    setBusy(true);
+    try {
+      await leaveOrg(activeOrgId);
+      if (onAgencyChanged) onAgencyChanged();
+      onBack(); // close the page — user no longer has an org context here
+    } catch (e) {
+      setError(e.message || "Sortie impossible");
+    } finally {
+      setBusy(false);
+      closeConfirm();
+    }
+  };
+  const handleLeave = () => {
+    askConfirm({
+      title: `Quitter ${activeOrg?.name || "l'agence"} ?`,
+      message: <>Tu perdras l'accès aux projets partagés. Tes contributions passées (PV, photos, remarques) restent dans l'agence sous ton nom.</>,
+      confirmLabel: "Quitter l'agence",
+      danger: true,
+      onConfirm: doLeave,
+    });
+  };
+
+  const doDeleteOrg = async () => {
+    setBusy(true);
+    try {
+      await deleteOrganization(activeOrgId);
+      if (onAgencyChanged) onAgencyChanged();
+      onBack();
+    } catch (e) {
+      setError(e.message || "Suppression impossible");
+    } finally {
+      setBusy(false);
+      closeConfirm();
+    }
+  };
+  const handleDeleteOrg = () => {
+    askConfirm({
+      title: `Supprimer ${activeOrg?.name || "l'agence"} définitivement ?`,
+      message: <>Tous les projets, PV, photos, plans et invitations partagés dans l'agence seront perdus. Cette action est irréversible.</>,
+      confirmLabel: "Supprimer l'agence",
+      danger: true,
+      onConfirm: doDeleteOrg,
+    });
+  };
+
   // ── Render ──
   if (loading && orgs === null) {
     return (
@@ -289,6 +357,37 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
         </div>
       )}
 
+      {/* Danger zone — lifecycle actions */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 20px", marginTop: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>Zone sensible</div>
+        <div style={{ fontSize: 12, color: TX3, marginBottom: 12, lineHeight: 1.5 }}>
+          {isOwner
+            ? "Pour quitter l'agence, transfère d'abord la propriété ou supprime-la. La suppression est définitive."
+            : "Quitter l'agence te retire l'accès aux projets partagés mais conserve tes contributions passées."}
+        </div>
+        {isOwner ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => transferTargets.length > 0 ? setShowTransfer(true) : setError("Promeut d'abord un membre en Administrateur pour pouvoir lui transférer la propriété.")}
+              disabled={busy}
+              style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Ico name="repeat" size={11} color={TX2} />
+              Transférer la propriété
+            </button>
+            <button onClick={handleDeleteOrg} disabled={busy}
+              style={{ padding: "8px 14px", border: `1px solid ${RD}33`, borderRadius: 8, background: WH, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Ico name="trash" size={11} color={RD} />
+              Supprimer l'agence
+            </button>
+          </div>
+        ) : (
+          <button onClick={handleLeave} disabled={busy}
+            style={{ padding: "8px 14px", border: `1px solid ${RD}33`, borderRadius: 8, background: WH, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Ico name="logout" size={11} color={RD} />
+            Quitter l'agence
+          </button>
+        )}
+      </div>
+
       {showInvite && (
         <InviteModal
           onSubmit={handleInvite}
@@ -298,6 +397,15 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
           errorMsg={inviteError}
           invitations={invitations}
           onRevoke={handleRevoke}
+        />
+      )}
+      {showTransfer && (
+        <TransferModal
+          orgName={activeOrg?.name}
+          targets={transferTargets}
+          onSubmit={doTransfer}
+          onClose={() => setShowTransfer(false)}
+          busy={busy}
         />
       )}
       {showCreate && <CreateOrgModal onSubmit={handleCreate} onClose={() => setShowCreate(false)} busy={busy} />}
@@ -366,6 +474,44 @@ function CreateOrgModal({ onSubmit, onClose, busy }) {
 // Matches what RFC-compliant servers actually accept day to day; strict RFC 5322
 // is overkill for a client-side gate.
 const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || "").trim());
+
+function TransferModal({ orgName, targets, onSubmit, onClose, busy }) {
+  const [chosen, setChosen] = useState(targets[0]?.user_id || null);
+  const submit = (e) => { e.preventDefault(); if (chosen) onSubmit(chosen); };
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10005, background: "rgba(31,41,55,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <form onSubmit={submit} style={{ width: "100%", maxWidth: 460, background: WH, borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", padding: "24px 26px" }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: TX, marginBottom: 6 }}>Transférer {orgName || "l'agence"}</div>
+        <div style={{ fontSize: 12, color: TX2, marginBottom: 16, lineHeight: 1.5 }}>
+          Choisis un administrateur. Il deviendra propriétaire et reprendra la facturation. Tu deviendras administrateur.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18, maxHeight: 240, overflowY: "auto" }}>
+          {targets.map(m => (
+            <label key={m.user_id}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1.5px solid ${chosen === m.user_id ? AC : SBB}`, background: chosen === m.user_id ? ACL : WH, borderRadius: 9, cursor: "pointer", transition: "all 0.12s" }}>
+              <input type="radio" name="newOwner" value={m.user_id} checked={chosen === m.user_id} onChange={() => setChosen(m.user_id)} />
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: m.avatar ? `url(${m.avatar}) center/cover` : SB, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: TX3, flexShrink: 0 }}>
+                {!m.avatar && (m.name || m.email || "?").slice(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: chosen === m.user_id ? AC : TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.name || m.email}</div>
+                <div style={{ fontSize: 11, color: TX3 }}>{m.email}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button type="button" onClick={onClose} disabled={busy}
+            style={{ padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+          <button type="submit" disabled={busy || !chosen}
+            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: chosen ? AC : SBB, color: chosen ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: (busy || !chosen) ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {busy ? "Transfert…" : "Transférer"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 function ConfirmModal({ title, message, confirmLabel = "Confirmer", cancelLabel = "Annuler", danger = false, onConfirm, onCancel, busy }) {
   return (
