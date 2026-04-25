@@ -6,3 +6,4 @@ export { RemarkEditModal } from "./RemarkEditModal";
 export { PricingSection } from "./PricingSection";
 export { SendPvModal } from "./SendPvModal";
 export { SearchModal } from "./SearchModal";
+export { OrgInviteModal } from "./OrgInviteModal";

@@ -52,11 +52,11 @@ import { Ico, Skeleton, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } 
 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
-import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView } from "./views";
+import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView } from "./views";
 
 const INIT_PROJECTS = [
   {
@@ -150,6 +150,10 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [toast, setToast] = useState(null);
+  const [inviteToken, setInviteToken] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("invite"); }
+    catch { return null; }
+  });
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -648,7 +652,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onAgency={() => setView("agency")} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -803,6 +807,7 @@ export default function App() {
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view === "stats" && <StatsView projects={projects} profile={profile} onUpgrade={(feature) => setUpgradeFeature(feature || "exportCsv")} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
+          {view === "agency" && <AgencyView profile={profile} onBack={() => setView("overview")} onAgencyChanged={() => { /* placeholder for context-switcher refresh in phase 3 */ }} />}
         </div>
       </main>
 
@@ -1549,6 +1554,16 @@ Règles :
       {/* Guided tour — shown after onboarding on real UI */}
       {showGuidedTour && (
         <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch { /* ignore */ } }} />
+      )}
+
+      {/* Org invitation acceptance — shown when ?invite=<token> is in the URL */}
+      {inviteToken && (
+        <OrgInviteModal
+          token={inviteToken}
+          profile={profile}
+          onClose={() => setInviteToken(null)}
+          onAccepted={() => { setView("agency"); }}
+        />
       )}
 
       {/* Cookie consent banner — only show after onboarding & tour are done */}

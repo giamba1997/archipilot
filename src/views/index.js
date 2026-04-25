@@ -21,3 +21,4 @@ export { ProfileView } from "./ProfileView";
 export { ChecklistsView } from "./ChecklistsView";
 export { LegalPage, CookieBanner, LegalLinks } from "./LegalPages";
 export { OprView } from "./OprView";
+export { AgencyView } from "./AgencyView";
