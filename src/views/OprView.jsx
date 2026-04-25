@@ -281,7 +281,7 @@ function KpiBox({ label, value, color, accent }) {
 
 // ── Reserve Form ──
 function ReserveForm({ reserve, contractors, nextCode, onSave, onCancel }) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     id: reserve?.id || Date.now() + Math.random(),
     code: reserve?.code || nextCode,
     description: reserve?.description || "",
@@ -294,7 +294,7 @@ function ReserveForm({ reserve, contractors, nextCode, onSave, onCancel }) {
     notes: reserve?.notes || "",
     createdAt: reserve?.createdAt || new Date().toISOString(),
     resolvedAt: reserve?.resolvedAt || null,
-  });
+  }));
   const photoRef = useRef(null);
   const [uploading, setUploading] = useState(false);
 

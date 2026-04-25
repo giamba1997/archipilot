@@ -115,11 +115,13 @@ function TourTooltip({ step, total, currentStep, onNext, onPrev, onSkip }) {
   }, [currentStep.selector, currentStep.fallback]);
 
   useEffect(() => {
-    updatePosition();
+    // Defer the first measurement to the next frame so the setState lands
+    // outside the effect body (avoids the cascading-render warning).
+    const raf = requestAnimationFrame(updatePosition);
     window.addEventListener("resize", updatePosition);
     // Re-measure after a small delay (DOM may still be rendering)
     const t = setTimeout(updatePosition, 100);
-    return () => { window.removeEventListener("resize", updatePosition); clearTimeout(t); };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", updatePosition); clearTimeout(t); };
   }, [updatePosition, step]);
 
   // Position the tooltip card relative to the highlighted element

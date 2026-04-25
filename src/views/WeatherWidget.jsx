@@ -4,10 +4,10 @@ import { Ico } from "../components/ui";
 
 export function WeatherWidget({ address }) {
   const [weather, setWeather] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!address);
 
   useEffect(() => {
-    if (!address) { setLoading(false); return; }
+    if (!address) return;
     (async () => {
       try {
         // Extract city from address — try last parts (e.g. "Rue X 12, 1000 Bruxelles" → "Bruxelles")

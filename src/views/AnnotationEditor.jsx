@@ -117,6 +117,10 @@ export function AnnotationEditor({ photo, project, setProjects, postId, onSave, 
   const switchMode = (m) => {
     setMode(m); setTextPending(null); setTextValue(""); setSelectedId(null);
     selectedIdRef.current = null; selDragRef.current = null;
+    // redrawCanvas is declared further down; switchMode only fires from event
+    // handlers (after the closure has resolved), so the forward reference is
+    // safe and the const binding never reassigns.
+    // eslint-disable-next-line react-hooks/immutability
     redrawCanvas(strokesRef.current);
   };
 

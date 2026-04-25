@@ -10,6 +10,7 @@ export function PlanningDashboard({ projects, onBack, onSelectProject }) {
   const [filterProject, setFilterProject] = useState("all");
   const [selected, setSelected] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [mobileDetail, setMobileDetail] = useState(null);
 
   // ── Date helpers ──
   const now = new Date();
@@ -196,7 +197,6 @@ export function PlanningDashboard({ projects, onBack, onSelectProject }) {
       : filtered.filter(e => { const d = e.date; if (!d) return false; const futureLimit = new Date(today); futureLimit.setDate(futureLimit.getDate() + 30); return d >= today && d <= futureLimit; });
 
     const grouped = groupByDay(mobileEvents);
-    const [mobileDetail, setMobileDetail] = useState(null);
 
     // Lot context helper
     const lotContext = (ev) => {
