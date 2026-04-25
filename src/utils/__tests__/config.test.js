@@ -20,7 +20,10 @@ describe("hasFeature", () => {
   it("pro plan does not have team-only features", () => {
     expect(hasFeature("pro", "roles")).toBe(false);
     expect(hasFeature("pro", "exportCsv")).toBe(false);
-    expect(hasFeature("pro", "pdfCustomLogo")).toBe(false);
+    expect(hasFeature("pro", "planningCross")).toBe(false);
+    // pdfCustomLogo intentionally moved to Pro+Team — productivity feature
+    // that solo architects need too. See commit "Lock new pricing".
+    expect(hasFeature("pro", "pdfCustomLogo")).toBe(true);
   });
 
   it("team plan has all features", () => {
@@ -64,11 +67,13 @@ describe("PLANS", () => {
     expect(PLANS.free.price).toBe(0);
   });
 
-  it("pro plan costs 29/month", () => {
-    expect(PLANS.pro.price).toBe(29);
+  it("pro plan costs 39/month", () => {
+    expect(PLANS.pro.price).toBe(39);
   });
 
-  it("team plan costs 59/month", () => {
-    expect(PLANS.team.price).toBe(59);
+  it("team plan costs 89/month with 3 included seats", () => {
+    expect(PLANS.team.price).toBe(89);
+    expect(PLANS.team.seatsIncluded).toBe(3);
+    expect(PLANS.team.extraSeatPrice).toBe(9.99);
   });
 });
