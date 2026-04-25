@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, Component } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, Component } from "react";
 import { LangContext, useT, useTP } from "./i18n";
 import { supabase } from "./supabase";
 
@@ -35,7 +35,9 @@ class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadMyOrganizations, loadOrgProjects, saveOrgProjects, loadPendingInvitationForMe } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadOrgProjects, saveOrgProjects, loadMyOrganizations, loadPendingInvitationForMe } from "./db";
+import { useInviteToken } from "./hooks/useInviteToken";
+import { useWorkspaceContext } from "./hooks/useWorkspaceContext";
 
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST } from "./constants/tokens";
 import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_STATUSES, getPvStatus, nextPvStatus, LOT_COLORS, calcLotStatus } from "./constants/statuses";
@@ -112,32 +114,20 @@ const INIT_PROJECTS = [
 
 
 export default function App() {
-  // ── Workspace context ───────────────────────────────────────
-  // "personal" = solo workspace (user_data table)
-  // "org:<uuid>" = team workspace (organization_data table)
-  const [activeContext, setActiveContext] = useState(() => {
-    try { return localStorage.getItem("archipilot_active_context") || "personal"; }
-    catch { return "personal"; }
-  });
-  const cacheKey = (ctx) => `archipilot_projects:${ctx}`;
-  const activeIdKey = (ctx) => `archipilot_activeId:${ctx}`;
-  const [projects, setProjects] = useState(() => {
-    try {
-      const ctx = localStorage.getItem("archipilot_active_context") || "personal";
-      const s = localStorage.getItem(cacheKey(ctx));
-      return s ? JSON.parse(s) : [];
-    } catch { return []; }
-  });
-  const [activeId, setActiveId] = useState(() => {
-    try {
-      const ctx = localStorage.getItem("archipilot_active_context") || "personal";
-      const s = localStorage.getItem(activeIdKey(ctx));
-      return s ? Number(s) || 1 : 1;
-    } catch { return 1; }
-  });
-  const [dbLoaded, setDbLoaded] = useState(false);
-  const [myOrgs, setMyOrgs] = useState([]);
-  const [contextLoading, setContextLoading] = useState(false);
+  // ── Workspace context (extracted hook) ──────────────────────
+  const ws = useWorkspaceContext();
+  const {
+    activeContext, setActiveContext,
+    projects, setProjects,
+    activeId, setActiveId,
+    dbLoaded, setDbLoaded,
+    myOrgs, setMyOrgs,
+    contextLoading,
+    storageWarning,
+    switchContext,
+    refreshMyOrgs,
+    validateOrgContext,
+  } = ws;
   const [view, _setView] = useState("overview");
   const setView = (v) => { _setView(v); track("page_viewed", { _page: v }); };
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -162,7 +152,6 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
-  const [storageWarning, setStorageWarning] = useState(false);
   const [pvStartMode, setPvStartMode] = useState(null); // "write" | "dictate" — passed to NoteEditor
   const [pvRecipients, setPvRecipients] = useState([]); // [] = tous
   const [pvTitle, setPvTitle] = useState("");
@@ -173,22 +162,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [toast, setToast] = useState(null);
-  const [inviteToken, setInviteToken] = useState(() => {
-    // Read from URL first (just clicked a link), then localStorage (the URL
-    // got stripped by the auth redirect during signup/email confirmation).
-    try {
-      const fromUrl = new URLSearchParams(window.location.search).get("invite");
-      if (fromUrl) {
-        try { localStorage.setItem("archipilot_pending_invite", fromUrl); } catch { /* ignore */ }
-        return fromUrl;
-      }
-      return localStorage.getItem("archipilot_pending_invite") || null;
-    } catch { return null; }
-  });
-  const clearPendingInvite = () => {
-    setInviteToken(null);
-    try { localStorage.removeItem("archipilot_pending_invite"); } catch { /* ignore */ }
-  };
+  const { inviteToken, setInviteToken, clearPendingInvite } = useInviteToken();
   const [agencyModalOpen, setAgencyModalOpen] = useState(false);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -254,14 +228,7 @@ export default function App() {
 
         // If the persisted org context no longer corresponds to a current
         // membership (kicked out, org deleted), fall back to personal.
-        if (activeContext.startsWith("org:")) {
-          const orgId = activeContext.slice(4);
-          const stillMember = (orgsList || []).some(o => o.id === orgId);
-          if (!stillMember) {
-            setActiveContext("personal");
-            try { localStorage.setItem("archipilot_active_context", "personal"); } catch { /* ignore */ }
-          }
-        }
+        validateOrgContext(orgsList);
 
         // Show onboarding when the profile hasn't been marked complete yet.
         // The flag now lives on profiles.onboarding_completed_at so it can't
@@ -291,26 +258,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Switch workspace context atomically ────────────────────
-  const refreshMyOrgs = () => loadMyOrganizations().then(setMyOrgs).catch(() => {});
-  const switchContext = async (newContext) => {
-    if (newContext === activeContext || contextLoading) return;
-    setContextLoading(true);
-    try {
-      const data = newContext === "personal"
-        ? await dbLoadProjects()
-        : await loadOrgProjects(newContext.slice(4));
-      setProjects(data?.projects || []);
-      setActiveId(data?.activeId || (data?.projects?.[0]?.id ?? 1));
-      setActiveContext(newContext);
-      try { localStorage.setItem("archipilot_active_context", newContext); } catch { /* ignore */ }
-      setView("overview");
-    } catch (e) {
-      console.error("Context switch error:", e);
-    } finally {
-      setContextLoading(false);
-    }
-  };
+  // Wrap switchContext from the hook so it also resets the route.
+  const switchWorkspace = useCallback(async (newContext) => {
+    await switchContext(newContext);
+    setView("overview");
+  }, [switchContext]);
 
   // Subscribe to realtime notifications
   useEffect(() => {
@@ -326,36 +278,6 @@ export default function App() {
     } catch (e) { console.error("Notification subscription error:", e); }
     return () => { try { unsub?.(); } catch { /* ignore */ } };
   }, []);
-
-  // Save projects + activeId to the right cloud table + localStorage.
-  // The cache blows the ~5 MB quota quickly because photos (and plan files)
-  // carry big base64 dataUrls. Since everything is also mirrored to Supabase,
-  // we strip heavy binary payloads before writing to localStorage. Offline
-  // reloads may miss a few images but sync restores them online.
-  useEffect(() => {
-    if (!dbLoaded || contextLoading) return;
-    const lite = JSON.stringify(projects, (key, value) => {
-      if (key === "dataUrl") return undefined;
-      // Legacy/planImage and any other inline base64 string — heavy, drop it.
-      if (typeof value === "string" && value.length > 2000 && value.startsWith("data:")) return undefined;
-      return value;
-    });
-    try {
-      localStorage.setItem(cacheKey(activeContext), lite);
-    } catch {
-      // Last resort: clear the cache entirely (Supabase is still authoritative)
-      try { localStorage.removeItem(cacheKey(activeContext)); } catch { /* ignore */ }
-      setStorageWarning(true);
-      setTimeout(() => setStorageWarning(false), 5000);
-    }
-    try { localStorage.setItem(activeIdKey(activeContext), String(activeId)); } catch { /* ignore */ }
-    if (activeContext === "personal") {
-      dbSaveProjects(projects, activeId);
-    } else {
-      saveOrgProjects(activeContext.slice(4), projects, activeId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, activeId, dbLoaded, activeContext, contextLoading]);
 
   // Détection online/offline + sync au retour
   useEffect(() => {
@@ -375,7 +297,8 @@ export default function App() {
       if (processed > 0) {
         clearOfflineQueue();
         // Force a full sync
-        dbSaveProjects(projects, activeId);
+        if (activeContext === "personal") dbSaveProjects(projects, activeId);
+        else saveOrgProjects(activeContext.slice(4), projects, activeId);
       }
     };
 
@@ -386,7 +309,10 @@ export default function App() {
       // Sync queued items
       processOfflineQueue();
       // Re-sync projects to Supabase
-      if (dbLoaded) dbSaveProjects(projects, activeId);
+      if (dbLoaded) {
+        if (activeContext === "personal") dbSaveProjects(projects, activeId);
+        else saveOrgProjects(activeContext.slice(4), projects, activeId);
+      }
     };
     const goOffline = () => setIsOnline(false);
     window.addEventListener("online", goOnline);
@@ -769,7 +695,7 @@ export default function App() {
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchContext} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchWorkspace} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
