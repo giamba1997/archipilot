@@ -85,7 +85,7 @@ export function SearchModal({ projects, onClose, onOpen }) {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher dans les PV, remarques, actions, projets\u2026"
+            placeholder={"Rechercher dans les PV, remarques, actions, projets\u2026"}
             style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: TX, background: "transparent", fontFamily: "inherit" }}
           />
           {query && (

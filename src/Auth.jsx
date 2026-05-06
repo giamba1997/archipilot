@@ -805,7 +805,7 @@ function PageShell({ children }) {
   return (
     <div style={{
       minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: BG, fontFamily: "'Inter', system-ui, sans-serif", padding: "12px 20px",
+      background: BG, fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif", padding: "12px 20px",
     }}>
       <style>{`
         @keyframes sp { to { transform: rotate(360deg) } }

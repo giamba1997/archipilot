@@ -2,15 +2,22 @@ import { useState, useMemo, useRef } from "react";
 import { useT } from "../../i18n";
 import { supabase } from "../../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, SP, FS, RAD } from "../../constants/tokens";
-import { getStatus } from "../../constants/statuses";
+import { getStatus, STATUS_TOTAL_STEPS } from "../../constants/statuses";
 import { Ico } from "../ui";
 
 export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning, activeContext, myOrgs, onSwitchContext, contextLoading, onCreateAgency }) {
   const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [collapsedClients, setCollapsedClients] = useState({});
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const SORT_OPTIONS = [
+    { id: "client",  icon: "folder", label: "Client" },
+    { id: "recency", icon: "clock",  label: "Récents" },
+    { id: "name",    icon: null,     label: "A→Z" },
+  ];
+  const sortLabel = SORT_OPTIONS.find(s => s.id === sortBy)?.label || "Tri";
   const t = useT();
   const active = useMemo(() => projects.filter((p) => !p.archived), [projects]);
   const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
@@ -47,14 +54,15 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
     <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 264, background: SB, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", zIndex: 100, transform: open ? "translateX(0)" : "translateX(-264px)", transition: "transform 0.25s ease" }}>
 
       {/* ── Branding + collapse ── */}
-      <div style={{ padding: "16px 18px 14px", borderBottom: `1px solid ${SBB}`, flexShrink: 0 }}>
+      {/* Tagline retirée : le wordmark + le logo suffisent. Padding réduit
+          pour gagner en élégance vs la version "lourde" précédente. */}
+      <div style={{ padding: "14px 16px", borderBottom: `1px solid ${SBB}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 36, height: 36, flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
+          <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 32, height: 32, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: "#4A3428", fontSize: 14, fontWeight: 800, letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</div>
-            <div style={{ color: TX3, fontSize: 10, marginTop: 1 }}>{t("app.tagline")}</div>
           </div>
-          <button onClick={onClose} title="Réduire la barre latérale" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = SB2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+          <button onClick={onClose} aria-label="Réduire la barre latérale" title="Réduire la barre latérale" style={{ width: 32, height: 32, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = SB2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
             <Ico name="back" size={14} color={TX3} />
           </button>
         </div>
@@ -76,27 +84,37 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
           />
         )}
 
-        {/* CTA Nouveau projet — pleine largeur */}
-        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 }}>
-          <Ico name="plus" size={13} color="#fff" />
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
+        {/* CTA Nouveau projet — pleine largeur, signature element */}
+        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 0", minHeight: 38, border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, boxShadow: "0 1px 2px rgba(192,90,44,0.20)" }}>
+          <Ico name="plus" size={14} color="#fff" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
         </button>
 
-        {/* Navigation — Dashboard + Planning */}
-        <div style={{ display: "flex", gap: 4, marginBottom: SP.md }}>
-          {[
-            { id: "stats", label: "Dashboard", icon: "chart", onClick: onStats },
-            { id: "planningDashboard", label: "Planning", icon: "calendar", onClick: onPlanning },
-          ].map(btn => {
-            const isAct = view === btn.id;
+        {/* Navigation primaire — entrée unique "Vue d'ensemble". Le toggle
+            Liste/Calendrier interne est rendu par StatsView/PlanningDashboard. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 1, marginBottom: SP.md }}>
+          {(() => {
+            const isAct = view === "stats" || view === "planningDashboard" || view === "timesheet";
             return (
-              <button key={btn.id} onClick={btn.onClick} className="sb-nav" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: `${SP.sm - 1}px ${SP.xs}px`, border: "none", borderRadius: RAD.sm, cursor: "pointer", fontFamily: "inherit", background: isAct ? WH : "transparent", boxShadow: isAct ? "0 1px 3px rgba(0,0,0,0.06)" : "none", transition: "background 0.15s" }}>
-                <Ico name={btn.icon} size={13} color={isAct ? AC : TX3} />
-                <span style={{ fontSize: FS.sm, fontWeight: isAct ? 600 : 500, color: isAct ? AC : TX2 }}>{btn.label}</span>
+              <button onClick={onStats} className="sb-nav" style={{
+                width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                padding: "10px 14px",
+                minHeight: 38,
+                border: `1px solid ${isAct ? AC : SBB}`,
+                borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                background: WH,
+                boxShadow: isAct ? "0 1px 3px rgba(192,90,44,0.12)" : "none",
+                transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
+              }}>
+                <Ico name="chart" size={14} color={isAct ? AC : TX2} />
+                <span style={{ fontSize: 13, fontWeight: isAct ? 700 : 600, color: isAct ? AC : TX, letterSpacing: "-0.1px" }}>Vue d'ensemble</span>
               </button>
             );
-          })}
+          })()}
         </div>
+
+        {/* Divider — sépare la nav primaire (Dashboard/Planning) de la liste des projets */}
+        <div style={{ height: 1, background: SBB, margin: `${SP.sm}px 0 ${SP.md}px`, opacity: 0.7 }} />
 
         {/* Section header + mode de vue */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${SP.xs}px`, marginBottom: SP.sm }}>
@@ -112,17 +130,34 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
               </button>
             )}
           </div>
-          <div style={{ display: "flex", background: SB2, borderRadius: RAD.sm, padding: 2, gap: 1 }}>
-            {[
-              { id: "client", icon: "folder", label: "Client" },
-              { id: "recency", icon: "clock", label: "R\u00E9cents" },
-              { id: "name", icon: null, label: "A\u2192Z" },
-            ].map(s => (
-              <button key={s.id} onClick={() => setSortBy(s.id)} style={{ display: "flex", alignItems: "center", gap: 3, padding: `3px ${RAD.sm}px`, border: "none", borderRadius: 5, background: sortBy === s.id ? WH : "transparent", cursor: "pointer", fontFamily: "inherit", boxShadow: sortBy === s.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", transition: "all 0.15s" }}>
-                {s.icon && <Ico name={s.icon} size={FS.xs} color={sortBy === s.id ? AC : TX3} />}
-                <span style={{ fontSize: 9, fontWeight: 600, color: sortBy === s.id ? AC : TX3 }}>{s.label}</span>
-              </button>
-            ))}
+          {/* Sort dropdown \u2014 convention SaaS classique, plus lisible que 3 pills 9px */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSortMenuOpen(v => !v)} className="sb-nav" style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 9px", minHeight: 28, border: `1px solid ${SBB}`, borderRadius: RAD.sm, background: WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+              <span style={{ fontSize: 11, color: TX3, fontWeight: 500 }}>Tri</span>
+              <span style={{ fontSize: 11, color: TX2, fontWeight: 600 }}>{sortLabel}</span>
+              <Ico name={sortMenuOpen ? "chevron-up" : "chevron-down"} size={10} color={TX3} />
+            </button>
+            {sortMenuOpen && (
+              <>
+                <div onClick={() => setSortMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 100, background: WH, border: `1px solid ${SBB}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.10)", padding: 4, minWidth: 130, animation: "fadeIn 0.12s ease" }}>
+                  {SORT_OPTIONS.map(s => {
+                    const isActive = s.id === sortBy;
+                    return (
+                      <button key={s.id} onClick={() => { setSortBy(s.id); setSortMenuOpen(false); }}
+                        style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", minHeight: 36, border: "none", borderRadius: 6, background: isActive ? ACL : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "background 0.1s" }}
+                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = SB; }}
+                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+                        {s.icon && <Ico name={s.icon} size={13} color={isActive ? AC : TX3} />}
+                        {!s.icon && <span style={{ width: 13, display: "inline-block" }} />}
+                        <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? AC : TX2, flex: 1 }}>{s.label}</span>
+                        {isActive && <Ico name="check" size={11} color={AC} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -136,15 +171,18 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
                 <div key={client} style={{ marginBottom: 2 }}>
                   {/* Separator between client groups */}
                   {gi > 0 && <div style={{ height: 1, background: SBB, margin: "6px 6px 6px 6px", opacity: 0.6 }} />}
-                  {/* Client section header */}
-                  <button onClick={() => toggleClient(client)} className="sb-client" style={{
-                    width: "100%", display: "flex", alignItems: "center", gap: 8,
-                    padding: "7px 6px", border: "none", background: "transparent",
+                  {/* Client section header — restylé en sub-header de section
+                      (uppercase letter-spaced, moins "button-y") plutôt qu'en
+                      ligne cliquable qui mimétisait un projet. */}
+                  <button onClick={() => toggleClient(client)} className="sb-client" aria-label={`${collapsed ? "Déplier" : "Replier"} ${client}`} style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 6,
+                    padding: "6px 6px", border: "none", background: "transparent",
                     cursor: "pointer", fontFamily: "inherit", borderRadius: 6,
+                    minHeight: 28,
                   }}>
                     <Ico name={collapsed ? "chevron-right" : "chevron-down"} size={10} color={TX3} />
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: 700, color: hasActive ? TX : TX2, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.1px" }}>{client}</span>
-                    <span style={{ fontSize: 9, color: TX4, fontWeight: 600, flexShrink: 0 }}>{clientProjects.length}</span>
+                    <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: hasActive ? TX2 : TX3, textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "0.06em", textTransform: "uppercase" }}>{client}</span>
+                    <span style={{ fontSize: 10, color: TX3, fontWeight: 600, flexShrink: 0, background: SB2, padding: "1px 6px", borderRadius: 10, lineHeight: 1.4 }}>{clientProjects.length}</span>
                   </button>
                   {/* Projects in this client group */}
                   {!collapsed && (
@@ -170,6 +208,7 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
                               <div style={{ fontSize: 12, fontWeight: isAct ? 650 : 500, color: isAct ? TX : TX2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "16px" }}>{p.name}</div>
                               <div style={{ fontSize: 9, color: isAct ? TX3 : TX4, marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                                 <span style={{ fontSize: 9, fontWeight: 600, color: st.color, background: st.bg, padding: "1px 6px", borderRadius: 4, lineHeight: "14px" }}>{st.label}</span>
+                                <ProgressDots step={st.step} active={isAct} />
                                 {pvCount > 0 && <span style={{ color: isAct ? AC : TX4, fontWeight: 600 }}>{pvCount} PV</span>}
                               </div>
                             </div>
@@ -392,5 +431,33 @@ function ContextSwitcher({ activeContext, myOrgs, onSwitch, loading, isOpen, set
         </>
       )}
     </div>
+  );
+}
+
+// ─── Progress dots — lifecycle position ───────────────────────
+// Tiny 7-dot strip filled up to the project's current phase. Lets users scan
+// many projects in the sidebar and tell at a glance where each one is in
+// the journey, without reading the status label.
+function ProgressDots({ step, active }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 2, alignItems: "center", flexShrink: 0, marginLeft: 2 }} aria-label={`Étape ${step} sur ${STATUS_TOTAL_STEPS}`}>
+      {Array.from({ length: STATUS_TOTAL_STEPS }).map((_, i) => {
+        const filled = i < step;
+        const isCurrent = i === step - 1;
+        return (
+          <span
+            key={i}
+            style={{
+              width: isCurrent ? 6 : 4,
+              height: isCurrent ? 6 : 4,
+              borderRadius: "50%",
+              background: filled ? (isCurrent ? AC : (active ? TX2 : TX3)) : "transparent",
+              border: filled ? "none" : `1px solid ${SBB}`,
+              transition: "background 0.15s",
+            }}
+          />
+        );
+      })}
+    </span>
   );
 }
