@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useT, useTP } from "../i18n";
 import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BR, BRB, SG, SGB, AM, AMB } from "../constants/tokens";
 import { getStatus, nextStatus, getRemarkStatus } from "../constants/statuses";
 import { Ico, PB, VUMeter } from "../components/ui";
+import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
 import { parseNotesToRemarks, nextPvNumber } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
 import { addToOfflineQueue, savePvDraft } from "../utils/offline";
@@ -58,7 +59,6 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [voiceErr,     setVoiceErr]     = useState("");
   const photoRef       = useRef(null);
   const addInputRef    = useRef(null);
-  const recognitionRef = useRef(null);
   const t = useT();
   const tp = useTP();
 
@@ -116,57 +116,65 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [visitStart] = useState(() => new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }));
   const [visitEnd, setVisitEnd] = useState("");
 
-  // Arrêter la reconnaissance vocale quand on change de poste
-  useEffect(() => {
-    return () => { recognitionRef.current?.stop(); };
-  }, [activePost]);
+  // ── Dictée per-post (Whisper) ───────────────────────────
+  // Le hook s'occupe du pipeline audio (compresseur dynamique + gain) et
+  // de l'envoi à OpenAI Whisper via l'Edge Function transcribe-audio.
+  // À l'arrêt, on reçoit le texte complet — on le split en phrases pour
+  // créer une remark par phrase, comme le faisait l'ancienne dictée live.
+  const splitIntoRemarks = (raw) => {
+    const text = String(raw || "").replace(/\s+/g, " ").trim();
+    if (!text) return [];
+    return text
+      .split(/(?<=[.!?…])\s+(?=[A-ZÉÈÀÂÊÎÔÛÄËÏÖÜÇ])/)
+      .map(s => s.replace(/[.!?…]+\s*$/, "").trim())
+      .filter(Boolean);
+  };
 
-  const stopVoice = () => {
-    recognitionRef.current?.stop();
+  const handlePerPostResult = useCallback((text) => {
+    const post = project.posts.find((p) => p.id === activePost);
+    if (!post) return;
+    const phrases = splitIntoRemarks(text);
+    if (phrases.length === 0) return;
+    const current = getRemarks(post);
+    const additions = phrases.map(t => ({
+      id: Date.now() + Math.random(),
+      text: t,
+      urgent: false,
+      status: "open",
+    }));
+    setRemarks(post.id, [...current, ...additions]);
+  }, [activePost, project.posts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePerPostError = useCallback((code) => {
+    if (code === "micDenied") setVoiceErr(t("notes.micDenied"));
+    else if (code === "noMic") setVoiceErr("Aucun microphone détecté.");
+    else if (code === "transcribe") setVoiceErr("Erreur de transcription. Réessaie.");
+    else setVoiceErr("Erreur microphone.");
+    setVoiceInterim("");
+  }, [t]);
+
+  const perPost = useWhisperRecorder({
+    onResult: handlePerPostResult,
+    onError: handlePerPostError,
+  });
+
+  const startVoice = useCallback(() => {
+    setVoiceErr("");
+    setVoiceInterim("");
+    perPost.start();
+    setIsRecording(true);
+  }, [perPost]);
+
+  const stopVoice = useCallback(() => {
+    perPost.stop();
     setIsRecording(false);
     setVoiceInterim("");
-  };
+  }, [perPost]);
 
-  const startVoice = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      setVoiceErr(t("notes.voiceNotSupported"));
-      return;
-    }
-    setVoiceErr("");
-    const rec = new SR();
-    rec.lang = "fr-FR";
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          const text = e.results[i][0].transcript.trim();
-          if (text) {
-            const post = project.posts.find((p) => p.id === activePost);
-            if (post) {
-              const current = getRemarks(post);
-              setRemarks(post.id, [...current, { id: Date.now() + Math.random(), text, urgent: false, status: "open" }]);
-            }
-          }
-        } else {
-          interim += e.results[i][0].transcript;
-        }
-      }
-      setVoiceInterim(interim);
-    };
-    rec.onerror = (e) => {
-      if (e.error === "not-allowed") setVoiceErr(t("notes.micDenied"));
-      else if (e.error !== "no-speech") setVoiceErr("Erreur microphone : " + e.error);
-      setIsRecording(false);
-      setVoiceInterim("");
-    };
-    rec.onend = () => { setIsRecording(false); setVoiceInterim(""); };
-    recognitionRef.current = rec;
-    rec.start();
-    setIsRecording(true);
-  };
+  // Sync recorder state → legacy isRecording flag used everywhere in UI
+  useEffect(() => {
+    if (!perPost.isRecording && !perPost.isTranscribing) setIsRecording(false);
+  }, [perPost.isRecording, perPost.isTranscribing]);
 
   // ── Continuous recording (global, not per-post) ──
   const [contRecording, setContRecording] = useState(false);
@@ -176,13 +184,46 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [contReview, setContReview] = useState(false);
   const [contErr, setContErr] = useState("");
   const [contSeconds, setContSeconds] = useState(0);
-  const contRecRef = useRef(null);
   const contTimerRef = useRef(null);
   const contTranscriptRef = useRef("");
 
-  const startContinuous = (resume = false) => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setContErr(t("notes.voiceNotSupported")); return; }
+  // ── Dictée continue (Whisper) ───────────────────────────
+  // L'archi enregistre toute sa visite. À l'arrêt, le blob audio part vers
+  // l'Edge Function transcribe-audio (Whisper). Pendant la transcription
+  // on affiche un état dédié, puis on passe en mode "review" pour que
+  // l'archi puisse corriger avant le dispatch IA.
+  //
+  // Pas de transcript live pendant l'enregistrement — c'est le compromis
+  // pour avoir une qualité Whisper plutôt que la dictée browser bruitée.
+  const handleContResult = useCallback((text) => {
+    setContInterim("");
+    clearInterval(contTimerRef.current);
+    const transcript = String(text || "").trim();
+    contTranscriptRef.current = transcript;
+    if (!transcript) {
+      // Rien capté — retour au chooser
+      setInputMethod(null);
+      return;
+    }
+    setContTranscript(transcript);
+    setContReview(true);
+  }, []);
+
+  const handleContError = useCallback((code) => {
+    if (code === "micDenied") setContErr(t("notes.micDenied"));
+    else if (code === "noMic") setContErr("Aucun microphone détecté.");
+    else if (code === "transcribe") setContErr("Erreur de transcription Whisper. Réessaie.");
+    else setContErr("Erreur microphone.");
+    setContRecording(false);
+    clearInterval(contTimerRef.current);
+  }, [t]);
+
+  const continuous = useWhisperRecorder({
+    onResult: handleContResult,
+    onError: handleContError,
+  });
+
+  const startContinuous = useCallback((resume = false) => {
     setContErr("");
     if (!resume) {
       setContTranscript("");
@@ -190,88 +231,33 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
       contTranscriptRef.current = "";
     }
     setContInterim("");
-    const rec = new SR();
-    rec.lang = "fr-FR";
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          const text = e.results[i][0].transcript.trim();
-          if (text) {
-            contTranscriptRef.current += (contTranscriptRef.current ? " " : "") + text;
-            setContTranscript(contTranscriptRef.current);
-          }
-        } else {
-          interim += e.results[i][0].transcript;
-        }
-      }
-      setContInterim(interim);
-    };
-    rec.onerror = (e) => {
-      if (e.error === "not-allowed") setContErr(t("notes.micDenied"));
-      else if (e.error !== "no-speech") setContErr("Erreur microphone : " + e.error);
-      setContRecording(false);
-      clearInterval(contTimerRef.current);
-    };
-    rec.onend = () => {
-      // Auto-restart if still in continuous mode (browser stops after silence)
-      // Check both _keepAlive AND that contRecRef still points to this instance
-      if (rec._keepAlive && contRecRef.current === rec) {
-        try { rec.start(); } catch (_) { /* ignore */ }
-      }
-    };
-    rec._keepAlive = true;
-    contRecRef.current = rec;
-    rec.start();
+    continuous.start();
     setContRecording(true);
     contTimerRef.current = setInterval(() => setContSeconds(s => s + 1), 1000);
-  };
+  }, [continuous]);
 
   // Auto-start dictation when initialMode is "dictate"
   const dictateStartedRef = useRef(false);
   useEffect(() => {
     if (initialMode === "dictate" && inputMethod === "dictate" && !dictateStartedRef.current) {
       dictateStartedRef.current = true;
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SR) {
-        const timer = setTimeout(() => {
-          startContinuous();
-          setPendingDictation(false);
-        }, 500);
-        return () => clearTimeout(timer);
-      } else {
+      const timer = setTimeout(() => {
+        startContinuous();
         setPendingDictation(false);
-      }
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [initialMode, inputMethod]); // eslint-disable-line react-hooks/exhaustive-deps
+    return undefined;
+  }, [initialMode, inputMethod, startContinuous]);
 
-  const stopContinuous = () => {
-    // Disable auto-restart BEFORE stopping
-    if (contRecRef.current) {
-      contRecRef.current._keepAlive = false;
-    }
-    // Small delay to let the last onresult fire before we read the ref
-    setTimeout(() => {
-      if (contRecRef.current) {
-        try { contRecRef.current.stop(); } catch (_) { /* ignore */ }
-        contRecRef.current = null;
-      }
-      setContRecording(false);
-      setContInterim("");
-      clearInterval(contTimerRef.current);
-      // Combine finalized transcript + any pending interim
-      const transcript = contTranscriptRef.current.trim();
-      if (!transcript) {
-        // Nothing was captured — go back to chooser
-        setInputMethod(null);
-        return;
-      }
-      setContTranscript(transcript);
-      setContReview(true);
-    }, 300);
-  };
+  const stopContinuous = useCallback(() => {
+    setContRecording(false);
+    setContInterim("");
+    clearInterval(contTimerRef.current);
+    continuous.stop();
+    // Le résultat (texte transcrit) arrive via handleContResult quand
+    // Whisper a fini — on passe alors en mode review.
+  }, [continuous]);
 
   const submitTranscript = async () => {
     const transcript = contTranscript.trim();
@@ -339,10 +325,10 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     }
   };
 
-  // Cleanup on unmount
+  // Cleanup on unmount — le hook useWhisperRecorder gère son propre teardown,
+  // on s'occupe juste du timer.
   useEffect(() => {
     return () => {
-      if (contRecRef.current) { contRecRef.current._keepAlive = false; contRecRef.current.stop(); }
       clearInterval(contTimerRef.current);
     };
   }, []);
@@ -682,31 +668,33 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             </div>
           </>
         ) : (
-          /* Interface dictée vocale */
+          /* Interface dictée vocale (Whisper) */
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 20px 20px", marginBottom: 12, background: isRecording ? REDBG : SB, borderRadius: 12, border: `1px solid ${isRecording ? RD + "40" : SBB}`, transition: "background 0.3s, border-color 0.3s" }}>
             <button
               onClick={isRecording ? stopVoice : startVoice}
-              style={{ width: 76, height: 76, borderRadius: "50%", background: isRecording ? RD : WH, border: `2px solid ${isRecording ? RD : SBB}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, animation: isRecording ? "ring 1.4s ease infinite" : "none", boxShadow: isRecording ? "none" : "0 2px 10px rgba(0,0,0,0.1)", transition: "background 0.2s, border-color 0.2s" }}
+              disabled={perPost.isTranscribing}
+              style={{ width: 76, height: 76, borderRadius: "50%", background: isRecording ? RD : WH, border: `2px solid ${isRecording ? RD : SBB}`, cursor: perPost.isTranscribing ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, animation: isRecording ? "ring 1.4s ease infinite" : "none", boxShadow: isRecording ? "none" : "0 2px 10px rgba(0,0,0,0.1)", transition: "background 0.2s, border-color 0.2s", opacity: perPost.isTranscribing ? 0.6 : 1 }}
             >
               <Ico name="mic" size={30} color={isRecording ? "#fff" : TX2} />
             </button>
             <div style={{ fontSize: 14, fontWeight: 600, color: isRecording ? RD : TX2, marginBottom: 6 }}>
-              {isRecording ? t("notes.listening") : t("notes.pressToSpeak")}
+              {perPost.isTranscribing ? "Transcription en cours…" : isRecording ? t("notes.listening") : t("notes.pressToSpeak")}
             </div>
             {isRecording && (
               <div style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 10, marginBottom: 4 }}>
-                <VUMeter active={isRecording} label="Niveau du micro" />
+                <VUMeter active={isRecording} label="Niveau du micro" stream={perPost.stream} />
               </div>
             )}
-            {voiceInterim && (
-              <div style={{ fontSize: 13, color: TX3, fontStyle: "italic", textAlign: "center", maxWidth: 320, lineHeight: 1.5, marginTop: 4 }}>
-                « {voiceInterim} »
+            {perPost.isTranscribing && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <span style={{ width: 14, height: 14, border: `2px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                <span style={{ fontSize: 12, color: TX3 }}>Whisper analyse l'audio…</span>
               </div>
             )}
             {voiceErr && (
               <div style={{ marginTop: 10, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: REDBG, borderRadius: 8, border: `1px solid ${RD}20` }}>{voiceErr}</div>
             )}
-            {!voiceErr && !isRecording && (
+            {!voiceErr && !isRecording && !perPost.isTranscribing && (
               <div style={{ fontSize: 11, color: TX3, marginTop: 6, textAlign: "center" }}>
                 {t("notes.voiceSentence")}
               </div>
@@ -1092,16 +1080,10 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 </span>
               </div>
               <div style={{ width: "100%", display: "flex", justifyContent: "center", marginBottom: 14 }}>
-                <VUMeter active={contRecording} label="Niveau du micro" />
+                <VUMeter active={contRecording} label="Niveau du micro" stream={continuous.stream} />
               </div>
-              <div style={{ width: "100%", minHeight: 60, maxHeight: 220, overflowY: "auto", marginBottom: 16, padding: "12px 14px", background: WH, borderRadius: 10, border: `1px solid ${REDBRD}`, fontSize: 13, color: TX, lineHeight: 1.7 }}>
-                {contTranscript ? (
-                  <>{contTranscript}{contInterim && <span style={{ color: TX3, fontStyle: "italic" }}> {contInterim}</span>}</>
-                ) : contInterim ? (
-                  <span style={{ color: TX3, fontStyle: "italic" }}>{contInterim}</span>
-                ) : (
-                  <span style={{ color: TX3 }}>Parlez librement de chaque poste...</span>
-                )}
+              <div style={{ width: "100%", minHeight: 60, padding: "12px 14px", background: WH, borderRadius: 10, border: `1px solid ${REDBRD}`, fontSize: 13, color: TX3, lineHeight: 1.7, marginBottom: 16, textAlign: "center", fontStyle: "italic" }}>
+                Parle librement — je transcrirai à la fin avec Whisper, plus précis sur les voix de loin.
               </div>
               <button
                 onClick={stopContinuous}
@@ -1110,6 +1092,17 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 <Ico name="stop" size={16} color="#fff" />
                 Terminer l'enregistrement
               </button>
+            </div>
+          </div>
+        ) : continuous.isTranscribing ? (
+          /* Whisper en cours */
+          <div style={{ padding: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: ACL, borderRadius: 12, border: `1px solid ${ACL2}` }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 2px 10px rgba(217,123,13,0.15)" }}>
+                <div style={{ width: 22, height: 22, border: `3px solid ${AC}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 4 }}>Transcription en cours…</div>
+              <div style={{ fontSize: 12, color: TX3 }}>Whisper analyse l'audio (~3-10 s).</div>
             </div>
           </div>
         ) : contReview ? (

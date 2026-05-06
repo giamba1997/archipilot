@@ -30,8 +30,8 @@ const segColor = (segIndex, level) => {
   return RD;                            // 2 derniers = rouge (saturation)
 };
 
-export function VUMeter({ active, label }) {
-  const { level, error } = useAudioLevel(active);
+export function VUMeter({ active, label, stream }) {
+  const { level, error } = useAudioLevel(active, stream || null);
   const helper = helperFor(level, error);
   const helperColor = helper.tone === "err" ? RD : helper.tone === "warn" ? BR : SG;
 

@@ -4,19 +4,15 @@ import { useEffect, useRef, useState } from "react";
 // while `active` is true. Used to drive a VU meter so the user can see
 // whether the mic actually picks up their voice.
 //
-// IMPORTANT — Web Speech API limitation : we cannot inject a custom-gained
-// MediaStream into SpeechRecognition. SpeechRecognition opens its own audio
-// pipeline. So this hook runs IN PARALLEL with SpeechRecognition : we open a
-// second getUserMedia connection just for visualization. The browser handles
-// concurrent mic access fine in practice (Chrome, Edge, Safari).
-//
-// We request `autoGainControl: true` on our stream — the browser already
-// applies this to SpeechRecognition's pipeline so the level we display
-// matches what the recognizer actually receives, post-AGC.
-export function useAudioLevel(active) {
+// Two modes :
+//   - active=true, no externalStream → opens its own getUserMedia
+//   - active=true, externalStream provided → re-uses that stream (avoids
+//     opening the mic twice when used alongside useWhisperRecorder)
+export function useAudioLevel(active, externalStream = null) {
   const [level, setLevel] = useState(0);
   const [error, setError] = useState(null);
   const streamRef = useRef(null);
+  const ownsStreamRef = useRef(false);
   const ctxRef = useRef(null);
   const rafRef = useRef(null);
 
@@ -27,18 +23,24 @@ export function useAudioLevel(active) {
 
     const start = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            autoGainControl: true,
-            noiseSuppression: true,
-            echoCancellation: true,
-          },
-        });
+        let stream = externalStream;
+        let owns = false;
+        if (!stream) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              autoGainControl: true,
+              noiseSuppression: true,
+              echoCancellation: true,
+            },
+          });
+          owns = true;
+        }
         if (cancelled) {
-          stream.getTracks().forEach(t => t.stop());
+          if (owns) stream.getTracks().forEach(t => t.stop());
           return;
         }
         streamRef.current = stream;
+        ownsStreamRef.current = owns;
         const Ctx = window.AudioContext || window.webkitAudioContext;
         const ctx = new Ctx();
         ctxRef.current = ctx;
@@ -81,8 +83,13 @@ export function useAudioLevel(active) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
+        // Ne stoppe les tracks QUE si c'est notre propre stream — sinon on
+        // couperait le mic du recorder Whisper qui partage le flux.
+        if (ownsStreamRef.current) {
+          streamRef.current.getTracks().forEach(t => t.stop());
+        }
         streamRef.current = null;
+        ownsStreamRef.current = false;
       }
       if (ctxRef.current) {
         try { ctxRef.current.close(); } catch { /* ignore */ }
@@ -91,7 +98,7 @@ export function useAudioLevel(active) {
       setLevel(0);
       setError(null);
     };
-  }, [active]);
+  }, [active, externalStream]);
 
   return { level, error };
 }
