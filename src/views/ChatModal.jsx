@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../supabase";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, REDBRD, SP, FS, RAD } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, REDBRD, RD, SP, FS, RAD } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { buildChatContext } from "../utils/chatContext";
 import { processAttachment, formatBytes, isAttachmentSupported } from "../utils/chatAttachments";
 import { parseFunctionError } from "../db";
 
 const STORAGE_KEY = "archipilot_chat_history";
-const HISTORY_CAP = 30; // garde les 30 derniers messages en localStorage
+const ARCHIVE_KEY = "archipilot_chat_archives";
+const HISTORY_CAP = 100; // 100 derniers messages — vraie mémoire de session pro
+const ARCHIVE_CAP = 10;  // 10 conversations archivées max
 
 // Greeting selon l'heure de la journée — moins "bot", plus humain.
 const greetingFor = (firstName) => {
@@ -144,11 +146,37 @@ const saveHistory = (msgs) => {
   } catch { /* ignore */ }
 };
 
+// Conversations archivées — l'utilisateur peut basculer entre sujets sans
+// perdre l'historique. On garde les ARCHIVE_CAP dernières conversations.
+const loadArchives = () => {
+  try {
+    const raw = localStorage.getItem(ARCHIVE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
+const saveArchives = (list) => {
+  try {
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(list.slice(0, ARCHIVE_CAP)));
+  } catch { /* ignore */ }
+};
+const titleForConversation = (msgs) => {
+  // Titre = première question user, raccourci. Fallback : date.
+  const firstUser = msgs.find(m => m.role === "user" && m.content);
+  if (firstUser) {
+    const t = String(firstUser.content).replace(/\s+/g, " ").trim();
+    return t.length > 60 ? t.slice(0, 57) + "…" : t;
+  }
+  return `Conversation du ${new Date().toLocaleDateString("fr-BE")}`;
+};
+
 // ChatModal — fenêtre conversationnelle qui flotte au-dessus du contenu.
 // Reçoit les data du parent pour construire le contexte (stuff context: pas
 // d'embeddings, pas d'indexation — l'utilisateur a sa data en mémoire et on
 // l'injecte directement dans le prompt).
-export function ChatModal({ open, onClose, projects, profile, activeContext }) {
+export function ChatModal({ open, onClose, projects, profile, activeContext, activeProjectId, prefill, onPrefillConsumed }) {
   const [messages, setMessages] = useState(() => loadHistory());
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,10 +186,17 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
   const [pendingAttachments, setPendingAttachments] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // Dictée vocale — Web Speech API. Toggle, append en append au textarea.
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [voiceErr, setVoiceErr] = useState("");
+  // Conversations archivées (multi-sujets lite)
+  const [archives, setArchives] = useState(() => loadArchives());
+  const [showArchives, setShowArchives] = useState(false);
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const dragCounterRef = useRef(0);
+  const voiceRecRef = useRef(null);
 
   // Persistance localStorage
   useEffect(() => { saveHistory(messages); }, [messages]);
@@ -171,6 +206,73 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
     if (!open) return;
     setTimeout(() => inputRef.current?.focus(), 80);
   }, [open]);
+
+  // Pré-remplissage déclenché depuis l'extérieur (ex : bouton "Demander à l'IA"
+  // sur la bannière du cahier des charges). Applique une fois puis notifie
+  // le parent pour qu'il vide son state — ça évite qu'un re-render réapplique.
+  useEffect(() => {
+    if (!open || !prefill) return;
+    if (prefill.attachments && prefill.attachments.length > 0) {
+      setPendingAttachments(prefill.attachments);
+    }
+    if (prefill.message) {
+      setInput(prefill.message);
+    }
+    onPrefillConsumed?.();
+  }, [open, prefill, onPrefillConsumed]);
+
+  // ── Dictée vocale ─────────────────────────────────────────
+  // On stoppe le micro automatiquement à la fermeture du modal et au
+  // démontage — sinon il reste actif en arrière-plan, ce qui est dérangeant
+  // (icône micro browser persistante) et consomme batterie.
+  const stopVoice = useCallback(() => {
+    try { voiceRecRef.current?.stop(); } catch { /* recognition was already stopped */ }
+    setIsVoiceRecording(false);
+  }, []);
+  useEffect(() => {
+    if (!open && voiceRecRef.current) stopVoice();
+  }, [open, stopVoice]);
+  useEffect(() => () => stopVoice(), [stopVoice]);
+
+  const startVoice = useCallback(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setVoiceErr("Dictée non supportée par ce navigateur. Essaie Chrome ou Edge.");
+      return;
+    }
+    setVoiceErr("");
+    const rec = new SR();
+    rec.lang = "fr-FR";
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          const text = e.results[i][0].transcript.trim();
+          if (text) {
+            // Append au texte existant pour ne pas écraser ce que l'user a déjà tapé
+            setInput(prev => prev ? `${prev.replace(/\s+$/, "")} ${text}` : text);
+          }
+        }
+      }
+    };
+    rec.onerror = (e) => {
+      if (e.error === "not-allowed") {
+        setVoiceErr("Microphone refusé. Autorise l'accès dans ton navigateur.");
+      } else if (e.error !== "no-speech") {
+        setVoiceErr(`Erreur micro : ${e.error}`);
+      }
+      setIsVoiceRecording(false);
+    };
+    rec.onend = () => setIsVoiceRecording(false);
+    voiceRecRef.current = rec;
+    try {
+      rec.start();
+      setIsVoiceRecording(true);
+    } catch {
+      setVoiceErr("Impossible de démarrer la dictée.");
+    }
+  }, []);
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -205,7 +307,7 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
     setPendingAttachments([]);
     setLoading(true);
     try {
-      const context = buildChatContext({ projects, profile, activeContext });
+      const context = buildChatContext({ projects, profile, activeContext, activeProjectId });
       // On envoie l'historique SANS les attachments (le modèle reverra les
       // fichiers fraîchement uploadés via `attachments` ; les anciens étaient
       // déjà discutés et leurs takeaways sont dans le texte).
@@ -297,9 +399,61 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
   };
 
   const handleClear = () => {
-    if (messages.length > 0 && !confirm("Effacer toute la conversation ?")) return;
+    if (messages.length > 0 && !confirm("Effacer définitivement cette conversation ? Pour la garder en archive, utilise plutôt « Nouveau sujet ».")) return;
     setMessages([]);
     setErr("");
+    setShowArchives(false);
+  };
+
+  // Archive la conversation actuelle (si non vide) puis vide. Pas de prompt :
+  // l'archive est la mécanique de safety net, on ne perd rien.
+  const handleNewTopic = () => {
+    if (messages.length > 0) {
+      const archived = {
+        id: Date.now(),
+        title: titleForConversation(messages),
+        createdAt: new Date().toISOString(),
+        messages,
+      };
+      const next = [archived, ...archives];
+      setArchives(next);
+      saveArchives(next);
+    }
+    setMessages([]);
+    setErr("");
+    setShowArchives(false);
+    setPendingAttachments([]);
+    setInput("");
+  };
+
+  const handleLoadArchive = (archiveId) => {
+    const target = archives.find(a => a.id === archiveId);
+    if (!target) return;
+    // On archive d'abord la conversation actuelle pour ne rien perdre
+    let nextArchives = archives;
+    if (messages.length > 0) {
+      const current = {
+        id: Date.now(),
+        title: titleForConversation(messages),
+        createdAt: new Date().toISOString(),
+        messages,
+      };
+      nextArchives = [current, ...archives];
+    }
+    // Puis on retire celle qu'on rouvre de la liste (elle redevient courante)
+    nextArchives = nextArchives.filter(a => a.id !== archiveId);
+    setArchives(nextArchives);
+    saveArchives(nextArchives);
+    setMessages(target.messages || []);
+    setShowArchives(false);
+    setErr("");
+  };
+
+  const handleDeleteArchive = (archiveId) => {
+    if (!confirm("Supprimer définitivement cette conversation archivée ?")) return;
+    const next = archives.filter(a => a.id !== archiveId);
+    setArchives(next);
+    saveArchives(next);
   };
 
   const handleKeyDown = (e) => {
@@ -363,12 +517,42 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            {messages.length > 0 && (
+              <button
+                onClick={handleNewTopic}
+                aria-label="Nouveau sujet"
+                title="Démarrer un nouveau sujet (la conversation actuelle sera archivée)"
+                style={{
+                  height: 28, padding: "0 10px", border: `1px solid ${ACL2}`, borderRadius: 6,
+                  background: WH, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+                }}
+              >
+                <Ico name="plus" size={11} color={TX2} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: TX2 }}>Nouveau sujet</span>
+              </button>
+            )}
+            {(archives.length > 0 || messages.length > 0) && (
+              <button
+                onClick={() => setShowArchives(s => !s)}
+                aria-label="Conversations archivées"
+                aria-pressed={showArchives}
+                title={archives.length > 0 ? `${archives.length} conversation${archives.length > 1 ? "s" : ""} archivée${archives.length > 1 ? "s" : ""}` : "Aucune conversation archivée"}
+                style={{
+                  width: 28, height: 28, border: "none", borderRadius: 6,
+                  background: showArchives ? WH : "transparent", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Ico name="history" size={12} color={TX3} />
+              </button>
+            )}
             {messages.length > 0 && (
               <button
                 onClick={handleClear}
-                aria-label="Effacer la conversation"
-                title="Effacer la conversation"
+                aria-label="Effacer définitivement"
+                title="Effacer définitivement (sans archiver)"
                 style={{
                   width: 28, height: 28, border: "none", borderRadius: 6,
                   background: "transparent", cursor: "pointer",
@@ -393,13 +577,63 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
           </div>
         </div>
 
-        {/* Body — messages */}
+        {/* Body — messages OU liste des archives */}
         <div ref={scrollRef} style={{
           flex: 1, overflowY: "auto", padding: "16px",
           display: "flex", flexDirection: "column", gap: 12,
           background: SB,
         }}>
-          {empty ? (
+          {showArchives ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Conversations archivées
+                </span>
+                <button
+                  onClick={() => setShowArchives(false)}
+                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: TX3, padding: 4 }}
+                >
+                  Retour
+                </button>
+              </div>
+              {archives.length === 0 ? (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: TX3, fontSize: 12, lineHeight: 1.5 }}>
+                  Aucune conversation archivée pour le moment.<br />
+                  Utilise « Nouveau sujet » pour archiver la conversation actuelle.
+                </div>
+              ) : (
+                archives.map(a => (
+                  <div
+                    key={a.id}
+                    style={{
+                      display: "flex", alignItems: "flex-start", gap: 10,
+                      padding: "10px 12px", background: WH, border: `1px solid ${SBB}`, borderRadius: 8,
+                      cursor: "pointer", transition: "border-color 0.12s",
+                    }}
+                    onClick={() => handleLoadArchive(a.id)}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACL2; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = SBB; }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: TX, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {a.title}
+                      </div>
+                      <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>
+                        {a.messages.length} message{a.messages.length > 1 ? "s" : ""} · {new Date(a.createdAt).toLocaleDateString("fr-BE", { day: "numeric", month: "short" })}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteArchive(a.id); }}
+                      aria-label="Supprimer cette archive"
+                      style={{ width: 24, height: 24, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4 }}
+                    >
+                      <Ico name="trash" size={10} color={TX3} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : empty ? (
             // Empty state — greeting contextuel + insight personnalisé + suggestions dynamiques
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 18, padding: "20px 8px" }}>
               <div style={{
@@ -543,6 +777,14 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
               {err}
             </div>
           )}
+          {voiceErr && (
+            <div style={{
+              padding: "9px 12px", background: BRB, border: `1px solid ${REDBRD}`,
+              borderRadius: 8, fontSize: 12, color: BR,
+            }}>
+              {voiceErr}
+            </div>
+          )}
         </div>
 
         {/* Pending attachments preview */}
@@ -625,6 +867,25 @@ export function ChatModal({ open, onClose, projects, profile, activeContext }) {
             ) : (
               <Ico name="upload" size={14} color={TX2} />
             )}
+          </button>
+          <button
+            onClick={isVoiceRecording ? stopVoice : startVoice}
+            disabled={loading}
+            aria-label={isVoiceRecording ? "Arrêter la dictée" : "Dicter ta question"}
+            aria-pressed={isVoiceRecording}
+            title={isVoiceRecording ? "Arrêter la dictée" : "Dicte ta question (fr-FR)"}
+            style={{
+              width: 36, height: 36, flexShrink: 0,
+              border: `1px solid ${isVoiceRecording ? RD : SBB}`, borderRadius: 8,
+              background: isVoiceRecording ? RD : WH,
+              cursor: loading ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.12s",
+              opacity: loading ? 0.5 : 1,
+              animation: isVoiceRecording ? "ring 1.4s ease infinite" : "none",
+            }}
+          >
+            <Ico name="mic" size={14} color={isVoiceRecording ? "#fff" : TX2} />
           </button>
           <textarea
             ref={inputRef}

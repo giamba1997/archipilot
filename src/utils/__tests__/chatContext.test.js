@@ -103,4 +103,74 @@ describe("buildChatContext", () => {
     // The 7+ should not appear individually
     expect(ctx).toContain("7 PV plus anciens non détaillés");
   });
+
+  it("mentions cahier des charges presence on every project", () => {
+    const projects = [
+      {
+        id: 1, name: "Hall 6",
+        cahierDesCharges: { fileName: "SNCB-clauses.pdf", uploadedAt: "2026-01-15T00:00:00Z", extractedText: "Article 1 : généralités…" },
+      },
+      { id: 2, name: "Sans CdC" },
+    ];
+    const ctx = buildChatContext({ projects });
+    expect(ctx).toContain("SNCB-clauses.pdf");
+    expect(ctx).toContain("Cahier des charges");
+    // Le texte intégral n'est PAS inclus quand le projet n'est pas actif
+    expect(ctx).not.toContain("Article 1");
+    // Le projet sans CdC n'a pas la section
+    const blocks = ctx.split("---");
+    const sansCdcBlock = blocks.find(b => b.includes("Sans CdC"));
+    expect(sansCdcBlock).toBeDefined();
+    expect(sansCdcBlock).not.toContain("Cahier des charges");
+  });
+
+  it("includes full CdC text only for the active project", () => {
+    const projects = [
+      {
+        id: 1, name: "Active",
+        cahierDesCharges: { fileName: "active-cdc.pdf", extractedText: "TEXTE_DU_CDC_ACTIF" },
+      },
+      {
+        id: 2, name: "Other",
+        cahierDesCharges: { fileName: "other-cdc.pdf", extractedText: "TEXTE_DU_CDC_AUTRE" },
+      },
+    ];
+    const ctx = buildChatContext({ projects, activeProjectId: 1 });
+    expect(ctx).toContain("# Projet en cours de consultation");
+    expect(ctx).toContain("TEXTE_DU_CDC_ACTIF");
+    expect(ctx).not.toContain("TEXTE_DU_CDC_AUTRE");
+    // Mais l'autre projet doit quand même mentionner que le CdC existe
+    expect(ctx).toContain("other-cdc.pdf");
+  });
+
+  it("includes full last PV content for active project", () => {
+    const projects = [{
+      id: 1, name: "Active",
+      pvHistory: [
+        { number: 2, date: "10/02/2026", status: "draft", excerpt: "résumé", content: "01. Section\n01.1 Remarque détaillée FULL_CONTENT" },
+        { number: 1, date: "01/01/2026", status: "sent", excerpt: "ancien" },
+      ],
+    }];
+    const ctx = buildChatContext({ projects, activeProjectId: 1 });
+    expect(ctx).toContain("FULL_CONTENT");
+    // Le PV antérieur reste en excerpt
+    expect(ctx).toContain("ancien");
+  });
+
+  it("lists reserves with severity for active project only", () => {
+    const projects = [{
+      id: 1, name: "Active",
+      reserves: [
+        { id: 1, text: "Fissure mur nord", severity: "major", status: "non_levee" },
+        { id: 2, text: "Joint silicone", severity: "minor", status: "levee" },
+      ],
+    }];
+    const ctxDetailed = buildChatContext({ projects, activeProjectId: 1 });
+    expect(ctxDetailed).toContain("Fissure mur nord");
+    expect(ctxDetailed).toContain("[major/non_levee]");
+    // Sans activeProjectId, juste les compteurs
+    const ctxSummary = buildChatContext({ projects });
+    expect(ctxSummary).toContain("2 au total, 1 non levées");
+    expect(ctxSummary).not.toContain("Fissure mur nord");
+  });
 });

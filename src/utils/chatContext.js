@@ -1,17 +1,21 @@
 // chatContext — sérialise les data utilisateur en markdown pour le chatbot.
 //
-// On reste lean côté tokens : on ne dump pas tout (contenu intégral des PV,
-// historique 5 ans). On donne ce dont l'IA a besoin pour répondre aux 95% des
-// questions courantes : statut projets, urgences, dernières activités, totaux
-// chiffrés.
+// Stratégie : "stuff context with focus".
+//   — Tous les projets actifs sont résumés (1 bloc / projet)
+//   — Le projet ACTIF (si défini) reçoit en plus :
+//       · texte intégral du cahier des charges (cap PV_FULL_CDC_CHARS)
+//       · contenu intégral du dernier PV
+//       · réserves OPR détaillées
+//   — Les autres projets mentionnent l'existence du CdC mais pas son texte
+//     (sinon ça explose les tokens — un CdC fait souvent 50 pages)
 //
-// Cap volumes :
-//   — projets archivés exclus
-//   — actions clôturées : on ne donne que le compte
-//   — PV : titre + statut + date + excerpt court (plain text)
-//   — sessions de temps : agrégé par projet (semaine + mois + total)
+// Cap volumes pour éviter de dépasser le budget tokens du modèle :
 import { totalSecondsFor, formatDuration } from "./timer";
 import { stripMarkdown } from "./helpers";
+
+const PV_FULL_CDC_CHARS = 30000;   // texte du CdC pour projet actif
+const PV_FULL_PV_CHARS  = 8000;    // contenu du dernier PV (pleine longueur)
+const PV_EXCERPT_CHARS  = 120;     // excerpts pour PV non-actifs
 
 const startOfWeek = (d = new Date()) => {
   const day = new Date(d);
@@ -24,9 +28,9 @@ const startOfMonth = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(),
 
 const fmtList = (xs) => xs.filter(Boolean).join(" · ");
 
-const projectSummary = (p) => {
+const projectSummary = (p, { detailed = false } = {}) => {
   const lines = [];
-  lines.push(`## ${p.name}`);
+  lines.push(`## ${p.name}${detailed ? " (projet actif — celui consulté actuellement)" : ""}`);
   const meta = [];
   if (p.statusId) meta.push(`Phase : ${p.statusId}`);
   if (p.client) meta.push(`Maître d'ouvrage : ${p.client}`);
@@ -60,16 +64,82 @@ const projectSummary = (p) => {
     }
   }
 
-  // PV history (5 derniers, en plain text condensé)
+  // Cahier des charges — toujours mentionné (l'IA doit savoir s'il existe).
+  // Le texte intégral n'est inclus QUE pour le projet actif (sinon explosion
+  // tokens — un CdC fait souvent 50+ pages).
+  const cdc = p.cahierDesCharges || null;
+  if (cdc) {
+    lines.push(`\n### Cahier des charges`);
+    lines.push(`Document : ${cdc.fileName || "cahier des charges"}${cdc.uploadedAt ? ` (uploadé le ${new Date(cdc.uploadedAt).toLocaleDateString("fr-BE")})` : ""}.`);
+    if (detailed && cdc.extractedText) {
+      const txt = String(cdc.extractedText).slice(0, PV_FULL_CDC_CHARS);
+      lines.push(`Texte intégral du cahier des charges :\n"""\n${txt}\n"""`);
+      if (cdc.extractedText.length > PV_FULL_CDC_CHARS) {
+        lines.push(`(Texte tronqué — ${cdc.extractedText.length - PV_FULL_CDC_CHARS} caractères supplémentaires non inclus.)`);
+      }
+    } else if (cdc.extractedText) {
+      lines.push(`Le texte est disponible mais non inclus ici (volumineux). Si une question porte sur ce cahier des charges, dis-le et je le fournirai dans une prochaine requête.`);
+    } else {
+      lines.push(`(Texte non extrait — peut-être un PDF scanné non OCR.)`);
+    }
+  }
+
+  // PV history (en plain text condensé pour les autres, full content pour
+  // le dernier PV du projet actif)
   const pvs = p.pvHistory || [];
   if (pvs.length) {
     lines.push(`\n### PV (${pvs.length} au total)`);
-    for (const pv of pvs.slice(0, 5)) {
-      const status = pv.status || "draft";
-      const excerpt = stripMarkdown(pv.excerpt || "").slice(0, 120);
-      lines.push(`- PV n°${pv.number} (${status}) — ${pv.date}${excerpt ? ` : ${excerpt}` : ""}`);
+    if (detailed && pvs[0]) {
+      const last = pvs[0];
+      const status = last.status || "draft";
+      lines.push(`Dernier PV (n°${last.number}, ${status}, ${last.date})${last.author ? ` par ${last.author}` : ""} — contenu intégral :`);
+      const body = stripMarkdown(last.content || last.excerpt || "").slice(0, PV_FULL_PV_CHARS);
+      lines.push(`"""\n${body}\n"""`);
+      // Liste compacte des PV plus anciens
+      const olderShown = pvs.slice(1, 5);
+      if (olderShown.length) {
+        lines.push(`PV antérieurs :`);
+        for (const pv of olderShown) {
+          const st = pv.status || "draft";
+          const ex = stripMarkdown(pv.excerpt || "").slice(0, PV_EXCERPT_CHARS);
+          lines.push(`- PV n°${pv.number} (${st}) — ${pv.date}${ex ? ` : ${ex}` : ""}`);
+        }
+      }
+      if (pvs.length > 5) lines.push(`… ${pvs.length - 5} PV plus anciens non détaillés`);
+    } else {
+      for (const pv of pvs.slice(0, 5)) {
+        const status = pv.status || "draft";
+        const excerpt = stripMarkdown(pv.excerpt || "").slice(0, PV_EXCERPT_CHARS);
+        lines.push(`- PV n°${pv.number} (${status}) — ${pv.date}${excerpt ? ` : ${excerpt}` : ""}`);
+      }
+      if (pvs.length > 5) lines.push(`… ${pvs.length - 5} PV plus anciens non détaillés`);
     }
-    if (pvs.length > 5) lines.push(`… ${pvs.length - 5} PV plus anciens non détaillés`);
+  }
+
+  // Réserves (OPR) — détaillées si projet actif, juste comptées sinon
+  const reserves = p.reserves || [];
+  if (reserves.length) {
+    const open = reserves.filter(r => r.status !== "levee");
+    lines.push(`\n### Réserves (OPR)`);
+    lines.push(`${reserves.length} au total, ${open.length} non levées.`);
+    if (detailed) {
+      for (const r of reserves.slice(0, 15)) {
+        const st = r.status || "non_levee";
+        const sev = r.severity || "minor";
+        lines.push(`- [${sev}/${st}] ${r.text || r.label || "—"}${r.location ? ` (${r.location})` : ""}`);
+      }
+      if (reserves.length > 15) lines.push(`… ${reserves.length - 15} autres réserves non détaillées`);
+    }
+  }
+
+  // Checklists — juste compteurs
+  const checklists = p.checklists || [];
+  if (checklists.length) {
+    const totalItems = checklists.reduce((s, cl) => s + ((cl.items || []).length), 0);
+    const doneItems = checklists.reduce((s, cl) =>
+      s + ((cl.items || []).filter(it => it.checked).length), 0);
+    lines.push(`\n### Checklists`);
+    lines.push(`${checklists.length} checklist${checklists.length > 1 ? "s" : ""} — ${doneItems}/${totalItems} items cochés.`);
   }
 
   // Lots / phases techniques
@@ -121,9 +191,10 @@ const projectSummary = (p) => {
   return lines.join("\n");
 };
 
-export const buildChatContext = ({ projects = [], profile = null, activeContext = null } = {}) => {
+export const buildChatContext = ({ projects = [], profile = null, activeContext = null, activeProjectId = null } = {}) => {
   const active = projects.filter(p => !p.archived);
   const archived = projects.filter(p => p.archived);
+  const activeProject = activeProjectId != null ? active.find(p => p.id === activeProjectId) : null;
 
   const blocks = [];
 
@@ -147,8 +218,21 @@ export const buildChatContext = ({ projects = [], profile = null, activeContext 
     blocks.push(`# Synthèse globale\n${active.length} projet${active.length > 1 ? "s actifs" : " actif"}${archived.length ? `, ${archived.length} archivé${archived.length > 1 ? "s" : ""}` : ""}.\n${totalActions} actions ouvertes (dont ${totalUrgent} urgentes), ${totalPvs} PV au total.\n${totalSessions} sessions de temps enregistrées · ${formatDuration(totalSecondsAll) || "0min"} cumulées.`);
   }
 
-  // Projets actifs détaillés
-  if (active.length > 0) {
+  // Projet actif d'abord (en détail), puis les autres en synthèse.
+  // Si pas de projet actif (vue globale type Vue d'ensemble), tous en
+  // synthèse simple — l'utilisateur peut basculer sur un projet pour
+  // approfondir.
+  if (activeProject) {
+    blocks.push(`# Projet en cours de consultation`);
+    blocks.push(projectSummary(activeProject, { detailed: true }));
+    const others = active.filter(p => p.id !== activeProject.id);
+    if (others.length > 0) {
+      blocks.push(`# Autres projets actifs`);
+      for (const p of others) {
+        blocks.push(projectSummary(p));
+      }
+    }
+  } else if (active.length > 0) {
     blocks.push(`# Projets actifs`);
     for (const p of active) {
       blocks.push(projectSummary(p));
