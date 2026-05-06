@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, REDBG, REDBRD } from "../constants/tokens";
 import { DOC_CATEGORIES } from "../constants/config";
@@ -15,20 +15,31 @@ export function DocumentsView({ project, setProjects, onBack }) {
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
   const [docMenuOpen, setDocMenuOpen] = useState(null);
   const uploadRef = useRef(null);
-  const dirUploadRef = useRef(null);
   const newVersionRef = useRef(null);
   const [importMsg, setImportMsg] = useState("");
 
-  // React 18 ne propage pas toujours les attributs HTML non-standard (webkitdirectory,
-  // directory). On les pose en JS au mount pour garantir que le picker dossier
-  // ouvre bien la sélection de répertoire (Chrome/Edge/Safari).
-  useEffect(() => {
-    if (dirUploadRef.current) {
-      dirUploadRef.current.setAttribute("webkitdirectory", "");
-      dirUploadRef.current.setAttribute("directory", "");
-      dirUploadRef.current.setAttribute("mozdirectory", "");
-    }
-  }, []);
+  // Picker dossier — créé dynamiquement à chaque clic. React filtre les
+  // attributs HTML non-standard (webkitdirectory, directory) sur les inputs
+  // déclarés en JSX, ce qui transformait silencieusement le bouton en
+  // sélecteur de fichiers. En créant l'input en JS pur au moment du clic,
+  // on s'assure que les attributs sont bien posés avant l'ouverture.
+  const openFolderPicker = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.setAttribute("webkitdirectory", "");
+    input.setAttribute("directory", "");
+    input.setAttribute("mozdirectory", "");
+    input.style.display = "none";
+    input.onchange = (e) => {
+      const files = e.target.files;
+      if (files && files.length > 0) importFolder(files, uploadCat);
+      // Cleanup
+      document.body.removeChild(input);
+    };
+    document.body.appendChild(input);
+    input.click();
+  };
   const t = useT();
 
   const docs = project.documents || [];
@@ -148,11 +159,10 @@ export function DocumentsView({ project, setProjects, onBack }) {
           <button onClick={() => uploadRef.current.click()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
             <Ico name="plus" size={14} color="#fff" />{t("docs.addFiles")}
           </button>
-          <button onClick={() => dirUploadRef.current.click()} title="Importe tous les PDF et images d'un dossier (récursif)" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+          <button onClick={openFolderPicker} title="Importe tous les PDF et images d'un dossier (récursif)" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
             <Ico name="folder" size={14} color={TX2} />Importer un dossier
           </button>
           <input ref={uploadRef} type="file" accept=".pdf,image/*" multiple style={{ display: "none" }} onChange={(e) => { addDocuments(e.target.files, uploadCat); e.target.value = ""; }} />
-          <input ref={dirUploadRef} type="file" webkitdirectory="" directory="" multiple style={{ display: "none" }} onChange={(e) => { importFolder(e.target.files, uploadCat); e.target.value = ""; }} />
           <input ref={newVersionRef} type="file" accept=".pdf,image/*" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0] && newVersionDocId) addVersion(newVersionDocId, e.target.files[0]); setNewVersionDocId(null); e.target.value = ""; }} />
         </div>
         <div style={{ fontSize: 11, color: TX3, marginTop: 8 }}>{t("docs.formats")}</div>

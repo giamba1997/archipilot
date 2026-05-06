@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, BL, BLB, GR, GRBG, VI, VIB, REDBRD, SP, FS, RAD } from "../constants/tokens";
 import { Ico, Modal } from "../components/ui";
 import { extractPdfText } from "../utils/chatAttachments";
@@ -76,17 +76,26 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
   const [meta, setMeta] = useState({ name: "", client: "", contractor: "", city: "", startDate: "" });
   const [progress, setProgress] = useState(""); // texte affiché pendant la création
   const [err, setErr] = useState("");
-  const dirRef = useRef(null);
-
-  // React peut filtrer les attributs HTML non-standards (webkitdirectory).
-  // On les pose en JS pour s'assurer que le picker ouvre bien un dossier.
-  useEffect(() => {
-    if (open && step === "pick" && dirRef.current) {
-      dirRef.current.setAttribute("webkitdirectory", "");
-      dirRef.current.setAttribute("directory", "");
-      dirRef.current.setAttribute("mozdirectory", "");
-    }
-  }, [open, step]);
+  // Picker dossier créé dynamiquement à chaque clic — React filtre les
+  // attributs HTML non-standard sur les inputs JSX. En créant l'input en
+  // JS pur au moment du clic, les attributs webkitdirectory/directory
+  // sont garantis présents avant que le picker s'ouvre.
+  const openFolderPicker = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.setAttribute("webkitdirectory", "");
+    input.setAttribute("directory", "");
+    input.setAttribute("mozdirectory", "");
+    input.style.display = "none";
+    input.onchange = (e) => {
+      const files = e.target.files;
+      if (files && files.length > 0) handlePickDir(files);
+      document.body.removeChild(input);
+    };
+    document.body.appendChild(input);
+    input.click();
+  };
 
   const reset = () => {
     setStep("pick");
@@ -263,20 +272,11 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
             Fichiers Word, Excel, DWG ne sont pas supportés dans cette v1 (à venir).
           </div>
           <button
-            onClick={() => dirRef.current?.click()}
+            onClick={openFolderPicker}
             style={{ alignSelf: "flex-start", padding: "10px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}
           >
             <Ico name="folder" size={14} color="#fff" />Sélectionner un dossier
           </button>
-          <input
-            ref={dirRef}
-            type="file"
-            webkitdirectory=""
-            directory=""
-            multiple
-            style={{ display: "none" }}
-            onChange={(e) => { handlePickDir(e.target.files); e.target.value = ""; }}
-          />
         </div>
       )}
 
