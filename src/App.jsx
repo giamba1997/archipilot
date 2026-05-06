@@ -10,7 +10,7 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#FAFAF9", fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#FAFAF9", fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>
           <div style={{ textAlign: "center", maxWidth: 400, padding: 32 }}>
             <div style={{ width: 56, height: 56, borderRadius: 14, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C4392A" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 9v4 M12 17h.01 M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg>
@@ -39,7 +39,7 @@ import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadPro
 import { useInviteToken } from "./hooks/useInviteToken";
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext";
 
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST } from "./constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST, BR, BRB } from "./constants/tokens";
 import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_STATUSES, getPvStatus, nextPvStatus, LOT_COLORS, calcLotStatus } from "./constants/statuses";
 import { RECURRENCES, POST_TEMPLATES, PV_TEMPLATES, REMARK_NUMBERING, CHECKLIST_TEMPLATES } from "./constants/templates";
 import { STRUCTURE_TYPES, PLANS, PLAN_FEATURES, hasFeature, getLimit, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, DOC_CATEGORIES } from "./constants/config";
@@ -48,6 +48,7 @@ import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, sav
 import { relativeDate, parseDateFR, formatDateFR, calcNextMeeting, daysUntil } from "./utils/dates";
 import { formatAddress, parseAddress } from "./utils/address";
 import { parseNotesToRemarks, getDocCurrent } from "./utils/helpers";
+import { getActiveTimer, setActiveTimer as persistActiveTimer, elapsedSeconds, isPaused as timerIsPaused, formatTimer, formatDuration, buildSessionFromTimer, totalSecondsFor } from "./utils/timer";
 import { generatePDF } from "./utils/pdf";
 import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exportParticipantsCSV, importParticipantsCSV, generateICS, downloadICS, getGoogleCalendarUrl } from "./utils/csv";
 import { Ico, Skeleton, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "./components/ui";
@@ -58,7 +59,7 @@ import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, 
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView } from "./views";
+import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, TimerPill, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher } from "./views";
 
 const INIT_PROJECTS = [
   {
@@ -134,6 +135,7 @@ export default function App() {
   const [captureSheet, setCaptureSheet] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);
   const [projectPicker, setProjectPicker] = useState(false);
+  const [phaseMenuOpen, setPhaseMenuOpen] = useState(false);
   const [pickerTab, setPickerTab] = useState("projects"); // "projects" | "dashboard"
   const mobilePhotoRef = useRef(null);
   const galleryInputRef = useRef(null);
@@ -164,6 +166,119 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const { inviteToken, setInviteToken, clearPendingInvite } = useInviteToken();
   const [agencyModalOpen, setAgencyModalOpen] = useState(false);
+
+  // ── Time tracking ──────────────────────────────────────────
+  // The active timer lives in localStorage so it survives reloads and stays
+  // visible across views via the global TimerBanner. `tick` increments every
+  // second when the timer is running, just to force re-renders for the
+  // live display — the source of truth is always derived from segments.
+  const [activeTimer, setActiveTimerState] = useState(() => getActiveTimer());
+  const [tick, setTick] = useState(0);
+  const [showSessionsModal, setShowSessionsModal] = useState(null); // projectId or null
+  const [stopPromptTimer, setStopPromptTimer] = useState(null); // snapshot of timer awaiting description
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const updateActiveTimer = useCallback((next) => {
+    setActiveTimerState(next);
+    persistActiveTimer(next);
+  }, []);
+
+  // Tick once a second only when the timer is actively running (not paused).
+  useEffect(() => {
+    if (!activeTimer || timerIsPaused(activeTimer)) return;
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeTimer]);
+
+  const startTimer = useCallback((proj) => {
+    if (!proj) return;
+    // If a timer is already running on a different project, stop it first
+    // and append its session before switching.
+    if (activeTimer && activeTimer.projectId !== proj.id) {
+      const prev = buildSessionFromTimer(activeTimer);
+      if (prev) {
+        setProjects(ps => ps.map(p => p.id === activeTimer.projectId
+          ? { ...p, timeSessions: [...(p.timeSessions || []), prev] }
+          : p));
+      }
+    }
+    updateActiveTimer({
+      projectId: proj.id,
+      projectName: proj.name,
+      contextKey: activeContext,
+      userId: profile?.id || null,
+      userName: profile?.name || null,
+      segments: [{ startedAt: new Date().toISOString(), endedAt: null }],
+    });
+  }, [activeTimer, activeContext, profile, updateActiveTimer]);
+
+  const pauseResumeTimer = useCallback(() => {
+    if (!activeTimer) return;
+    const segs = [...activeTimer.segments];
+    const last = segs[segs.length - 1];
+    if (last.endedAt === null) {
+      // Pause: close the current segment.
+      segs[segs.length - 1] = { ...last, endedAt: new Date().toISOString() };
+    } else {
+      // Resume: open a new segment.
+      segs.push({ startedAt: new Date().toISOString(), endedAt: null });
+    }
+    updateActiveTimer({ ...activeTimer, segments: segs });
+  }, [activeTimer, updateActiveTimer]);
+
+  // Request stop — pauses the timer (closes the running segment) and opens
+  // the description prompt. The session is only persisted once the user
+  // confirms with a description (ce qui force à documenter le temps).
+  const requestStopTimer = useCallback(() => {
+    if (!activeTimer) return;
+    let snapshot = activeTimer;
+    if (!timerIsPaused(activeTimer)) {
+      // Pause first: close the running segment so the duration is frozen
+      const segs = [...activeTimer.segments];
+      const last = segs[segs.length - 1];
+      segs[segs.length - 1] = { ...last, endedAt: new Date().toISOString() };
+      snapshot = { ...activeTimer, segments: segs };
+      updateActiveTimer(snapshot);
+    }
+    setStopPromptTimer(snapshot);
+  }, [activeTimer, updateActiveTimer]);
+
+  const confirmStopWithNote = useCallback((note) => {
+    if (!stopPromptTimer) return;
+    const session = buildSessionFromTimer(stopPromptTimer, note, { id: profile?.id, name: profile?.name });
+    if (session) {
+      const targetId = stopPromptTimer.projectId;
+      setProjects(ps => ps.map(p => p.id === targetId
+        ? { ...p, timeSessions: [...(p.timeSessions || []), session] }
+        : p));
+    }
+    setStopPromptTimer(null);
+    updateActiveTimer(null);
+  }, [stopPromptTimer, profile, updateActiveTimer]);
+
+  const cancelStopPrompt = useCallback(() => {
+    // Le timer est resté en pause (segment fermé). L'utilisateur peut
+    // reprendre via le bouton Pause/Resume de la card si besoin.
+    setStopPromptTimer(null);
+  }, []);
+
+  const addManualSession = useCallback((projectId, session) => {
+    setProjects(ps => ps.map(p => p.id === projectId
+      ? { ...p, timeSessions: [...(p.timeSessions || []), session] }
+      : p));
+  }, []);
+
+  const editSession = useCallback((projectId, sessionId, patch) => {
+    setProjects(ps => ps.map(p => p.id === projectId
+      ? { ...p, timeSessions: (p.timeSessions || []).map(s => s.id === sessionId ? { ...s, ...patch } : s) }
+      : p));
+  }, []);
+
+  const deleteSession = useCallback((projectId, sessionId) => {
+    setProjects(ps => ps.map(p => p.id === projectId
+      ? { ...p, timeSessions: (p.timeSessions || []).filter(s => s.id !== sessionId) }
+      : p));
+  }, []);
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
@@ -405,7 +520,7 @@ export default function App() {
     showToast("Projet dupliqué avec succès");
   };
 
-  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Dashboard" };
+  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Vue d'ensemble", planningDashboard: "Vue d'ensemble", timesheet: "Vue d'ensemble" };
 
   // ── Global keyboard shortcuts ──
   useEffect(() => {
@@ -425,7 +540,7 @@ export default function App() {
   // Loading screen only if no cached data (first use)
   if (!dbLoaded && projects.length === 0) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 42, height: 42, margin: "0 auto 12px" }} />
           <div style={{ fontSize: 15, fontWeight: 800, color: "#4A3428", marginBottom: 8, fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
@@ -438,7 +553,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <LangContext.Provider value={profile.lang || "fr"}>
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
       {/* Skip to content link (accessibility) */}
       <a href="#main-content" style={{
         position: "absolute", top: -40, left: 0, padding: "8px 16px",
@@ -693,15 +808,30 @@ export default function App() {
         }
 
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,90,44,0.55); } 50% { box-shadow: 0 0 0 5px rgba(192,90,44,0); } }
+        @keyframes chatPopIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes chatTyping { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchWorkspace} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchWorkspace} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
       {sidebarOpen && <div className="ap-sidebar-overlay open" onClick={() => setSidebarOpen(false)} />}
 
       <main id="main-content" className="ap-main" role="main" style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
+        {/* Banner timer — n'apparaît que quand on N'EST PAS sur le projet en cours
+            de suivi (le TimerPill du header projet suffit alors). Très thin (24px). */}
+        {activeTimer && (activeTimer.projectId !== activeId || view === "stats" || view === "planningDashboard" || view === "timesheet" || view === "profile") && (
+          <div style={{ position: "sticky", top: 0, zIndex: 60 }}>
+            <TimerBanner
+              activeTimer={activeTimer}
+              onPauseResume={pauseResumeTimer}
+              onStop={requestStopTimer}
+              onJumpToProject={() => { setActiveId(activeTimer.projectId); setView("overview"); }}
+            />
+          </div>
+        )}
         <div className="ap-header" style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
           {/* Gauche — hamburger + retour + contexte projet */}
           <div style={{ display: "flex", alignItems: "center", gap: SP.sm, flex: "0 0 auto", minWidth: 0 }}>
@@ -709,7 +839,7 @@ export default function App() {
               <Ico name={sidebarOpen ? "x" : "menu"} color={TX2} />
             </button>
             {/* Bouton retour — visible dans les vues profondes */}
-            {view !== "overview" && view !== "stats" && view !== "profile" && (
+            {view !== "overview" && view !== "stats" && view !== "planningDashboard" && view !== "profile" && (
               <button onClick={() => setView("overview")} aria-label="Retour à l'aperçu" className="sb-nav ap-back-btn" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.xs, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
                 <Ico name="back" size={16} color={TX2} />
               </button>
@@ -717,12 +847,12 @@ export default function App() {
             <div style={{ minWidth: 0 }}>
               {view === "profile" ? (
                 <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Mon profil</div>
-              ) : view === "stats" ? (
+              ) : (view === "stats" || view === "planningDashboard" || view === "timesheet") ? (
                 <>
                 <button className="ap-project-switcher" onClick={() => { setPickerTab("dashboard"); setProjectPicker(v => !v); }} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>Dashboard</span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>Vue d'ensemble</span>
                     </div>
                     <div style={{ width: 24, height: 24, borderRadius: "50%", background: projectPicker ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
                       <Ico name="chevron-down" size={12} color={projectPicker ? AC : TX3} />
@@ -732,49 +862,131 @@ export default function App() {
                     <span style={{ fontSize: FS.xs, color: TX3 }}>{projects.filter(p => !p.archived).length} projets actifs</span>
                   </div>
                 </button>
-                <div className="ap-project-name-desktop" style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Dashboard</div>
+                <div className="ap-project-name-desktop" style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Vue d'ensemble</div>
                 </>
-              ) : (
-                <>
-                  <button className="ap-project-switcher" onClick={() => { setPickerTab("projects"); setProjectPicker(v => !v); }} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span role="heading" aria-level="1" style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project?.name}</span>
+              ) : (() => {
+                // Project header v2 — Variant A: 2-line compact
+                if (!project) return null;
+                const st = getStatus(project.statusId);
+                const meetingDays = daysUntil(project.nextMeeting);
+                const meetingState = meetingDays === null ? null
+                  : meetingDays === 0 ? "today"
+                  : meetingDays > 0 ? "upcoming"
+                  : "past";
+                const meetingLabel = meetingState === "today" ? "Aujourd'hui"
+                  : meetingState === "upcoming" ? `Dans ${meetingDays}j`
+                  : meetingState === "past" ? `Passée ${Math.abs(meetingDays)}j`
+                  : null;
+                const urgentCount = (project.actions || []).filter(a => a.open && a.urgent).length;
+                const hasContext = !!(project.client || project.contractor || project.city || project.address || project.startDate);
+                const subView = VIEW_LABELS[view];
+                return (
+                  <>
+                    {/* Mobile : project switcher pill (inchangé) */}
+                    <button className="ap-project-switcher" onClick={() => { setPickerTab("projects"); setProjectPicker(v => !v); }} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span role="heading" aria-level="1" style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{project.name}</span>
+                        </div>
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: projectPicker ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
+                          <Ico name="chevron-down" size={12} color={projectPicker ? AC : TX3} />
+                        </div>
                       </div>
-                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: projectPicker ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
-                        <Ico name="chevron-down" size={12} color={projectPicker ? AC : TX3} />
+                      <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginTop: 3, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: FS.xs, fontWeight: 600, color: st.color, background: st.bg, padding: "1px 6px", borderRadius: 4 }}>{st.label}</span>
+                        <span style={{ fontSize: FS.xs, color: TX3 }}>{project.client}</span>
+                        {subView ? <><span style={{ fontSize: FS.xs, color: TX3 }}>·</span><span style={{ fontSize: FS.xs, color: AC, fontWeight: 600 }}>{subView}</span></> : null}
                       </div>
+                    </button>
+
+                    {/* Desktop : 2-line compact header */}
+                    <div className="ap-project-name-desktop" style={{ minWidth: 0, flex: 1 }}>
+                      {/* Line 1 — name + phase + meeting + urgent */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <h1 role="heading" aria-level="1" className="ap-project-name" style={{ fontSize: 18, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 280, lineHeight: 1.2 }}>{project.name}</h1>
+                        {/* Phase pill — clickable dropdown (déduplique le ProjectStatusSelector d'Overview) */}
+                        <div style={{ position: "relative" }}>
+                          <button onClick={() => setPhaseMenuOpen(o => !o)} aria-label={`Phase : ${st.label}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, color: st.color, background: st.bg, padding: "4px 9px 4px 8px", borderRadius: 14, border: "none", cursor: "pointer", fontFamily: "inherit", minHeight: 26 }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: st.color }} />
+                            {st.label}
+                            <Ico name="chevron-down" size={9} color={st.color} />
+                          </button>
+                          {phaseMenuOpen && (
+                            <>
+                              <div onClick={() => setPhaseMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+                              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: WH, border: `1px solid ${SBB}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: 180, padding: 4, animation: "fadeIn 0.15s ease" }}>
+                                {STATUSES.map(s => (
+                                  <button key={s.id} onClick={() => { updateProject(project.id, { statusId: s.id }); setPhaseMenuOpen(false); }}
+                                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", borderRadius: 7, background: s.id === project.statusId ? s.bg : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "background 0.1s" }}
+                                    onMouseEnter={e => { if (s.id !== project.statusId) e.currentTarget.style.background = SB; }}
+                                    onMouseLeave={e => { if (s.id !== project.statusId) e.currentTarget.style.background = "transparent"; }}>
+                                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 12, fontWeight: s.id === project.statusId ? 700 : 500, color: s.id === project.statusId ? s.color : TX, flex: 1 }}>{s.label}</span>
+                                    {s.id === project.statusId && <Ico name="check" size={11} color={s.color} />}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {/* Meeting pill — only if a meeting exists */}
+                        {meetingLabel && (
+                          <button onClick={() => { setActiveId(project.id); setView("overview"); }} aria-label={`Réunion ${meetingLabel}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600,
+                              color: meetingState === "past" ? BR : meetingState === "today" ? AC : TX2,
+                              background: meetingState === "past" ? BRB : meetingState === "today" ? ACL : SB,
+                              border: `1px solid ${meetingState === "past" ? REDBRD : meetingState === "today" ? ACL2 : SBB}`,
+                              padding: "3px 9px 3px 7px", borderRadius: 14, cursor: "pointer", fontFamily: "inherit", minHeight: 26 }}>
+                            <Ico name="calendar" size={10} color={meetingState === "past" ? BR : meetingState === "today" ? AC : TX2} />
+                            {meetingLabel}
+                          </button>
+                        )}
+                        {/* Urgent badge — only if any urgent open */}
+                        {urgentCount > 0 && (
+                          <button onClick={() => { setActiveId(project.id); setView("overview"); setTimeout(() => { document.querySelector(".ap-section-actions")?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 100); }} aria-label={`${urgentCount} action${urgentCount > 1 ? "s" : ""} urgente${urgentCount > 1 ? "s" : ""}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: BR, background: BRB, border: `1px solid ${REDBRD}`, padding: "3px 9px 3px 7px", borderRadius: 14, cursor: "pointer", fontFamily: "inherit", minHeight: 26 }}>
+                            <Ico name="alert" size={10} color={BR} />
+                            {urgentCount} urgent{urgentCount > 1 ? "s" : ""}
+                          </button>
+                        )}
+                        {/* Sub-view label (e.g. "Documents", "Prise de notes") — small accent text */}
+                        {subView && (
+                          <span style={{ fontSize: FS.xs, color: TX3, fontWeight: 500 }}>·</span>
+                        )}
+                        {subView && (
+                          <span style={{ fontSize: FS.sm, color: AC, fontWeight: 600 }}>{subView}</span>
+                        )}
+                      </div>
+                      {/* Line 2 — sub-line context (Tier 2) — only if any value */}
+                      {hasContext && (
+                        <div className="ap-project-meta" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 12, color: TX3, flexWrap: "nowrap", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 600 }}>
+                          {project.client && <span>MO <strong style={{ color: TX2, fontWeight: 600 }}>{project.client}</strong></span>}
+                          {project.contractor && <><span style={{ color: SBB }}>·</span><span>Entr. <strong style={{ color: TX2, fontWeight: 600 }}>{project.contractor}</strong></span></>}
+                          {(project.city || project.address) && <><span style={{ color: SBB }}>·</span><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Ico name="mappin" size={10} color={TX3} />{project.city || project.address}</span></>}
+                          {project.startDate && <><span style={{ color: SBB }}>·</span><span>{project.startDate}{project.endDate ? ` → ${project.endDate}` : ""}</span></>}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginTop: 3, flexWrap: "wrap" }}>
-                      {project && <span style={{ fontSize: FS.xs, fontWeight: 600, color: getStatus(project.statusId).color, background: getStatus(project.statusId).bg, padding: "1px 6px", borderRadius: 4 }}>{getStatus(project.statusId).label}</span>}
-                      <span style={{ fontSize: FS.xs, color: TX3 }}>{project?.client}</span>
-                      {VIEW_LABELS[view] ? <><span style={{ fontSize: FS.xs, color: TX3 }}>·</span><span style={{ fontSize: FS.xs, color: AC, fontWeight: 600 }}>{VIEW_LABELS[view]}</span></> : null}
-                    </div>
-                  </button>
-                  <div className="ap-project-name-desktop" style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
-                      <span role="heading" aria-level="1" className="ap-project-name" style={{ fontSize: FS.lg, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{project?.name}</span>
-                      {project && <StatusBadge statusId={project.statusId} small />}
-                    </div>
-                    <div className="ap-project-meta" style={{ fontSize: FS.sm, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>
-                      {VIEW_LABELS[view] ? <><span style={{ color: AC, fontWeight: 600 }}>{VIEW_LABELS[view]}</span> · </> : ""}{project?.client}
-                    </div>
-                  </div>
-                </>
-              )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
-          {/* Centre — barre de recherche pilule */}
-          <div className="ap-search-pill" style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <button onClick={() => setShowSearch(true)} aria-label="Rechercher" style={{ display: "flex", alignItems: "center", gap: 8, background: "#F2F2F0", border: "none", borderRadius: 999, padding: "8px 18px", cursor: "text", width: "100%", maxWidth: 400, fontFamily: "inherit" }}>
-              <Ico name="search" size={15} color={TX3} />
-              <span style={{ fontSize: FS.md, color: TX3, fontWeight: 400 }}>Rechercher...</span>
-            </button>
-          </div>
-
-          {/* Droite — notifications + profil */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "0 0 auto" }}>
+          {/* Droite — recherche compacte + notifications + profil */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto", marginLeft: "auto" }}>
+          {/* Recherche : bouton compact ⌘K plutôt que champ permanent */}
+          <button
+            onClick={() => setShowSearch(true)}
+            aria-label="Rechercher (Ctrl+K)"
+            title="Rechercher (Ctrl+K)"
+            className="ap-search-pill"
+            style={{ display: "flex", alignItems: "center", gap: 8, background: SB, border: `1px solid ${SBB}`, borderRadius: 8, padding: "6px 10px 6px 10px", cursor: "pointer", fontFamily: "inherit", height: 32 }}
+          >
+            <Ico name="search" size={14} color={TX3} />
+            <span style={{ fontSize: 12, color: TX2, fontWeight: 500 }}>Rechercher</span>
+            <kbd style={{ fontSize: 10, color: TX3, background: WH, border: `1px solid ${SBB}`, borderRadius: 4, padding: "1px 5px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 1.4 }}>⌘K</kbd>
+          </button>
           {/* Notification bell */}
           <div style={{ position: "relative" }}>
             <button onClick={() => setShowNotifications(p => !p)} aria-label="Notifications" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, borderRadius: RAD.md, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -839,7 +1051,7 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setAgencyModalOpen(true)} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => { if (!hasFeature(profile.plan, "checklists")) return setUpgradeFeature("checklists"); setView("checklists"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => { if (!hasFeature(profile.plan, "checklists")) return setUpgradeFeature("checklists"); setView("checklists"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onOpenSessions={() => setShowSessionsModal(project.id)} />}
           {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => { setView("overview"); setPvStartMode(null); }} initialMode={pvStartMode} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} activeContext={activeContext} />}
           {view !== "profile" && project && view === "notes" && isReadOnly(project) && (() => { setView("overview"); return null; })()}
           {view !== "profile" && project && view === "result" && !isReadOnly(project) && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} onOpenPlans={() => setView("profile")} onRequireUpgrade={(feature) => setUpgradeFeature(feature || "maxAiPerMonth")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
@@ -848,8 +1060,21 @@ export default function App() {
           {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view === "stats" && <StatsView projects={projects} profile={profile} onUpgrade={(feature) => setUpgradeFeature(feature || "exportCsv")} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewPV={(id) => { const limit = getLimit(profile.plan, "maxPvPerMonth"); if (countPvThisMonth() >= limit) { setUpgradeFeature("maxPvPerMonth"); return; } setActiveId(id); setView("notes"); }} onNewProject={tryOpenNewProject} />}
-          {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
+          {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
+          {view === "timesheet" && (() => {
+            const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
+            const myOrg = orgId ? (myOrgs || []).find(o => o.id === orgId) : null;
+            const isOrgAdmin = !!(myOrg && (myOrg._myRole === "owner" || myOrg._myRole === "admin"));
+            return <TimesheetView
+              projects={projects}
+              profile={profile}
+              isOrgAdmin={isOrgAdmin}
+              activeContext={activeContext}
+              onBack={() => setView("overview")}
+              onSelectProject={(id) => { setActiveId(id); setView("overview"); }}
+              onSwitchToCalendar={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }}
+            />;
+          })()}
         </div>
       </main>
 
@@ -1301,7 +1526,7 @@ Règles :
                   </div>
                 ) : (
                   <div>
-                    <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "55vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
+                    <div style={{ padding: 20, background: SB, borderRadius: 10, fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif", fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: TX, maxHeight: "55vh", overflowY: "auto", border: `1px solid ${SBB}` }}>{modalData.content}</div>
                     <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
                       <button onClick={() => { navigator.clipboard.writeText(modalData.content); }} style={{ padding: "10px 20px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: TX2, display: "flex", alignItems: "center", gap: 4 }}>
                         <Ico name="copy" size={14} color={TX3} />Copier
@@ -1491,13 +1716,6 @@ Règles :
             {/* Tab: Pilotage */}
             {pickerTab === "dashboard" && (
               <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, display: "flex", gap: 8 }}>
-                <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "dashboardFull")) return setUpgradeFeature("dashboardFull"); setView("stats"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: ACL, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ico name="chart" size={18} color={AC} />
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Dashboard</div>
-                  <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Vue globale</div>
-                </button>
                 <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: BLB, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="calendar" size={18} color={BL} />
@@ -1633,10 +1851,49 @@ Règles :
         </div>
       )}
 
-      {/* Cookie consent banner — only show after onboarding & tour are done */}
-      {!showOnboarding && !showGuidedTour && <CookieBanner />}
+      {/* Chatbot — bouton flottant + modal. Read-only v1, ouvert à tous, persisté localStorage. */}
+      <ChatLauncher open={chatOpen} onToggle={() => setChatOpen(o => !o)} />
+      <ChatModal
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        projects={projects}
+        profile={profile}
+        activeContext={activeContext}
+      />
 
       {/* Legal pages overlay */}
+      {/* Stop session prompt — modal qui force la saisie d'une description avant
+          de valider la session. Le timer est en pause pendant l'affichage. */}
+      <StopSessionPrompt
+        open={!!stopPromptTimer}
+        capturedTimer={stopPromptTimer}
+        projectName={stopPromptTimer?.projectName}
+        onConfirm={confirmStopWithNote}
+        onCancel={cancelStopPrompt}
+      />
+
+      {/* Sessions modal — montée globalement, pilotée par showSessionsModal=projectId */}
+      {showSessionsModal !== null && (() => {
+        const target = projects.find(p => p.id === showSessionsModal);
+        if (!target) return null;
+        // Admin/owner d'agence peut voir le breakdown par membre.
+        const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
+        const myOrg = orgId ? (myOrgs || []).find(o => o.id === orgId) : null;
+        const isOrgAdmin = myOrg && (myOrg._myRole === "owner" || myOrg._myRole === "admin");
+        return (
+          <SessionsModal
+            open={true}
+            onClose={() => setShowSessionsModal(null)}
+            project={target}
+            currentUser={{ id: profile?.id || null, name: profile?.name || null }}
+            isOrgAdmin={!!isOrgAdmin}
+            onAddManual={(s) => addManualSession(target.id, s)}
+            onEdit={(sid, patch) => editSession(target.id, sid, patch)}
+            onDelete={(sid) => deleteSession(target.id, sid)}
+          />
+        );
+      })()}
+
       {legalPage && (
         <div style={{ position: "fixed", inset: 0, zIndex: 10001, background: BG, overflow: "auto" }}>
           <LegalPage page={legalPage} onBack={() => setLegalPage(null)} />
