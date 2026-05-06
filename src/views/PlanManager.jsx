@@ -38,6 +38,108 @@ export function PlanManager({ project, setProjects, onBack }) {
     if (parentId) setExpanded(p => ({ ...p, [parentId]: true }));
   };
 
+  // Picker dossier — créé dynamiquement à chaque clic. React filtre les
+  // attributs HTML non-standard (webkitdirectory) sur les inputs JSX, ce
+  // qui empêche le picker de dossier de s'ouvrir. En créant l'input en
+  // JS pur on garantit que les attributs sont bien posés avant l'ouverture.
+  // L'arborescence du dossier est préservée : chaque sous-dossier devient
+  // un dossier dans l'app.
+  const openFolderPicker = (parentId) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.setAttribute("webkitdirectory", "");
+    input.setAttribute("directory", "");
+    input.setAttribute("mozdirectory", "");
+    input.style.display = "none";
+    input.onchange = (e) => {
+      const files = e.target.files;
+      if (files && files.length > 0) handleFolderUpload(files, parentId);
+      document.body.removeChild(input);
+    };
+    document.body.appendChild(input);
+    input.click();
+  };
+
+  // Importe un dossier complet en recréant l'arborescence dans planFiles.
+  // Chaque file a un webkitRelativePath comme "Hall6/PV/pv_5.pdf" — on
+  // découpe pour créer les dossiers manquants à la volée.
+  const handleFolderUpload = (fileList, baseParentId) => {
+    const filesArr = Array.from(fileList);
+    if (filesArr.length === 0) return;
+    // Map relPath de dossier -> id, pour ne créer chaque dossier qu'une fois
+    const folderIds = new Map(); // key = "a/b/c", value = generated id
+    const newItems = [];
+    const ensureFolder = (segments, depth) => {
+      if (depth === 0) return baseParentId || null;
+      const key = segments.slice(0, depth).join("/");
+      if (folderIds.has(key)) return folderIds.get(key);
+      const parentKey = depth > 1 ? segments.slice(0, depth - 1).join("/") : null;
+      const parentId = parentKey
+        ? (folderIds.get(parentKey) ?? baseParentId ?? null)
+        : (baseParentId || null);
+      const id = Date.now() + Math.random();
+      folderIds.set(key, id);
+      newItems.push({
+        id, type: "folder",
+        name: segments[depth - 1],
+        parentId,
+        createdAt: new Date().toISOString(),
+      });
+      return id;
+    };
+    let processed = 0;
+    filesArr.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const relPath = file.webkitRelativePath || file.name;
+        const segments = relPath.split("/");
+        // Le dernier segment est le nom du fichier, les précédents sont les dossiers
+        const fileName = segments[segments.length - 1];
+        const folderSegs = segments.slice(0, -1);
+        const parentId = ensureFolder(folderSegs, folderSegs.length);
+        const ext = fileName.split(".").pop().toLowerCase();
+        const imageExts = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "tiff", "tif"];
+        const pdfExts = ["pdf"];
+        const cadExts = ["dwg", "dxf", "skp", "rvt", "rfa", "ifc", "3dm", "step", "stp"];
+        const docExts = ["doc", "docx", "odt", "rtf", "txt"];
+        const sheetExts = ["xls", "xlsx", "csv", "ods"];
+        const slideExts = ["ppt", "pptx", "odp"];
+        const designExts = ["psd", "ai", "indd", "fig", "sketch"];
+        let fileType = "other";
+        if (imageExts.includes(ext)) fileType = "image";
+        else if (pdfExts.includes(ext)) fileType = "pdf";
+        else if (cadExts.includes(ext)) fileType = "cad";
+        else if (docExts.includes(ext)) fileType = "doc";
+        else if (sheetExts.includes(ext)) fileType = "sheet";
+        else if (slideExts.includes(ext)) fileType = "slide";
+        else if (designExts.includes(ext)) fileType = "design";
+        newItems.push({
+          id: Date.now() + Math.random(),
+          type: fileType,
+          name: fileName,
+          parentId,
+          dataUrl: ev.target.result, size: file.size,
+          ext,
+          createdAt: new Date().toISOString(),
+        });
+        processed += 1;
+        // Quand tous les fichiers sont lus, on commit en une seule maj
+        if (processed === filesArr.length) {
+          updatePlanFiles(prev => [...prev, ...newItems]);
+          // Expand tous les dossiers créés pour que l'archi voie tout d'un coup
+          setExpanded(p => {
+            const next = { ...p };
+            for (const id of folderIds.values()) next[id] = true;
+            if (baseParentId) next[baseParentId] = true;
+            return next;
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUpload = (files, parentId) => {
     Array.from(files).forEach(file => {
       const reader = new FileReader();
@@ -333,10 +435,13 @@ export function PlanManager({ project, setProjects, onBack }) {
       {/* Actions bar — desktop only */}
       <div className="ap-plan-actions-bar" style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         <button onClick={() => { setUploadTarget(null); uploadRef.current?.click(); }} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="upload" size={13} color="#fff" />Importer
+          <Ico name="upload" size={13} color="#fff" />Importer fichiers
+        </button>
+        <button onClick={() => openFolderPicker(null)} title="Importer un dossier de ton ordinateur (l'arborescence est préservée)" className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="folder" size={13} color={TX2} />Importer un dossier
         </button>
         <button onClick={() => setNewFolderParent("root")} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="folder" size={13} color={TX3} />Nouveau dossier
+          <Ico name="plus" size={13} color={TX3} />Nouveau dossier
         </button>
         <input ref={uploadRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.dwg,.dxf,.skp,.rvt,.rfa,.ifc,.psd,.ai,.indd,.fig,.sketch,.3dm,.step,.stp,.odt,.ods,.odp,.rtf,.txt" multiple style={{ display: "none" }} onChange={(e) => { handleUpload(e.target.files, uploadTarget); e.target.value = ""; }} />
       </div>
