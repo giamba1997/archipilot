@@ -10,7 +10,6 @@ import { formatAddress } from "../utils/address";
 import { getPvDrafts, removePvDraft } from "../utils/offline";
 import { stripMarkdown, nextPvNumber } from "../utils/helpers";
 import { isReadOnly, canEdit, canManageMembers } from "../components/modals/CollabModal";
-import { WeatherWidget } from "./WeatherWidget";
 import { MeetingCard, MEETING_MODES } from "./MeetingCard";
 import { PvRow, SmallBtn } from "./PvRow";
 import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
