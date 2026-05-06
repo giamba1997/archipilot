@@ -29,7 +29,16 @@ serve(async (req) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({ model: "gpt-4o", max_tokens: maxTokens || 2000, messages }),
+      // gpt-4o-mini : 10x moins cher que gpt-4o, suffit largement pour ce
+      // format structuré (quelques sections + remarques numérotées). Le user
+      // peut surcharger via body.model si un cas particulier le demande.
+      // temperature basse → sortie plus déterministe / format respecté.
+      body: JSON.stringify({
+        model: body.model || "gpt-4o-mini",
+        max_tokens: maxTokens || 2000,
+        temperature: 0.3,
+        messages,
+      }),
     });
 
     if (!openaiRes.ok) {

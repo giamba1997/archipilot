@@ -7,7 +7,7 @@ import { Ico, PB, PvStatusBadge } from "../components/ui";
 import { generatePDF } from "../utils/pdf";
 import { track, loadPvSends, getPhotoUrl, parseFunctionError } from "../db";
 import { SendPvModal } from "../components/modals/SendPvModal";
-import { parseNotesToRemarks } from "../utils/helpers";
+import { parseNotesToRemarks, stripMarkdown, cleanPvOutput } from "../utils/helpers";
 import { formatAddress } from "../utils/address";
 import { PV_TEMPLATES } from "../constants/templates";
 import { hasFeature } from "../constants/config";
@@ -72,7 +72,33 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
     const pvTpl = PV_TEMPLATES.find(t => t.id === project.pvTemplate);
     const SYS = pvTpl?.prompt || t("ai.systemPrompt");
     const recipientCtx = pvRecipients && pvRecipients.length > 0 ? "\n" + t("ai.recipientFilter", { recipients: pvRecipients.join(", ") }) : "";
-    const userPrompt = `PROJET: ${project.name}\nCLIENT: ${project.client}\nENTREPRISE: ${project.contractor}\nADRESSE: ${formatAddress(project)}${(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => `\n${cf.label.toUpperCase()}: ${cf.value}`).join("")}\nPV N${pvNum} — ${date}${pvFieldData?.visitStart ? `\nVISITE: ${pvFieldData.visitStart}${pvFieldData.visitEnd ? ` → ${pvFieldData.visitEnd}` : ""}` : ""}${pvFieldData?.attendance ? `\nPRÉSENTS: ${pvFieldData.attendance.filter(a => a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${pvFieldData?.attendance?.some(a => !a.present) ? `\nABSENTS: ${pvFieldData.attendance.filter(a => !a.present).map(a => `${a.name} (${a.role})`).join(", ")}` : ""}${recipientCtx}\n\nNOTES:\n${notes}\n\nTransforme en PV.`;
+    // User prompt en 3 sections distinctes pour cadrer le modèle :
+    //   [CONTEXTE] = méta (NE PAS reproduire)
+    //   [NOTES BRUTES] = ce qu'il faut transformer
+    //   [RAPPEL] = consigne ultime
+    // Le contexte donne au modèle assez d'info pour adapter le ton (ex: tutoyer
+    // un MO institutionnel serait inadapté), sans l'inviter à le répéter.
+    const ctxLines = [];
+    if (project.client) ctxLines.push(`Maître d'ouvrage : ${project.client}`);
+    if (project.contractor) ctxLines.push(`Entreprise : ${project.contractor}`);
+    if (project.customFields) {
+      for (const cf of (project.customFields || [])) {
+        if (cf.label && cf.value) ctxLines.push(`${cf.label} : ${cf.value}`);
+      }
+    }
+    if (pvRecipients?.length > 0) {
+      ctxLines.push(`Filtre destinataires : ${pvRecipients.join(", ")} — ne garde que les remarques pertinentes pour ces destinataires.`);
+    }
+    const userPrompt = [
+      "[CONTEXTE — pour ta compréhension uniquement, NE PAS reproduire dans la sortie]",
+      ctxLines.join("\n") || "(aucun)",
+      "",
+      "[NOTES BRUTES À TRANSFORMER]",
+      notes,
+      "",
+      "[RAPPEL]",
+      "Produis UNIQUEMENT les sections numérotées et leurs remarques. Aucun en-tête, aucune intro, aucune conclusion, aucun markdown. Format strict NN. Titre / NN.X texte.",
+    ].join("\n");
     try {
       const { data, error } = await supabase.functions.invoke("generate-pv", {
         body: { systemPrompt: SYS, userPrompt, maxTokens: pvTpl?.id === "detailed" ? 3000 : 2000 },
@@ -87,7 +113,10 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
       }
       if (data?.error) throw new Error(data.error);
       const txt = data?.content;
-      if (txt) setResult(txt); else throw new Error(t("result.emptyResponse"));
+      // Defensive cleanup : strip markdown / drop leaked headers / force
+      // numbering even if the model regresses despite the strict prompt.
+      const cleaned = cleanPvOutput(txt);
+      if (cleaned) setResult(cleaned); else throw new Error(t("result.emptyResponse"));
     } catch (e) { setErr(e.name === "AbortError" ? t("result.cancelled") : e.message); }
     finally { setLoading(false); clearInterval(timer.current); }
   };
@@ -116,7 +145,7 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
     track("pv_generated", { pv_number: pvNum, project_name: project.name, _page: "result" });
     setProjects((prev) => prev.map((p) => p.id === project.id ? {
       ...p,
-      pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: result.slice(0, 100) + "...", content: result, inputNotes, status: "draft" }, ...p.pvHistory],
+      pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: stripMarkdown(result).slice(0, 140) + "…", content: result, inputNotes, status: "draft" }, ...p.pvHistory],
       // Carry forward open/progress remarks; remove done ones
       posts: p.posts.map((po) => ({
         ...po,
