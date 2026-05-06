@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, REDBG, REDBRD } from "../constants/tokens";
 import { DOC_CATEGORIES } from "../constants/config";
@@ -18,6 +18,17 @@ export function DocumentsView({ project, setProjects, onBack }) {
   const dirUploadRef = useRef(null);
   const newVersionRef = useRef(null);
   const [importMsg, setImportMsg] = useState("");
+
+  // React 18 ne propage pas toujours les attributs HTML non-standard (webkitdirectory,
+  // directory). On les pose en JS au mount pour garantir que le picker dossier
+  // ouvre bien la sélection de répertoire (Chrome/Edge/Safari).
+  useEffect(() => {
+    if (dirUploadRef.current) {
+      dirUploadRef.current.setAttribute("webkitdirectory", "");
+      dirUploadRef.current.setAttribute("directory", "");
+      dirUploadRef.current.setAttribute("mozdirectory", "");
+    }
+  }, []);
   const t = useT();
 
   const docs = project.documents || [];

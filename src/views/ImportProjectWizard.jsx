@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, BL, BLB, GR, GRBG, VI, VIB, REDBRD, SP, FS, RAD } from "../constants/tokens";
 import { Ico, Modal } from "../components/ui";
 import { extractPdfText } from "../utils/chatAttachments";
@@ -77,6 +77,16 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
   const [progress, setProgress] = useState(""); // texte affiché pendant la création
   const [err, setErr] = useState("");
   const dirRef = useRef(null);
+
+  // React peut filtrer les attributs HTML non-standards (webkitdirectory).
+  // On les pose en JS pour s'assurer que le picker ouvre bien un dossier.
+  useEffect(() => {
+    if (open && step === "pick" && dirRef.current) {
+      dirRef.current.setAttribute("webkitdirectory", "");
+      dirRef.current.setAttribute("directory", "");
+      dirRef.current.setAttribute("mozdirectory", "");
+    }
+  }, [open, step]);
 
   const reset = () => {
     setStep("pick");
