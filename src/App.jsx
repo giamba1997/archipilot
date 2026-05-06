@@ -567,7 +567,7 @@ export default function App() {
     showToast("Projet dupliqué avec succès");
   };
 
-  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Vue d'ensemble", planningDashboard: "Vue d'ensemble", timesheet: "Vue d'ensemble" };
+  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Vue d'ensemble", planningDashboard: "Vue d'ensemble", timesheet: "Vue d'ensemble", gallery: "Photos" };
 
   // ── Global keyboard shortcuts ──
   useEffect(() => {
