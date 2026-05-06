@@ -7,7 +7,6 @@ export { NoteEditor } from "./NoteEditor";
 export { StatsView } from "./StatsView";
 export { PlanningDashboard } from "./PlanningDashboard";
 export { ResultView } from "./ResultView";
-export { DocumentsView } from "./DocumentsView";
 export { CropTool } from "./CropTool";
 export { GallerySheet } from "./GallerySheet";
 export { GalleryView } from "./GalleryView";

@@ -59,7 +59,7 @@ import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, 
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, TimerPill, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard } from "./views";
+import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, TimerPill, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard } from "./views";
 
 const INIT_PROJECTS = [
   {
