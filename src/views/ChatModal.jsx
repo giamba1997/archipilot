@@ -398,15 +398,9 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
     if (files.length) handleFiles(files);
   };
 
-  const handleClear = () => {
-    if (messages.length > 0 && !confirm("Effacer définitivement cette conversation ? Pour la garder en archive, utilise plutôt « Nouveau sujet ».")) return;
-    setMessages([]);
-    setErr("");
-    setShowArchives(false);
-  };
-
   // Archive la conversation actuelle (si non vide) puis vide. Pas de prompt :
-  // l'archive est la mécanique de safety net, on ne perd rien.
+  // l'archive est la mécanique de safety net, on ne perd rien. Si l'archi
+  // veut vraiment supprimer, il peut le faire depuis le panneau archives.
   const handleNewTopic = () => {
     if (messages.length > 0) {
       const archived = {
@@ -495,71 +489,75 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
           fontFamily: "inherit",
         }}
       >
-        {/* Header */}
+        {/* Header — gauche : titre + sujet courant ; droite : nouveau / archives / close */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 16px", borderBottom: `1px solid ${SBB}`,
-          background: ACL,
+          padding: "10px 12px 10px 14px", borderBottom: `1px solid ${SBB}`,
+          background: ACL, gap: 8,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: 1 }}>
             <div style={{
               width: 28, height: 28, borderRadius: "50%", background: AC,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
               <span style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>✦</span>
             </div>
-            <div>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: TX, lineHeight: 1.2 }}>
                 Assistant ArchiPilot
               </div>
-              <div style={{ fontSize: 10, color: TX3, marginTop: 1 }}>
-                Pose tes questions sur tes projets
+              <div
+                title={
+                  showArchives ? "Conversations passées"
+                  : messages.length === 0 ? "Pose tes questions sur tes projets"
+                  : titleForConversation(messages)
+                }
+                style={{
+                  fontSize: 10, color: TX3, marginTop: 1,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}
+              >
+                {showArchives
+                  ? "Conversations passées"
+                  : messages.length === 0
+                    ? "Pose tes questions sur tes projets"
+                    : titleForConversation(messages)}
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            {messages.length > 0 && (
+          <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+            {messages.length > 0 && !showArchives && (
               <button
                 onClick={handleNewTopic}
                 aria-label="Nouveau sujet"
-                title="Démarrer un nouveau sujet (la conversation actuelle sera archivée)"
+                title="Nouveau sujet — archive le fil actuel et repart frais"
                 style={{
-                  height: 28, padding: "0 10px", border: `1px solid ${ACL2}`, borderRadius: 6,
+                  width: 28, height: 28, border: `1px solid ${ACL2}`, borderRadius: 6,
                   background: WH, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit",
                 }}
               >
-                <Ico name="plus" size={11} color={TX2} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: TX2 }}>Nouveau sujet</span>
+                <Ico name="plus" size={13} color={TX2} />
               </button>
             )}
-            {(archives.length > 0 || messages.length > 0) && (
+            {archives.length > 0 && (
               <button
                 onClick={() => setShowArchives(s => !s)}
-                aria-label="Conversations archivées"
+                aria-label={`${archives.length} sujet${archives.length > 1 ? "s" : ""} passé${archives.length > 1 ? "s" : ""}`}
                 aria-pressed={showArchives}
-                title={archives.length > 0 ? `${archives.length} conversation${archives.length > 1 ? "s" : ""} archivée${archives.length > 1 ? "s" : ""}` : "Aucune conversation archivée"}
+                title={showArchives ? "Revenir à la conversation" : "Voir les conversations passées"}
                 style={{
-                  width: 28, height: 28, border: "none", borderRadius: 6,
-                  background: showArchives ? WH : "transparent", cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
+                  height: 28, padding: "0 10px",
+                  border: `1px solid ${showArchives ? AC : ACL2}`, borderRadius: 6,
+                  background: showArchives ? AC : WH, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+                  transition: "all 0.12s",
                 }}
               >
-                <Ico name="history" size={12} color={TX3} />
-              </button>
-            )}
-            {messages.length > 0 && (
-              <button
-                onClick={handleClear}
-                aria-label="Effacer définitivement"
-                title="Effacer définitivement (sans archiver)"
-                style={{
-                  width: 28, height: 28, border: "none", borderRadius: 6,
-                  background: "transparent", cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                <Ico name="trash" size={12} color={TX3} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: showArchives ? "#fff" : TX2 }}>
+                  {archives.length} sujet{archives.length > 1 ? "s" : ""} passé{archives.length > 1 ? "s" : ""}
+                </span>
+                <span style={{ fontSize: 9, color: showArchives ? "#fff" : TX3, lineHeight: 1, transform: showArchives ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▾</span>
               </button>
             )}
             <button
@@ -570,6 +568,7 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
                 width: 28, height: 28, border: "none", borderRadius: 6,
                 background: "transparent", cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
+                marginLeft: 2,
               }}
             >
               <Ico name="x" size={14} color={TX3} />
