@@ -1,4 +1,5 @@
 import { getStatus } from "../constants/statuses";
+import { nextPvNumber } from "./helpers";
 
 export function downloadCSV(filename, headers, rows) {
   const escape = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -79,7 +80,7 @@ export function generateICS(project) {
   const uid = `archipilot-${project.id}-${dateStr}@archipilot.app`;
   const summary = `Réunion de chantier — ${project.name}`;
   const location = project.address || "";
-  const description = `PV n°${(project.pvHistory?.length || 0) + 1}\\nClient: ${project.client}\\nEntreprise: ${project.contractor}`;
+  const description = `PV n°${nextPvNumber(project.pvHistory)}\\nClient: ${project.client}\\nEntreprise: ${project.contractor}`;
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -116,6 +117,6 @@ export function getGoogleCalendarUrl(project) {
   const dateStr = `${parts[2]}${parts[1]}${parts[0]}`;
   const title = encodeURIComponent(`Réunion de chantier — ${project.name}`);
   const location = encodeURIComponent(project.address || "");
-  const details = encodeURIComponent(`PV n°${(project.pvHistory?.length || 0) + 1}\nClient: ${project.client}\nEntreprise: ${project.contractor}`);
+  const details = encodeURIComponent(`PV n°${nextPvNumber(project.pvHistory)}\nClient: ${project.client}\nEntreprise: ${project.contractor}`);
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateStr}/${dateStr}&location=${location}&details=${details}`;
 }

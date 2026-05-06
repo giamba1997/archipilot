@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseNotesToRemarks, getDocCurrent, cleanPvOutput } from "../helpers";
+import { parseNotesToRemarks, getDocCurrent, cleanPvOutput, nextPvNumber } from "../helpers";
 
 describe("parseNotesToRemarks", () => {
   it("splits notes by newline and creates remarks", () => {
@@ -157,5 +157,30 @@ describe("getDocCurrent", () => {
     const current = getDocCurrent(doc);
     expect(current.dataUrl).toBe("data:test");
     expect(current.version).toBe(1);
+  });
+});
+
+describe("nextPvNumber", () => {
+  it("returns 1 for empty history", () => {
+    expect(nextPvNumber([])).toBe(1);
+    expect(nextPvNumber(undefined)).toBe(1);
+    expect(nextPvNumber(null)).toBe(1);
+  });
+
+  it("returns max+1 from a contiguous list", () => {
+    expect(nextPvNumber([{ number: 1 }, { number: 2 }, { number: 3 }])).toBe(4);
+  });
+
+  it("returns max+1 even when a number is missing in the middle", () => {
+    // PV n°2 was deleted — next must be 6, not 5 (length+1 would be wrong)
+    expect(nextPvNumber([{ number: 1 }, { number: 3 }, { number: 4 }, { number: 5 }])).toBe(6);
+  });
+
+  it("ignores entries without a numeric number", () => {
+    expect(nextPvNumber([{ number: 5 }, { number: undefined }, { number: "abc" }])).toBe(6);
+  });
+
+  it("handles string numbers", () => {
+    expect(nextPvNumber([{ number: "7" }, { number: "3" }])).toBe(8);
   });
 });

@@ -3,7 +3,7 @@ import { PV_STATUSES, getPvStatus, nextPvStatus } from "../constants/statuses";
 import { Ico, PvStatusBadge } from "../components/ui";
 import { relativeDate } from "../utils/dates";
 
-export function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
+export function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, onDeletePv, t }) {
   const hasInput = pv.inputNotes && pv.inputNotes.length > 0;
   const hasContent = !!(pv.content || pv.pdfDataUrl);
   return (
@@ -33,6 +33,11 @@ export function PvRow({ pv, onViewPV, onViewPdf, updatePvStatus, t }) {
         {hasContent && (
           <button onClick={() => onViewPdf(pv)} style={{ height: 28, padding: "0 9px", borderRadius: 6, border: `1px solid ${AC}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
             <Ico name="file" size={10} color={AC} /><span style={{ fontSize: 9, fontWeight: 600, color: AC }}>PDF</span>
+          </button>
+        )}
+        {onDeletePv && (
+          <button onClick={() => onDeletePv(pv)} title="Supprimer ce PV" aria-label="Supprimer ce PV" style={{ height: 28, width: 28, borderRadius: 6, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>
+            <Ico name="trash" size={10} color={TX3} />
           </button>
         )}
       </div>

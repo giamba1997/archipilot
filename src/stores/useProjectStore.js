@@ -45,6 +45,7 @@ const useProjectStore = create((set, get) => ({
         posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }],
         pvHistory: [], actions: [], planImage: null, planMarkers: [], planStrokes: [],
         documents: [], lots: [], checklists: [], customFields: [],
+        cahierDesCharges: null,
       }],
       activeId: id,
     }));
@@ -64,6 +65,7 @@ const useProjectStore = create((set, get) => ({
         posts: project.posts.map(po => ({ ...po, notes: "", photos: [] })),
         archived: false, planImage: null, planMarkers: [], planStrokes: [],
         documents: [], lots: [], checklists: [],
+        cahierDesCharges: null,
       }],
       activeId: id,
     }));

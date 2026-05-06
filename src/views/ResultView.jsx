@@ -7,7 +7,7 @@ import { Ico, PB, PvStatusBadge } from "../components/ui";
 import { generatePDF } from "../utils/pdf";
 import { track, loadPvSends, getPhotoUrl, parseFunctionError } from "../db";
 import { SendPvModal } from "../components/modals/SendPvModal";
-import { parseNotesToRemarks, stripMarkdown, cleanPvOutput } from "../utils/helpers";
+import { parseNotesToRemarks, stripMarkdown, cleanPvOutput, nextPvNumber } from "../utils/helpers";
 import { formatAddress } from "../utils/address";
 import { PV_TEMPLATES } from "../constants/templates";
 import { hasFeature } from "../constants/config";
@@ -25,7 +25,7 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
   const [savedPvNum, setSavedPvNum] = useState(null);
   const timer = useRef(null);
   const ctrl = useRef(null);
-  const pvNum = savedPvNum || project.pvHistory.length + 1;
+  const pvNum = savedPvNum || nextPvNumber(project.pvHistory);
   const t = useT();
 
   useEffect(() => { run(); return () => { clearInterval(timer.current); ctrl.current?.abort(); }; }, []);

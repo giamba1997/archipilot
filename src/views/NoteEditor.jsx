@@ -4,7 +4,7 @@ import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BR, BRB, SG, SGB, AM, AMB } from "../constants/tokens";
 import { getStatus, nextStatus, getRemarkStatus } from "../constants/statuses";
 import { Ico, PB } from "../components/ui";
-import { parseNotesToRemarks } from "../utils/helpers";
+import { parseNotesToRemarks, nextPvNumber } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
 import { addToOfflineQueue, savePvDraft } from "../utils/offline";
 import { PhotoAnnotationViewer } from "./PhotoAnnotationViewer";
@@ -48,7 +48,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [freeWriteText, setFreeWriteText] = useState("");
   const [pendingDictation, setPendingDictation] = useState(initialMode === "dictate"); // show waiting state until recording starts
   const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
-  const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
+  const [pvTitle, setPvTitle] = useState(`PV n°${nextPvNumber(project.pvHistory)}`);
   const [currentStep, setCurrentStep] = useState(0);
   const [renamingPost, setRenamingPost] = useState(null);
   const [renameVal,    setRenameVal]    = useState("");
@@ -1771,7 +1771,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                     savePvDraft({
                       projectId: project.id,
                       projectName: project.name,
-                      pvNumber: project.pvHistory.length + 1,
+                      pvNumber: nextPvNumber(project.pvHistory),
                       pvTitle,
                       recipientFilters,
                       attendance,

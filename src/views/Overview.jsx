@@ -8,7 +8,7 @@ import { Ico, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "../compo
 import { relativeDate } from "../utils/dates";
 import { formatAddress } from "../utils/address";
 import { getPvDrafts, removePvDraft } from "../utils/offline";
-import { stripMarkdown } from "../utils/helpers";
+import { stripMarkdown, nextPvNumber } from "../utils/helpers";
 import { isReadOnly, canEdit, canManageMembers } from "../components/modals/CollabModal";
 import { WeatherWidget } from "./WeatherWidget";
 import { MeetingCard, MEETING_MODES } from "./MeetingCard";
@@ -16,6 +16,7 @@ import { PvRow, SmallBtn } from "./PvRow";
 import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
 import { usePresence } from "../hooks/usePresence";
 import { TimerCard } from "./TimerCard";
+import { CdcBanner } from "./CdcBanner";
 
 // Compact stack of avatars for live presence — shows up to 4 distinct
 // users currently on the project, with a +N pill if there are more.
@@ -69,7 +70,7 @@ const CardHeader = ({ title, action }) => (
   </div>
 );
 
-export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onOpenSessions }) {
+export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onOpenSessions, onAskAiAboutCdc }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
@@ -85,6 +86,8 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   }), [profile?.name, profile?.picture]);
   const { present, selfId } = usePresence(presenceKey, presenceInfo);
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
+  const deletePv = (pvNum) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.filter(pv => pv.number !== pvNum) } : p));
+  const setCdc = (cdc) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, cahierDesCharges: cdc } : p));
   const urgent = project.actions.filter((a) => a.urgent && a.open);
   const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
   const rec = RECURRENCES.find((r) => r.id === project.recurrence);
@@ -92,6 +95,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   const [showAllPV, setShowAllPV] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [mobileSheet, setMobileSheet] = useState(null); // "pv" | "actions" | "team" | "meeting"
+  const [pvToDelete, setPvToDelete] = useState(null); // PV object pending deletion confirmation
 
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
@@ -110,6 +114,16 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
       {/* Time tracking — déplacé dans le top header (TimerPill).
           La SessionsModal reste accessible via le pill chrono. */}
+
+      {/* ── Cahier des charges (toujours visible) ── */}
+      <CdcBanner
+        project={project}
+        profile={profile}
+        canEdit={_canEdit}
+        onUpload={setCdc}
+        onRemove={() => setCdc(null)}
+        onAskAi={onAskAiAboutCdc ? () => onAskAiAboutCdc(project) : null}
+      />
 
       {/* ── Bandeau urgences ── */}
       {urgent.length > 0 && (
@@ -270,7 +284,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           {/* CTA Nouveau PV — version compacte (≈70% de la colonne, plus de bannière pleine largeur) */}
           {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={() => onStartNotes()} style={{ alignSelf: "flex-start", padding: "10px 16px 10px 12px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 10, letterSpacing: "-0.1px" }}>
             <Ico name="edit" size={14} color="#fff" />
-            <span>{t("project.newPV")} · n°{project.pvHistory.length + 1}</span>
+            <span>{t("project.newPV")} · n°{nextPvNumber(project.pvHistory)}</span>
             <span style={{ opacity: 0.75, fontWeight: 400 }}>·</span>
             <span style={{ opacity: 0.85, fontWeight: 400 }}>
               {project.nextMeeting ? t("project.meetingOn", { date: project.nextMeeting }) : t("project.prepareNextPV")}
@@ -443,13 +457,18 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                             <Ico name="file" size={11} color={AC} /><span style={{ fontSize: FS.sm, color: AC, fontWeight: 600 }}>PDF</span>
                           </button>
                         )}
+                        {_canEdit && (
+                          <button onClick={() => setPvToDelete(lastPV)} title="Supprimer ce PV" aria-label="Supprimer ce PV" style={{ background: WH, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.xs + 2}px ${SP.sm + 1}px`, display: "flex", alignItems: "center", fontFamily: "inherit" }}>
+                            <Ico name="trash" size={11} color={TX3} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
                 {/* Anciens PV — limité à 2 (3 total avec le dernier) */}
                 {project.pvHistory.slice(1, 3).map((pv, i) => (
-                  <PvRow key={i} pv={pv} onViewPV={onViewPV} onViewPdf={onViewPdf} updatePvStatus={updatePvStatus} t={t} />
+                  <PvRow key={i} pv={pv} onViewPV={onViewPV} onViewPdf={onViewPdf} updatePvStatus={updatePvStatus} onDeletePv={_canEdit ? setPvToDelete : null} t={t} />
                 ))}
                 {/* Bouton voir tout */}
                 {project.pvHistory.length > 3 && !showAllPV && (
@@ -716,6 +735,44 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           </div>
         </div>
       )}
+
+      {/* Modale confirmation suppression PV ── */}
+      <Modal open={!!pvToDelete} onClose={() => setPvToDelete(null)} title="Supprimer ce PV ?">
+        {pvToDelete && (
+          <div style={{ display: "flex", flexDirection: "column", gap: SP.md }}>
+            <div style={{ padding: `${SP.md}px ${SP.md + 2}px`, background: SB, border: `1px solid ${SBB}`, borderRadius: RAD.md }}>
+              <div style={{ fontSize: FS.md, fontWeight: 600, color: TX, marginBottom: 4 }}>
+                {pvToDelete.title || `PV n°${pvToDelete.number}`}
+              </div>
+              <div style={{ fontSize: FS.sm, color: TX3 }}>
+                {pvToDelete.date}{pvToDelete.author ? ` · ${pvToDelete.author}` : ""}
+              </div>
+            </div>
+            {pvToDelete.status === "sent" && (
+              <div style={{ padding: `${SP.sm + 2}px ${SP.md}px`, background: BRB, border: `1px solid ${REDBRD}`, borderRadius: RAD.md, fontSize: FS.sm, color: TX, lineHeight: 1.5 }}>
+                <strong style={{ color: BR }}>Ce PV a été envoyé.</strong> Le destinataire en conserve sa copie ; la suppression ici ne le retire que de ton historique ArchiPilot.
+              </div>
+            )}
+            <div style={{ fontSize: FS.sm, color: TX2, lineHeight: 1.5 }}>
+              Cette action est définitive. Le numéro <strong>n°{pvToDelete.number}</strong> ne sera pas réattribué — le prochain PV utilisera le numéro suivant le plus haut.
+            </div>
+            <div style={{ display: "flex", gap: SP.sm, justifyContent: "flex-end", marginTop: SP.xs }}>
+              <button
+                onClick={() => setPvToDelete(null)}
+                style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: RAD.sm, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => { deletePv(pvToDelete.number); setPvToDelete(null); }}
+                style={{ padding: "8px 16px", border: "none", borderRadius: RAD.sm, background: BR, color: "#fff", fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Ico name="trash" size={12} color="#fff" />Supprimer
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
     </div>
   );

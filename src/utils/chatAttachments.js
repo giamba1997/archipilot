@@ -85,7 +85,10 @@ const resizeImage = async (file) => {
 };
 
 // Extraction texte d'un PDF via pdfjs-dist (déjà dans deps pour PDFPreview).
-const extractPdfText = async (file) => {
+// Exporté car réutilisé pour le cahier des charges (extraction au moment de
+// l'upload, le texte est ensuite stocké pour ne pas re-parser à chaque requête
+// chatbot).
+export const extractPdfText = async (file) => {
   const pdfjs = await import("pdfjs-dist");
   // Worker setup — vite gère bien l'import direct du worker en dev/build.
   const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;

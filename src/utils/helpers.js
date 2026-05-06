@@ -114,6 +114,21 @@ export const cleanPvOutput = (raw) => {
   return text;
 };
 
+// Returns the next available PV number for a project. Uses max(numbers) + 1
+// instead of length + 1 so that deleting a PV in the middle never produces a
+// duplicate number — the deleted slot stays empty (e.g. 1, 2, 4, 5 → next is 6).
+// PV numbers are an official reference shared with clients and entrepreneurs;
+// reusing one would create real-world ambiguity.
+export const nextPvNumber = (pvHistory) => {
+  const list = Array.isArray(pvHistory) ? pvHistory : [];
+  let max = 0;
+  for (const pv of list) {
+    const n = Number(pv?.number);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max + 1;
+};
+
 export const getDocCurrent = (doc) => {
   if (doc.versions && doc.versions.length > 0) {
     const v = doc.versions[doc.versions.length - 1];
