@@ -6,3 +6,4 @@ export { Field } from "./Field";
 export { StatusBadge } from "./StatusBadge";
 export { PvStatusBadge } from "./PvStatusBadge";
 export { KpiCard } from "./KpiCard";
+export { VUMeter } from "./VUMeter";

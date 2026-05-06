@@ -3,7 +3,7 @@ import { useT, useTP } from "../i18n";
 import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BR, BRB, SG, SGB, AM, AMB } from "../constants/tokens";
 import { getStatus, nextStatus, getRemarkStatus } from "../constants/statuses";
-import { Ico, PB } from "../components/ui";
+import { Ico, PB, VUMeter } from "../components/ui";
 import { parseNotesToRemarks, nextPvNumber } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
 import { addToOfflineQueue, savePvDraft } from "../utils/offline";
@@ -693,6 +693,11 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             <div style={{ fontSize: 14, fontWeight: 600, color: isRecording ? RD : TX2, marginBottom: 6 }}>
               {isRecording ? t("notes.listening") : t("notes.pressToSpeak")}
             </div>
+            {isRecording && (
+              <div style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 10, marginBottom: 4 }}>
+                <VUMeter active={isRecording} label="Niveau du micro" />
+              </div>
+            )}
             {voiceInterim && (
               <div style={{ fontSize: 13, color: TX3, fontStyle: "italic", textAlign: "center", maxWidth: 320, lineHeight: 1.5, marginTop: 4 }}>
                 « {voiceInterim} »
@@ -1085,6 +1090,9 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 <span style={{ fontSize: 14, fontWeight: 600, color: BR, fontVariantNumeric: "tabular-nums" }}>
                   {String(Math.floor(contSeconds / 60)).padStart(2, "0")}:{String(contSeconds % 60).padStart(2, "0")}
                 </span>
+              </div>
+              <div style={{ width: "100%", display: "flex", justifyContent: "center", marginBottom: 14 }}>
+                <VUMeter active={contRecording} label="Niveau du micro" />
               </div>
               <div style={{ width: "100%", minHeight: 60, maxHeight: 220, overflowY: "auto", marginBottom: 16, padding: "12px 14px", background: WH, borderRadius: 10, border: `1px solid ${REDBRD}`, fontSize: 13, color: TX, lineHeight: 1.7 }}>
                 {contTranscript ? (
