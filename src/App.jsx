@@ -59,7 +59,7 @@ import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, 
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, TimerPill, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher } from "./views";
+import { WeatherWidget, MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, StatsView, PlanningDashboard, ResultView, DocumentsView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, TimerPill, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard } from "./views";
 
 const INIT_PROJECTS = [
   {
@@ -178,6 +178,7 @@ export default function App() {
   const [stopPromptTimer, setStopPromptTimer] = useState(null); // snapshot of timer awaiting description
   const [chatOpen, setChatOpen] = useState(false);
   const [chatPrefill, setChatPrefill] = useState(null);
+  const [importWizardOpen, setImportWizardOpen] = useState(false);
 
   const updateActiveTimer = useCallback((next) => {
     setActiveTimerState(next);
@@ -514,6 +515,51 @@ export default function App() {
     track("project_created", { project_name: newP.name, _page: "overview" });
   };
 
+  // Import depuis un dossier — appelé par ImportProjectWizard avec les
+  // fichiers déjà classés et lus (cahierDesCharges, pvHistory, documents).
+  const importProjectFromFolder = ({ meta, cahierDesCharges, pvHistory, documents }) => {
+    const id = Math.max(...projects.map((p) => p.id), 0) + 1;
+    const tpl = POST_TEMPLATES.find(t => t.id === (profile.postTemplate || "general")) || POST_TEMPLATES[0];
+    const posts = tpl.posts.map(p => ({ id: p.id, label: p.label, notes: "", remarks: [] }));
+    setProjects((prev) => [...prev, {
+      id,
+      name: meta.name,
+      client: meta.client || "",
+      contractor: meta.contractor || "",
+      city: meta.city || "",
+      address: meta.city || "",
+      startDate: meta.startDate || "",
+      endDate: "",
+      progress: 0,
+      bureau: profile.structure,
+      statusId: "construction",
+      recurrence: "none",
+      archived: false,
+      nextMeeting: "",
+      participants: [{ role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone }],
+      posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }],
+      pvHistory: pvHistory || [],
+      actions: [],
+      planImage: null, planMarkers: [], planStrokes: [],
+      documents: documents || [],
+      lots: [], checklists: [], customFields: [],
+      reserves: [], oprHistory: [],
+      cahierDesCharges: cahierDesCharges || null,
+      pvTemplate: profile.pvTemplate || "standard",
+      remarkNumbering: profile.remarkNumbering || "none",
+      postTemplate: profile.postTemplate || "general",
+    }]);
+    setActiveId(id);
+    setView("overview");
+    setImportWizardOpen(false);
+    track("project_imported", {
+      project_name: meta.name,
+      pv_count: (pvHistory || []).length,
+      doc_count: (documents || []).length,
+      has_cdc: !!cahierDesCharges,
+    });
+  };
+
   const duplicateProject = () => {
     const id = Math.max(...projects.map((p) => p.id), 0) + 1;
     setProjects((prev) => [...prev, { ...project, id, name: project.name + " (copie)", pvHistory: [], actions: [], posts: project.posts.map((po) => ({ ...po, notes: "", photos: [] })), archived: false, planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [], cahierDesCharges: null }]);
@@ -814,7 +860,7 @@ export default function App() {
         @keyframes chatTyping { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchWorkspace} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onImportProject={() => setImportWizardOpen(true)} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchWorkspace} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -1853,6 +1899,12 @@ Règles :
       )}
 
       {/* Chatbot — bouton flottant + modal. Read-only v1, ouvert à tous, persisté localStorage. */}
+      <ImportProjectWizard
+        open={importWizardOpen}
+        onClose={() => setImportWizardOpen(false)}
+        profile={profile}
+        onImport={importProjectFromFolder}
+      />
       <ChatLauncher open={chatOpen} onToggle={() => setChatOpen(o => !o)} />
       <ChatModal
         open={chatOpen}

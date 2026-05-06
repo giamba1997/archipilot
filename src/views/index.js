@@ -30,3 +30,4 @@ export { TimesheetView } from "./TimesheetView";
 export { StopSessionPrompt } from "./StopSessionPrompt";
 export { ChatModal, ChatLauncher } from "./ChatModal";
 export { CdcBanner } from "./CdcBanner";
+export { ImportProjectWizard } from "./ImportProjectWizard";

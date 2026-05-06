@@ -15,7 +15,9 @@ export function DocumentsView({ project, setProjects, onBack }) {
   const [confirmDeleteDoc, setConfirmDeleteDoc] = useState(null);
   const [docMenuOpen, setDocMenuOpen] = useState(null);
   const uploadRef = useRef(null);
+  const dirUploadRef = useRef(null);
   const newVersionRef = useRef(null);
+  const [importMsg, setImportMsg] = useState("");
   const t = useT();
 
   const docs = project.documents || [];
@@ -43,6 +45,39 @@ export function DocumentsView({ project, setProjects, onBack }) {
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  // Import en lot d'un dossier complet (récursif via webkitdirectory).
+  // On filtre sur PDF + images uniquement — DWG, Word, Excel sont skippés
+  // dans cette v1 (volumes potentiellement énormes, parsing inutile).
+  // Si l'archi tombe sur "trop de fichiers" ou "trop lourd", on confirme
+  // avant pour éviter de péter la row JSONB Supabase.
+  const importFolder = (fileList, cat) => {
+    const supportedExtRe = /\.(pdf|jpe?g|png|webp|heic|heif)$/i;
+    const candidates = Array.from(fileList).filter(f =>
+      f.type.startsWith("image/") || f.type === "application/pdf" || supportedExtRe.test(f.name)
+    );
+    if (candidates.length === 0) {
+      setImportMsg("Aucun fichier PDF ou image trouvé dans ce dossier.");
+      setTimeout(() => setImportMsg(""), 4000);
+      return;
+    }
+    const totalBytes = candidates.reduce((s, f) => s + f.size, 0);
+    const totalMb = Math.round(totalBytes / 1024 / 1024);
+    // Garde-fou : au-delà de 80 Mo cumulés, on demande confirmation.
+    if (totalMb > 80) {
+      const ok = confirm(
+        `Tu vas importer ${candidates.length} fichier${candidates.length > 1 ? "s" : ""} (${totalMb} Mo). C'est lourd à stocker — confirme pour continuer.`
+      );
+      if (!ok) return;
+    }
+    addDocuments(candidates, cat);
+    const skipped = fileList.length - candidates.length;
+    setImportMsg(
+      `${candidates.length} fichier${candidates.length > 1 ? "s" : ""} importé${candidates.length > 1 ? "s" : ""} (${totalMb} Mo)` +
+      (skipped > 0 ? ` — ${skipped} fichier${skipped > 1 ? "s" : ""} non supporté${skipped > 1 ? "s" : ""} ignoré${skipped > 1 ? "s" : ""}.` : ".")
+    );
+    setTimeout(() => setImportMsg(""), 5000);
   };
 
   const addVersion = (docId, file) => {
@@ -102,10 +137,19 @@ export function DocumentsView({ project, setProjects, onBack }) {
           <button onClick={() => uploadRef.current.click()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
             <Ico name="plus" size={14} color="#fff" />{t("docs.addFiles")}
           </button>
+          <button onClick={() => dirUploadRef.current.click()} title="Importe tous les PDF et images d'un dossier (récursif)" style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+            <Ico name="folder" size={14} color={TX2} />Importer un dossier
+          </button>
           <input ref={uploadRef} type="file" accept=".pdf,image/*" multiple style={{ display: "none" }} onChange={(e) => { addDocuments(e.target.files, uploadCat); e.target.value = ""; }} />
+          <input ref={dirUploadRef} type="file" webkitdirectory="" directory="" multiple style={{ display: "none" }} onChange={(e) => { importFolder(e.target.files, uploadCat); e.target.value = ""; }} />
           <input ref={newVersionRef} type="file" accept=".pdf,image/*" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0] && newVersionDocId) addVersion(newVersionDocId, e.target.files[0]); setNewVersionDocId(null); e.target.value = ""; }} />
         </div>
         <div style={{ fontSize: 11, color: TX3, marginTop: 8 }}>{t("docs.formats")}</div>
+        {importMsg && (
+          <div role="status" style={{ marginTop: 10, padding: "8px 12px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 8, fontSize: 12, color: AC, fontWeight: 500 }}>
+            {importMsg}
+          </div>
+        )}
       </div>
 
       {/* Mobile title */}

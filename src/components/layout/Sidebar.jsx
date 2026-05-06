@@ -5,7 +5,7 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, SP, FS, RAD } from "
 import { getStatus, STATUS_TOTAL_STEPS } from "../../constants/statuses";
 import { Ico } from "../ui";
 
-export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning, activeContext, myOrgs, onSwitchContext, contextLoading, onCreateAgency }) {
+export function Sidebar({ projects, activeId, view, onSelect, open, onClose, profile, onNewProject, onImportProject, onProfile, installable, onInstall, sharedProjects, onSelectShared, onStats, onPlanning, activeContext, myOrgs, onSwitchContext, contextLoading, onCreateAgency }) {
   const [sortBy, setSortBy] = useState("client"); // "recency" | "name" | "client"
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -85,10 +85,16 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
         )}
 
         {/* CTA Nouveau projet — pleine largeur, signature element */}
-        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 0", minHeight: 38, border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, boxShadow: "0 1px 2px rgba(192,90,44,0.20)" }}>
+        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 0", minHeight: 38, border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 6, boxShadow: "0 1px 2px rgba(192,90,44,0.20)" }}>
           <Ico name="plus" size={14} color="#fff" />
           <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
         </button>
+        {onImportProject && (
+          <button onClick={onImportProject} title="Importer un projet existant depuis un dossier de ton ordinateur" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 0", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", marginBottom: 14, color: TX3 }}>
+            <Ico name="folder" size={11} color={TX3} />
+            <span style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.01em" }}>Importer un projet existant</span>
+          </button>
+        )}
 
         {/* Navigation primaire — entrée unique "Vue d'ensemble". Le toggle
             Liste/Calendrier interne est rendu par StatsView/PlanningDashboard. */}
