@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useT } from "../i18n";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, LH, RAD, GRBG, REDBG, REDBRD, BL, BLB, TE, TEB } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, LH, RAD, GRBG, REDBG, REDBRD, BL, BLB, TE, TEB, QT_DOC_BG, QT_DOC_FG, QT_PHOTO_BG, QT_PHOTO_FG, QT_PLAN_BG, QT_PLAN_FG, QT_LIST_BG, QT_LIST_FG, BR, BRB, SG, SGB } from "../constants/tokens";
 import { getStatus, STATUSES, nextPvStatus } from "../constants/statuses";
 const updateProjectField = (project, setProjects, field, value) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, [field]: value } : p));
 import { RECURRENCES } from "../constants/templates";
@@ -8,12 +8,14 @@ import { Ico, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "../compo
 import { relativeDate } from "../utils/dates";
 import { formatAddress } from "../utils/address";
 import { getPvDrafts, removePvDraft } from "../utils/offline";
+import { stripMarkdown } from "../utils/helpers";
 import { isReadOnly, canEdit, canManageMembers } from "../components/modals/CollabModal";
 import { WeatherWidget } from "./WeatherWidget";
 import { MeetingCard, MEETING_MODES } from "./MeetingCard";
 import { PvRow, SmallBtn } from "./PvRow";
 import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
 import { usePresence } from "../hooks/usePresence";
+import { TimerCard } from "./TimerCard";
 
 // Compact stack of avatars for live presence — shows up to 4 distinct
 // users currently on the project, with a +N pill if there are more.
@@ -67,7 +69,7 @@ const CardHeader = ({ title, action }) => (
   </div>
 );
 
-export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile }) {
+export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onOpenSessions }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
@@ -98,27 +100,26 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   return (
     <div className="ap-overview-wrap" style={{ maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
 
-      {/* ── Barre contexte projet — masquée sur mobile (redondant avec header) ── */}
-      <div className="ap-context-bar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <ProjectStatusSelector statusId={project.statusId} onChange={(id) => updateProjectField(project, setProjects, "statusId", id)} />
-          {project.client     && <span style={{ fontSize: 12, color: TX3 }}>MO <strong style={{ color: TX2, fontWeight: 600 }}>{project.client}</strong></span>}
-          {project.contractor && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}>Entr. <strong style={{ color: TX2, fontWeight: 600 }}>{project.contractor}</strong></span></>}
-          {(project.city || project.address) && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}><Ico name="mappin" size={10} color={TX3} /> {project.city || project.address}</span></>}
-          {project.startDate  && <><span style={{ color: SBB }}>·</span><span style={{ fontSize: 12, color: TX3 }}>{project.startDate}{project.endDate ? ` → ${project.endDate}` : ""}</span></>}
+      {/* Barre contexte projet — déplacée dans le top header (App.jsx).
+          Ici on garde uniquement la présence collab à droite du contenu. */}
+      {(present.length > 0) && (
+        <div className="ap-context-bar" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 12 }}>
+          <PresenceAvatars present={present} selfId={selfId} />
         </div>
-        <PresenceAvatars present={present} selfId={selfId} />
-      </div>
+      )}
+
+      {/* Time tracking — déplacé dans le top header (TimerPill).
+          La SessionsModal reste accessible via le pill chrono. */}
 
       {/* ── Bandeau urgences ── */}
       {urgent.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, marginBottom: 16 }}>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#EF4444", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 10, marginBottom: 16 }}>
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: BR, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Ico name="alert" size={14} color="#fff" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C" }}>{urgent.length} action{urgent.length > 1 ? "s" : ""} urgente{urgent.length > 1 ? "s" : ""} — </span>
-            <span style={{ fontSize: 13, color: "#B91C1C" }}>{urgent.map(a => a.text).join(" · ")}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: BR }}>{urgent.length} action{urgent.length > 1 ? "s" : ""} urgente{urgent.length > 1 ? "s" : ""} — </span>
+            <span style={{ fontSize: 13, color: BR }}>{urgent.map(a => a.text).join(" · ")}</span>
           </div>
         </div>
       )}
@@ -128,7 +129,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         const drafts = getPvDrafts().filter(d => d.projectId === project.id);
         if (drafts.length === 0) return null;
         return (
-          <div style={{ marginBottom: 14, padding: "12px 16px", background: "#FDF4E7", border: `1px solid ${ACL2}`, borderRadius: 10 }}>
+          <div style={{ marginBottom: 14, padding: "12px 16px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Ico name="clock" size={14} color={AC} />
               <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{drafts.length} brouillon{drafts.length > 1 ? "s" : ""} en attente de génération</span>
@@ -201,12 +202,12 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
               {/* Actions */}
               <button onClick={() => setMobileSheet("actions")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: openActions.length > 0 ? (urgent.length > 0 ? "#FEF2F2" : SB) : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: openActions.length > 0 ? (urgent.length > 0 ? BRB : SB) : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Ico name="alert" size={16} color={openActions.length > 0 ? (urgent.length > 0 ? RD : TX3) : GR} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Actions</div>
-                  <div style={{ fontSize: 11, color: openActions.length > 0 ? (urgent.length > 0 ? "#B91C1C" : TX3) : GR }}>
+                  <div style={{ fontSize: 11, color: openActions.length > 0 ? (urgent.length > 0 ? BR : TX3) : GR }}>
                     {openActions.length === 0 ? "Toutes clôturées" : `${openActions.length} ouverte${openActions.length > 1 ? "s" : ""}${urgent.length > 0 ? ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}` : ""}`}
                   </div>
                 </div>
@@ -266,18 +267,15 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
           </div>
 
-          {/* CTA Nouveau PV */}
-          {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={() => onStartNotes()} style={{ width: "100%", padding: "15px 20px", border: "none", borderRadius: 12, background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 2px 10px rgba(192,90,44,0.22)", letterSpacing: "-0.1px" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Ico name="edit" size={16} color="#fff" />
-            </div>
-            <div style={{ textAlign: "left" }}>
-              <div>{t("project.newPV")} · n°{project.pvHistory.length + 1}</div>
-              <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.85, marginTop: 1 }}>
-                {project.nextMeeting ? t("project.meetingOn", { date: project.nextMeeting }) : t("project.prepareNextPV")}
-              </div>
-            </div>
-            <Ico name="arrowr" size={18} color="rgba(255,255,255,0.8)" />
+          {/* CTA Nouveau PV — version compacte (≈70% de la colonne, plus de bannière pleine largeur) */}
+          {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={() => onStartNotes()} style={{ alignSelf: "flex-start", padding: "10px 16px 10px 12px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 10, letterSpacing: "-0.1px" }}>
+            <Ico name="edit" size={14} color="#fff" />
+            <span>{t("project.newPV")} · n°{project.pvHistory.length + 1}</span>
+            <span style={{ opacity: 0.75, fontWeight: 400 }}>·</span>
+            <span style={{ opacity: 0.85, fontWeight: 400 }}>
+              {project.nextMeeting ? t("project.meetingOn", { date: project.nextMeeting }) : t("project.prepareNextPV")}
+            </span>
+            <Ico name="arrowr" size={14} color="rgba(255,255,255,0.85)" />
           </button>}
 
           {/* OPR Summary Card */}
@@ -311,14 +309,14 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             );
           })()}
 
-          {/* Outils rapides — masqués sur mobile (bottom bar remplace) */}
+          {/* Outils rapides — palette earth harmonisée (4 tints du même ton) */}
           <div className="ap-quick-tools" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {[
-              { label: "Documents",            icon: "folder",    color: BL,  bg: BLB,  count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
-              { label: "Photos",               icon: "camera",    color: AC,  bg: ACL,  count: (project.gallery||[]).length,     onClick: onGallery },
-              { label: t("project.planning"),  icon: "gantt",     color: GR,  bg: GRBG, count: (project.lots||[]).length,        onClick: onViewPlanning },
-              { label: t("project.lists"),     icon: "listcheck", color: TE,  bg: TEB,  count: (project.checklists||[]).length,  onClick: onViewChecklists },
-              ...((project.statusId === "reception" || (project.reserves || []).length > 0) ? [{ label: "Réserves", icon: "alert", color: RD, bg: REDBG, count: (project.reserves || []).filter(r => r.status !== "levee").length, onClick: onOpr }] : []),
+              { label: "Documents",            icon: "folder",    color: QT_DOC_FG,   bg: QT_DOC_BG,   count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
+              { label: "Photos",               icon: "camera",    color: QT_PHOTO_FG, bg: QT_PHOTO_BG, count: (project.gallery||[]).length,     onClick: onGallery },
+              { label: t("project.planning"),  icon: "gantt",     color: QT_PLAN_FG,  bg: QT_PLAN_BG,  count: (project.lots||[]).length,        onClick: onViewPlanning },
+              { label: t("project.lists"),     icon: "listcheck", color: QT_LIST_FG,  bg: QT_LIST_BG,  count: (project.checklists||[]).length,  onClick: onViewChecklists },
+              ...((project.statusId === "reception" || (project.reserves || []).length > 0) ? [{ label: "Réserves", icon: "alert", color: BR, bg: BRB, count: (project.reserves || []).filter(r => r.status !== "levee").length, onClick: onOpr }] : []),
             ].map((tb) => (
               <button key={tb.label} onClick={tb.onClick} style={{ flex: "1 1 80px", padding: "10px 8px", border: `1px solid ${tb.color}25`, borderRadius: 10, background: tb.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                 <Ico name={tb.icon} size={16} color={tb.color} />
@@ -344,6 +342,64 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               </button>
             ))}
           </div>
+
+          {/* Actions */}
+          <div className="ap-section-actions"><Card>
+            <CardHeader
+              title={t("project.actions")}
+              action={openActions.length > 0
+                ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: urgent.length > 0 ? BR : TX3, background: urgent.length > 0 ? BRB : SB2, padding: "2px 9px 2px 6px", borderRadius: 20 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: urgent.length > 0 ? BR : TX3, display: "inline-block" }} />
+                    {openActions.length} ouverte{openActions.length > 1 ? "s" : ""}
+                    {urgent.length > 0 && ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}`}
+                  </span>
+                : null}
+            />
+            {openActions.length === 0 && closedActions.length === 0 && (
+              <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>{t("project.noActions")}</div>
+            )}
+            {openActions.length === 0 && closedActions.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0" }}>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", background: SGB, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Ico name="check" size={13} color={GR} />
+                </div>
+                <span style={{ fontSize: 13, color: GR, fontWeight: 500 }}>{t("project.allActionsClosed")}</span>
+              </div>
+            )}
+            {/* Urgentes en premier */}
+            {project.actions.filter(a => a.open && a.urgent).map((a) => (
+              <div key={a.id} style={{ display: "flex", gap: 10, padding: "9px 10px", marginBottom: 4, background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 8, alignItems: "flex-start" }}>
+                <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${BR}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, padding: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: BR, fontWeight: 600, lineHeight: 1.3 }}>{a.text}</div>
+                  <div style={{ fontSize: 11, color: BR, marginTop: 2 }}>{a.who} — {a.since}</div>
+                </div>
+              </div>
+            ))}
+            {/* Normales */}
+            {project.actions.filter(a => a.open && !a.urgent).map((a) => (
+              <div key={a.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: `1px solid ${SB2}`, alignItems: "flex-start" }}>
+                <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${SBB}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, padding: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: TX, lineHeight: 1.3 }}>{a.text}</div>
+                  <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{a.who} — {a.since}</div>
+                </div>
+              </div>
+            ))}
+            {/* Clôturées — discrètes */}
+            {closedActions.length > 0 && (
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${SB2}` }}>
+                {closedActions.map((a) => (
+                  <div key={a.id} style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "center", opacity: 0.55 }}>
+                    <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${GR}`, background: SGB, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
+                      <Ico name="check" size={11} color={GR} />
+                    </button>
+                    <div style={{ fontSize: 12, color: TX3, textDecoration: "line-through", flex: 1, minWidth: 0 }}>{a.text}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card></div>
 
           {/* Dernier PV */}
           <div className="ap-section-pv"><Card>
@@ -372,7 +428,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                             : <PvStatusBadge status={lastPV.status} onClick={() => updatePvStatus(lastPV.number, nextPvStatus(lastPV.status || "draft"))} />
                           }
                         </div>
-                        <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 6 }}>{lastPV.excerpt}</div>
+                        <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{stripMarkdown(lastPV.excerpt)}</div>
                         <div style={{ display: "flex", gap: 10, fontSize: FS.sm, color: TX3 }}>
                           <span title={lastPV.date}>{relativeDate(lastPV.date)}</span><span>{lastPV.author}</span>
                           {!lastPV.imported && <span>{lastPV.postsCount} poste{lastPV.postsCount > 1 ? "s" : ""}</span>}
@@ -414,63 +470,6 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             )}
           </Card></div>
 
-          {/* Actions */}
-          <div className="ap-section-actions"><Card>
-            <CardHeader
-              title={t("project.actions")}
-              action={openActions.length > 0
-                ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: urgent.length > 0 ? "#B91C1C" : TX3, background: urgent.length > 0 ? "#FEF2F2" : SB2, padding: "2px 9px 2px 6px", borderRadius: 20 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: urgent.length > 0 ? "#EF4444" : TX3, display: "inline-block" }} />
-                    {openActions.length} ouverte{openActions.length > 1 ? "s" : ""}
-                    {urgent.length > 0 && ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}`}
-                  </span>
-                : null}
-            />
-            {openActions.length === 0 && closedActions.length === 0 && (
-              <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>{t("project.noActions")}</div>
-            )}
-            {openActions.length === 0 && closedActions.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0" }}>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ico name="check" size={13} color={GR} />
-                </div>
-                <span style={{ fontSize: 13, color: GR, fontWeight: 500 }}>{t("project.allActionsClosed")}</span>
-              </div>
-            )}
-            {/* Urgentes en premier */}
-            {project.actions.filter(a => a.open && a.urgent).map((a) => (
-              <div key={a.id} style={{ display: "flex", gap: 10, padding: "9px 10px", marginBottom: 4, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, alignItems: "flex-start" }}>
-                <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: "1.5px solid #EF4444", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, padding: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: "#B91C1C", fontWeight: 600, lineHeight: 1.3 }}>{a.text}</div>
-                  <div style={{ fontSize: 11, color: "#EF4444", marginTop: 2 }}>{a.who} — {a.since}</div>
-                </div>
-              </div>
-            ))}
-            {/* Normales */}
-            {project.actions.filter(a => a.open && !a.urgent).map((a) => (
-              <div key={a.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: `1px solid ${SB2}`, alignItems: "flex-start" }}>
-                <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${SBB}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, padding: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: TX, lineHeight: 1.3 }}>{a.text}</div>
-                  <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{a.who} — {a.since}</div>
-                </div>
-              </div>
-            ))}
-            {/* Clôturées — discrètes */}
-            {closedActions.length > 0 && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${SB2}` }}>
-                {closedActions.map((a) => (
-                  <div key={a.id} style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "center", opacity: 0.55 }}>
-                    <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${GR}`, background: "#F0FDF4", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
-                      <Ico name="check" size={11} color={GR} />
-                    </button>
-                    <div style={{ fontSize: 12, color: TX3, textDecoration: "line-through", flex: 1, minWidth: 0 }}>{a.text}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card></div>
 
         </div>
 
@@ -542,7 +541,17 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             <div style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
               <MeetingCard project={project} setProjects={setProjects} rec={rec} />
 
-              {(project.city || project.address) && <WeatherWidget address={project.city || formatAddress(project)} />}
+              {/* Suivi du temps — card visible sous Prochaine réunion */}
+              {onStartTimer && (
+                <TimerCard
+                  project={project}
+                  activeTimer={activeTimer}
+                  onStart={onStartTimer}
+                  onPauseResume={onPauseResumeTimer}
+                  onStop={onStopTimer}
+                  onOpenSessions={onOpenSessions}
+                />
+              )}
 
               <Card>
                 <CardHeader
@@ -587,13 +596,14 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                     </div>
                   ))}
                 </div>
+                {/* Actions admin intégrées en pied de card Informations — plus discrètes que la rangée flottante */}
+                {_canManage && (
+                  <div className="ap-admin-actions" style={{ display: "flex", gap: 4, marginTop: SP.md, paddingTop: SP.sm + 2, borderTop: `1px solid ${SB2}` }}>
+                    <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
+                    <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
+                  </div>
+                )}
               </Card>
-
-              {_canManage && <div className="ap-admin-actions" style={{ display: "flex", gap: 6 }}>
-                <SmallBtn onClick={onEditInfo} icon="edit" label={t("edit")} />
-                <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
-                <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
-              </div>}
             </div>
           </div>
 
@@ -631,7 +641,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                   <div key={a.id} style={{ display: "flex", alignItems: "center", gap: SP.sm, padding: `${SP.sm}px 0`, borderTop: `1px solid ${SB2}` }}>
                     <button onClick={() => toggleAction(a.id)} style={{ width: 24, height: 24, borderRadius: RAD.sm, border: `2px solid ${a.urgent ? RD : SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }} />
                     <span style={{ fontSize: FS.md, color: TX, flex: 1 }}>{a.text}</span>
-                    {a.urgent && <span style={{ fontSize: FS.xs, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "2px 6px", borderRadius: 4 }}>Urgent</span>}
+                    {a.urgent && <span style={{ fontSize: FS.xs, fontWeight: 700, color: RD, background: BRB, padding: "2px 6px", borderRadius: 4 }}>Urgent</span>}
                   </div>
                 ))}
               </div>

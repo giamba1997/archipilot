@@ -27,7 +27,7 @@ function DashCard({ children, style: s = {} }) {
   return <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", ...s }}>{children}</div>;
 }
 
-export function StatsView({ projects, profile, onBack, onSelectProject, onNewPV, onNewProject, onUpgrade }) {
+export function StatsView({ projects, profile, onBack, onSelectProject, onNewPV, onNewProject, onUpgrade, onSwitchToCalendar, onSwitchToTimesheet }) {
   const t = useT();
   const active = projects.filter(p => !p.archived);
   const [showExport, setShowExport] = useState(false);
@@ -197,10 +197,33 @@ export function StatsView({ projects, profile, onBack, onSelectProject, onNewPV,
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" color={TX2} /></button>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: TX, letterSpacing: "-0.3px" }}>Dashboard</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: TX, letterSpacing: "-0.3px" }}>Vue d'ensemble</div>
             <div style={{ fontSize: 12, color: TX3 }}>{active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""}{urgentActions > 0 ? ` · ${urgentActions} urgence${urgentActions > 1 ? "s" : ""}` : ""}</div>
           </div>
         </div>
+        {/* Toggle 3 modes — Liste · Calendrier · Temps */}
+        {onSwitchToCalendar && (
+          <div style={{ display: "inline-flex", background: SB, border: `1px solid ${SBB}`, borderRadius: 8, padding: 2, gap: 1 }}>
+            <button aria-pressed="true" style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", border: "none", borderRadius: 6, background: WH, cursor: "default", fontFamily: "inherit", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+              <Ico name="chart" size={12} color={AC} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: AC }}>Liste</span>
+            </button>
+            <button onClick={onSwitchToCalendar} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", border: "none", borderRadius: 6, background: "transparent", cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.background = SB2}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <Ico name="calendar" size={12} color={TX3} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>Calendrier</span>
+            </button>
+            {onSwitchToTimesheet && (
+              <button onClick={onSwitchToTimesheet} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", border: "none", borderRadius: 6, background: "transparent", cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.background = SB2}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <Ico name="clock" size={12} color={TX3} />
+                <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>Temps</span>
+              </button>
+            )}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={onNewProject} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: TX2 }}>
             <Ico name="plus" size={12} color={TX3} />Projet

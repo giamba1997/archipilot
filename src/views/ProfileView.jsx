@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useT } from "../i18n";
 import { LangContext } from "../i18n";
 import { supabase } from "../supabase";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, DIS, DIST, LH } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, DIS, DIST, LH, BR, BRB, REDBRD, SG, SGB, AM } from "../constants/tokens";
 import { PLANS, hasFeature, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, STRUCTURE_TYPES } from "../constants/config";
 import { Ico, Field } from "../components/ui";
 import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, loadMyOrganizations, deleteOrganization } from "../db";
@@ -181,9 +181,9 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         <button
           onClick={() => supabase.auth.signOut()}
           className="ap-profile-card"
-          style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid #FECACA`, borderRadius: RAD.md, background: "#FEF8F8", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
+          style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: `1px solid ${REDBRD}`, borderRadius: RAD.md, background: BRB, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 28, height: 28, borderRadius: RAD.sm, background: BRB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Ico name="logout" size={13} color={RD} />
           </div>
           <span style={{ fontSize: FS.base, fontWeight: 600, color: RD }}>Se déconnecter</span>
@@ -492,13 +492,13 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
           <button
             onClick={handleChangeAuthEmail}
             disabled={emailLoading || !newAuthEmail.trim() || newAuthEmail === authEmail}
-            style={{ padding: "11px 18px", border: "none", borderRadius: 8, background: newAuthEmail !== authEmail && newAuthEmail.trim() ? AC : "#D3D1C7", color: "#fff", fontSize: 13, fontWeight: 600, cursor: newAuthEmail !== authEmail && newAuthEmail.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", whiteSpace: "nowrap" }}
+            style={{ padding: "11px 18px", border: "none", borderRadius: 8, background: newAuthEmail !== authEmail && newAuthEmail.trim() ? AC : DIS, color: "#fff", fontSize: 13, fontWeight: 600, cursor: newAuthEmail !== authEmail && newAuthEmail.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", whiteSpace: "nowrap" }}
           >
             {emailLoading ? "..." : t("profile.changeEmail")}
           </button>
         </div>
-        {emailMsg && <div style={{ marginTop: 10, padding: "8px 12px", background: "#EAF3DE", border: "1px solid #C6E9B4", borderRadius: 6, fontSize: 12, color: GR }}>{emailMsg}</div>}
-        {emailErr && <div style={{ marginTop: 10, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, fontSize: 12, color: RD }}>{emailErr}</div>}
+        {emailMsg && <div style={{ marginTop: 10, padding: "8px 12px", background: SGB, border: `1px solid ${SG}33`, borderRadius: 6, fontSize: 12, color: SG }}>{emailMsg}</div>}
+        {emailErr && <div style={{ marginTop: 10, padding: "8px 12px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 6, fontSize: 12, color: RD }}>{emailErr}</div>}
       </div>
 
       {/* Sécurité — MFA */}
@@ -728,7 +728,7 @@ function DataSection({ refFor }) {
       </div>
 
       {error && (
-        <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, marginBottom: 14, fontSize: 13, color: RD }}>
+        <div style={{ padding: "10px 14px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 10, marginBottom: 14, fontSize: 13, color: RD }}>
           {error}
         </div>
       )}
@@ -765,15 +765,15 @@ function DataSection({ refFor }) {
           <button
             onClick={() => setConfirmDelete(true)}
             style={{
-              padding: "9px 18px", border: `1px solid #FECACA`, borderRadius: 8,
-              background: "#FEF2F2", color: RD, fontSize: 13, fontWeight: 600,
+              padding: "9px 18px", border: `1px solid ${REDBRD}`, borderRadius: 8,
+              background: BRB, color: RD, fontSize: 13, fontWeight: 600,
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
             Supprimer mon compte
           </button>
         ) : (
-          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: 16 }}>
+          <div style={{ background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 10, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 8 }}>
               Êtes-vous sûr ? Tapez SUPPRIMER pour confirmer.
             </div>
@@ -783,7 +783,7 @@ function DataSection({ refFor }) {
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder="Tapez SUPPRIMER"
               style={{
-                width: "100%", padding: "9px 12px", border: `1px solid #FECACA`, borderRadius: 8,
+                width: "100%", padding: "9px 12px", border: `1px solid ${REDBRD}`, borderRadius: 8,
                 fontSize: 14, fontFamily: "inherit", background: WH, color: TX,
                 boxSizing: "border-box", marginBottom: 10, outline: "none",
               }}
@@ -825,7 +825,7 @@ function DataSection({ refFor }) {
           style={{ position: "fixed", inset: 0, zIndex: 10020, background: "rgba(31,41,55,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: "100%", maxWidth: 520, background: WH, borderRadius: 16, padding: "22px 24px 20px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: BRB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Ico name="alert" size={17} color={RD} />
               </div>
               <div style={{ paddingTop: 4 }}>

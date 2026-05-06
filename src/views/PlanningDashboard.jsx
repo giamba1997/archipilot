@@ -3,7 +3,7 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, BL, BLB, SP, FS,
 import { calcLotStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
 
-export function PlanningDashboard({ projects, onBack, onSelectProject }) {
+export function PlanningDashboard({ projects, onBack, onSelectProject, onSwitchToTimesheet }) {
   const active = projects.filter(p => !p.archived);
   const [viewMode, setViewMode] = useState("week");
   const [filter, setFilter] = useState("all");
@@ -332,29 +332,55 @@ export function PlanningDashboard({ projects, onBack, onSelectProject }) {
   // ═══ DESKTOP PLANNING ═══
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
-      {/* Unified top bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
+      {/* Header — structure alignée avec StatsView pour cohérence Liste↔Calendrier */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, display: "flex", alignItems: "center" }}><Ico name="back" color={TX2} size={16} /></button>
-          <span style={{ fontSize: 18, fontWeight: 800, color: TX, letterSpacing: "-0.3px" }}>Planning</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ display: "flex", background: SB, borderRadius: 8, padding: 2, gap: 2 }}>
-            {[{ id: "today", label: "Jour" }, { id: "week", label: "Semaine" }, { id: "month", label: "Mois" }].map(v => (
-              <button key={v.id} onClick={() => { setViewMode(v.id); setWeekOffset(0); }} style={{ padding: "5px 10px", border: "none", borderRadius: 6, fontSize: 11, fontWeight: viewMode === v.id ? 700 : 500, cursor: "pointer", fontFamily: "inherit", background: viewMode === v.id ? WH : "transparent", color: viewMode === v.id ? TX : TX3, boxShadow: viewMode === v.id ? "0 1px 3px rgba(0,0,0,0.06)" : "none", transition: "all 0.12s" }}>{v.label}</button>
-            ))}
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" color={TX2} /></button>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: TX, letterSpacing: "-0.3px" }}>Vue d'ensemble</div>
+            <div style={{ fontSize: 12, color: TX3 }}>
+              {active.length} projet{active.length > 1 ? "s" : ""} actif{active.length > 1 ? "s" : ""}
+              {filtered.length > 0 ? ` · ${filtered.length} évènement${filtered.length > 1 ? "s" : ""}` : ""}
+            </div>
           </div>
-          <div style={{ width: 1, height: 20, background: SBB }} />
-          <button onClick={() => setWeekOffset(o => o - 1)} style={{ width: 28, height: 28, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" size={11} color={TX3} /></button>
-          <span style={{ fontSize: 12, fontWeight: 600, color: TX, minWidth: 130, textAlign: "center" }}>{periodLabel}</span>
-          <button onClick={() => setWeekOffset(o => o + 1)} style={{ width: 28, height: 28, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="arrowr" size={11} color={TX3} /></button>
-          {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} style={{ padding: "4px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 600, color: AC }}>Aujourd'hui</button>}
-          <div style={{ width: 1, height: 20, background: SBB }} />
-          <select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ padding: "5px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX, cursor: "pointer" }}>
+        </div>
+        {/* Toggle Calendrier / Temps */}
+        <div style={{ display: "inline-flex", background: SB, border: `1px solid ${SBB}`, borderRadius: 8, padding: 2, gap: 1 }}>
+          <button aria-pressed="true" style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", border: "none", borderRadius: 6, background: WH, cursor: "default", fontFamily: "inherit", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+            <Ico name="calendar" size={12} color={AC} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: AC }}>Calendrier</span>
+          </button>
+          {onSwitchToTimesheet && (
+            <button onClick={onSwitchToTimesheet} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", border: "none", borderRadius: 6, background: "transparent", cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.background = SB2}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+              <Ico name="clock" size={12} color={TX3} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: TX2 }}>Temps</span>
+            </button>
+          )}
+        </div>
+        {/* Filtre projet à droite, mêmes styles que les boutons d'action de StatsView */}
+        <div style={{ display: "flex", gap: 6 }}>
+          <select value={filterProject} onChange={e => setFilterProject(e.target.value)} style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: WH, color: TX2, cursor: "pointer" }}>
             <option value="all">Tous les projets</option>
             {active.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
+      </div>
+
+      {/* Row 2 — contrôles temporels (period switcher + nav) — séparés du header pour respirer */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", background: SB, borderRadius: 8, padding: 2, gap: 2, border: `1px solid ${SBB}` }}>
+          {[{ id: "today", label: "Jour" }, { id: "week", label: "Semaine" }, { id: "month", label: "Mois" }].map(v => (
+            <button key={v.id} onClick={() => { setViewMode(v.id); setWeekOffset(0); }} style={{ padding: "6px 14px", border: "none", borderRadius: 6, fontSize: 12, fontWeight: viewMode === v.id ? 700 : 500, cursor: "pointer", fontFamily: "inherit", background: viewMode === v.id ? WH : "transparent", color: viewMode === v.id ? TX : TX3, boxShadow: viewMode === v.id ? "0 1px 3px rgba(0,0,0,0.06)" : "none", transition: "all 0.12s" }}>{v.label}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button onClick={() => setWeekOffset(o => o - 1)} aria-label="Période précédente" style={{ width: 30, height: 30, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="back" size={12} color={TX3} /></button>
+          <span style={{ fontSize: 12, fontWeight: 600, color: TX, minWidth: 130, textAlign: "center" }}>{periodLabel}</span>
+          <button onClick={() => setWeekOffset(o => o + 1)} aria-label="Période suivante" style={{ width: 30, height: 30, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="arrowr" size={12} color={TX3} /></button>
+        </div>
+        {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} style={{ padding: "5px 12px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600, color: AC }}>Aujourd'hui</button>}
       </div>
 
       {/* 3-column layout */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { AC, ACL, ACL2, TX, TX2, TX3, SB, SB2, SBB, WH, RD, GR, BL } from "../constants/tokens";
+import { AC, ACL, ACL2, TX, TX2, TX3, SB, SB2, SBB, WH, RD, GR, BL, BR, BRB, REDBRD, AM } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { PLANS } from "../constants/config";
 import {
@@ -272,7 +272,7 @@ export function AgencyView({ profile, onBack, onAgencyChanged }) {
       <PageHeader onBack={onBack} title="Mon agence" />
 
       {error && (
-        <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, marginBottom: 14, fontSize: 13, color: RD }}>
+        <div style={{ padding: "10px 14px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 10, marginBottom: 14, fontSize: 13, color: RD }}>
           {error}
         </div>
       )}
@@ -440,7 +440,7 @@ function PageHeader({ onBack, title }) {
 
 function SeatsBadge({ used, total }) {
   const ratio = total > 0 ? used / total : 0;
-  const color = ratio >= 1 ? RD : ratio >= 0.8 ? "#D97706" : GR;
+  const color = ratio >= 1 ? RD : ratio >= 0.8 ? AM : GR;
   return (
     <div style={{ padding: "6px 12px", border: `1px solid ${color}33`, background: `${color}10`, borderRadius: 10, textAlign: "center" }}>
       <div style={{ fontSize: 16, fontWeight: 800, color }}>{used}<span style={{ fontSize: 11, color: TX3, fontWeight: 600 }}>/{total}</span></div>
@@ -523,7 +523,7 @@ function ConfirmModal({ title, message, confirmLabel = "Confirmer", cancelLabel 
       style={{ position: "fixed", inset: 0, zIndex: 10020, background: "rgba(31,41,55,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 440, background: WH, borderRadius: 16, padding: "22px 26px 20px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", animation: "modalIn 0.18s ease-out" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: danger ? "#FEF2F2" : ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: danger ? BRB : ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Ico name={danger ? "alert" : "check"} size={17} color={danger ? RD : AC} />
           </div>
           <div style={{ fontSize: 17, fontWeight: 800, color: TX, lineHeight: 1.25, paddingTop: 6 }}>{title}</div>
@@ -582,7 +582,7 @@ function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg, invita
         </div>
 
         {errorMsg && (
-          <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 9, marginBottom: 12, fontSize: 12, color: RD, lineHeight: 1.5 }}>
+          <div style={{ padding: "10px 14px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 9, marginBottom: 12, fontSize: 12, color: RD, lineHeight: 1.5 }}>
             {errorMsg}
           </div>
         )}
@@ -596,7 +596,7 @@ function InviteModal({ onSubmit, onClose, busy, remainingSeats, errorMsg, invita
               {invitations.map(inv => {
                 const isConflict = inv.id === conflictId;
                 return (
-                  <div key={inv.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: `1px solid ${isConflict ? RD : SBB}`, background: isConflict ? "#FEF2F2" : SB, borderRadius: 7 }}>
+                  <div key={inv.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: `1px solid ${isConflict ? RD : SBB}`, background: isConflict ? BRB : SB, borderRadius: 7 }}>
                     <Ico name="send" size={11} color={isConflict ? RD : TX3} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: isConflict ? RD : TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{inv.email}</div>

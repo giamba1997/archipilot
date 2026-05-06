@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useT, useTP } from "../i18n";
 import { supabase } from "../supabase";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BR, BRB, SG, SGB, AM, AMB } from "../constants/tokens";
 import { getStatus, nextStatus, getRemarkStatus } from "../constants/statuses";
 import { Ico, PB } from "../components/ui";
 import { parseNotesToRemarks } from "../utils/helpers";
@@ -42,7 +42,10 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [addUrgent,  setAddUrgent]  = useState(false);
   const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
   const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
-  const [inputMethod, setInputMethod] = useState(() => initialMode || "write"); // "write" | "dictate"
+  // Le chooser (3 méthodes) s'affiche par défaut sur un nouveau PV. Si initialMode
+  // est passé explicitement (depuis bottom bar mobile par ex), on saute le chooser.
+  const [inputMethod, setInputMethod] = useState(() => initialMode || null); // "write" | "dictate" | "freeWrite" | null=chooser
+  const [freeWriteText, setFreeWriteText] = useState("");
   const [pendingDictation, setPendingDictation] = useState(initialMode === "dictate"); // show waiting state until recording starts
   const [selectedMethod, setSelectedMethod] = useState("dictate"); // pre-selected method in chooser
   const [pvTitle, setPvTitle] = useState(`PV n°${project.pvHistory.length + 1}`);
@@ -632,9 +635,9 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             )}
             {remarks.length > 0 && (
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {openCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: "#B91C1C", background: "#FEF2F2", padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#EF4444", display: "inline-block" }} />{openCount} {t("notes.toProcess")}</span>}
-                {progressCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: "#92400E", background: "#FFFBEB", padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: AC,       display: "inline-block" }} />{progressCount} {t("notes.inProgress")}</span>}
-                {doneCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: "#166534", background: "#F0FDF4",  padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: GR,        display: "inline-block" }} />{doneCount} résolu{doneCount > 1 ? "s" : ""}</span>}
+                {openCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: BR, background: BRB, padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: BR, display: "inline-block" }} />{openCount} {t("notes.toProcess")}</span>}
+                {progressCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: AM, background: AMB, padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: AC,       display: "inline-block" }} />{progressCount} {t("notes.inProgress")}</span>}
+                {doneCount > 0     && <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.sm, fontWeight: 600, color: SG, background: SGB,  padding: "2px 8px 2px 6px", borderRadius: 20 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: GR,        display: "inline-block" }} />{doneCount} résolu{doneCount > 1 ? "s" : ""}</span>}
               </div>
             )}
           </div>
@@ -715,12 +718,12 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 <div key={r.id} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 10px", marginBottom: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 10 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
                     {/* Status pill — click to cycle */}
-                    <button onClick={() => cycleStatus(post.id, r.id)} title={`Statut : ${rs.label} — cliquer pour changer`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: SP.xs, padding: `${SP.xs}px ${SP.sm + 1}px ${SP.xs}px ${SP.sm - 2}px`, border: `1px solid ${r.urgent && r.status === "open" ? REDBRD : rs.dot + "40"}`, borderRadius: 20, background: r.urgent && r.status === "open" ? "#FEF2F2" : rs.bg, cursor: "pointer", fontFamily: "inherit", marginTop: 1, whiteSpace: "nowrap", outline: "none", transition: "all 0.15s" }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: r.urgent && r.status === "open" ? "#EF4444" : rs.dot, flexShrink: 0 }} />
-                      <span style={{ fontSize: FS.sm, fontWeight: 700, color: r.urgent && r.status === "open" ? "#B91C1C" : rs.color }}>
+                    <button onClick={() => cycleStatus(post.id, r.id)} title={`Statut : ${rs.label} — cliquer pour changer`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: SP.xs, padding: `${SP.xs}px ${SP.sm + 1}px ${SP.xs}px ${SP.sm - 2}px`, border: `1px solid ${r.urgent && r.status === "open" ? REDBRD : rs.dot + "40"}`, borderRadius: 20, background: r.urgent && r.status === "open" ? BRB : rs.bg, cursor: "pointer", fontFamily: "inherit", marginTop: 1, whiteSpace: "nowrap", outline: "none", transition: "all 0.15s" }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: r.urgent && r.status === "open" ? BR : rs.dot, flexShrink: 0 }} />
+                      <span style={{ fontSize: FS.sm, fontWeight: 700, color: r.urgent && r.status === "open" ? BR : rs.color }}>
                         {r.urgent && r.status === "open" ? t("notes.urgent") : rs.label}
                       </span>
-                      <Ico name="chevron-down" size={9} color={r.urgent && r.status === "open" ? "#B91C1C" : rs.color} />
+                      <Ico name="chevron-down" size={9} color={r.urgent && r.status === "open" ? BR : rs.color} />
                     </button>
                     {r.carriedFrom && <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, color: AC, background: ACL, border: `1px solid ${ACL2}`, padding: "2px 6px", borderRadius: 20, marginTop: 2, whiteSpace: "nowrap" }}>↩ PV{r.carriedFrom}</span>}
                     <input value={r.text} onChange={(e) => editRemarkText(post.id, r.id, e.target.value)} style={{ flex: 1, border: "none", outline: "none", fontSize: 13, color: r.status === "done" ? TX3 : TX, background: "transparent", fontFamily: "inherit", textDecoration: r.status === "done" ? "line-through" : "none", padding: 0, minWidth: 0 }} />
@@ -1048,7 +1051,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 className="ap-delete-all-btn"
                 onClick={() => { if (confirm(`Supprimer les ${project.posts.length} postes et tout leur contenu ?`)) { pushPostsHistory(); setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: [] } : p)); } }}
                 style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = RD; e.currentTarget.style.background = "#FEF2F2"; }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = RD; e.currentTarget.style.background = BRB; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = SBB; e.currentTarget.style.background = WH; }}
                 title="Supprimer tous les postes"
               >
@@ -1075,15 +1078,15 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
         ) : contRecording ? (
           /* Active recording */
           <div style={{ padding: "12px" }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", transition: "all 0.3s" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px", background: BRB, borderRadius: 12, border: `1px solid ${REDBRD}`, transition: "all 0.3s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                 <div style={{ width: 12, height: 12, borderRadius: "50%", background: RD, animation: "ring 1.4s ease infinite" }} />
                 <span style={{ fontSize: 15, fontWeight: 700, color: RD }}>Enregistrement en cours</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "#B91C1C", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: BR, fontVariantNumeric: "tabular-nums" }}>
                   {String(Math.floor(contSeconds / 60)).padStart(2, "0")}:{String(contSeconds % 60).padStart(2, "0")}
                 </span>
               </div>
-              <div style={{ width: "100%", minHeight: 60, maxHeight: 220, overflowY: "auto", marginBottom: 16, padding: "12px 14px", background: WH, borderRadius: 10, border: "1px solid #FECACA", fontSize: 13, color: TX, lineHeight: 1.7 }}>
+              <div style={{ width: "100%", minHeight: 60, maxHeight: 220, overflowY: "auto", marginBottom: 16, padding: "12px 14px", background: WH, borderRadius: 10, border: `1px solid ${REDBRD}`, fontSize: 13, color: TX, lineHeight: 1.7 }}>
                 {contTranscript ? (
                   <>{contTranscript}{contInterim && <span style={{ color: TX3, fontStyle: "italic" }}> {contInterim}</span>}</>
                 ) : contInterim ? (
@@ -1142,13 +1145,13 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                   <span style={{ fontSize: 14 }}>✦</span>Répartir dans les postes
                 </button>
               </div>
-              {contErr && <div style={{ marginTop: 10, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
+              {contErr && <div style={{ marginTop: 10, fontSize: 12, color: RD, textAlign: "center", padding: "8px 12px", background: BRB, borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
             </div>
           </div>
         ) : pendingDictation ? (
           /* Waiting for dictation to start */
           <div style={{ padding: "12px" }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: BRB, borderRadius: 12, border: `1px solid ${REDBRD}` }}>
               <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
                 <div style={{ width: 22, height: 22, border: `3px solid ${RD}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               </div>
@@ -1179,7 +1182,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                   className="method-card-dictate"
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${isDictate && hasSR ? AC : SBB}`, borderRadius: 12, background: isDictate && hasSR ? ACL : WH, cursor: hasSR ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left", opacity: hasSR ? 1 : 0.5, position: "relative" }}
                 >
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isDictate ? `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)` : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isDictate ? AC : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
                     <Ico name="mic" size={20} color={isDictate ? "#fff" : TX3} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1201,27 +1204,49 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                   </div>
                 </button>
 
-                {/* Write */}
+                {/* Free write — capture rapide écrite + IA structure (NOUVEAU) */}
                 <button
-                  onClick={() => setSelectedMethod("write")}
+                  onClick={() => setSelectedMethod("freeWrite")}
                   className="method-card-write"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${!isDictate ? AC : SBB}`, borderRadius: 12, background: !isDictate ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left" }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${sel === "freeWrite" ? AC : SBB}`, borderRadius: 12, background: sel === "freeWrite" ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left" }}
                 >
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: !isDictate ? `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)` : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
-                    <Ico name="edit" size={20} color={!isDictate ? "#fff" : TX3} />
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: sel === "freeWrite" ? AC : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    <Ico name="edit" size={20} color={sel === "freeWrite" ? "#fff" : TX3} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Écrire</span>
-                    <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>Ajoutez vos remarques manuellement, poste par poste.</div>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Capture libre</span>
+                    <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>Tapez vos notes en vrac, l'IA répartit dans les postes.</div>
                     <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
-                      {["Précis", "Compléments", "Photos"].map((tag, ti) => (
-                        <span key={ti} style={{ fontSize: 9, fontWeight: 600, color: !isDictate ? AC : TX3, background: !isDictate ? WH : SB, border: `1px solid ${!isDictate ? ACL2 : SBB}`, padding: "1px 6px", borderRadius: 3 }}>{tag}</span>
+                      {["Bureau", "Rapide", "IA"].map((tag, ti) => (
+                        <span key={ti} style={{ fontSize: 9, fontWeight: 600, color: sel === "freeWrite" ? AC : TX3, background: sel === "freeWrite" ? WH : SB, border: `1px solid ${sel === "freeWrite" ? ACL2 : SBB}`, padding: "1px 6px", borderRadius: 3 }}>{tag}</span>
                       ))}
                     </div>
                   </div>
-                  {/* Radio indicator */}
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${!isDictate ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
-                    {!isDictate && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sel === "freeWrite" ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    {sel === "freeWrite" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                  </div>
+                </button>
+
+                {/* Manual structured */}
+                <button
+                  onClick={() => setSelectedMethod("write")}
+                  className="method-card-write"
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${sel === "write" ? AC : SBB}`, borderRadius: 12, background: sel === "write" ? ACL : WH, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left" }}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: sel === "write" ? AC : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    <Ico name="listcheck" size={20} color={sel === "write" ? "#fff" : TX3} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Manuel structuré</span>
+                    <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>Ajoutez vos remarques poste par poste, contrôle total.</div>
+                    <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
+                      {["Précis", "Compléments", "Photos"].map((tag, ti) => (
+                        <span key={ti} style={{ fontSize: 9, fontWeight: 600, color: sel === "write" ? AC : TX3, background: sel === "write" ? WH : SB, border: `1px solid ${sel === "write" ? ACL2 : SBB}`, padding: "1px 6px", borderRadius: 3 }}>{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sel === "write" ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    {sel === "write" && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
                   </div>
                 </button>
 
@@ -1229,27 +1254,109 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 <button
                   onClick={() => {
                     if (sel === "dictate" && hasSR) { setInputMethod("dictate"); startContinuous(); }
+                    else if (sel === "freeWrite") { setInputMethod("freeWrite"); }
                     else { setInputMethod("write"); }
                   }}
                   style={{
                     width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 2,
-                    background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+                    background: AC,
                     color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                     boxShadow: "0 3px 14px rgba(217,123,13,0.25)", transition: "all 0.15s",
                   }}
                 >
-                  {isDictate && hasSR ? (
+                  {sel === "dictate" && hasSR ? (
                     <><Ico name="mic" size={16} color="#fff" />Commencer à dicter</>
+                  ) : sel === "freeWrite" ? (
+                    <><Ico name="edit" size={16} color="#fff" />Commencer la capture</>
                   ) : (
-                    <><Ico name="edit" size={16} color="#fff" />Commencer à écrire</>
+                    <><Ico name="listcheck" size={16} color="#fff" />Ouvrir les postes</>
                   )}
                 </button>
               </div>
-              {contErr && <div style={{ marginTop: 8, fontSize: 11, color: RD, textAlign: "center", padding: "6px 10px", background: "#FEF2F2", borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
+              {contErr && <div style={{ marginTop: 8, fontSize: 11, color: RD, textAlign: "center", padding: "6px 10px", background: BRB, borderRadius: 8, border: `1px solid ${RD}20` }}>{contErr}</div>}
             </div>
             );
           })()
+        ) : inputMethod === "freeWrite" ? (
+          /* ── Capture rapide écrite + IA ─────────────────────────
+             L'archi balance ses notes en vrac, puis "Structurer avec l'IA"
+             fait passer le texte par dispatch-remarks (même Edge Function que
+             la dictée). Le résultat populates les postes — comme la dictée. */
+          <div style={{ padding: "16px 14px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: TX, letterSpacing: "-0.3px", lineHeight: 1.3, marginBottom: 4 }}>
+                Notez en vrac, l'IA range
+              </div>
+              <div style={{ fontSize: 11.5, color: TX3, lineHeight: 1.4 }}>
+                Tapez vos observations comme elles viennent. Pas besoin de choisir un poste — l'IA range chaque remarque dans le bon poste pour vous.
+              </div>
+            </div>
+            <textarea
+              value={freeWriteText}
+              onChange={(e) => setFreeWriteText(e.target.value)}
+              placeholder={"Ex:\n- Peinture rdc 1ère couche OK\n- Goulottes en cours\n- Resserrages coupe-feu pas faits — RETARD 5 jours\n- MO rappelle: gilet fluo + casque obligatoires\n- Bandes antislip posées niveau 4 conformes"}
+              autoFocus
+              style={{
+                width: "100%", minHeight: 280, padding: "14px 16px",
+                border: `1px solid ${SBB}`, borderRadius: 10,
+                fontSize: 14, lineHeight: 1.6, fontFamily: "inherit",
+                background: WH, color: TX, boxSizing: "border-box",
+                resize: "vertical", outline: "none",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = AC; e.target.style.boxShadow = `0 0 0 3px ${ACL}`; }}
+              onBlur={(e) => { e.target.style.borderColor = SBB; e.target.style.boxShadow = "none"; }}
+            />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                onClick={() => { setFreeWriteText(""); setInputMethod(null); }}
+                style={{
+                  padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 8,
+                  background: WH, color: TX2, fontSize: 12, fontWeight: 500,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Annuler
+              </button>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={async () => {
+                  if (!freeWriteText.trim()) return;
+                  await dispatchTranscript(freeWriteText.trim());
+                  setFreeWriteText("");
+                  setInputMethod("write"); // bascule sur la vue postes structurés après IA
+                }}
+                disabled={!freeWriteText.trim() || contDispatching}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  padding: "11px 22px", border: "none", borderRadius: 10,
+                  background: freeWriteText.trim() && !contDispatching ? AC : SBB,
+                  color: freeWriteText.trim() && !contDispatching ? "#fff" : TX3,
+                  fontSize: 13, fontWeight: 700,
+                  cursor: freeWriteText.trim() && !contDispatching ? "pointer" : "not-allowed",
+                  fontFamily: "inherit",
+                  boxShadow: freeWriteText.trim() && !contDispatching ? "0 3px 12px rgba(217,123,13,0.2)" : "none",
+                }}
+              >
+                {contDispatching ? (
+                  <>
+                    <span style={{ width: 13, height: 13, border: `2px solid ${WH}40`, borderTopColor: WH, borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+                    Structuration en cours…
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 12 }}>✦</span>
+                    Structurer avec l'IA
+                  </>
+                )}
+              </button>
+            </div>
+            {contErr && (
+              <div style={{ fontSize: 11, color: RD, padding: "8px 10px", background: BRB, borderRadius: 8, border: `1px solid ${RD}20` }}>
+                {contErr}
+              </div>
+            )}
+          </div>
         ) : (
           /* Post list (write mode, or after dictation dispatch) */
           <>
@@ -1338,8 +1445,8 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                           </span>
                         )}
                         {openCount > 0 && (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: "#B91C1C", background: REDBG, border: `1px solid ${REDBRD}`, padding: "1px 7px", borderRadius: 4, lineHeight: "15px" }}>
-                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#EF4444", flexShrink: 0 }} />{openCount} {t("notes.toProcess")}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: BR, background: REDBG, border: `1px solid ${REDBRD}`, padding: "1px 7px", borderRadius: 4, lineHeight: "15px" }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: BR, flexShrink: 0 }} />{openCount} {t("notes.toProcess")}
                           </span>
                         )}
                         {carriedHere > 0 && (
@@ -1348,12 +1455,12 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                           </span>
                         )}
                         {progressCount > 0 && (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", padding: "1px 7px", borderRadius: 4, lineHeight: "15px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: AM, background: AMB, border: `1px solid ${AM}33`, padding: "1px 7px", borderRadius: 4, lineHeight: "15px" }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: AC, flexShrink: 0 }} />{progressCount} {t("notes.inProgress")}
                           </span>
                         )}
                         {doneCount > 0 && (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 500, color: "#166534", background: GRBG, border: "1px solid #C6E9B4", padding: "1px 7px", borderRadius: 4, lineHeight: "15px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 500, color: SG, background: GRBG, border: `1px solid ${SG}33`, padding: "1px 7px", borderRadius: 4, lineHeight: "15px" }}>
                             <Ico name="check" size={8} color={GR} />{doneCount} résolu{doneCount > 1 ? "s" : ""}
                           </span>
                         )}
@@ -1387,7 +1494,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                       onPointerDown={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
                       style={{ width: 28, height: 28, borderRadius: 6, background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", transition: "background 0.15s" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = hasContent ? "#FEF2F2" : SB; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = hasContent ? BRB : SB; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                       title="Supprimer ce poste"
                       role="button"
@@ -1465,7 +1572,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
           {/* Recipients body */}
           <div style={{ padding: "12px 16px" }}>
             {recipientFilters === null && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "8px 12px", background: "#FDF4E7", borderRadius: 8, border: `1px solid ${ACL2}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "8px 12px", background: ACL, borderRadius: 8, border: `1px solid ${ACL2}` }}>
                 <Ico name="alert" size={13} color={AC} />
                 <span style={{ fontSize: 11.5, color: TX2, fontWeight: 500 }}>Sélectionnez les destinataires du PV ou choisissez "Tous"</span>
               </div>
@@ -1541,7 +1648,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
       {readyToGenerate ? (
         <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${ACL2}`, background: WH, boxShadow: "0 2px 10px rgba(217,123,13,0.07)", transition: "all 0.3s" }}>
           {/* Header */}
-          <div className="ap-gen-header" style={{ background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`, padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ap-gen-header" style={{ background: AC, padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>✦</span>
             </div>
@@ -1577,7 +1684,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 <button key={i} onClick={() => toggleAttendance(i)} style={{
                   display: "flex", alignItems: "center", gap: 5, padding: "5px 10px",
                   border: `1px solid ${a.present ? GR : SBB}`, borderRadius: 20,
-                  background: a.present ? "#EAF3DE" : SB, cursor: "pointer", fontFamily: "inherit",
+                  background: a.present ? SGB : SB, cursor: "pointer", fontFamily: "inherit",
                   transition: "all 0.15s",
                 }}>
                   <div style={{ width: 6, height: 6, borderRadius: "50%", background: a.present ? GR : TX3 }} />
@@ -1598,7 +1705,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <span style={{ fontSize: 11, color: TX3 }}>Fin :</span>
-              <button onClick={() => setVisitEnd(new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }))} style={{ padding: "3px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: visitEnd ? "#EAF3DE" : WH, cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", color: visitEnd ? GR : AC }}>
+              <button onClick={() => setVisitEnd(new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }))} style={{ padding: "3px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: visitEnd ? SGB : WH, cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", color: visitEnd ? GR : AC }}>
                 {visitEnd || "Marquer la fin"}
               </button>
             </div>
@@ -1640,7 +1747,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 style={{
                   width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
                   padding: "13px 24px", border: "none", borderRadius: 10,
-                  background: `linear-gradient(135deg, ${AC} 0%, #C06A08 100%)`,
+                  background: AC,
                   color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                   letterSpacing: "-0.1px", transition: "box-shadow 0.3s, transform 0.15s",
                   boxShadow: "0 3px 14px rgba(217,123,13,0.28)",
@@ -1653,7 +1760,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
               </button>
             ) : (
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, marginBottom: 10, fontSize: 11, color: RD }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 8, marginBottom: 10, fontSize: 11, color: RD }}>
                   <Ico name="wifioff" size={13} color={RD} />
                   Pas de connexion — la génération IA nécessite internet
                 </div>
