@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG } from "../constants/tokens";
 import { RESERVE_STATUSES, RESERVE_SEVERITIES, getReserveStatus, getReserveSeverity, nextReserveStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
-import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests } from "../db";
+import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests, requestOprSignatures } from "../db";
 import { SignOprModal, SendOprModal, RequestSignaturesModal } from "../components/modals";
 import { generateOprPdf } from "../utils/pdf";
 
@@ -17,7 +17,49 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
   const [sendOprOpen, setSendOprOpen] = useState(null); // opr object to send, or null
   const [requestSigOpen, setRequestSigOpen] = useState(false);
   const [signatureRequests, setSignatureRequests] = useState([]);
+  const [relaunchingId, setRelaunchingId] = useState(null); // id du sigreq en cours de relance
   const photoRef = useRef(null);
+
+  // Renvoie un nouveau lien de signature pour un signataire ayant refusé / expiré.
+  // Crée un nouveau sigreq frais (token, expiration) sans toucher à l'ancien
+  // pour préserver la traçabilité du refus.
+  const relaunchSignature = async (opr, sigreq) => {
+    if (relaunchingId) return;
+    setRelaunchingId(sigreq.id);
+    try {
+      const result = await requestOprSignatures({
+        projectId: project.id,
+        projectName: project.name,
+        opr: {
+          id: opr.id,
+          number: opr.number,
+          date: opr.date,
+          type: opr.type || "provisoire",
+          reserves: opr.reserves || [],
+          reservesHash: opr.reservesHash || "",
+        },
+        signatories: [{
+          name: sigreq.signatory_name,
+          role: sigreq.signatory_role || "",
+          email: sigreq.signatory_email,
+        }],
+        authorName: profile?.name || profile?.email || "L'architecte",
+        structureName: profile?.structure,
+        customMessage: "",
+      });
+      if (result.error) {
+        showToast?.(`Erreur : ${result.error}`, "error");
+      } else {
+        showToast?.(`Nouveau lien envoyé à ${sigreq.signatory_email}`);
+        await refreshSignatureRequests();
+      }
+    } catch (e) {
+      console.error("relaunchSignature error:", e);
+      showToast?.("Échec de l'envoi", "error");
+    } finally {
+      setRelaunchingId(null);
+    }
+  };
 
   const reserves = project.reserves || [];
   const oprHistory = project.oprHistory || [];
@@ -274,14 +316,37 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                         : r.status === "declined" ? "Refusé"
                         : isExpired ? "Expiré"
                         : "En attente";
+                      // Bouton "Relancer" disponible si refus/expiration — recrée un sigreq frais avec un nouveau lien
+                      const canRelaunch = r.status === "declined" || isExpired;
+                      const relaunchKey = `relaunch-${r.id}`;
+                      const isRelaunching = relaunchingId === r.id;
                       return (
-                        <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, padding: "4px 0" }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: stColor, flexShrink: 0 }} />
-                          <span style={{ color: TX, fontWeight: 500 }}>{r.signatory_name}</span>
-                          {r.signatory_role && <span style={{ color: TX3 }}>· {r.signatory_role}</span>}
-                          <span style={{ color: TX3 }}>· {r.signatory_email}</span>
-                          <span style={{ marginLeft: "auto", color: stColor, fontWeight: 600 }}>{stLabel}</span>
-                          {r.signed_at && <span style={{ color: TX3 }}>— {new Date(r.signed_at).toLocaleDateString("fr-BE")}</span>}
+                        <div key={r.id} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "4px 0" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: stColor, flexShrink: 0 }} />
+                            <span style={{ color: TX, fontWeight: 500 }}>{r.signatory_name}</span>
+                            {r.signatory_role && <span style={{ color: TX3 }}>· {r.signatory_role}</span>}
+                            <span style={{ color: TX3 }}>· {r.signatory_email}</span>
+                            <span style={{ marginLeft: "auto", color: stColor, fontWeight: 600 }}>{stLabel}</span>
+                            {r.signed_at && <span style={{ color: TX3 }}>— {new Date(r.signed_at).toLocaleDateString("fr-BE")}</span>}
+                            {canRelaunch && (
+                              <button
+                                key={relaunchKey}
+                                onClick={() => relaunchSignature(opr, r)}
+                                disabled={isRelaunching}
+                                title="Renvoyer un nouveau lien de signature à cette personne"
+                                style={{ padding: "3px 8px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: isRelaunching ? TX3 : AC, fontSize: 10, fontWeight: 600, cursor: isRelaunching ? "wait" : "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                <Ico name="send" size={9} color={isRelaunching ? TX3 : AC} />
+                                {isRelaunching ? "Envoi..." : "Relancer"}
+                              </button>
+                            )}
+                          </div>
+                          {/* Motif de refus affiché sous la ligne quand declined */}
+                          {r.status === "declined" && r.decline_reason && (
+                            <div style={{ marginLeft: 14, padding: "6px 10px", background: REDBG, borderLeft: `2px solid ${RD}`, borderRadius: 4, fontSize: 11, color: TX2, fontStyle: "italic" }}>
+                              « {r.decline_reason} »
+                            </div>
+                          )}
                         </div>
                       );
                     })}
