@@ -133,16 +133,27 @@ serve(async (req) => {
       ${messageHtml || `Vous trouverez ci-joint le procès-verbal de réception ${docTypeLabel} n°${row.opr_number} relatif au chantier «&nbsp;${row.project_name}&nbsp;».<br><br>Merci d'en prendre connaissance et de signer en cliquant sur le bouton ci-dessous.`}
     </div>
 
-    <div style="text-align: center; margin: 28px 0;">
-      <a href="${signUrl}" style="display: inline-block; padding: 14px 32px; background: #C95A1B; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 14px;">
-        Signer le document
-      </a>
+    <!-- Bouton principal — table-based pour compat email clients (Outlook etc.) -->
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin: 28px auto;">
+      <tr>
+        <td style="background: #C95A1B; border-radius: 10px;">
+          <a href="${signUrl}" target="_blank" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 15px; font-family: Arial, sans-serif;">
+            ✦ Signer le document
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Lien en clair — toujours cliquable, jamais filtré -->
+    <div style="text-align: center; padding: 14px; background: #F8F7F4; border-radius: 8px; margin-bottom: 12px;">
+      <div style="font-size: 12px; color: #2C2926; margin-bottom: 6px; font-weight: 600;">
+        Lien direct (copier-coller dans votre navigateur si besoin) :
+      </div>
+      <a href="${signUrl}" target="_blank" style="color: #C05A2C; word-break: break-all; font-size: 12px; font-family: monospace;">${signUrl}</a>
     </div>
 
     <div style="text-align: center; font-size: 11px; color: #A09D96; margin-bottom: 8px;">
-      Ce lien est personnel et expire dans 14 jours.<br>
-      Si le bouton ne fonctionne pas, copiez ce lien :<br>
-      <a href="${signUrl}" style="color: #6B6862; word-break: break-all;">${signUrl}</a>
+      Ce lien est personnel et expire dans 14 jours.
     </div>
 
     <div style="border-top: 1px solid #E2E0DB; margin: 20px 0; padding-top: 16px; text-align: center; font-size: 12px; color: #6B6862;">
