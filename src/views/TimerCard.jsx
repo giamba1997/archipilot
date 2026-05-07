@@ -6,7 +6,7 @@ import { elapsedSeconds, isPaused, formatDuration, formatTimer, totalSecondsFor 
 // Card dans la colonne droite de l'Overview, sous MeetingCard. Format vertical
 // compact pour s'intégrer avec les autres cards (Participants, Informations).
 // 3 états : repos / running / paused. Cohérent visuellement avec MeetingCard.
-export function TimerCard({ project, activeTimer, onStart, onPauseResume, onStop, onOpenSessions }) {
+export function TimerCard({ project, activeTimer, onStart, onPauseResume, onStop, onDiscard, onOpenSessions }) {
   const isThisProjectActive = activeTimer && activeTimer.projectId === project?.id;
   const isAnotherProjectActive = activeTimer && activeTimer.projectId !== project?.id;
   const paused = isThisProjectActive ? isPaused(activeTimer) : false;
@@ -61,7 +61,9 @@ export function TimerCard({ project, activeTimer, onStart, onPauseResume, onStop
               </span>
             )}
           </div>
-          {/* Actions Pause/Stop */}
+          {/* Actions Pause / Arrêter / Supprimer.
+              "Arrêter" = sauvegarder la session avec description.
+              "Supprimer" = abandonner sans sauvegarder (icône poubelle, demande confirmation). */}
           <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
             <button
               onClick={onPauseResume}
@@ -89,6 +91,21 @@ export function TimerCard({ project, activeTimer, onStart, onPauseResume, onStop
               <Ico name="stop" size={11} color={BR} />
               <span style={{ fontSize: 11, fontWeight: 600, color: BR }}>Arrêter</span>
             </button>
+            {onDiscard && (
+              <button
+                onClick={onDiscard}
+                aria-label="Supprimer le suivi sans sauvegarder"
+                title="Supprimer le suivi sans sauvegarder"
+                style={{
+                  width: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  border: `1px solid ${SBB}`, borderRadius: 7,
+                  background: WH, cursor: "pointer", fontFamily: "inherit", minHeight: 32,
+                  flexShrink: 0,
+                }}
+              >
+                <Ico name="trash" size={11} color={TX3} />
+              </button>
+            )}
           </div>
         </>
       ) : (

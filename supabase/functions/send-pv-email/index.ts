@@ -44,11 +44,22 @@ serve(async (req) => {
       pvId,
       subject: customSubject,
       customMessage,
+      kind: rawKind,
     } = await req.json();
 
     if (!to?.length || !projectName || !pvNumber) {
       throw new Error("Missing required fields: to, projectName, pvNumber");
     }
+
+    // Same infra serves PV and OPR — only labels change. Default = "pv" so
+    // older callers keep working unchanged.
+    const kind = rawKind === "opr" ? "opr" : "pv";
+    const docLabel       = kind === "opr" ? "OPR de chantier" : "PV de chantier";
+    const docTitle       = kind === "opr" ? `OPR n°${pvNumber}` : `PV n°${pvNumber}`;
+    const defaultSubject = kind === "opr"
+      ? `OPR n°${pvNumber} — ${projectName} (${pvDate})`
+      : `PV n°${pvNumber} — ${projectName} (${pvDate})`;
+    const attachmentPrefix = kind === "opr" ? "OPR" : "PV";
 
     // Build tracking pixel URL (if pvId provided)
     const trackingPixel = pvId
@@ -73,9 +84,9 @@ serve(async (req) => {
 
     <div style="text-align: center; margin-bottom: 20px;">
       <div style="display: inline-block; padding: 4px 12px; background: #FAF0EA; border-radius: 6px; font-size: 11px; font-weight: 700; color: #C05A2C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
-        PV de chantier
+        ${docLabel}
       </div>
-      <h2 style="font-size: 20px; font-weight: 700; color: #2C2926; margin: 0 0 4px;">PV n\u00b0${pvNumber}</h2>
+      <h2 style="font-size: 20px; font-weight: 700; color: #2C2926; margin: 0 0 4px;">${docTitle}</h2>
       <div style="font-size: 13px; color: #A09D96;">${projectName} — ${pvDate}</div>
     </div>
 
@@ -87,7 +98,7 @@ serve(async (req) => {
       Rédigé par <strong>${authorName || "l'architecte"}</strong>${structureName ? ` — ${structureName}` : ""}
     </div>
 
-    ${pdfBase64 ? '<div style="text-align: center; padding: 10px 0 4px; font-size: 12px; color: #A09D96;">Le PV complet est joint en pièce jointe (PDF)</div>' : ""}
+    ${pdfBase64 ? `<div style="text-align: center; padding: 10px 0 4px; font-size: 12px; color: #A09D96;">Le ${kind === "opr" ? "rapport OPR" : "PV"} complet est joint en pièce jointe (PDF)</div>` : ""}
   </div>
 
   <div style="text-align: center; margin-top: 20px; font-size: 11px; color: #A09D96;">
@@ -100,7 +111,7 @@ serve(async (req) => {
     const attachments: Array<{ filename: string; content: string }> = [];
     if (pdfBase64) {
       attachments.push({
-        filename: pdfFileName || `PV-${pvNumber}-${projectName.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.pdf`,
+        filename: pdfFileName || `${attachmentPrefix}-${pvNumber}-${projectName.replace(/[^\w\u00C0-\u024F-]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "")}.pdf`,
         content: pdfBase64,
       });
     }
@@ -108,7 +119,7 @@ serve(async (req) => {
     const resendPayload: Record<string, unknown> = {
       from: FROM_EMAIL,
       to,
-      subject: customSubject || `PV n\u00b0${pvNumber} — ${projectName} (${pvDate})`,
+      subject: customSubject || defaultSubject,
       html,
     };
     if (attachments.length > 0) {

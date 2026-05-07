@@ -468,6 +468,38 @@ export async function deleteComment(commentId) {
 
 // ── PV Distribution ────────────────────────────────────────
 
+// Lance l'extraction structurée du cahier des charges via l'Edge Function
+// parse-cdc. Retourne { posts, obligations, attendus, parsedAt } ou
+// { upgradeRequired } / { error }. Le caller décide quoi appliquer au projet.
+export async function parseCdc({ extractedText, projectName, projectType }) {
+  if (!extractedText?.trim()) return { error: "Aucun texte à analyser." };
+  const { data, error } = await supabase.functions.invoke("parse-cdc", {
+    body: { extractedText, projectName, projectType },
+  });
+  if (error) {
+    console.error("parseCdc error:", error);
+    const body = await parseFunctionError(error);
+    if (body.code === "plan_upgrade_required") {
+      return { upgradeRequired: body };
+    }
+    // Cas typique : la fonction n'est pas (encore) déployée → supabase-js
+    // remonte un message générique "Failed to send a request to the Edge
+    // Function". On le reformule pour qu'il soit actionnable.
+    const raw = body.error || error?.message || "";
+    if (/Failed to send a request|Function not found|404/i.test(raw)) {
+      return { error: "La fonction d'analyse n'est pas disponible (Edge Function non déployée). Réessaie dans un instant ou contacte le support." };
+    }
+    return { error: raw || "Erreur d'analyse du cahier des charges." };
+  }
+  if (data?.error) return { error: data.error };
+  return {
+    posts: Array.isArray(data?.posts) ? data.posts : [],
+    obligations: Array.isArray(data?.obligations) ? data.obligations : [],
+    attendus: Array.isArray(data?.attendus) ? data.attendus : [],
+    parsedAt: data?.parsedAt || new Date().toISOString(),
+  };
+}
+
 export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvContent, authorName, structureName, pdfBase64, pdfFileName, subject, customMessage }) {
   const pvId = `${projectName.replace(/\s+/g, "_")}-${pvNumber}`;
 
@@ -497,6 +529,70 @@ export async function sendPvByEmail({ to, projectName, pvNumber, pvDate, pvConte
   }
 
   return { success: true, sentTo: to };
+}
+
+// OPR mirrors PV email infra. Same Edge Function with kind="opr" — only the
+// email template labels differ. Skips pv_sends recording (OPR sends live in
+// the project's oprHistory entry, not in a dedicated table for now).
+export async function sendOprByEmail({ to, projectName, oprNumber, oprDate, authorName, structureName, pdfBase64, pdfFileName, subject, customMessage }) {
+  const oprId = `OPR-${projectName.replace(/\s+/g, "_")}-${oprNumber}`;
+
+  const { data, error } = await supabase.functions.invoke("send-pv-email", {
+    body: {
+      to,
+      projectName,
+      pvNumber: oprNumber,
+      pvDate: oprDate,
+      pvContent: "",
+      authorName,
+      structureName,
+      pdfBase64,
+      pdfFileName,
+      pvId: oprId,
+      subject,
+      customMessage,
+      kind: "opr",
+    },
+  });
+
+  if (error) {
+    console.error("sendOprByEmail error:", error);
+    const body = await parseFunctionError(error);
+    if (body.code === "plan_upgrade_required") {
+      return { upgradeRequired: body };
+    }
+    return { error: body.error || "Erreur d'envoi" };
+  }
+
+  return { success: true, sentTo: to, resendId: data?.id || "" };
+}
+
+// ── OPR signing à distance ──────────────────────────────────
+// Crée N demandes de signature pour un OPR donné. L'Edge Function gère
+// l'envoi des emails personnalisés + insertion DB.
+export async function requestOprSignatures({ projectId, projectName, opr, signatories, pdfBase64, pdfFileName, authorName, structureName, customMessage }) {
+  const { data, error } = await supabase.functions.invoke("request-opr-signatures", {
+    body: { projectId, projectName, opr, signatories, pdfBase64, pdfFileName, authorName, structureName, customMessage },
+  });
+  if (error) {
+    console.error("requestOprSignatures error:", error);
+    const body = await parseFunctionError(error);
+    if (body.code === "plan_upgrade_required") return { upgradeRequired: body };
+    return { error: body.error || "Erreur d'envoi" };
+  }
+  if (data?.error) return { error: data.error };
+  return { success: true, requests: data?.requests || [], delivery: data?.delivery || [] };
+}
+
+// Charge les demandes de signature pour un projet (ou pour un OPR spécifique).
+// Côté architecte, RLS s'occupe de filtrer par owner_user_id.
+export async function loadOprSignatureRequests(projectId, oprId) {
+  let q = supabase.from("opr_signature_requests").select("*").order("created_at", { ascending: false });
+  if (projectId) q = q.eq("project_id", String(projectId));
+  if (oprId) q = q.eq("opr_id", String(oprId));
+  const { data, error } = await q;
+  if (error) { console.error("loadOprSignatureRequests error:", error); return []; }
+  return data || [];
 }
 
 export async function loadPvSends(projectId, pvNumber) {

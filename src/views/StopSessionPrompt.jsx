@@ -1,20 +1,24 @@
 import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, REDBRD } from "../constants/tokens";
-import { Modal, Ico } from "../components/ui";
+import { Modal, Ico, TaskSearchSelect } from "../components/ui";
 import { formatDuration, elapsedSeconds } from "../utils/timer";
 
 // Modal qui s'ouvre quand l'utilisateur clique Stop. Le timer est pausé en
 // arrière-plan, et la durée capturée est figée. L'utilisateur doit saisir
-// une description avant de pouvoir valider la session. "Annuler" garde le
-// timer en pause (on peut reprendre avec Pause/Resume sur la card).
-export function StopSessionPrompt({ open, capturedTimer, projectName, onConfirm, onCancel }) {
+// une description avant de pouvoir valider la session. Optionnellement, il
+// peut lier la session à une tâche du projet — la référence stable (numéro)
+// permet de retrouver le contexte plus tard. "Annuler" garde le timer en
+// pause (on peut reprendre avec Pause/Resume sur la card).
+export function StopSessionPrompt({ open, capturedTimer, projectName, projectTasks, onConfirm, onCancel, onDiscard }) {
   const [note, setNote] = useState("");
+  const [taskId, setTaskId] = useState("");
   const inputRef = useRef(null);
   const totalSec = capturedTimer ? elapsedSeconds(capturedTimer, Date.now()) : 0;
   // Reset à chaque ouverture
   useEffect(() => {
     if (open) {
       setNote("");
+      setTaskId("");
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -24,7 +28,7 @@ export function StopSessionPrompt({ open, capturedTimer, projectName, onConfirm,
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    onConfirm(noteClean);
+    onConfirm(noteClean, taskId);
   };
 
   const handleKey = (e) => {
@@ -91,8 +95,40 @@ export function StopSessionPrompt({ open, capturedTimer, projectName, onConfirm,
         </div>
       </div>
 
-      {/* Actions */}
-      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+      {/* Lien optionnel vers une tâche — facultatif mais très utile pour le
+          tracking analytique (ex: "j'ai passé 2h sur la tâche #5"). */}
+      {projectTasks && projectTasks.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>
+            Lier à une tâche (facultatif)
+          </label>
+          <TaskSearchSelect
+            tasks={projectTasks}
+            value={taskId}
+            onChange={setTaskId}
+            placeholder="Tape le titre ou un numéro (ex: #5)…"
+          />
+        </div>
+      )}
+
+      {/* Actions — Supprimer (discret à gauche) | Annuler | Enregistrer */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        {onDiscard && (
+          <button
+            onClick={onDiscard}
+            title="Abandonner ce suivi sans le sauvegarder"
+            style={{
+              padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 8,
+              background: WH, color: BR, fontSize: 12, fontWeight: 500,
+              cursor: "pointer", fontFamily: "inherit",
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }}
+          >
+            <Ico name="trash" size={11} color={BR} />
+            Supprimer sans enregistrer
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
         <button
           onClick={onCancel}
           style={{

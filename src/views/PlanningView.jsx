@@ -1,11 +1,14 @@
 import { useState, useMemo, useRef } from "react";
 import { useT } from "../i18n";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, DIS, DIST } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, BR, BRB, DIS, DIST } from "../constants/tokens";
 import { calcLotStatus, LOT_COLORS } from "../constants/statuses";
+import { getProjectPhases, getProjectPhase } from "../utils/phases";
+import { getTaskStatus, getTaskPriority, sortTasks, isOverdue, isClosed, advanceTaskStatus, newTask, nextTaskNumber, getChildTasks } from "../utils/tasks";
 import { Ico, PB, Modal } from "../components/ui";
+import { TaskEditModal } from "../components/modals/TaskEditModal";
 
-export function PlanningView({ project, setProjects, onBack }) {
-  const EMPTY_LOT = { name: "", contractor: "", startDate: "", endDate: "", duration: "", progress: 0, color: "amber", steps: [], postId: "" };
+export function PlanningView({ project, setProjects, onBack, profile }) {
+  const EMPTY_LOT = { name: "", contractor: "", startDate: "", endDate: "", duration: "", progress: 0, color: "amber", steps: [], postId: "", phaseId: "" };
   const EMPTY_STEP = { name: "", startDate: "", endDate: "", duration: "", done: false };
   const [modal,     setModal]     = useState(null); // null | "add" | "edit"
   const [editLot,   setEditLot]   = useState(EMPTY_LOT);
@@ -13,6 +16,21 @@ export function PlanningView({ project, setProjects, onBack }) {
   const [confirmDeleteLot, setConfirmDeleteLot] = useState(null);
   const importRef = useRef(null);
   const t = useT();
+  // ── Vue : "hierarchy" (Phase → Lot → Tâche, par défaut) | "gantt" ─────
+  const [viewMode, setViewMode] = useState("hierarchy");
+  // Filtre phase : par défaut = phase active du projet pour ne pas noyer
+  // l'utilisateur. Valeur "_all" = tout afficher (toutes phases + transverses).
+  // Le filtre s'applique aux DEUX vues (hiérarchie & Gantt).
+  const [phaseFilter, setPhaseFilter] = useState(project.statusId || "_all");
+  // Tâches : modal de création/édition contextuelle (pré-rempli avec lotId)
+  const [taskModal, setTaskModal] = useState(null); // null | { mode: "create"|"edit", taskId?, lotId? }
+  // Pliage des lots dans la vue hiérarchique. Par défaut tous ouverts.
+  const [collapsedLots, setCollapsedLots] = useState(new Set());
+  const toggleLotCollapsed = (id) => setCollapsedLots(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   // Auto-calc endDate from startDate + duration (days)
   const calcEndFromDuration = (start, days) => {
@@ -90,6 +108,29 @@ export function PlanningView({ project, setProjects, onBack }) {
   };
 
   const lots = project.lots || [];
+  const tasks = project.tasks || [];
+  const phases = getProjectPhases(project);
+
+  // ── Mutations tâches (utilisées par les sous-blocs hiérarchiques) ────
+  const saveTask = (task) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== project.id) return p;
+      const exists = (p.tasks || []).some(t => t.id === task.id);
+      let next;
+      if (exists) {
+        next = (p.tasks || []).map(t => t.id === task.id ? task : t);
+      } else {
+        // Nouvelle tâche : on attribue un numéro entier auto-incrémenté
+        // (jamais réutilisé même après suppression — la ref reste stable
+        // pour le suivi du temps et les commentaires qui pointent dessus).
+        const number = task.number || nextTaskNumber(p);
+        next = [...(p.tasks || []), { ...task, number }];
+      }
+      return { ...p, tasks: next };
+    }));
+  };
+  const deleteTask = (id) => setProjects(prev => prev.map(p => p.id !== project.id ? p : { ...p, tasks: (p.tasks || []).filter(t => t.id !== id) }));
+  const advanceTask = (id) => setProjects(prev => prev.map(p => p.id !== project.id ? p : advanceTaskStatus(p, id)));
 
   const saveLot = () => {
     if (!editLot.name.trim()) return;
@@ -114,7 +155,12 @@ export function PlanningView({ project, setProjects, onBack }) {
   } : p));
 
   // ── Gantt helpers ───────────────────────────────────────────
-  const datedLots = lots.filter((l) => l.startDate && l.endDate);
+  // Le Gantt respecte le filtre phase : si une phase est sélectionnée, on
+  // ne montre que ses lots ; "_all" affiche tout y compris les transverses.
+  const filteredLots = phaseFilter === "_all"
+    ? lots
+    : lots.filter(l => l.phaseId === phaseFilter);
+  const datedLots = filteredLots.filter((l) => l.startDate && l.endDate);
   const toMs  = (d) => new Date(d).getTime();
   const minMs = datedLots.length ? Math.min(...datedLots.map((l) => toMs(l.startDate))) : null;
   const maxMs = datedLots.length ? Math.max(...datedLots.map((l) => toMs(l.endDate)))   : null;
@@ -130,9 +176,12 @@ export function PlanningView({ project, setProjects, onBack }) {
 
   return (
     <div>
-      {/* Header */}
+      {/* Header — bouton retour seulement en standalone (onBack fourni). En
+          mode embarqué dans l'onglet Planning, la nav vit dans la topbar. */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}><Ico name="back" color={TX2} /></button>
+        {onBack && (
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}><Ico name="back" color={TX2} /></button>
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 17, fontWeight: 600, color: TX }}>{t("planning.title")}</div>
           <div style={{ fontSize: 12, color: TX3 }}>{project.name}{lots.length > 0 ? ` · ${lots.length} lot${lots.length > 1 ? "s" : ""} · ${overallProgress}% avancement` : ""}</div>
@@ -149,12 +198,240 @@ export function PlanningView({ project, setProjects, onBack }) {
         Format CSV pour import : <strong>Lot ; Responsable ; Début (YYYY-MM-DD) ; Fin (YYYY-MM-DD) ; Avancement (%)</strong>
       </div>
 
-      {lots.length === 0 ? (
+      {/* Onglets + filtre phase — sur la même ligne pour économiser la place.
+          Filtre par défaut = phase active du projet (évite la fatigue visuelle
+          avec 5+ phases empilées). « Toutes » montre tout y compris transverses. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
+        {/* Tabs vue */}
+        <div style={{ display: "flex", gap: 4, padding: 4, background: SB, borderRadius: 10, flexShrink: 0 }}>
+          <button onClick={() => setViewMode("hierarchy")}
+            style={{ padding: "6px 14px", border: "none", borderRadius: 7, background: viewMode === "hierarchy" ? WH : "transparent", color: viewMode === "hierarchy" ? TX : TX3, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5, boxShadow: viewMode === "hierarchy" ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
+            <Ico name="layers" size={11} color={viewMode === "hierarchy" ? AC : TX3} />Hiérarchie
+          </button>
+          <button onClick={() => setViewMode("gantt")}
+            style={{ padding: "6px 14px", border: "none", borderRadius: 7, background: viewMode === "gantt" ? WH : "transparent", color: viewMode === "gantt" ? TX : TX3, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5, boxShadow: viewMode === "gantt" ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
+            <Ico name="gantt" size={11} color={viewMode === "gantt" ? AC : TX3} />Gantt
+          </button>
+        </div>
+        {/* Filtre phase — pills horizontales scrollables si beaucoup de phases */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, overflowX: "auto", paddingBottom: 2 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>Phase :</span>
+          {phases.map(ph => {
+            const selected = phaseFilter === ph.id;
+            const isActive = project.statusId === ph.id;
+            return (
+              <button key={ph.id} onClick={() => setPhaseFilter(ph.id)}
+                style={{ padding: "4px 10px", border: `1px solid ${selected ? ph.color : SBB}`, borderRadius: 14, background: selected ? ph.bg : WH, color: selected ? ph.color : TX3, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, whiteSpace: "nowrap" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: ph.color }} />
+                {ph.label}
+                {isActive && <span style={{ fontSize: 8, fontWeight: 700, color: ph.color, opacity: 0.7 }}>· active</span>}
+              </button>
+            );
+          })}
+          <button onClick={() => setPhaseFilter("_all")}
+            style={{ padding: "4px 10px", border: `1px solid ${phaseFilter === "_all" ? AC : SBB}`, borderRadius: 14, background: phaseFilter === "_all" ? ACL : WH, color: phaseFilter === "_all" ? AC : TX3, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}>
+            Toutes
+          </button>
+        </div>
+      </div>
+
+      {/* ═════════════════════════════════════════════════════════════════
+          VUE HIÉRARCHIQUE — Phase → Lot → Tâche
+          C'est l'organisation principale du chantier : chaque phase contient
+          ses lots, chaque lot contient ses tâches. Une section pour les lots
+          transverses (sans phase) et une pour les tâches transverses (sans
+          lot) capture ce qui ne rentre pas dans la hiérarchie.
+          ═════════════════════════════════════════════════════════════════ */}
+      {viewMode === "hierarchy" && (() => {
+        // Application du filtre phase. "_all" = toutes phases visibles.
+        // Sinon on filtre les lots et on n'affiche QUE la phase sélectionnée.
+        const showAll = phaseFilter === "_all";
+        const visiblePhases = showAll ? phases : phases.filter(p => p.id === phaseFilter);
+        // Groupement des lots par phaseId (vide = transverse)
+        const lotsByPhase = new Map();
+        const transverseLots = [];
+        for (const lot of lots) {
+          if (!lot.phaseId) { transverseLots.push(lot); continue; }
+          if (!lotsByPhase.has(lot.phaseId)) lotsByPhase.set(lot.phaseId, []);
+          lotsByPhase.get(lot.phaseId).push(lot);
+        }
+        // Tâches transverses (sans lot) : toujours visibles, peu importe le
+        // filtre, car elles ne sont rattachées à aucune phase.
+        const orphanTasks = tasks.filter(t => !t.lotId);
+
+        // Rendu récursif d'une tâche avec ses enfants directs (parent dans
+        // le même lot). Profondeur visuelle limitée par le padding gauche.
+        const renderTaskTree = (task, lotTasksMap, depth = 0) => {
+          const childrenInLot = sortTasks(
+            Array.from(lotTasksMap.values()).filter(t => t.parentId === task.id)
+          );
+          return (
+            <div key={task.id}>
+              <HierTaskRow
+                task={task}
+                project={project}
+                depth={depth}
+                hasChildren={childrenInLot.length > 0}
+                onEdit={() => setTaskModal({ mode: "edit", taskId: task.id })}
+                onAdvance={() => advanceTask(task.id)}
+                onAddChild={() => setTaskModal({ mode: "create", lotId: task.lotId, parentId: task.id })}
+              />
+              {childrenInLot.map(c => renderTaskTree(c, lotTasksMap, depth + 1))}
+            </div>
+          );
+        };
+
+        const renderLotCard = (lot) => {
+          const st = calcLotStatus(lot);
+          const lc = getLotColor(lot);
+          const lotTasks = tasks.filter(t => t.lotId === lot.id);
+          const lotTasksMap = new Map(lotTasks.map(t => [t.id, t]));
+          // Tâches "racines" du lot = pas de parent OU parent dans un autre lot
+          // (auquel cas on les remonte au niveau racine pour ne pas les perdre).
+          const rootTasks = sortTasks(
+            lotTasks.filter(t => !t.parentId || !lotTasksMap.has(t.parentId))
+          );
+          const collapsed = collapsedLots.has(lot.id);
+          return (
+            <div key={lot.id} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
+              {/* Lot header — clickable pour replier les tâches */}
+              <div onClick={() => toggleLotCollapsed(lot.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", background: WH }}
+                onMouseEnter={(e) => e.currentTarget.style.background = SB}
+                onMouseLeave={(e) => e.currentTarget.style.background = WH}>
+                <Ico name={collapsed ? "chevron-right" : "chevron-down"} size={11} color={TX3} />
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: lc.value, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>{lot.name}</div>
+                  <div style={{ display: "flex", gap: 8, fontSize: 11, color: TX3, marginTop: 2, flexWrap: "wrap" }}>
+                    {lot.contractor && <span>{lot.contractor}</span>}
+                    {lot.startDate && <span>{fmtDate(lot.startDate)}{lot.endDate ? ` → ${fmtDate(lot.endDate)}` : ""}</span>}
+                    {lotTasks.length > 0 && <span>· {lotTasks.length} tâche{lotTasks.length > 1 ? "s" : ""}</span>}
+                    {lot.progress > 0 && <span>· {lot.progress}%</span>}
+                  </div>
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, padding: "2px 7px", borderRadius: 6, flexShrink: 0 }}>{st.label}</span>
+                <button onClick={(e) => { e.stopPropagation(); setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", duration: calcDuration(lot.startDate, lot.endDate), progress: lot.progress || 0, color: lot.color || "amber", steps: lot.steps || [], postId: lot.postId || "", phaseId: lot.phaseId || "" }); setEditingId(lot.id); setModal("edit"); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0 }}>
+                  <Ico name="edit" size={12} color={TX3} />
+                </button>
+              </div>
+              {/* Tasks list */}
+              {!collapsed && (
+                <div style={{ borderTop: `1px solid ${SBB}`, background: SB }}>
+                  {rootTasks.map(t => renderTaskTree(t, lotTasksMap, 0))}
+                  <button onClick={() => setTaskModal({ mode: "create", lotId: lot.id })}
+                    style={{ width: "100%", padding: "8px 14px", border: "none", borderTop: rootTasks.length > 0 ? `1px dashed ${SBB}` : "none", background: "transparent", color: AC, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                    <Ico name="plus" size={10} color={AC} />Nouvelle tâche dans ce lot
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        const renderPhaseSection = (phase, lotsInPhase, isTransverse = false) => (
+          <div key={isTransverse ? "_transverse" : phase.id} style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "8px 12px", background: isTransverse ? SB : (phase.bg || ACL), borderRadius: 8, border: `1px solid ${isTransverse ? SBB : (phase.color + "30") || ACL2}` }}>
+              {isTransverse ? (
+                <Ico name="layers" size={13} color={TX3} />
+              ) : (
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: phase.color }} />
+              )}
+              <span style={{ fontSize: 13, fontWeight: 700, color: isTransverse ? TX : phase.color }}>
+                {isTransverse ? "Lots transverses" : phase.label}
+              </span>
+              <span style={{ fontSize: 10, color: isTransverse ? TX3 : phase.color, opacity: 0.7 }}>· {lotsInPhase.length} lot{lotsInPhase.length > 1 ? "s" : ""}</span>
+              {!isTransverse && project.statusId === phase.id && (
+                <span style={{ fontSize: 9, fontWeight: 700, color: phase.color, background: WH, padding: "1px 6px", borderRadius: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Phase active</span>
+              )}
+              <div style={{ flex: 1 }} />
+              <button onClick={() => { setEditLot({ ...EMPTY_LOT, phaseId: isTransverse ? "" : phase.id }); setEditingId(null); setModal("add"); }}
+                style={{ padding: "5px 10px", border: "none", borderRadius: 6, background: WH, color: AC, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Ico name="plus" size={10} color={AC} />Lot
+              </button>
+            </div>
+            {lotsInPhase.length === 0 ? (
+              <div style={{ padding: "10px 14px", background: WH, border: `1px dashed ${SBB}`, borderRadius: 10, fontSize: 11, color: TX3, fontStyle: "italic", textAlign: "center" }}>
+                Aucun lot dans cette phase. Clique sur « Lot » pour en ajouter un.
+              </div>
+            ) : lotsInPhase.map(renderLotCard)}
+          </div>
+        );
+
+        return (
+          <div>
+            {visiblePhases.map(phase => renderPhaseSection(phase, lotsByPhase.get(phase.id) || []))}
+            {/* Lots transverses : visibles uniquement quand "Toutes" est sélectionné,
+                car ils n'appartiennent à aucune phase et ne rentrent dans aucun filtre. */}
+            {showAll && transverseLots.length > 0 && renderPhaseSection(null, transverseLots, true)}
+
+            {/* Tâches transverses (sans lot) */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "8px 12px", background: SB, borderRadius: 8, border: `1px solid ${SBB}` }}>
+                <Ico name="listcheck" size={13} color={TX3} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>Tâches transverses</span>
+                <span style={{ fontSize: 10, color: TX3 }}>· {orphanTasks.length} sans lot</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setTaskModal({ mode: "create" })}
+                  style={{ padding: "5px 10px", border: "none", borderRadius: 6, background: WH, color: AC, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Ico name="plus" size={10} color={AC} />Tâche
+                </button>
+              </div>
+              {orphanTasks.length === 0 ? (
+                <div style={{ padding: "10px 14px", background: WH, border: `1px dashed ${SBB}`, borderRadius: 10, fontSize: 11, color: TX3, fontStyle: "italic", textAlign: "center" }}>
+                  Aucune tâche hors lot — les tâches issues d'un PV ou créées en transverse apparaîtront ici.
+                </div>
+              ) : (() => {
+                // Même logique de rendu arborescent que dans un lot
+                const orphanMap = new Map(orphanTasks.map(t => [t.id, t]));
+                const roots = sortTasks(orphanTasks.filter(t => !t.parentId || !orphanMap.has(t.parentId)));
+                const renderOrphan = (task, depth = 0) => {
+                  const children = sortTasks(orphanTasks.filter(t => t.parentId === task.id));
+                  return (
+                    <div key={task.id}>
+                      <HierTaskRow
+                        task={task}
+                        project={project}
+                        depth={depth}
+                        hasChildren={children.length > 0}
+                        onEdit={() => setTaskModal({ mode: "edit", taskId: task.id })}
+                        onAdvance={() => advanceTask(task.id)}
+                        onAddChild={() => setTaskModal({ mode: "create", parentId: task.id })}
+                      />
+                      {children.map(c => renderOrphan(c, depth + 1))}
+                    </div>
+                  );
+                };
+                return (
+                  <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden" }}>
+                    {roots.map(t => renderOrphan(t, 0))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═════════════════════════════════════════════════════════════════
+          VUE GANTT — Timeline classique avec lot bars + steps
+          ═════════════════════════════════════════════════════════════════ */}
+      {viewMode === "gantt" && (filteredLots.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", border: `2px dashed ${SBB}`, borderRadius: 14, background: WH, textAlign: "center" }}>
           <Ico name="gantt" size={40} color={TX3} />
-          <div style={{ fontSize: 15, fontWeight: 600, color: TX, marginTop: 16, marginBottom: 6 }}>{t("planning.noLots")}</div>
-          <div style={{ fontSize: 13, color: TX3, marginBottom: 20, maxWidth: 320 }}>{t("planning.noLotsDesc")}</div>
-          <button onClick={() => { setEditLot(EMPTY_LOT); setEditingId(null); setModal("add"); }} style={{ padding: "10px 24px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{t("planning.addLot")}</button>
+          {lots.length === 0 ? (
+            <>
+              <div style={{ fontSize: 15, fontWeight: 600, color: TX, marginTop: 16, marginBottom: 6 }}>{t("planning.noLots")}</div>
+              <div style={{ fontSize: 13, color: TX3, marginBottom: 20, maxWidth: 320 }}>{t("planning.noLotsDesc")}</div>
+              <button onClick={() => { setEditLot(EMPTY_LOT); setEditingId(null); setModal("add"); }} style={{ padding: "10px 24px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>{t("planning.addLot")}</button>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 15, fontWeight: 600, color: TX, marginTop: 16, marginBottom: 6 }}>Aucun lot dans cette phase</div>
+              <div style={{ fontSize: 13, color: TX3, marginBottom: 20, maxWidth: 320 }}>Sélectionne une autre phase ou « Toutes » pour voir les lots existants.</div>
+              <button onClick={() => setPhaseFilter("_all")} style={{ padding: "10px 24px", border: `1px solid ${AC}`, borderRadius: 10, background: WH, color: AC, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Voir toutes les phases</button>
+            </>
+          )}
         </div>
       ) : (
         <div>
@@ -233,8 +510,8 @@ export function PlanningView({ project, setProjects, onBack }) {
             </div>
           )}
 
-          {/* Lot list */}
-          {lots.map((lot) => {
+          {/* Lot list — filtré par phase comme la timeline ci-dessus */}
+          {filteredLots.map((lot) => {
             const st = calcLotStatus(lot);
             const lc = getLotColor(lot);
             return (
@@ -252,7 +529,7 @@ export function PlanningView({ project, setProjects, onBack }) {
                     </div>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, padding: "2px 7px", borderRadius: 6, flexShrink: 0 }}>{st.label}</span>
-                  <button onClick={() => { setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", duration: calcDuration(lot.startDate, lot.endDate), progress: lot.progress || 0, color: lot.color || "amber", steps: lot.steps || [], postId: lot.postId || "" }); setEditingId(lot.id); setModal("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
+                  <button onClick={() => { setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", duration: calcDuration(lot.startDate, lot.endDate), progress: lot.progress || 0, color: lot.color || "amber", steps: lot.steps || [], postId: lot.postId || "", phaseId: lot.phaseId || "" }); setEditingId(lot.id); setModal("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                     <Ico name="edit" size={14} color={TX3} />
                   </button>
                   {confirmDeleteLot === lot.id ? (
@@ -315,7 +592,22 @@ export function PlanningView({ project, setProjects, onBack }) {
             );
           })}
         </div>
-      )}
+      ))}
+
+      {/* Modal de création/édition de tâche — partagée entre les boutons
+          "+ Tâche" du sommaire, "+ enfant" sur une ligne, et le clic sur
+          une ligne pour éditer. `defaults` permet de pré-remplir lotId et
+          parentId selon le contexte de création. */}
+      <TaskEditModal
+        open={!!taskModal}
+        onClose={() => setTaskModal(null)}
+        project={project}
+        existingTask={taskModal?.mode === "edit" ? tasks.find(t => t.id === taskModal.taskId) : null}
+        defaults={taskModal?.mode === "create" ? { lotId: taskModal.lotId || "", parentId: taskModal.parentId || "" } : undefined}
+        profile={profile}
+        onSave={(t) => saveTask(t)}
+        onDelete={taskModal?.mode === "edit" ? deleteTask : undefined}
+      />
 
       {/* Import mapping modal */}
       {importData && (
@@ -406,14 +698,23 @@ export function PlanningView({ project, setProjects, onBack }) {
             <input value={editLot.contractor || ""} onChange={(e) => setEditLot((p) => ({ ...p, contractor: e.target.value }))} placeholder="ex. Entreprise Dupont" style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box" }} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Poste PV associé</div>
-            <select value={editLot.postId || ""} onChange={(e) => setEditLot((p) => ({ ...p, postId: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", appearance: "auto", cursor: "pointer" }}>
-              <option value="">— Aucun poste —</option>
-              {(project.posts || []).map(p => (
-                <option key={p.id} value={p.id}>{p.id}. {p.label}</option>
+            <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Phase du projet</div>
+            <select value={editLot.phaseId || ""} onChange={(e) => setEditLot((p) => ({ ...p, phaseId: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", appearance: "auto", cursor: "pointer" }}>
+              <option value="">— Transverse (toutes phases) —</option>
+              {getProjectPhases(project).map(ph => (
+                <option key={ph.id} value={ph.id}>{ph.label}</option>
               ))}
             </select>
           </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: TX2, marginBottom: 4 }}>Poste PV associé</div>
+          <select value={editLot.postId || ""} onChange={(e) => setEditLot((p) => ({ ...p, postId: e.target.value }))} style={{ width: "100%", padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", appearance: "auto", cursor: "pointer" }}>
+            <option value="">— Aucun poste —</option>
+            {(project.posts || []).map(p => (
+              <option key={p.id} value={p.id}>{p.id}. {p.label}</option>
+            ))}
+          </select>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
@@ -494,6 +795,69 @@ export function PlanningView({ project, setProjects, onBack }) {
           {modal === "add" ? t("planning.addLotBtn") : t("save")}
         </button>
       </Modal>
+    </div>
+  );
+}
+
+// Ligne de tâche dans la vue hiérarchique. Compacte, click = édition.
+// Le bouton "→" à droite avance le statut. Indent visuel pour les enfants
+// d'un parent. Préfixe "#N" = numéro entier auto-généré (référence stable).
+function HierTaskRow({ task, project, depth = 0, hasChildren = false, onEdit, onAdvance, onAddChild }) {
+  const status = getTaskStatus(task.status);
+  const priority = getTaskPriority(task.priority);
+  const overdue = isOverdue(task);
+  const closed = isClosed(task.status);
+  const dueLabel = task.dueDate ? new Date(task.dueDate).toLocaleDateString("fr-BE", { day: "numeric", month: "short" }) : null;
+  // Si la tâche a un parentId pointant vers une tâche dans un AUTRE lot
+  // (ou qu'on ne retrouve pas dans la liste filtrée), on affiche un badge
+  // "↳ #X" pour rendre la relation visible quand même.
+  const parent = task.parentId ? (project?.tasks || []).find(t => t.id === task.parentId) : null;
+  // padding-left pour matérialiser l'indent. 28px de base, +20px par niveau.
+  const indentPx = 28 + depth * 20;
+
+  return (
+    <div onClick={onEdit}
+      style={{ display: "flex", alignItems: "center", gap: SP.sm, padding: `8px 14px 8px ${indentPx}px`, borderBottom: `1px solid ${SBB}`, cursor: "pointer", background: "transparent", transition: "background 0.1s" }}
+      onMouseEnter={(e) => e.currentTarget.style.background = WH}
+      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+      {/* Indicateur visuel d'un enfant */}
+      {depth > 0 && <span style={{ color: TX3, fontSize: 11, marginRight: -4, flexShrink: 0 }}>↳</span>}
+      {/* Pastille priorité */}
+      <span title={priority.label} style={{ width: 7, height: 7, borderRadius: "50%", background: priority.color, flexShrink: 0 }} />
+      {/* Numéro */}
+      <span style={{ fontSize: 10, fontWeight: 700, color: TX3, fontFamily: "ui-monospace, SFMono-Regular, monospace", flexShrink: 0 }}>
+        #{task.number || "?"}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: FS.sm, fontWeight: 500, color: closed ? TX3 : TX, textDecoration: closed ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {task.title}
+        </div>
+        <div style={{ fontSize: 10, color: TX3, marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {task.assigneeName && <span>{task.assigneeName}</span>}
+          {dueLabel && <span style={{ color: overdue ? BR : TX3, fontWeight: overdue ? 700 : 500 }}>· {dueLabel}{overdue && " · en retard"}</span>}
+          {task.origin === "pv" && task.pvNumber && <span style={{ color: AC, fontWeight: 600 }}>· PV n°{task.pvNumber}</span>}
+          {parent && depth === 0 && <span style={{ color: TX3 }}>· Parent : #{parent.number}</span>}
+          {hasChildren && <span style={{ color: AC, fontWeight: 600 }}>· {(project?.tasks || []).filter(t => t.parentId === task.id).length} tâches liées</span>}
+          {(task.attachments || []).length > 0 && <span>· {task.attachments.length} 📎</span>}
+        </div>
+      </div>
+      <span style={{ fontSize: 9, fontWeight: 700, color: status.color, background: status.bg, padding: "2px 8px", borderRadius: 12, flexShrink: 0 }}>{status.label}</span>
+      {/* Bouton "+ enfant" — uniquement sur les non-clôturées et non-enfants
+          (on évite des arbres à 4+ niveaux qui deviennent illisibles) */}
+      {!closed && depth < 2 && onAddChild && (
+        <button onClick={(e) => { e.stopPropagation(); onAddChild(); }}
+          title="Ajouter une tâche liée à celle-ci"
+          style={{ padding: 4, border: `1px solid ${SBB}`, borderRadius: 5, background: WH, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <Ico name="plus" size={10} color={TX3} />
+        </button>
+      )}
+      {!closed && (
+        <button onClick={(e) => { e.stopPropagation(); onAdvance(); }}
+          title="Avancer au statut suivant"
+          style={{ padding: 4, border: `1px solid ${SBB}`, borderRadius: 5, background: WH, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <Ico name="arrowr" size={10} color={TX3} />
+        </button>
+      )}
     </div>
   );
 }

@@ -1,22 +1,24 @@
 import { useRef, useState } from "react";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, SP, FS, RAD, BL } from "../constants/tokens";
-import { Ico } from "../components/ui";
-import { extractPdfText, formatBytes } from "../utils/chatAttachments";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, SP, FS, RAD, BL, BLB, AM, AMB, SG, SGB } from "../constants/tokens";
+import { Ico, AskAiButton } from "../components/ui";
+import { extractDocumentText, formatBytes } from "../utils/chatAttachments";
 
 // Bannière fine du Cahier des Charges, affichée tout en haut de l'Overview.
 // Toujours visible : le CdC est un document de référence consulté en
 // permanence pendant l'exécution du chantier.
 //
-// Deux états :
-//   - vide      : CTA upload + sous-texte explicatif
-//   - rempli    : nom + taille + actions Ouvrir / Demander à l'IA / ⋯
+// Formats acceptés : PDF (texte ou scanné) et Word .docx. L'ancien .doc
+// binaire n'est pas supporté (bibliothèque mammoth ne le lit pas).
 //
-// L'extraction du texte du PDF est faite ICI, au moment de l'upload, et
-// stockée dans `cahierDesCharges.extractedText`. Ça évite de re-parser à
-// chaque question chatbot et permet d'inclure le CdC dans le contexte
-// global du chat sans recharger un buffer 10 Mo à chaque fois.
+// L'extraction est dispatchée par `extractDocumentText` qui retourne :
+//   - kind="text"   → cdc.extractedText rempli
+//   - kind="vision" → cdc.imagePages[] rempli (PDF scanné — l'IA les lit en mode vision)
+//   - kind="empty"  → ni l'un ni l'autre (Word .doc, PDF protégé) — on stocke
+//                     quand même le fichier pour consultation, l'IA répond
+//                     avec le contexte projet seulement.
 
 const MAX_BYTES = 12 * 1024 * 1024; // 12 Mo, comme les autres uploads
+const ACCEPT_FILES = "application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx";
 
 export function CdcBanner({ project, profile, onUpload, onRemove, onAskAi, canEdit }) {
   const fileRef = useRef(null);
@@ -36,34 +38,47 @@ export function CdcBanner({ project, profile, onUpload, onRemove, onAskAi, canEd
       setErr(`Fichier trop lourd (${Math.round(file.size / 1024 / 1024)} Mo). Limite : 12 Mo.`);
       return;
     }
-    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
-      setErr("Format non supporté. PDF uniquement pour le cahier des charges.");
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+    const isDocx = /\.docx$/i.test(file.name) || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const isLegacyDoc = /\.doc$/i.test(file.name) && !isDocx;
+    if (isLegacyDoc) {
+      setErr("Format .doc (ancien Word binaire) non supporté. Enregistre le fichier en .docx ou en PDF.");
+      return;
+    }
+    if (!isPdf && !isDocx) {
+      setErr("Format non supporté. Accepté : PDF (texte ou scanné) ou Word .docx.");
       return;
     }
     setBusy(true);
     try {
-      // Lire le fichier en dataUrl pour stockage durable
+      // Lire le fichier en dataUrl pour stockage durable (consultation).
       const dataUrl = await new Promise((resolve, reject) => {
         const r = new FileReader();
         r.onload = () => resolve(r.result);
         r.onerror = reject;
         r.readAsDataURL(file);
       });
-      // Extraire le texte une seule fois (pour le chatbot)
+      // Dispatcher d'extraction : texte si possible, sinon images de pages
+      // pour le mode vision IA, sinon rien (on stocke quand même le fichier).
       let extractedText = "";
+      let imagePages = null;
       try {
-        extractedText = await extractPdfText(file);
+        const result = await extractDocumentText(file);
+        if (result.kind === "text") {
+          extractedText = result.text;
+        } else if (result.kind === "vision") {
+          imagePages = result.pages;
+        }
       } catch (extractErr) {
-        // PDF scanné non-OCR ou autre — on stocke quand même le fichier mais
-        // l'IA n'aura pas accès au contenu textuel.
-        console.warn("CdC extraction text failed:", extractErr);
+        console.warn("CdC extraction failed:", extractErr);
       }
       onUpload({
         fileName: file.name,
         size: file.size,
-        mimeType: "application/pdf",
+        mimeType: isDocx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf",
         dataUrl,
         extractedText,
+        imagePages,
         uploadedAt: new Date().toISOString(),
         uploadedBy: profile?.name || profile?.email || "—",
       });
@@ -90,20 +105,21 @@ export function CdcBanner({ project, profile, onUpload, onRemove, onAskAi, canEd
   };
 
   // ── Style commun ─────────────────────────────────────────
-  const wrap = { display: "flex", alignItems: "center", gap: SP.md, padding: `${SP.sm + 2}px ${SP.md + 2}px`, borderRadius: RAD.lg, marginBottom: SP.md };
+  // Aligné avec le header projet : carte blanche, bordure douce #E8E1DA, radius 16.
+  const cardWrap = { display: "flex", alignItems: "center", gap: SP.md, padding: "14px 18px", borderRadius: 16, marginBottom: SP.md, background: WH, border: `1px solid #E8E1DA`, position: "relative" };
   const iconBox = (bg, fg) => ({ width: 36, height: 36, borderRadius: 8, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: fg });
 
   // ── État vide ────────────────────────────────────────────
   if (!cdc) {
     return (
-      <div style={{ ...wrap, background: SB, border: `1px dashed ${SBB}` }}>
+      <div style={{ ...cardWrap, borderStyle: "dashed", background: SB }}>
         <div style={iconBox(SB2, TX3)}>
           <Ico name="file" size={16} color={TX3} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: FS.md, fontWeight: 600, color: TX, lineHeight: 1.2 }}>Cahier des charges</div>
-          <div style={{ fontSize: FS.sm, color: TX3, lineHeight: 1.3, marginTop: 2 }}>
-            Habituellement soumis lors de l'appel d'offres — tu peux l'ajouter à n'importe quel moment.
+          <div style={{ fontSize: FS.md, fontWeight: 600, color: TX, lineHeight: 1.2 }}>Document de référence</div>
+          <div style={{ fontSize: FS.sm, color: TX2, lineHeight: 1.4, marginTop: 2 }}>
+            Cahier des charges, marché, ou tout autre document servant de référence — PDF (texte ou scanné) ou Word .docx, 12 Mo max.
           </div>
         </div>
         {canEdit && (
@@ -113,58 +129,97 @@ export function CdcBanner({ project, profile, onUpload, onRemove, onAskAi, canEd
             style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: FS.sm, fontWeight: 600, cursor: busy ? "wait" : "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}
           >
             <Ico name="upload" size={12} color="#fff" />
-            {busy ? "Lecture…" : "Uploader le PDF"}
+            {busy ? "Lecture…" : "Uploader le document"}
           </button>
         )}
-        <input ref={fileRef} type="file" accept="application/pdf,.pdf" onChange={handleFile} style={{ display: "none" }} />
+        <input ref={fileRef} type="file" accept={ACCEPT_FILES} onChange={handleFile} style={{ display: "none" }} />
         {err && <div role="alert" style={{ color: BR, fontSize: FS.sm, marginLeft: SP.sm }}>{err}</div>}
       </div>
     );
   }
 
   // ── État rempli ──────────────────────────────────────────
+  // L'API IA a 3 modes : "compare_ft" (CTA principal), "summary" (menu),
+  // "question" (menu). Le caller (App.jsx via Overview) construit le bon
+  // prefill selon le mode. Mode legacy "" = compare_ft pour rétro-compat.
+  const askIa = (mode) => { onAskAi?.(cdc, mode); };
+
+  // Type du document — pour l'instant figé à "Cahier des charges" car c'est
+  // l'usage initial. cdc.documentType peut surcharger plus tard si on
+  // accepte d'autres types (marché, brief, note de mission…).
+  const documentType = cdc.documentType || "Cahier des charges";
+
+  // Statut d'extraction — 4 états possibles. cdc._extracting est posé par
+  // le parent quand une extraction asynchrone est en cours (futur — pour
+  // l'instant l'extraction est sync à l'upload donc cet état est rare).
+  const status = cdc._extracting ? "in_progress"
+    : cdc.extractedText ? "extracted"
+    : (cdc.imagePages && cdc.imagePages.length > 0) ? "to_analyze"
+    : "impossible";
+  const STATUS_META = {
+    extracted:   { label: "Texte extrait",        color: SG,  bg: SGB,  border: SG + "40",  tooltip: "Le texte du document a été extrait. L'IA peut répondre sur son contenu intégral." },
+    in_progress: { label: "Extraction en cours…", color: AM,  bg: AMB,  border: AM + "40",  tooltip: "Lecture du document en cours, ça peut prendre quelques secondes." },
+    to_analyze:  { label: "À analyser",           color: BL,  bg: BLB,  border: BL + "40",  tooltip: `Document scanné — l'IA le lira en mode vision (${cdc.imagePages?.length || 0} premières pages) à la prochaine question.` },
+    impossible:  { label: "Extraction impossible",color: BR,  bg: BRB,  border: BR + "40",  tooltip: "Aucun contenu n'a pu être extrait. L'IA répondra avec le contexte projet uniquement." },
+  };
+  const sm = STATUS_META[status];
+
   return (
-    <div style={{ ...wrap, background: ACL, border: `1px solid ${ACL2}`, position: "relative" }}>
-      <div style={iconBox(WH, AC)}>
+    <div style={cardWrap}>
+      <div style={iconBox(ACL, AC)}>
         <Ico name="file" size={16} color={AC} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Ligne 1 : header de section + badge statut */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: FS.xs, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Cahier des charges</span>
-          {!cdc.extractedText && (
-            <span title="Texte non extrait (PDF scanné ?). L'IA ne pourra pas répondre sur le contenu." style={{ fontSize: 9, color: BR, background: WH, border: `1px solid ${BR}`, padding: "1px 6px", borderRadius: 10, fontWeight: 600 }}>OCR manquant</span>
-          )}
+          <span style={{ fontSize: FS.xs, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Document de référence</span>
+          <span title={sm.tooltip}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: sm.color, background: sm.bg, border: `1px solid ${sm.border}`, padding: "1px 7px", borderRadius: 10, fontWeight: 600 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: sm.color }} />
+            {sm.label}
+          </span>
         </div>
-        <div style={{ fontSize: FS.md, fontWeight: 600, color: TX, lineHeight: 1.3, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cdc.fileName}>
-          {cdc.fileName}
+        {/* Ligne 2 : type du document — sert à classifier (futur : marché, brief, note de mission…) */}
+        <div style={{ fontSize: FS.md, fontWeight: 600, color: TX, lineHeight: 1.3, marginTop: 2 }}>
+          {documentType}
         </div>
-        <div style={{ fontSize: FS.xs, color: TX3, lineHeight: 1.3, marginTop: 2 }}>
-          {formatBytes(cdc.size)}
-          {cdc.uploadedBy ? ` · par ${cdc.uploadedBy}` : ""}
-          {cdc.uploadedAt ? ` · ${new Date(cdc.uploadedAt).toLocaleDateString("fr-BE")}` : ""}
+        {/* Ligne 3 : nom de fichier + meta — petit, gris, lisible */}
+        <div style={{ fontSize: FS.xs, color: TX2, lineHeight: 1.4, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cdc.fileName}>
+          <span style={{ fontWeight: 500 }}>{cdc.fileName}</span>
+          <span style={{ color: TX3 }}>
+            {" · "}{formatBytes(cdc.size)}
+            {cdc.uploadedBy ? ` · par ${cdc.uploadedBy}` : ""}
+            {cdc.uploadedAt ? ` · ${new Date(cdc.uploadedAt).toLocaleDateString("fr-BE")}` : ""}
+          </span>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        {/* Action secondaire — Ouvrir le document dans un nouvel onglet */}
         <button
           onClick={handleOpen}
-          style={{ padding: "7px 12px", border: `1px solid ${ACL2}`, borderRadius: 7, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}
+          style={{ padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}
         >
           <Ico name="eye" size={11} color={TX3} />Ouvrir
         </button>
-        {cdc.extractedText && onAskAi && (
+        {/* Action principale — Comparer une fiche technique. Le CTA reflète
+            l'usage prioritaire identifié avec l'utilisateur : recevoir une FT
+            d'une entreprise et vérifier qu'elle respecte ce qui a été imposé. */}
+        {onAskAi && (
           <button
-            onClick={() => onAskAi(cdc)}
-            title="Pose une question sur le cahier des charges, ou compare avec une fiche technique"
-            style={{ padding: "7px 12px", border: "none", borderRadius: 7, background: AC, color: "#fff", fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}
+            onClick={() => askIa("compare_ft")}
+            title="Ouvre le chat avec le document en pièce jointe. Joins ensuite la fiche technique à comparer."
+            style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(192,90,44,0.18)" }}
           >
-            <span style={{ fontSize: 12, lineHeight: 1 }}>✦</span>Demander à l'IA
+            <Ico name="sparkle" size={11} color={WH} />
+            Comparer une FT
           </button>
         )}
-        {canEdit && (
+        {/* Menu d'actions secondaires — résumer / poser une question / remplacer / supprimer */}
+        {(canEdit || onAskAi) && (
           <button
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Plus d'actions"
-            style={{ width: 32, height: 32, border: `1px solid ${ACL2}`, borderRadius: 7, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
+            style={{ width: 34, height: 34, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
           >
             <span style={{ fontSize: 16, color: TX3, lineHeight: 1, fontWeight: 700, letterSpacing: 1 }}>⋯</span>
           </button>
@@ -173,25 +228,53 @@ export function CdcBanner({ project, profile, onUpload, onRemove, onAskAi, canEd
       {menuOpen && (
         <>
           <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
-          <div style={{ position: "absolute", right: SP.md, top: "100%", marginTop: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.08)", minWidth: 180, padding: 4, zIndex: 51 }}>
-            <button
-              onClick={handlePick}
-              disabled={busy}
-              style={{ width: "100%", textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", borderRadius: 6, cursor: busy ? "wait" : "pointer", fontFamily: "inherit", fontSize: FS.sm, color: TX, display: "flex", alignItems: "center", gap: 8 }}
-            >
-              <Ico name="upload" size={11} color={TX3} />{busy ? "Lecture…" : "Remplacer le PDF"}
-            </button>
-            <button
-              onClick={() => { setMenuOpen(false); onRemove(); }}
-              style={{ width: "100%", textAlign: "left", padding: "8px 10px", border: "none", background: "transparent", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", fontSize: FS.sm, color: BR, display: "flex", alignItems: "center", gap: 8 }}
-            >
-              <Ico name="trash" size={11} color={BR} />Supprimer
-            </button>
+          <div style={{ position: "absolute", right: 18, top: "calc(100% - 4px)", marginTop: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.08)", minWidth: 220, padding: 4, zIndex: 51 }}>
+            {onAskAi && (
+              <>
+                <button
+                  onClick={() => { setMenuOpen(false); askIa("summary"); }}
+                  style={menuItemStyle(TX)}
+                >
+                  <Ico name="sparkle" size={11} color={AC} />Résumer avec l'IA
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); askIa("question"); }}
+                  style={menuItemStyle(TX)}
+                >
+                  <Ico name="sparkle" size={11} color={AC} />Poser une question sur ce document
+                </button>
+                {canEdit && <div style={{ height: 1, background: SBB, margin: "4px 6px" }} />}
+              </>
+            )}
+            {canEdit && (
+              <>
+                <button
+                  onClick={handlePick}
+                  disabled={busy}
+                  style={menuItemStyle(TX, busy)}
+                >
+                  <Ico name="upload" size={11} color={TX3} />{busy ? "Lecture…" : "Remplacer le document"}
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); onRemove(); }}
+                  style={menuItemStyle(BR)}
+                >
+                  <Ico name="trash" size={11} color={BR} />Supprimer
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
-      <input ref={fileRef} type="file" accept="application/pdf,.pdf" onChange={handleFile} style={{ display: "none" }} />
-      {err && <div role="alert" style={{ position: "absolute", left: SP.md, bottom: -22, color: BR, fontSize: FS.xs }}>{err}</div>}
+      <input ref={fileRef} type="file" accept={ACCEPT_FILES} onChange={handleFile} style={{ display: "none" }} />
+      {err && <div role="alert" style={{ position: "absolute", left: 18, bottom: -22, color: BR, fontSize: FS.xs }}>{err}</div>}
     </div>
   );
 }
+
+const menuItemStyle = (color, disabled = false) => ({
+  width: "100%", textAlign: "left", padding: "8px 10px",
+  border: "none", background: "transparent", borderRadius: 6,
+  cursor: disabled ? "wait" : "pointer", fontFamily: "inherit",
+  fontSize: FS.sm, color, display: "flex", alignItems: "center", gap: 8,
+});

@@ -38,11 +38,14 @@ class ErrorBoundary extends Component {
 import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadOrgProjects, saveOrgProjects, loadMyOrganizations, loadPendingInvitationForMe } from "./db";
 import { useInviteToken } from "./hooks/useInviteToken";
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext";
+import useUIStore from "./stores/useUIStore";
 
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST, BR, BRB } from "./constants/tokens";
 import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_STATUSES, getPvStatus, nextPvStatus, LOT_COLORS, calcLotStatus } from "./constants/statuses";
-import { RECURRENCES, POST_TEMPLATES, PV_TEMPLATES, REMARK_NUMBERING, CHECKLIST_TEMPLATES } from "./constants/templates";
+import { RECURRENCES, POST_TEMPLATES, PV_TEMPLATES, REMARK_NUMBERING } from "./constants/templates";
 import { STRUCTURE_TYPES, PLANS, PLAN_FEATURES, hasFeature, getLimit, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, DOC_CATEGORIES } from "./constants/config";
+import { PROJECT_TEMPLATES, getProjectTemplate } from "./constants/projectTemplates";
+import { getProjectPhases, getProjectPhase } from "./utils/phases";
 
 import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, savePvDraft, removePvDraft } from "./utils/offline";
 import { relativeDate, parseDateFR, formatDateFR, calcNextMeeting, daysUntil } from "./utils/dates";
@@ -51,15 +54,15 @@ import { parseNotesToRemarks, getDocCurrent } from "./utils/helpers";
 import { getActiveTimer, setActiveTimer as persistActiveTimer, elapsedSeconds, isPaused as timerIsPaused, formatTimer, formatDuration, buildSessionFromTimer, totalSecondsFor } from "./utils/timer";
 import { generatePDF } from "./utils/pdf";
 import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exportParticipantsCSV, importParticipantsCSV, generateICS, downloadICS, getGoogleCalendarUrl } from "./utils/csv";
-import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "./components/ui";
+import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton } from "./components/ui";
 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
-import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, PhaseManagerModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, ChecklistsView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 
 const INIT_PROJECTS = [
   {
@@ -142,7 +145,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
-  const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none" });
+  const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none", projectTemplate: "blank" });
   const [editInfo, setEditInfo] = useState({});
   const [editParts, setEditParts] = useState([]);
   const [profile, setProfile] = useState(INIT_PROFILE);
@@ -176,9 +179,19 @@ export default function App() {
   const [tick, setTick] = useState(0);
   const [showSessionsModal, setShowSessionsModal] = useState(null); // projectId or null
   const [stopPromptTimer, setStopPromptTimer] = useState(null); // snapshot of timer awaiting description
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatPrefill, setChatPrefill] = useState(null);
+  const chatOpen = useUIStore(s => s.chatOpen);
+  const chatPrefill = useUIStore(s => s.chatPrefill);
+  const askAi = useUIStore(s => s.askAi);
+  const closeChat = useUIStore(s => s.closeChat);
+  const toggleChat = useUIStore(s => s.toggleChat);
+  const clearChatPrefill = useUIStore(s => s.clearChatPrefill);
   const [importWizardOpen, setImportWizardOpen] = useState(false);
+  const [phaseManagerProjectId, setPhaseManagerProjectId] = useState(null); // ouvre la modal de gestion phases pour ce projet
+  // Pré-sélection d'un fichier à ouvrir en plein écran depuis l'onglet
+  // Documents (annotation ou rogner). Consommé par PlanManager standalone.
+  const [planAutoAction, setPlanAutoAction] = useState(null); // { itemId, mode: "annotate"|"crop" } | null
+  // Pré-sélection d'une photo à annoter en plein écran depuis l'onglet Photos.
+  const [galleryAutoAction, setGalleryAutoAction] = useState(null); // { photoId } | null
 
   const updateActiveTimer = useCallback((next) => {
     setActiveTimerState(next);
@@ -245,9 +258,9 @@ export default function App() {
     setStopPromptTimer(snapshot);
   }, [activeTimer, updateActiveTimer]);
 
-  const confirmStopWithNote = useCallback((note) => {
+  const confirmStopWithNote = useCallback((note, taskId = "") => {
     if (!stopPromptTimer) return;
-    const session = buildSessionFromTimer(stopPromptTimer, note, { id: profile?.id, name: profile?.name });
+    const session = buildSessionFromTimer(stopPromptTimer, note, { id: profile?.id, name: profile?.name }, taskId);
     if (session) {
       const targetId = stopPromptTimer.projectId;
       setProjects(ps => ps.map(p => p.id === targetId
@@ -263,6 +276,17 @@ export default function App() {
     // reprendre via le bouton Pause/Resume de la card si besoin.
     setStopPromptTimer(null);
   }, []);
+
+  // Supprime le suivi en cours sans sauvegarder de session — utilisé quand
+  // l'utilisateur s'est trompé de projet, ou pour abandonner un essai. Demande
+  // confirmation pour éviter les pertes accidentelles. Vide aussi un éventuel
+  // stopPromptTimer (cas où l'utilisateur a déjà cliqué Arrêter).
+  const discardActiveTimer = useCallback(() => {
+    if (!activeTimer && !stopPromptTimer) return;
+    if (!window.confirm("Supprimer le suivi en cours ? Le temps déjà compté ne sera pas sauvegardé.")) return;
+    setStopPromptTimer(null);
+    updateActiveTimer(null);
+  }, [activeTimer, stopPromptTimer, updateActiveTimer]);
 
   const addManualSession = useCallback((projectId, session) => {
     setProjects(ps => ps.map(p => p.id === projectId
@@ -504,20 +528,94 @@ export default function App() {
     setPvStartMode(null); setView("notes");
   };
 
+  // Ouvre la modal d'édition des informations projet pré-remplie. Factorisé
+  // ici car appelé depuis Overview (carte header) ET depuis la topbar projet
+  // (bouton "Planifier une réunion"). Évite la duplication du setup editInfo.
+  const openEditInfo = () => {
+    if (!project) return;
+    const addr = project.street
+      ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" }
+      : parseAddress(project.address);
+    setEditInfo({
+      name: project.name, client: project.client, contractor: project.contractor,
+      ...addr,
+      statusId: project.statusId, startDate: project.startDate, endDate: project.endDate,
+      progress: project.progress, nextMeeting: project.nextMeeting,
+      recurrence: project.recurrence || "none",
+      pvTemplate: project.pvTemplate || "standard",
+      remarkNumbering: project.remarkNumbering || "none",
+      customFields: project.customFields || [],
+    });
+    setModal("info");
+  };
+
   const createProject = () => {
     const id = Math.max(...projects.map((p) => p.id), 0) + 1;
     const address = formatAddress(newP);
     const tpl = POST_TEMPLATES.find(t => t.id === newP.postTemplate) || POST_TEMPLATES[0];
     const posts = tpl.posts.map(p => ({ id: p.id, label: p.label, notes: "", remarks: [] }));
-    setProjects((prev) => [...prev, { id, ...newP, address, progress: 0, bureau: profile.structure, endDate: "", nextMeeting: "", archived: false, participants: [{ role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone }], posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }], pvHistory: [], actions: [], planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [], customFields: [], reserves: [], oprHistory: [], cahierDesCharges: null }]);
+
+    // Modèle de projet — bundle métier qui complète le projet créé. "blank"
+    // ne fournit aucun extra → comportement identique à avant cette feature.
+    const projTpl = getProjectTemplate(newP.projectTemplate);
+
+    // Participants : l'archi (toujours), puis les rôles types du modèle
+    // (nom vide — l'utilisateur les complétera dans la modal participants).
+    const participants = [
+      { role: "Architecte", name: profile.name, email: profile.email, phone: profile.phone },
+      ...(projTpl.participantsRoles || [])
+        .filter(r => r.role !== "Architecte") // évite le doublon
+        .map(r => ({ role: r.role, name: "", email: "", phone: "" })),
+    ];
+
+    // Lots planning : ajoutés sans dates (l'utilisateur les place sur la timeline)
+    const lots = (projTpl.defaultLots || []).map((l, i) => ({
+      id: Date.now() + i,
+      name: l.name,
+      contractor: "",
+      startDate: "",
+      endDate: "",
+      duration: l.duration || "",
+      progress: l.progress ?? 0,
+      color: l.color || "amber",
+      steps: [],
+      postId: "",
+    }));
+
+    // Module checklists supprimé du produit (les modèles n'instancient plus de
+     // checklists). Les "tâches à faire" passent par project.tasks[].
+    const customFields = (projTpl.customFields || []).map((f, i) => ({
+      id: f.id || Date.now() + i,
+      label: f.label,
+      value: f.value || "",
+    }));
+
+    setProjects((prev) => [...prev, {
+      id, ...newP, address,
+      progress: 0, bureau: profile.structure, endDate: "", nextMeeting: "",
+      archived: false,
+      participants,
+      posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }],
+      pvHistory: [], actions: [],
+      planImage: null, planMarkers: [], planStrokes: [],
+      documents: [],
+      lots,
+      customFields,
+      reserves: [], oprHistory: [],
+      tasks: [],
+      cahierDesCharges: null,
+      // Mémorise le modèle utilisé pour de futures features (ex : OPR
+      // peut suggérer les expectedReserves du modèle, axe D du plan).
+      _projectTemplateId: newP.projectTemplate,
+    }]);
     setActiveId(id); setView("overview"); setModal(null);
-    setNewP({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none" });
-    track("project_created", { project_name: newP.name, _page: "overview" });
+    setNewP({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none", projectTemplate: "blank" });
+    track("project_created", { project_name: newP.name, _page: "overview", _template: projTpl.id });
   };
 
   // Import depuis un dossier — appelé par ImportProjectWizard avec les
   // fichiers déjà classés et lus (cahierDesCharges, pvHistory, documents).
-  const importProjectFromFolder = ({ meta, cahierDesCharges, pvHistory, documents }) => {
+  const importProjectFromFolder = ({ meta, cahierDesCharges, pvHistory, planFiles, gallery }) => {
     const id = Math.max(...projects.map((p) => p.id), 0) + 1;
     const tpl = POST_TEMPLATES.find(t => t.id === (profile.postTemplate || "general")) || POST_TEMPLATES[0];
     const posts = tpl.posts.map(p => ({ id: p.id, label: p.label, notes: "", remarks: [] }));
@@ -541,8 +639,11 @@ export default function App() {
       pvHistory: pvHistory || [],
       actions: [],
       planImage: null, planMarkers: [], planStrokes: [],
-      documents: documents || [],
-      lots: [], checklists: [], customFields: [],
+      // Documents importés directement au format planFiles[] (consommé par
+      // l'onglet Documents = PlanManager). gallery[] pour les photos.
+      planFiles: planFiles || [],
+      gallery: gallery || [],
+      lots: [], customFields: [],
       reserves: [], oprHistory: [],
       cahierDesCharges: cahierDesCharges || null,
       pvTemplate: profile.pvTemplate || "standard",
@@ -555,19 +656,20 @@ export default function App() {
     track("project_imported", {
       project_name: meta.name,
       pv_count: (pvHistory || []).length,
-      doc_count: (documents || []).length,
+      planfile_count: (planFiles || []).length,
+      photo_count: (gallery || []).length,
       has_cdc: !!cahierDesCharges,
     });
   };
 
   const duplicateProject = () => {
     const id = Math.max(...projects.map((p) => p.id), 0) + 1;
-    setProjects((prev) => [...prev, { ...project, id, name: project.name + " (copie)", pvHistory: [], actions: [], posts: project.posts.map((po) => ({ ...po, notes: "", photos: [] })), archived: false, planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], checklists: [], cahierDesCharges: null }]);
+    setProjects((prev) => [...prev, { ...project, id, name: project.name + " (copie)", pvHistory: [], actions: [], posts: project.posts.map((po) => ({ ...po, notes: "", photos: [] })), archived: false, planImage: null, planMarkers: [], planStrokes: [], documents: [], lots: [], cahierDesCharges: null }]);
     setActiveId(id);
     showToast("Projet dupliqué avec succès");
   };
 
-  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), checklists: t("view.checklists"), profile: t("view.profile"), stats: "Vue d'ensemble", planningDashboard: "Vue d'ensemble", timesheet: "Vue d'ensemble", gallery: "Photos" };
+  const VIEW_LABELS = { overview: "", notes: t("view.notes"), result: t("view.result"), plan: "Documents", planning: t("view.planning"), tasks: "Tâches", profile: t("view.profile"), stats: "Vue d'ensemble", planningDashboard: "Vue d'ensemble", timesheet: "Vue d'ensemble", gallery: "Photos" };
 
   // ── Global keyboard shortcuts ──
   useEffect(() => {
@@ -874,7 +976,7 @@ export default function App() {
             <TimerBanner
               activeTimer={activeTimer}
               onPauseResume={pauseResumeTimer}
-              onStop={requestStopTimer}
+              onStop={requestStopTimer} onDiscard={discardActiveTimer}
               onJumpToProject={() => { setActiveId(activeTimer.projectId); setView("overview"); }}
             />
           </div>
@@ -914,7 +1016,8 @@ export default function App() {
               ) : (() => {
                 // Project header v2 — Variant A: 2-line compact
                 if (!project) return null;
-                const st = getStatus(project.statusId);
+                const st = getProjectPhase(project, project.statusId);
+                const projectPhases = getProjectPhases(project);
                 const meetingDays = daysUntil(project.nextMeeting);
                 const meetingState = meetingDays === null ? null
                   : meetingDays === 0 ? "today"
@@ -961,8 +1064,8 @@ export default function App() {
                           {phaseMenuOpen && (
                             <>
                               <div onClick={() => setPhaseMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
-                              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: WH, border: `1px solid ${SBB}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: 180, padding: 4, animation: "fadeIn 0.15s ease" }}>
-                                {STATUSES.map(s => (
+                              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, background: WH, border: `1px solid ${SBB}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: 220, padding: 4, animation: "fadeIn 0.15s ease" }}>
+                                {projectPhases.map(s => (
                                   <button key={s.id} onClick={() => { updateProject(project.id, { statusId: s.id }); setPhaseMenuOpen(false); }}
                                     style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", borderRadius: 7, background: s.id === project.statusId ? s.bg : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "background 0.1s" }}
                                     onMouseEnter={e => { if (s.id !== project.statusId) e.currentTarget.style.background = SB; }}
@@ -972,6 +1075,14 @@ export default function App() {
                                     {s.id === project.statusId && <Ico name="check" size={11} color={s.color} />}
                                   </button>
                                 ))}
+                                {/* Bouton "Personnaliser" — accès à la gestion des phases custom du projet. */}
+                                <button onClick={() => { setPhaseMenuOpen(false); setPhaseManagerProjectId(project.id); }}
+                                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", borderRadius: 7, background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", borderTop: `1px solid ${SBB}`, marginTop: 4 }}
+                                  onMouseEnter={e => e.currentTarget.style.background = SB}
+                                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                  <Ico name="edit" size={11} color={AC} />
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: AC, flex: 1 }}>Personnaliser les phases…</span>
+                                </button>
                               </div>
                             </>
                           )}
@@ -1004,15 +1115,38 @@ export default function App() {
                           <span style={{ fontSize: FS.sm, color: AC, fontWeight: 600 }}>{subView}</span>
                         )}
                       </div>
-                      {/* Line 2 — sub-line context (Tier 2) — only if any value */}
-                      {hasContext && (
-                        <div className="ap-project-meta" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 12, color: TX3, flexWrap: "nowrap", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 600 }}>
-                          {project.client && <span>MO <strong style={{ color: TX2, fontWeight: 600 }}>{project.client}</strong></span>}
-                          {project.contractor && <><span style={{ color: SBB }}>·</span><span>Entr. <strong style={{ color: TX2, fontWeight: 600 }}>{project.contractor}</strong></span></>}
-                          {(project.city || project.address) && <><span style={{ color: SBB }}>·</span><span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Ico name="mappin" size={10} color={TX3} />{project.city || project.address}</span></>}
-                          {project.startDate && <><span style={{ color: SBB }}>·</span><span>{project.startDate}{project.endDate ? ` → ${project.endDate}` : ""}</span></>}
-                        </div>
-                      )}
+                      {/* Line 2 — métadonnées projet enrichies (depuis la fusion topbar+header).
+                          Affiche client, adresse et dernière mise à jour ; complète les valeurs
+                          manquantes par un libellé sobre. Badge cliquable « Compléter les
+                          informations » si certaines données ne sont pas renseignées. */}
+                      {(() => {
+                        const hasClient = !!project.client?.trim();
+                        const hasAddress = !!(project.address?.trim() || project.city?.trim());
+                        const incomplete = !hasClient || !hasAddress || !project.startDate;
+                        const lastPv = (project.pvHistory || [])[0];
+                        const updatedRaw = lastPv?.date || project.startDate;
+                        const updatedLabel = updatedRaw ? `Mis à jour le ${updatedRaw}` : null;
+                        return (
+                          <div className="ap-project-meta" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3, fontSize: 12, color: TX2, flexWrap: "wrap" }}>
+                            <span>{hasClient ? project.client : "Client non renseigné"}</span>
+                            <span style={{ color: SBB }}>·</span>
+                            <span>{hasAddress ? (project.address || project.city) : "Adresse non renseignée"}</span>
+                            {updatedLabel && <>
+                              <span style={{ color: SBB }}>·</span>
+                              <span>{updatedLabel}</span>
+                            </>}
+                            {incomplete && (
+                              <button onClick={openEditInfo} type="button"
+                                title="Ouvrir l'édition des informations projet"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 10px", borderRadius: 999, background: "#FBE9D5", color: "#8B5A1A", fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                                <Ico name="edit" size={9} color="#8B5A1A" />
+                                Compléter les informations
+                                <Ico name="chevron-right" size={9} color="#8B5A1A" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </>
                 );
@@ -1020,7 +1154,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Droite — recherche compacte + notifications + profil */}
+          {/* Droite — recherche compacte + notifications */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto", marginLeft: "auto" }}>
           {/* Recherche : bouton compact ⌘K plutôt que champ permanent */}
           <button
@@ -1098,15 +1232,66 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setAgencyModalOpen(true)} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewChecklists={() => { if (!hasFeature(profile.plan, "checklists")) return setUpgradeFeature("checklists"); setView("checklists"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p) => { const cdc = p.cahierDesCharges; if (!cdc?.extractedText) return; setChatPrefill({ attachments: [{ type: "text", name: cdc.fileName || "Cahier des charges.pdf", mimeType: "application/pdf", content: cdc.extractedText, sourceTag: `Cahier des charges — ${p.name}` }], message: `Je vais te poser une question sur le cahier des charges de **${p.name}**. Si tu veux comparer une fiche technique reçue, joins-la avec 📎 et précise ta question.` }); setChatOpen(true); }} />}
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewTasks={() => setView("planning")} onAnnotatePlan={(itemId) => { setPlanAutoAction({ itemId, mode: "annotate" }); setView("plan"); }} onCropPlan={(itemId) => { setPlanAutoAction({ itemId, mode: "crop" }); setView("plan"); }} onAnnotatePhoto={(photoId) => { setGalleryAutoAction({ photoId }); setView("gallery"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onDiscardTimer={discardActiveTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p, intent = "compare_ft") => {
+  const cdc = p.cahierDesCharges;
+  if (!cdc) return;
+  // Pièces jointes selon le mode d'extraction (texte intégral / pages images / rien).
+  const attachments = [];
+  let extractMode = "context_only";
+  if (cdc.extractedText) {
+    attachments.push({
+      type: "text",
+      name: cdc.fileName || "Document de référence",
+      mimeType: cdc.mimeType || "application/pdf",
+      content: cdc.extractedText,
+      sourceTag: `Document de référence — ${p.name}`,
+    });
+    extractMode = "text";
+  } else if (cdc.imagePages && cdc.imagePages.length > 0) {
+    for (const page of cdc.imagePages) {
+      attachments.push({
+        type: "image",
+        name: `${cdc.fileName || "Document"} — page ${page.pageNumber}`,
+        mimeType: "image/jpeg",
+        dataUrl: page.dataUrl,
+        sourceTag: `Document de référence — ${p.name}`,
+      });
+    }
+    extractMode = "vision";
+  }
+
+  // Message d'amorce selon l'intent utilisateur (3 entry points dans le banner).
+  // On garde une note brève en fin de message si l'extraction a échoué pour
+  // que l'IA n'invente rien à partir du contenu manquant.
+  const fallbackNote = extractMode === "context_only"
+    ? "\n\n(⚠ le contenu du document n'a pas pu être lu automatiquement — je peux te décrire un point précis si tu en as besoin.)"
+    : "";
+  const messages = {
+    compare_ft: `Je vais comparer une **fiche technique** reçue avec ce document de référence du projet **${p.name}**. Joins la FT avec 📎 et précise ce qu'il faut vérifier (marque imposée, performance, dimensions, certifications…). Réponds avec un verdict clair par caractéristique : conforme / non conforme / point ambigu.${fallbackNote}`,
+    summary: `Résume-moi le document de référence du projet **${p.name}** en points clés : matériaux et marques imposés, performances exigées, normes citées, délais, documents/livrables attendus à la réception.${fallbackNote}`,
+    question: `J'ai une question sur le document de référence du projet **${p.name}**. ${fallbackNote}`,
+  };
+  const message = messages[intent] || messages.compare_ft;
+  askAi({ attachments, message, sourceTag: `cdc_banner_${intent}` });
+}} />}
           {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => { setView("overview"); setPvStartMode(null); }} initialMode={pvStartMode} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} activeContext={activeContext} />}
           {view !== "profile" && project && view === "notes" && isReadOnly(project) && (() => { setView("overview"); return null; })()}
           {view !== "profile" && project && view === "result" && !isReadOnly(project) && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} onOpenPlans={() => setView("profile")} onRequireUpgrade={(feature) => setUpgradeFeature(feature || "maxAiPerMonth")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
-          {view !== "profile" && project && view === "gallery" && <GalleryView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "plan" && <PlanManager project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "checklists" && <ChecklistsView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "gallery" && <GalleryView
+            project={project}
+            setProjects={setProjects}
+            onBack={() => { setView("overview"); setGalleryAutoAction(null); }}
+            autoAction={galleryAutoAction}
+          />}
+          {view !== "profile" && project && view === "plan" && <PlanManager
+            project={project}
+            setProjects={setProjects}
+            onBack={() => { setView("overview"); setPlanAutoAction(null); }}
+            autoAction={planAutoAction}
+          />}
+          {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "tasks" && <TasksView project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
           {view === "timesheet" && (() => {
             const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
@@ -1132,6 +1317,55 @@ export default function App() {
 
       {/* PV method chooser modal */}
       <Modal open={modal === "new"} onClose={() => setModal(null)} title="Nouveau projet">
+        {/* ── Modèle de projet (optionnel) ──
+            Pré-remplit les champs ci-dessous avec des défauts métier (postes,
+            style PV, lots, checklists, rôles types). L'utilisateur peut tout
+            modifier avant de créer. "Vide" = comportement actuel inchangé. */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 8 }}>
+            Modèle de projet <span style={{ fontWeight: 500, color: TX3, textTransform: "none", letterSpacing: 0 }}>— pré-remplit le formulaire (modifiable)</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+            {PROJECT_TEMPLATES.map(tpl => {
+              const selected = newP.projectTemplate === tpl.id;
+              return (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => {
+                    // Sélectionne le modèle. Pour "blank" on remet juste les défauts profil.
+                    setNewP(p => {
+                      const next = { ...p, projectTemplate: tpl.id };
+                      // Champs du formulaire : appliquer SEULEMENT si le modèle en propose,
+                      // sinon revenir au défaut profil (cas "blank").
+                      next.postTemplate = tpl.postTemplate || profile.postTemplate || "general";
+                      next.pvTemplate = tpl.pvTemplate || profile.pvTemplate || "standard";
+                      next.remarkNumbering = tpl.remarkNumbering || profile.remarkNumbering || "none";
+                      next.recurrence = tpl.recurrence || "none";
+                      // Description : remplit seulement si l'utilisateur n'a rien tapé.
+                      if (!p.desc?.trim() && tpl.id !== "blank") next.desc = tpl.description;
+                      return next;
+                    });
+                  }}
+                  style={{
+                    textAlign: "left", padding: "10px 12px", border: `1px solid ${selected ? AC : SBB}`,
+                    borderRadius: 10, background: selected ? ACL : WH, cursor: "pointer", fontFamily: "inherit",
+                    transition: "all 0.15s", minHeight: 64,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 5, background: selected ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name={tpl.icon || "file"} size={11} color={selected ? WH : TX3} />
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: selected ? AC : TX }}>{tpl.label}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: TX3, lineHeight: 1.4 }}>{tpl.description}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <Field label="Nom du projet *" value={newP.name} onChange={(v) => setNewP((p) => ({ ...p, name: v }))} placeholder="ex: Rénovation Maison Dupont" />
         <div style={{ display: "flex", gap: 10 }}>
           <Field half label="Maître d'ouvrage *" value={newP.client} onChange={(v) => setNewP((p) => ({ ...p, client: v }))} placeholder="ex: M. Dupont" />
@@ -1166,6 +1400,7 @@ export default function App() {
         </div>
 
         <Field label="Description (optionnel)" value={newP.desc} onChange={(v) => setNewP((p) => ({ ...p, desc: v }))} placeholder="Rénovation complète..." area />
+
         <button onClick={createProject} disabled={!canCreate} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: canCreate ? AC : DIS, color: canCreate ? "#fff" : DIST, fontSize: 15, fontWeight: 600, cursor: canCreate ? "pointer" : "not-allowed", fontFamily: "inherit", marginTop: 4, transition: "all 0.2s" }}>Créer le projet</button>
       </Modal>
 
@@ -1185,7 +1420,7 @@ export default function App() {
           <Field half label="Pays" value={editInfo.country || "Belgique"} onChange={(v) => setEditInfo((p) => ({ ...p, country: v }))} placeholder="Belgique" />
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <Field half label="Phase" value={editInfo.statusId || "sketch"} onChange={(v) => setEditInfo((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
+          <Field half label="Phase" value={editInfo.statusId || "sketch"} onChange={(v) => setEditInfo((p) => ({ ...p, statusId: v }))} select options={getProjectPhases(project)} />
           <Field half label="Avancement (%)" value={String(editInfo.progress || "")} onChange={(v) => setEditInfo((p) => ({ ...p, progress: parseInt(v) || 0 }))} type="number" />
         </div>
         <div style={{ display: "flex", gap: 10 }}>
@@ -1253,9 +1488,22 @@ export default function App() {
             </div>
           </div>
         ))}
-        <button onClick={() => setEditParts((prev) => [...prev, { role: "", name: "", email: "", phone: "" }])} style={{ width: "100%", padding: 10, border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", fontSize: 12, color: AC, fontFamily: "inherit", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <button onClick={() => setEditParts((prev) => [...prev, { role: "", name: "", email: "", phone: "" }])} style={{ width: "100%", padding: 10, border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", fontSize: 12, color: AC, fontFamily: "inherit", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <Ico name="plus" size={13} color={AC} />Ajouter un participant
         </button>
+        {/* Aide IA — opt-in. Repère les rôles manquants typiques pour ce type de chantier
+            (MO, archi, entreprise, ingénieur stabilité, PEB, coordinateur sécurité, etc.). */}
+        {project && (
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+            <AskAiButton
+              size="compact"
+              label="Rôles manquants pour ce chantier ?"
+              sourceTag="participants_modal"
+              contextHint="L'IA reçoit la liste des participants actuels et le type de chantier. Elle suggère les rôles typiques manquants."
+              message={`Voici les participants actuels du chantier **${project.name}** (${project.client ? `MO ${project.client}` : "MO inconnu"}, ${project.contractor ? `entreprise ${project.contractor}` : "entreprise inconnue"}) :\n${editParts.length === 0 ? "(aucun pour le moment)" : editParts.map(p => `- ${p.role || "(rôle ?)"} : ${p.name || "(nom ?)"}`).join("\n")}\n\nQuels rôles essentiels sont manquants pour ce type de chantier en Belgique (coordinateur sécurité-santé, certificateur PEB, ingénieur stabilité, géomètre, etc.) ? Donne-moi une liste courte adaptée.`}
+            />
+          </div>
+        )}
         <button onClick={() => { updateProject(activeId, { participants: editParts.filter((p) => p.name.trim()) }); setModal(null); }} style={{ width: "100%", padding: 13, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Enregistrer</button>
       </Modal>
 
@@ -1905,17 +2153,38 @@ Règles :
         profile={profile}
         onImport={importProjectFromFolder}
       />
-      <ChatLauncher open={chatOpen} onToggle={() => setChatOpen(o => !o)} />
+      <ChatLauncher open={chatOpen} onToggle={toggleChat} />
       <ChatModal
         open={chatOpen}
-        onClose={() => setChatOpen(false)}
+        onClose={closeChat}
         projects={projects}
         profile={profile}
         activeContext={activeContext}
         activeProjectId={activeId}
         prefill={chatPrefill}
-        onPrefillConsumed={() => setChatPrefill(null)}
+        onPrefillConsumed={clearChatPrefill}
       />
+
+      {/* Modal de gestion des phases personnalisées du projet. Ouverte depuis
+          le menu phase du header (bouton "Personnaliser…") ou plus tard depuis
+          la modal d'édition projet. Le user peut ajouter/supprimer/renommer
+          des phases pour adapter le cycle de vie à ce chantier précis. */}
+      {(() => {
+        const target = phaseManagerProjectId ? projects.find(p => p.id === phaseManagerProjectId) : null;
+        if (!target) return null;
+        return (
+          <PhaseManagerModal
+            open={!!phaseManagerProjectId}
+            onClose={() => setPhaseManagerProjectId(null)}
+            project={target}
+            onSave={(updatedProject) => {
+              setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+              showToast("Phases mises à jour");
+              track("phases_customized", { _page: "project", phase_count: (updatedProject.phases || []).length });
+            }}
+          />
+        );
+      })()}
 
       {/* Legal pages overlay */}
       {/* Stop session prompt — modal qui force la saisie d'une description avant
@@ -1924,8 +2193,15 @@ Règles :
         open={!!stopPromptTimer}
         capturedTimer={stopPromptTimer}
         projectName={stopPromptTimer?.projectName}
+        projectTasks={(() => {
+          // Tâches du projet auquel le timer est rattaché — pas forcément
+          // celui actif côté UI, donc on lookup via le timer capturé.
+          const tp = stopPromptTimer ? projects.find(p => p.id === stopPromptTimer.projectId) : null;
+          return tp?.tasks || [];
+        })()}
         onConfirm={confirmStopWithNote}
         onCancel={cancelStopPrompt}
+        onDiscard={discardActiveTimer}
       />
 
       {/* Sessions modal — montée globalement, pilotée par showSessionsModal=projectId */}

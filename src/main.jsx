@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { initSentry, Sentry } from './sentry'
 import { AuthProvider, useAuth, AuthPage, ResetPasswordPage, MfaVerifyPage } from './Auth.jsx'
 import App from './App.jsx'
+import { PublicSignPage } from './views/PublicSignPage'
 
 // Initialize Sentry before anything else
 initSentry();
@@ -64,10 +65,25 @@ function Root() {
   return <ErrorBoundary><App /></ErrorBoundary>;
 }
 
+// Public signing route — bypass auth entirely for anonymous signataires.
+// Token in URL is the only credential they need.
+function publicSignToken() {
+  try {
+    const m = window.location.pathname.match(/^\/sign\/([A-Za-z0-9_-]{16,})$/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
+const signToken = publicSignToken();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <Root />
-    </AuthProvider>
+    {signToken ? (
+      <ErrorBoundary><PublicSignPage token={signToken} /></ErrorBoundary>
+    ) : (
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    )}
   </React.StrictMode>
 )

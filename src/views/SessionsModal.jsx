@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, REDBRD, SP, FS, RAD } from "../constants/tokens";
-import { Modal, Field, Ico } from "../components/ui";
+import { Modal, Field, Ico, TaskSearchSelect } from "../components/ui";
 import { formatDuration, totalSecondsFor, buildManualSession, groupSessionsByUser } from "../utils/timer";
 import { downloadCSV } from "../utils/csv";
 
@@ -15,6 +15,21 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+// Helpers pour le filtre plage horaire — formats YYYY-MM-DD compatibles avec
+// <input type="date">.
+const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const startOfWeekIso = (d = new Date()) => {
+  const day = new Date(d);
+  const dow = (day.getDay() + 6) % 7; // Lundi = 0
+  day.setDate(day.getDate() - dow);
+  return day;
+};
+const shortcutBtn = {
+  padding: "3px 8px", border: `1px solid ${SBB}`, borderRadius: 12,
+  background: WH, color: TX2, fontSize: 10, fontWeight: 600,
+  cursor: "pointer", fontFamily: "inherit",
+};
+
 // Modal — liste des sessions, ajout manuel, édition, suppression, export CSV.
 // Quand l'utilisateur est admin/owner d'une org, un toggle "Par membre"
 // apparaît pour voir le breakdown du temps par employé sur ce projet.
@@ -23,13 +38,32 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
   const [formError, setFormError] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [groupMode, setGroupMode] = useState("flat"); // "flat" | "byUser"
-  const [form, setForm] = useState({ date: today(), durationMinutes: 60, note: "" });
-  const sessions = useMemo(() => {
+  const [form, setForm] = useState({ date: today(), durationMinutes: 60, note: "", taskId: "" });
+  // Filtre plage horaire (date début / date fin) — borne incluse à 23:59 pour
+  // le jour de fin. Vide = pas de filtre. Local au modal, ne touche pas à la
+  // saisie ni au timer en cours.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const projectTasks = useMemo(() => project?.tasks || [], [project]);
+  const allSessions = useMemo(() => {
     return [...(project?.timeSessions || [])].sort((a, b) =>
       (b.startedAt || "").localeCompare(a.startedAt || ""));
   }, [project]);
-  const total = totalSecondsFor(project?.timeSessions || []);
-  const userGroups = useMemo(() => groupSessionsByUser(project?.timeSessions || []), [project]);
+  // Sessions visibles après application du filtre plage horaire — utilisé
+  // pour la liste détaillée, l'export CSV, et le total affiché.
+  const sessions = useMemo(() => {
+    if (!dateFrom && !dateTo) return allSessions;
+    const fromMs = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : -Infinity;
+    const toMs = dateTo ? new Date(dateTo + "T23:59:59").getTime() : Infinity;
+    return allSessions.filter(s => {
+      const t = new Date(s.startedAt).getTime();
+      return t >= fromMs && t <= toMs;
+    });
+  }, [allSessions, dateFrom, dateTo]);
+  const total = totalSecondsFor(sessions);
+  const totalAllSessions = totalSecondsFor(allSessions);
+  const filterActive = !!(dateFrom || dateTo);
+  const userGroups = useMemo(() => groupSessionsByUser(sessions), [sessions]);
   const showByUser = isOrgAdmin && groupMode === "byUser";
 
   const handleSubmit = () => {
@@ -39,6 +73,7 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
         date: form.date,
         durationMinutes: form.durationMinutes,
         note: form.note,
+        taskId: form.taskId,
       });
       if (editingId) {
         onEdit(editingId, {
@@ -46,6 +81,7 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
           endedAt: session.endedAt,
           durationSeconds: session.durationSeconds,
           note: session.note,
+          taskId: session.taskId || "",
           isManual: true,
         });
       } else {
@@ -60,7 +96,7 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
   const resetForm = () => {
     setShowForm(false);
     setEditingId(null);
-    setForm({ date: today(), durationMinutes: 60, note: "" });
+    setForm({ date: today(), durationMinutes: 60, note: "", taskId: "" });
     setFormError("");
   };
 
@@ -70,6 +106,7 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
       durationMinutes: Math.round(s.durationSeconds / 60),
       note: s.note || "",
+      taskId: s.taskId || "",
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -77,10 +114,11 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
 
   const handleExport = () => {
     if (sessions.length === 0) return;
-    const headers = ["Date", "Début", "Fin", "Durée (h)", "Durée (min)", "Note", "Saisie"];
+    const headers = ["Date", "Début", "Fin", "Durée (h)", "Durée (min)", "Note", "Saisie", "Tâche n°", "Tâche titre"];
     const rows = sessions.map(s => {
       const start = new Date(s.startedAt);
       const minutes = Math.round(s.durationSeconds / 60);
+      const linkedTask = s.taskId ? projectTasks.find(t => t.id === s.taskId) : null;
       return [
         start.toLocaleDateString("fr-BE"),
         timeLabel(s.startedAt),
@@ -89,6 +127,8 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
         String(minutes),
         s.note || "",
         s.isManual ? "Manuelle" : "Timer",
+        linkedTask?.number ? `#${linkedTask.number}` : "",
+        linkedTask?.title || "",
       ];
     });
     downloadCSV(`temps-${(project.name || "projet").replace(/\s+/g, "-")}.csv`, headers, rows);
@@ -121,16 +161,17 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
         <div>
           <div style={{ fontSize: 11, color: TX3, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
-            Total cumulé
+            {filterActive ? "Total sur la période" : "Total cumulé"}
           </div>
           <div style={{ fontSize: 22, fontWeight: 700, color: TX, fontVariantNumeric: "tabular-nums" }}>
             {total > 0 ? formatDuration(total) : "Aucune session"}
           </div>
-          {sessions.length > 0 && (
-            <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
-              {sessions.length} session{sessions.length > 1 ? "s" : ""}
-            </div>
-          )}
+          <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
+            {sessions.length > 0 && <span>{sessions.length} session{sessions.length > 1 ? "s" : ""}</span>}
+            {filterActive && totalAllSessions > total && (
+              <span> · sur {formatDuration(totalAllSessions)} au total</span>
+            )}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button
@@ -162,6 +203,43 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
           )}
         </div>
       </div>
+
+      {/* Filtre plage horaire — bornes incluses (00:00 → 23:59 sur le jour de fin).
+          Les sessions, le total, et l'export CSV reflètent le filtre actif. */}
+      {allSessions.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap", padding: "8px 12px", background: filterActive ? ACL : SB, border: `1px solid ${filterActive ? ACL2 : SBB}`, borderRadius: 8 }}>
+          <Ico name="calendar" size={12} color={filterActive ? AC : TX3} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: filterActive ? AC : TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Période</span>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 11, color: TX3 }}>du</span>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} max={dateTo || undefined}
+              style={{ padding: "4px 7px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX, fontSize: 11, fontFamily: "inherit" }} />
+            <span style={{ fontSize: 11, color: TX3, marginLeft: 4 }}>au</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} min={dateFrom || undefined}
+              style={{ padding: "4px 7px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX, fontSize: 11, fontFamily: "inherit" }} />
+          </div>
+          {/* Raccourcis rapides — utilisent les ranges classiques de timesheet */}
+          {!filterActive && (
+            <>
+              <span style={{ color: SBB }}>·</span>
+              <button onClick={() => { const d = new Date(); setDateFrom(toIso(startOfWeekIso(d))); setDateTo(toIso(d)); }}
+                style={shortcutBtn}>Cette semaine</button>
+              <button onClick={() => { const d = new Date(); setDateFrom(toIso(new Date(d.getFullYear(), d.getMonth(), 1))); setDateTo(toIso(d)); }}
+                style={shortcutBtn}>Ce mois</button>
+            </>
+          )}
+          <div style={{ flex: 1 }} />
+          {filterActive && (
+            <>
+              <span style={{ fontSize: 11, color: AC, fontWeight: 600 }}>{sessions.length} session{sessions.length > 1 ? "s" : ""} · {formatDuration(total) || "0min"}</span>
+              <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+                style={{ background: "none", border: "none", padding: "4px 6px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: TX3, textDecoration: "underline" }}>
+                Réinitialiser
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -195,6 +273,20 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
               />
             </div>
           </div>
+          {/* Lien tâche — recherche par titre ou par numéro (#5) */}
+          {projectTasks.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 5 }}>
+                Lier à une tâche (facultatif)
+              </label>
+              <TaskSearchSelect
+                tasks={projectTasks}
+                value={form.taskId}
+                onChange={(id) => setForm(f => ({ ...f, taskId: id }))}
+                placeholder="Tape le titre ou un numéro (ex: #5)…"
+              />
+            </div>
+          )}
           {formError && (
             <div style={{ padding: "8px 10px", background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 6, fontSize: 12, color: BR, marginBottom: 10 }}>
               {formError}
@@ -282,6 +374,16 @@ export function SessionsModal({ open, onClose, project, currentUser, isOrgAdmin,
                 </div>
                 <div style={{ flex: 1, fontSize: 12, color: TX2, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {s.note || <span style={{ color: TX3, fontStyle: "italic" }}>Sans note</span>}
+                  {/* Référence tâche liée — chip discrète, lookup dans la liste actuelle */}
+                  {s.taskId && (() => {
+                    const t = projectTasks.find(t => t.id === s.taskId);
+                    if (!t) return null;
+                    return (
+                      <span title={t.title} style={{ fontSize: 9, fontWeight: 700, color: AC, background: ACL, padding: "1px 6px", borderRadius: 8, marginLeft: 6, fontFamily: "ui-monospace, monospace" }}>
+                        #{t.number}
+                      </span>
+                    );
+                  })()}
                   {isOrgAdmin && s.userName && !isMine && (
                     <span style={{ fontSize: 10, color: TX3, marginLeft: 6 }}>· {s.userName}</span>
                   )}

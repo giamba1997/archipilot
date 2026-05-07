@@ -132,15 +132,7 @@ const projectSummary = (p, { detailed = false } = {}) => {
     }
   }
 
-  // Checklists — juste compteurs
-  const checklists = p.checklists || [];
-  if (checklists.length) {
-    const totalItems = checklists.reduce((s, cl) => s + ((cl.items || []).length), 0);
-    const doneItems = checklists.reduce((s, cl) =>
-      s + ((cl.items || []).filter(it => it.checked).length), 0);
-    lines.push(`\n### Checklists`);
-    lines.push(`${checklists.length} checklist${checklists.length > 1 ? "s" : ""} — ${doneItems}/${totalItems} items cochés.`);
-  }
+  // Module checklists supprimé — bloc retiré du contexte chat.
 
   // Lots / phases techniques
   const lots = p.lots || [];

@@ -1,19 +1,41 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG } from "../constants/tokens";
 import { RESERVE_STATUSES, RESERVE_SEVERITIES, getReserveStatus, getReserveSeverity, nextReserveStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
-import { uploadPhoto, getPhotoUrl } from "../db";
+import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests } from "../db";
+import { SignOprModal, SendOprModal, RequestSignaturesModal } from "../components/modals";
+import { generateOprPdf } from "../utils/pdf";
 
 // ── OPR View ─────────────────────────────────────────────────
 
-export function OprView({ project, setProjects, onBack }) {
+export function OprView({ project, setProjects, profile, showToast, onBack }) {
   const [mode, setMode] = useState("list"); // "list" | "add" | "edit"
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("all"); // "all" | "non_levee" | "partiellement_levee" | "levee"
   const [filterContractor, setFilterContractor] = useState("all");
+  const [signOpen, setSignOpen] = useState(false);
+  const [sendOprOpen, setSendOprOpen] = useState(null); // opr object to send, or null
+  const [requestSigOpen, setRequestSigOpen] = useState(false);
+  const [signatureRequests, setSignatureRequests] = useState([]);
   const photoRef = useRef(null);
 
   const reserves = project.reserves || [];
+  const oprHistory = project.oprHistory || [];
+
+  // Charge les demandes de signature à distance pour ce projet
+  const refreshSignatureRequests = async () => {
+    if (!project?.id) return;
+    const rows = await loadOprSignatureRequests(project.id);
+    setSignatureRequests(rows);
+  };
+  useEffect(() => { refreshSignatureRequests(); /* eslint-disable-next-line */ }, [project?.id]);
+
+  // Index des demandes par opr_id pour affichage rapide
+  const sigByOpr = {};
+  for (const r of signatureRequests) {
+    if (!sigByOpr[r.opr_id]) sigByOpr[r.opr_id] = [];
+    sigByOpr[r.opr_id].push(r);
+  }
 
   // Stats
   const total = reserves.length;
@@ -83,7 +105,7 @@ export function OprView({ project, setProjects, onBack }) {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
+    <div style={{ maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -95,12 +117,45 @@ export function OprView({ project, setProjects, onBack }) {
             <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Opérations préalables à réception</div>
           </div>
         </div>
-        <button
-          onClick={() => setMode("add")}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          <Ico name="plus" size={14} color="#fff" /> Nouvelle réserve
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={async () => {
+              try {
+                await generateOprPdf(project, { number: oprHistory.length + 1, date: new Date().toLocaleDateString("fr-BE"), reserves }, profile);
+              } catch (err) {
+                console.error("OPR PDF error:", err);
+                showToast?.(`Erreur PDF : ${err?.message || err}`, "error");
+              }
+            }}
+            disabled={reserves.length === 0}
+            title="Télécharger un PDF non signé (relecture / impression)"
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          >
+            <Ico name="file" size={13} color={reserves.length === 0 ? DIST : TX2} /> PDF
+          </button>
+          <button
+            onClick={() => setSignOpen(true)}
+            disabled={reserves.length === 0}
+            title="Signer sur place lors de la réception (canvas tactile)"
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          >
+            <Ico name="edit" size={13} color={reserves.length === 0 ? DIST : TX2} /> Signer sur place
+          </button>
+          <button
+            onClick={() => setRequestSigOpen(true)}
+            disabled={reserves.length === 0}
+            title="Envoyer un lien de signature par email à chaque participant"
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          >
+            <Ico name="send" size={13} color={reserves.length === 0 ? DIST : TX2} /> Envoyer pour signature
+          </button>
+          <button
+            onClick={() => setMode("add")}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            <Ico name="plus" size={14} color="#fff" /> Nouvelle réserve
+          </button>
+        </div>
       </div>
 
       {/* KPI Dashboard */}
@@ -130,6 +185,85 @@ export function OprView({ project, setProjects, onBack }) {
               Toutes les réserves sont levées — vous pouvez procéder à la réception.
             </div>
           )}
+        </div>
+      )}
+
+      {/* Historique OPR — signés sur place ou demandes en cours */}
+      {oprHistory.length > 0 && (
+        <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>
+            Historique OPR ({oprHistory.length})
+          </div>
+          {oprHistory.map((opr, i) => {
+            const requests = sigByOpr[opr.id] || [];
+            const inSigning = !!opr.signingRequest;
+            const localSignatures = (opr.signatures || []).length;
+            const remoteSigned = requests.filter(r => r.status === "signed").length;
+            const remoteTotal = requests.length;
+            const totalSignatures = localSignatures + remoteSigned;
+            return (
+              <div key={opr.id || i} style={{ padding: "10px 0", borderTop: i > 0 ? `1px solid ${SB}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: totalSignatures > 0 ? GRBG : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Ico name={totalSignatures > 0 ? "check" : "edit"} size={14} color={totalSignatures > 0 ? GR : TX3} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>
+                      OPR n°{opr.number} <span style={{ fontSize: 11, color: TX3, fontWeight: 500 }}>· {opr.type === "definitive" ? "Définitive" : "Provisoire"} · {opr.date}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: TX3 }}>
+                      {totalSignatures > 0 && `${totalSignatures} signature${totalSignatures > 1 ? "s" : ""}${remoteTotal > 0 ? ` (${remoteSigned}/${remoteTotal} à distance)` : ""}`}
+                      {totalSignatures === 0 && inSigning && `Demandes envoyées — en attente${remoteTotal > 0 ? ` (0/${remoteTotal})` : ""}`}
+                      {(opr.reserves || []).length > 0 && ` · ${(opr.reserves || []).length} réserve${(opr.reserves || []).length > 1 ? "s" : ""} figée${(opr.reserves || []).length > 1 ? "s" : ""}`}
+                    </div>
+                  </div>
+                  <button onClick={() => generateOprPdf(project, { ...opr, signatures: [...(opr.signatures || []), ...requests.filter(r => r.status === "signed").map(r => ({ name: r.signatory_name, role: r.signatory_role, email: r.signatory_email, dataUrl: r.signature_data_url, signedAt: r.signed_at }))] }, profile)}
+                    title="Télécharger le PDF (avec signatures actuelles)"
+                    style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, color: TX2, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Ico name="file" size={11} color={TX2} /> PDF
+                  </button>
+                  <button onClick={() => setSendOprOpen({ ...opr, signatures: [...(opr.signatures || []), ...requests.filter(r => r.status === "signed").map(r => ({ name: r.signatory_name, role: r.signatory_role, email: r.signatory_email, dataUrl: r.signature_data_url, signedAt: r.signed_at }))] })}
+                    title="Envoyer le PDF aux destinataires"
+                    style={{ background: AC, border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 11, fontWeight: 700, color: WH, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Ico name="send" size={11} color={WH} /> {opr.sentAt ? "Renvoyer" : "Diffuser"}
+                  </button>
+                </div>
+
+                {/* Détail des demandes de signature à distance pour cet OPR */}
+                {requests.length > 0 && (
+                  <div style={{ marginTop: 8, marginLeft: 42, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {requests.map(r => {
+                      const isExpired = r.expires_at && new Date(r.expires_at) < new Date() && r.status === "pending";
+                      const stColor = r.status === "signed" ? GR
+                        : r.status === "declined" ? RD
+                        : isExpired ? RD
+                        : "#D97706";
+                      const stLabel = r.status === "signed" ? "Signé"
+                        : r.status === "declined" ? "Refusé"
+                        : isExpired ? "Expiré"
+                        : "En attente";
+                      return (
+                        <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, padding: "4px 0" }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: stColor, flexShrink: 0 }} />
+                          <span style={{ color: TX, fontWeight: 500 }}>{r.signatory_name}</span>
+                          {r.signatory_role && <span style={{ color: TX3 }}>· {r.signatory_role}</span>}
+                          <span style={{ color: TX3 }}>· {r.signatory_email}</span>
+                          <span style={{ marginLeft: "auto", color: stColor, fontWeight: 600 }}>{stLabel}</span>
+                          {r.signed_at && <span style={{ color: TX3 }}>— {new Date(r.signed_at).toLocaleDateString("fr-BE")}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${SB}`, display: "flex", justifyContent: "flex-end" }}>
+            <button onClick={refreshSignatureRequests}
+              style={{ background: "none", border: "none", padding: "4px 8px", cursor: "pointer", fontSize: 11, color: TX3, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <Ico name="history" size={10} color={TX3} /> Actualiser
+            </button>
+          </div>
         </div>
       )}
 
@@ -264,6 +398,56 @@ export function OprView({ project, setProjects, onBack }) {
             <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: TX3 }}>Aucune réserve ne correspond aux filtres.</div>
           )}
         </div>
+      )}
+
+      {/* Modal d'envoi des demandes de signature à distance */}
+      {requestSigOpen && (
+        <RequestSignaturesModal
+          project={project}
+          setProjects={setProjects}
+          profile={profile}
+          onClose={() => setRequestSigOpen(false)}
+          onSent={() => { refreshSignatureRequests(); }}
+        />
+      )}
+
+      {/* Modal signature OPR */}
+      {signOpen && (
+        <SignOprModal
+          open={signOpen}
+          onClose={() => setSignOpen(false)}
+          project={project}
+          setProjects={setProjects}
+          profile={profile}
+          showToast={showToast}
+          onComplete={(opr) => {
+            // Une fois signé, on propose immédiatement l'envoi par email.
+            setTimeout(() => setSendOprOpen(opr), 250);
+          }}
+        />
+      )}
+
+      {/* Modal envoi OPR */}
+      {sendOprOpen && (
+        <SendOprModal
+          project={project}
+          opr={sendOprOpen}
+          profile={profile}
+          onClose={() => setSendOprOpen(null)}
+          onSent={(emails) => {
+            // Marque l'OPR comme envoyé dans oprHistory + ferme la modal
+            setProjects(prev => prev.map(p => p.id !== project.id ? p : {
+              ...p,
+              oprHistory: (p.oprHistory || []).map(o => o.id === sendOprOpen.id ? {
+                ...o,
+                sentAt: new Date().toISOString(),
+                sentTo: [...new Set([...(o.sentTo || []), ...emails])],
+              } : o),
+            }));
+            showToast?.(`OPR envoyé à ${emails.length} destinataire${emails.length > 1 ? "s" : ""}`);
+            setSendOprOpen(null);
+          }}
+        />
       )}
     </div>
   );

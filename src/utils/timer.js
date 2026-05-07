@@ -69,7 +69,9 @@ export const formatTimer = (seconds) => {
 
 // Convert active-timer segments into a single closed session record. Used
 // when the user presses Stop. Returns null if no time was tracked.
-export const buildSessionFromTimer = (timer, note = "", user = null) => {
+// taskId optionnel — si fourni, lie la session à une tâche du projet pour
+// que l'utilisateur retrouve facilement le travail effectué (référence stable).
+export const buildSessionFromTimer = (timer, note = "", user = null, taskId = "") => {
   if (!timer || !timer.segments?.length) return null;
   const total = elapsedSeconds(timer, Date.now());
   if (total <= 0) return null;
@@ -82,6 +84,7 @@ export const buildSessionFromTimer = (timer, note = "", user = null) => {
     endedAt,
     durationSeconds: total,
     note: note || "",
+    taskId: taskId || "",
     isManual: false,
     userId: user?.id || timer.userId || null,
     userName: user?.name || timer.userName || null,
@@ -89,10 +92,11 @@ export const buildSessionFromTimer = (timer, note = "", user = null) => {
 };
 
 // Validate + build a manual session from form input. Accepts either:
-//   { date, durationMinutes, note }   → derives startedAt = date 09:00, endedAt = +duration
-//   { startedAt, endedAt, note }       → ISO timestamps
+//   { date, durationMinutes, note, taskId }   → derives startedAt = date 09:00, endedAt = +duration
+//   { startedAt, endedAt, note, taskId }       → ISO timestamps
 // Returns the session record, or throws Error with a French message.
-export const buildManualSession = ({ date, durationMinutes, startedAt, endedAt, note, user }) => {
+// taskId optionnel — référence stable vers une tâche du projet.
+export const buildManualSession = ({ date, durationMinutes, startedAt, endedAt, note, taskId, user }) => {
   const userMeta = { userId: user?.id || null, userName: user?.name || null };
   if (durationMinutes !== undefined) {
     const d = parseInt(durationMinutes, 10);
@@ -108,6 +112,7 @@ export const buildManualSession = ({ date, durationMinutes, startedAt, endedAt, 
       endedAt: end.toISOString(),
       durationSeconds: d * 60,
       note: note || "",
+      taskId: taskId || "",
       isManual: true,
       ...userMeta,
     };
@@ -125,6 +130,7 @@ export const buildManualSession = ({ date, durationMinutes, startedAt, endedAt, 
       endedAt: new Date(e).toISOString(),
       durationSeconds: dur,
       note: note || "",
+      taskId: taskId || "",
       isManual: true,
       ...userMeta,
     };

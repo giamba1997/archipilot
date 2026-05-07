@@ -490,3 +490,394 @@ export async function generatePDF(project, pvNum, date, result, profile, options
   }
   doc.save(`PV_${pvNum}_${safeName}_${safeDate}.pdf`);
 }
+
+// \u2500\u2500 OPR PDF \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Proc\u00E8s-verbal de r\u00E9ception. Liste des r\u00E9serves constat\u00E9es + signatures
+// des parties (canvas dataURL embarqu\u00E9es en bas).
+//
+// `opr` contient { number, date, type, reserves, signatures } \u2014 la snapshot
+// fig\u00E9e au moment de la signature pour avoir un document immuable.
+export async function generateOprPdf(project, opr, profile, options) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = 210, H = 297;
+  const ML = 18, MR = 18;
+  const CW = W - ML - MR;
+
+  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const font   = profile?.pdfFont || "helvetica";
+  const DARK   = [29, 29, 27];
+  const GRAY   = [107, 107, 102];
+  const LGRAY  = [226, 225, 221];
+  const BGGRAY = [247, 246, 244];
+  const RED    = [196, 57, 42];
+  const REDBG  = [254, 242, 242];
+  const GREEN  = [78, 142, 90];
+  const GREENBG = [234, 243, 222];
+  const AMBERBG = [253, 244, 235];
+
+  const reserves = opr.reserves || project.reserves || [];
+  const signatures = opr.signatures || [];
+  const oprNum = opr.number || 1;
+  const oprDate = opr.date || new Date().toLocaleDateString("fr-BE");
+  const oprType = opr.type === "definitive" ? "D\u00C9FINITIVE" : "PROVISOIRE";
+
+  let y = 0;
+
+  const checkY = (needed = 12) => {
+    if (y + needed > H - 22) {
+      doc.addPage();
+      y = 22;
+    }
+  };
+
+  const imgFmt = (dataUrl) => {
+    if (dataUrl.startsWith("data:image/png")) return "PNG";
+    if (dataUrl.startsWith("data:image/webp")) return "WEBP";
+    return "JPEG";
+  };
+
+  // \u2500\u2500 HEADER \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFillColor(...AMBER);
+  doc.rect(0, 0, W, 11, "F");
+
+  y = 19;
+
+  if (profile?.picture && hasFeature(profile?.plan, "pdfCustomLogo")) {
+    try { doc.addImage(profile.picture, imgFmt(profile.picture), W - MR - 22, 13, 22, 22); } catch (_) { /* ignore */ }
+  }
+
+  const bureauName = profile?.structure || "ArchiPilot";
+  doc.setFont(font, "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(...DARK);
+  doc.text(bureauName, ML, y);
+  y += 5.5;
+
+  doc.setFont(font, "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...GRAY);
+  const contactParts = [profile?.phone, profile?.email].filter(Boolean).join("   ");
+  if (profile?.address) { doc.text(profile.address, ML, y); y += 4.5; }
+  if (contactParts)      { doc.text(contactParts, ML, y);   y += 4.5; }
+
+  y = Math.max(y, 40);
+  doc.setDrawColor(...LGRAY);
+  doc.setLineWidth(0.4);
+  doc.line(ML, y, W - MR, y);
+  y += 9;
+
+  // \u2500\u2500 TITRE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFont(font, "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(...AMBER);
+  doc.text(`OPR n\u00B0${oprNum} \u2014 RE\u0301CEPTION ${oprType}`, ML, y);
+  y += 7;
+
+  doc.setFont(font, "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK);
+  doc.text(`Visite de re\u0301ception du ${oprDate}`, ML, y);
+  y += 9;
+
+  // \u2500\u2500 FICHE PROJET \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFillColor(...BGGRAY);
+  doc.rect(ML, y, CW, 28, "F");
+
+  const bY = y + 5;
+  const c1 = ML + 5, c2 = ML + 62, c3 = ML + 120;
+
+  doc.setFont(font, "bold");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...GRAY);
+  doc.text("CHANTIER", c1, bY);
+  doc.text("MA\u00CETRE D'OUVRAGE", c2, bY);
+  doc.text("ENTREPRISE", c3, bY);
+
+  doc.setFont(font, "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...DARK);
+  doc.text(doc.splitTextToSize(project.name || "", 54), c1, bY + 5);
+  doc.text(doc.splitTextToSize(project.client || "", 54), c2, bY + 5);
+  doc.text(doc.splitTextToSize(project.contractor || "", 46), c3, bY + 5);
+
+  doc.setFont(font, "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...GRAY);
+  if (project.address) doc.text(project.address, c1, bY + 13);
+  y += 36;
+
+  // \u2500\u2500 KPI R\u00C9SERVES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const total = reserves.length;
+  const levees = reserves.filter(r => r.status === "levee").length;
+  const partielles = reserves.filter(r => r.status === "partiellement_levee").length;
+  const nonLevees = reserves.filter(r => r.status === "non_levee").length;
+  const critiques = reserves.filter(r => r.severity === "critical" && r.status !== "levee").length;
+  const pctLevees = total > 0 ? Math.round((levees / total) * 100) : 0;
+
+  if (total > 0) {
+    const kpiBoxes = [
+      { label: "Total",      value: total,      color: DARK,  bg: BGGRAY },
+      { label: "Non leve\u0301es", value: nonLevees, color: RED,   bg: REDBG },
+      { label: "En cours",   value: partielles, color: [217, 119, 6], bg: AMBERBG },
+      { label: "Leve\u0301es",     value: levees,    color: GREEN, bg: GREENBG },
+    ];
+    if (critiques > 0) kpiBoxes.push({ label: "Critiques", value: critiques, color: RED, bg: REDBG });
+    const kpiW = (CW - (kpiBoxes.length - 1) * 3) / kpiBoxes.length;
+    kpiBoxes.forEach((k, i) => {
+      const kx = ML + i * (kpiW + 3);
+      doc.setFillColor(...k.bg);
+      doc.rect(kx, y, kpiW, 18, "F");
+      doc.setFont(font, "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(...k.color);
+      doc.text(String(k.value), kx + kpiW / 2, y + 9, { align: "center" });
+      doc.setFont(font, "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(...GRAY);
+      doc.text(k.label.toUpperCase(), kx + kpiW / 2, y + 14.5, { align: "center" });
+    });
+    y += 22;
+
+    // Progress bar
+    doc.setFont(font, "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...DARK);
+    doc.text(`Progression : ${pctLevees}%`, ML, y);
+    y += 2.5;
+    doc.setFillColor(...LGRAY);
+    doc.rect(ML, y, CW, 2.5, "F");
+    doc.setFillColor(...(pctLevees === 100 ? GREEN : AMBER));
+    doc.rect(ML, y, CW * (pctLevees / 100), 2.5, "F");
+    y += 9;
+  }
+
+  // \u2500\u2500 PR\u00C9SENTS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  if ((project.participants || []).length > 0) {
+    doc.setFont(font, "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    doc.text("PRE\u0301SENTS \u00C0 LA RE\u0301CEPTION", ML, y);
+    y += 4.5;
+
+    project.participants.forEach((p, i) => {
+      checkY(7);
+      if (i % 2 === 0) { doc.setFillColor(...BGGRAY); doc.rect(ML, y - 3.5, CW, 6.5, "F"); }
+      doc.setFont(font, "bold");   doc.setFontSize(9);   doc.setTextColor(...DARK);
+      doc.text(p.name || "", ML + 3, y);
+      doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+      doc.text(p.role || "", ML + 82, y);
+      if (p.email) doc.text(p.email, ML + 110, y);
+      y += 6.5;
+    });
+    y += 3;
+  }
+
+  // \u2500\u2500 S\u00C9PARATEUR AMBRE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFillColor(...AMBER);
+  doc.rect(ML, y, CW, 0.8, "F");
+  y += 9;
+
+  // \u2500\u2500 LISTE R\u00C9SERVES (group\u00E9es par entreprise) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  if (total === 0) {
+    doc.setFillColor(...GREENBG);
+    doc.rect(ML, y, CW, 16, "F");
+    doc.setFont(font, "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...GREEN);
+    doc.text("Aucune re\u0301serve constate\u0301e \u2014 re\u0301ception sans re\u0301serve.", ML + 5, y + 10);
+    y += 22;
+  } else {
+    doc.setFont(font, "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    doc.text(`RE\u0301SERVES (${total})`, ML, y);
+    y += 8;
+
+    const contractors = [...new Set(reserves.map(r => r.contractor || "Non assigne\u0301e"))];
+    for (const contractor of contractors) {
+      const cReserves = reserves.filter(r => (r.contractor || "Non assigne\u0301e") === contractor);
+      checkY(12);
+      doc.setFillColor(...BGGRAY);
+      doc.rect(ML, y - 3.5, CW, 7, "F");
+      doc.setFont(font, "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...DARK);
+      doc.text(`\u2022 ${contractor}  (${cReserves.length})`, ML + 3, y);
+      y += 8;
+
+      for (const r of cReserves) {
+        const sev = r.severity === "critical" ? { label: "CRITIQUE", color: RED }
+                  : r.severity === "major"    ? { label: "MAJEURE",  color: [217, 119, 6] }
+                  : r.severity === "minor"    ? { label: "MINEURE",  color: GRAY }
+                  :                              { label: "ESTHE\u0301TIQUE", color: GRAY };
+        const stat = r.status === "levee" ? { label: "Leve\u0301e", color: GREEN }
+                   : r.status === "partiellement_levee" ? { label: "En cours", color: [217, 119, 6] }
+                   : { label: "Non leve\u0301e", color: RED };
+
+        const wrapped = doc.splitTextToSize(r.description || "", CW - 12);
+        const rowH = 9 + wrapped.length * 5 + 4;
+        checkY(rowH + 4);
+
+        // Box (red bg if critical+open, else white)
+        const isHotReserve = r.severity === "critical" && r.status !== "levee";
+        if (isHotReserve) doc.setFillColor(...REDBG); else doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(...LGRAY);
+        doc.setLineWidth(0.3);
+        doc.rect(ML, y - 3, CW, rowH, "FD");
+
+        // Code + sev + status pill
+        doc.setFont(font, "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...DARK);
+        doc.text(r.code || "\u2014", ML + 3, y + 1);
+        doc.setFont(font, "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(...sev.color);
+        doc.text(sev.label, ML + 22, y + 1);
+        doc.setTextColor(...stat.color);
+        doc.text(stat.label.toUpperCase(), ML + 50, y + 1);
+
+        // Meta (location / deadline) on right
+        const metaParts = [];
+        if (r.location) metaParts.push(r.location);
+        if (r.deadline) metaParts.push(`\u00C9ch\u00E9ance ${r.deadline}`);
+        if (metaParts.length) {
+          doc.setFont(font, "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(...GRAY);
+          doc.text(metaParts.join("  \u2022  "), ML + CW - 3, y + 1, { align: "right" });
+        }
+
+        // Description
+        doc.setFont(font, "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(...DARK);
+        wrapped.forEach((wl, wi) => doc.text(wl, ML + 3, y + 7 + wi * 5));
+
+        y += rowH;
+      }
+      y += 3;
+    }
+  }
+
+  // \u2500\u2500 SIGNATURES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // Toujours sur la derni\u00E8re page si possible \u2014 sinon on saute.
+  checkY(60);
+  y += 4;
+  doc.setFillColor(...AMBER);
+  doc.rect(ML, y, CW, 0.8, "F");
+  y += 9;
+  doc.setFont(font, "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...DARK);
+  doc.text("SIGNATURES", ML, y);
+  y += 7;
+
+  doc.setFont(font, "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...GRAY);
+  doc.text("Les soussigne\u0301s certifient avoir pris connaissance des re\u0301serves ci-dessus.", ML, y);
+  y += 7;
+
+  // Grid de cases signatures (2 par ligne)
+  const signSlots = signatures.length > 0
+    ? signatures
+    : (project.participants || []).map(p => ({ name: p.name, role: p.role, email: p.email, dataUrl: null }));
+
+  if (signSlots.length === 0) {
+    // Cases vides \u00E0 imprimer/signer
+    const fallbackRoles = ["Ma\u00EEtre d'Ouvrage", "Architecte", "Entreprise"];
+    fallbackRoles.forEach(r => signSlots.push({ name: "", role: r, dataUrl: null }));
+  }
+
+  const sigW = (CW - 6) / 2;
+  const sigH = 32;
+  signSlots.forEach((s, i) => {
+    const col = i % 2;
+    const sx = ML + col * (sigW + 6);
+    if (col === 0 && i > 0) y += sigH + 6;
+    checkY(sigH + 4);
+
+    // Box
+    doc.setDrawColor(...LGRAY);
+    doc.setLineWidth(0.3);
+    doc.rect(sx, y, sigW, sigH);
+
+    // Signature image embed
+    if (s.dataUrl) {
+      try {
+        doc.addImage(s.dataUrl, imgFmt(s.dataUrl), sx + 3, y + 3, sigW - 6, sigH - 12);
+      } catch (_) { /* ignore */ }
+    }
+
+    // Footer band: name + role
+    doc.setFillColor(...BGGRAY);
+    doc.rect(sx, y + sigH - 8, sigW, 8, "F");
+    doc.setFont(font, "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...DARK);
+    doc.text((s.name || "\u00C0 compl\u00E9ter").slice(0, 38), sx + 3, y + sigH - 3.5);
+    doc.setFont(font, "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    if (s.role) doc.text(s.role, sx + sigW - 3, y + sigH - 3.5, { align: "right" });
+
+    // Trace metadata (small italic line above the box)
+    if (s.signedAt) {
+      doc.setFont(font, "italic");
+      doc.setFontSize(6.5);
+      doc.setTextColor(...GRAY);
+      const stamp = new Date(s.signedAt).toLocaleString("fr-BE", { dateStyle: "short", timeStyle: "short" });
+      doc.text(`Signe\u0301 le ${stamp}`, sx + 3, y - 1);
+    }
+  });
+  y += sigH + 4;
+
+  // \u2500\u2500 PIED DE PAGE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const totalPages = doc.internal.getNumberOfPages();
+  const showWatermark = !hasFeature(profile?.plan, "pdfNoWatermark");
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...LGRAY);
+    doc.setLineWidth(0.3);
+    doc.line(ML, H - 15, W - MR, H - 15);
+    doc.setFont(font, "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...GRAY);
+    doc.text(bureauName, ML, H - 10);
+    if (contactParts) doc.text(contactParts, ML, H - 6);
+    doc.text(`OPR n\u00B0${oprNum}  \u2014  ${oprDate}`, W - MR, H - 10, { align: "right" });
+    doc.text(`Page ${i} / ${totalPages}`, W - MR, H - 6, { align: "right" });
+
+    if (showWatermark) {
+      try {
+        if (typeof doc.saveGraphicsState === "function" && typeof doc.GState === "function") {
+          doc.saveGraphicsState();
+          doc.setGState(new doc.GState({ opacity: 0.08 }));
+          doc.setFont(font, "bold");
+          doc.setFontSize(64);
+          doc.setTextColor(...AMBER);
+          doc.text("ArchiPilot Free", W / 2, H / 2, { align: "center", angle: 45 });
+          doc.restoreGraphicsState();
+        } else {
+          doc.setFont(font, "bold");
+          doc.setFontSize(64);
+          doc.setTextColor(230, 225, 220);
+          doc.text("ArchiPilot Free", W / 2, H / 2, { align: "center", angle: 45 });
+        }
+      } catch (_) { /* ignore */ }
+      doc.setFont(font, "italic");
+      doc.setFontSize(7);
+      doc.setTextColor(...GRAY);
+      doc.text("Ge\u0301ne\u0301re\u0301 avec ArchiPilot \u2014 Passez a\u0300 Pro pour supprimer ce filigrane (archipilot.app)", W / 2, H - 3, { align: "center" });
+    }
+  }
+
+  const safeName = (project.name || "projet").replace(/[^\w\s\u00C0-\u024F]/g, "").replace(/\s+/g, "_");
+  const safeDate = oprDate.replace(/\//g, "-");
+  const fileName = `OPR_${oprNum}_${safeName}_${safeDate}.pdf`;
+  if (options?.returnDataUrl) {
+    return { dataUrl: doc.output("datauristring"), fileName };
+  }
+  doc.save(fileName);
+}

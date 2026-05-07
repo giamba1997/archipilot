@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, BL, BLB, GR, GRBG, VI, VIB, REDBRD, SP, FS, RAD } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, BL, BLB, GR, GRBG, VI, VIB, PU, PUB, REDBRD, SP, FS, RAD } from "../constants/tokens";
 import { Ico, Modal } from "../components/ui";
 import { extractPdfText } from "../utils/chatAttachments";
 
@@ -22,8 +22,18 @@ import { extractPdfText } from "../utils/chatAttachments";
 const PV_RE = /(?:^|[\s_-])pv[\s_-]?n?[\s_-]?(\d+)|proc[eè]s[\s_-]?verbal|compte[\s_-]?rendu/i;
 const CDC_RE = /cahier.{0,3}charges|clauses.{0,3}techniques|\bcct\b|\bccg\b|\bcsc\b/i;
 const PLAN_RE = /plan|implantation|coupe|fa[çc]ade|[eé]l[eé]vation|architectural/i;
-const IMG_EXT_RE = /\.(jpe?g|png|webp|heic|heif|gif)$/i;
+const IMG_EXT_RE = /\.(jpe?g|png|webp|heic|heif|gif|svg|tiff?)$/i;
 const PDF_EXT_RE = /\.pdf$/i;
+const CAD_EXT_RE = /\.(dwg|dxf|skp|rvt|rfa|ifc|3dm|step|stp)$/i;
+const DOC_EXT_RE = /\.(docx?|odt|rtf|txt)$/i;
+const SHEET_EXT_RE = /\.(xlsx?|csv|ods)$/i;
+const SLIDE_EXT_RE = /\.(pptx?|odp)$/i;
+const DESIGN_EXT_RE = /\.(psd|ai|indd|fig|sketch)$/i;
+
+// Mêmes formats que PlanManager — la liste est volontairement large pour
+// que tout document professionnel d'un cabinet d'archi puisse atterrir
+// dans Documents sans être ignoré.
+const ACCEPTED_RE = /\.(pdf|jpe?g|png|webp|heic|heif|gif|svg|tiff?|docx?|odt|rtf|txt|xlsx?|csv|ods|pptx?|odp|dwg|dxf|skp|rvt|rfa|ifc|3dm|step|stp|psd|ai|indd|fig|sketch)$/i;
 
 const KIND_META = {
   cdc:    { label: "Cahier des charges",  color: AC, bg: ACL,  icon: "file"   },
@@ -31,29 +41,50 @@ const KIND_META = {
   plan:   { label: "Plan",                color: BL, bg: BLB,  icon: "file"   },
   photo:  { label: "Photo chantier",      color: GR, bg: GRBG, icon: "image"  },
   doc:    { label: "Document",            color: VI, bg: VIB,  icon: "folder" },
+  cad:    { label: "Plan CAO",            color: BL, bg: BLB,  icon: "layers" },
+  sheet:  { label: "Tableur",             color: GR, bg: GRBG, icon: "chart"  },
+  slide:  { label: "Présentation",        color: PU, bg: PUB,  icon: "image"  },
+  design: { label: "Design",              color: PU, bg: PUB,  icon: "image"  },
   skip:   { label: "Ignoré",              color: TX3, bg: SB,  icon: "x"      },
 };
 
-const KIND_OPTIONS = ["cdc", "pv", "plan", "photo", "doc", "skip"];
+const KIND_OPTIONS = ["cdc", "pv", "plan", "photo", "cad", "sheet", "slide", "design", "doc", "skip"];
+
+// Mappe un kind vers le type planFile correspondant pour PlanManager.
+const KIND_TO_PLANFILE_TYPE = {
+  cdc: "pdf", pv: "pdf", plan: "pdf",
+  photo: "image", cad: "cad",
+  sheet: "sheet", slide: "slide", design: "design",
+  doc: "doc",
+};
 
 const classifyFile = (file) => {
   const name = (file.name || "").toLowerCase();
+  // Images en premier — peuvent devenir des photos chantier OU des plans selon le nom.
   if (file.type?.startsWith("image/") || IMG_EXT_RE.test(name)) {
+    if (PLAN_RE.test(name)) return { kind: "plan" };
     return { kind: "photo" };
   }
   const isPdf = file.type === "application/pdf" || PDF_EXT_RE.test(name);
-  if (!isPdf) {
-    // Word/Excel/DWG/etc. — skip pour la v1
-    return { kind: "skip", reason: "format non supporté" };
+  if (isPdf) {
+    if (CDC_RE.test(name)) return { kind: "cdc" };
+    const pvMatch = name.match(PV_RE);
+    if (pvMatch) {
+      const num = pvMatch[1] ? parseInt(pvMatch[1], 10) : null;
+      return { kind: "pv", number: num };
+    }
+    if (PLAN_RE.test(name)) return { kind: "plan" };
+    return { kind: "doc" };
   }
-  if (CDC_RE.test(name)) return { kind: "cdc" };
-  const pvMatch = name.match(PV_RE);
-  if (pvMatch) {
-    const num = pvMatch[1] ? parseInt(pvMatch[1], 10) : null;
-    return { kind: "pv", number: num };
-  }
-  if (PLAN_RE.test(name)) return { kind: "plan" };
-  return { kind: "doc" };
+  // Formats spécialisés — vont directement dans la bonne catégorie planFile.
+  if (CAD_EXT_RE.test(name)) return { kind: "cad" };
+  if (SHEET_EXT_RE.test(name)) return { kind: "sheet" };
+  if (SLIDE_EXT_RE.test(name)) return { kind: "slide" };
+  if (DESIGN_EXT_RE.test(name)) return { kind: "design" };
+  if (DOC_EXT_RE.test(name)) return { kind: "doc" };
+  // Format inconnu (bytes, exe, etc.) — on garde dans "doc" mais on prévient.
+  if (ACCEPTED_RE.test(name)) return { kind: "doc" };
+  return { kind: "skip", reason: "format non supporté" };
 };
 
 const fmtBytes = (b) => {
@@ -92,6 +123,56 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
       const files = e.target.files;
       if (files && files.length > 0) handlePickDir(files);
       document.body.removeChild(input);
+    };
+    document.body.appendChild(input);
+    input.click();
+  };
+
+  // Picker ZIP — un seul fichier .zip contenant l'arborescence du projet.
+  // jszip extrait en mémoire ; on transforme chaque entrée en File pour
+  // réutiliser le même classement que pour un dossier.
+  const openZipPicker = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".zip,application/zip";
+    input.style.display = "none";
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      document.body.removeChild(input);
+      if (!file) return;
+      try {
+        setStep("creating");
+        setProgress("Extraction du ZIP…");
+        const JSZip = (await import("jszip")).default;
+        const zip = await JSZip.loadAsync(file);
+        const baseName = (file.name || "projet.zip").replace(/\.zip$/i, "");
+        // Entrées non-dossier uniquement, on préserve le path relatif
+        const entries = Object.values(zip.files).filter(z => !z.dir);
+        const fakeFiles = [];
+        for (let i = 0; i < entries.length; i++) {
+          const z = entries[i];
+          setProgress(`Extraction ${i + 1}/${entries.length} — ${z.name}…`);
+          const blob = await z.async("blob");
+          // On reconstruit un File avec un webkitRelativePath pour réutiliser
+          // la logique du picker dossier. Le 1er segment du path prend le nom
+          // du ZIP (sans extension) si pas déjà présent.
+          const cleanPath = z.name.startsWith(baseName + "/") ? z.name : `${baseName}/${z.name}`;
+          const f = new File([blob], z.name.split("/").pop(), { type: blob.type });
+          Object.defineProperty(f, "webkitRelativePath", { value: cleanPath });
+          fakeFiles.push(f);
+        }
+        if (fakeFiles.length === 0) {
+          setErr("L'archive ZIP est vide.");
+          setStep("pick");
+          return;
+        }
+        setProgress("");
+        handlePickDir(fakeFiles);
+      } catch (zipErr) {
+        console.error("ZIP extract failed:", zipErr);
+        setErr("Impossible de lire ce ZIP. Vérifie qu'il n'est pas protégé par mot de passe.");
+        setStep("pick");
+      }
     };
     document.body.appendChild(input);
     input.click();
@@ -215,29 +296,36 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
         });
       }
 
-      // Documents (plans + admin + photos)
-      const documents = [];
-      const docItems = items.filter(it =>
-        it.included && (it.kind === "plan" || it.kind === "doc" || it.kind === "photo")
-      );
+      // Documents — convertis directement au format planFiles[] pour qu'ils
+      // soient visibles dans l'onglet Documents (PlanManager) sans migration.
+      // Chaque kind est mappé vers le type planFile correspondant. Les photos
+      // partent dans gallery[] (hors planFiles, géré par GalleryView).
+      const planFiles = [];
+      const gallery = [];
+      const docItems = items.filter(it => it.included && it.kind !== "cdc" && it.kind !== "pv");
       for (let i = 0; i < docItems.length; i++) {
         const it = docItems[i];
         setProgress(`Lecture des documents (${i + 1}/${docItems.length})…`);
         const dataUrl = await readAsDataURL(it.file);
-        const cat = it.kind === "plan" ? "plans" : it.kind === "photo" ? "photos" : "admin";
-        const isImage = it.file.type?.startsWith("image/") || IMG_EXT_RE.test(it.file.name);
-        documents.push({
-          id: Date.now() + Math.random(),
-          name: it.file.name,
-          category: cat,
-          versions: [{
-            v: 1,
+        const ext = (it.file.name.split(".").pop() || "").toLowerCase();
+        if (it.kind === "photo") {
+          gallery.push({
+            id: Date.now() + Math.random(),
+            dataUrl,
+            date: new Date().toISOString(),
+          });
+        } else {
+          planFiles.push({
+            id: Date.now() + Math.random(),
+            type: KIND_TO_PLANFILE_TYPE[it.kind] || "other",
+            name: it.file.name,
+            parentId: null,
             dataUrl,
             size: it.file.size,
-            type: isImage ? "image" : "pdf",
-            addedAt: new Date().toLocaleDateString("fr-BE"),
-          }],
-        });
+            ext,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
 
       setProgress("Création du projet…");
@@ -245,7 +333,8 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
         meta,
         cahierDesCharges,
         pvHistory,
-        documents,
+        planFiles,
+        gallery,
       });
       // La modale est fermée par le parent quand le projet est créé,
       // ici on laisse le state sur "creating" — l'utilisateur ne reverra
@@ -267,16 +356,22 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
             Tu pourras ajuster le classement avant de confirmer.
           </p>
           <div style={{ padding: `${SP.md}px ${SP.md + 2}px`, background: SB, border: `1px dashed ${SBB}`, borderRadius: RAD.lg, fontSize: FS.sm, color: TX3, lineHeight: 1.6 }}>
-            <strong style={{ color: TX2 }}>Formats supportés :</strong> PDF + images (JPG/PNG/WEBP/HEIC).
-            <br />
-            Fichiers Word, Excel, DWG ne sont pas supportés dans cette v1 (à venir).
+            <strong style={{ color: TX2 }}>Formats supportés :</strong> PDF, images (JPG/PNG/WEBP/HEIC/TIFF/SVG), Word (.docx/.doc), Excel (.xlsx/.csv), PowerPoint, CAO (DWG/DXF/SketchUp/Revit/IFC), Design (PSD/AI/Figma).
           </div>
-          <button
-            onClick={openFolderPicker}
-            style={{ alignSelf: "flex-start", padding: "10px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}
-          >
-            <Ico name="folder" size={14} color="#fff" />Sélectionner un dossier
-          </button>
+          <div style={{ display: "flex", gap: SP.sm, flexWrap: "wrap" }}>
+            <button
+              onClick={openFolderPicker}
+              style={{ padding: "10px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              <Ico name="folder" size={14} color="#fff" />Sélectionner un dossier
+            </button>
+            <button
+              onClick={openZipPicker}
+              style={{ padding: "10px 18px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              <Ico name="upload" size={14} color={TX2} />Importer un ZIP
+            </button>
+          </div>
         </div>
       )}
 

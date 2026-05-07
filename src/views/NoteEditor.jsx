@@ -3,7 +3,7 @@ import { useT, useTP } from "../i18n";
 import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BR, BRB, SG, SGB, AM, AMB } from "../constants/tokens";
 import { getStatus, nextStatus, getRemarkStatus } from "../constants/statuses";
-import { Ico, PB, VUMeter } from "../components/ui";
+import { Ico, PB, VUMeter, AskAiButton } from "../components/ui";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
 import { parseNotesToRemarks, nextPvNumber } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
@@ -452,6 +452,48 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     }));
   };
 
+  // Convertit une remarque en réserve OPR — boucle remarque → réception qui
+  // évite la double-saisie. La sévérité par défaut suit l'urgence : urgent →
+  // critique, sinon → majeure (l'utilisateur ajustera dans OprView). On garde
+  // la traçabilité via originPostId / originRemarkId pour back-link.
+  const convertRemarkToReserve = (postId, remarkId) => {
+    const post = project.posts.find(p => p.id === postId);
+    const remark = (post?.remarks || []).find(r => r.id === remarkId);
+    if (!remark || remark.convertedToReserveId) return;
+    const reserves = project.reserves || [];
+    const code = `R-${String(reserves.length + 1).padStart(3, "0")}`;
+    const reserveId = Date.now() + Math.random();
+    const reserve = {
+      id: reserveId,
+      code,
+      description: remark.text || "",
+      severity: remark.urgent ? "critical" : "major",
+      status: "non_levee",
+      contractor: "",
+      location: post?.label || "",
+      deadline: "",
+      photos: [],
+      notes: `Issue de la remarque "${(remark.text || "").slice(0, 60)}" du poste "${post?.label || postId}".`,
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+      originPostId: postId,
+      originRemarkId: remarkId,
+    };
+    setProjects(prev => prev.map(p => {
+      if (p.id !== project.id) return p;
+      return {
+        ...p,
+        reserves: [...(p.reserves || []), reserve],
+        posts: p.posts.map(po => po.id !== postId ? po : {
+          ...po,
+          remarks: (po.remarks || []).map(r => r.id !== remarkId ? r : {
+            ...r, convertedToReserveId: reserveId, convertedToReserveCode: code,
+          }),
+        }),
+      };
+    }));
+  };
+
   const addPhotos = (postId, files) => {
     Array.from(files).forEach((file) => {
       const reader = new FileReader();
@@ -719,7 +761,17 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                       <Ico name="chevron-down" size={9} color={r.urgent && r.status === "open" ? BR : rs.color} />
                     </button>
                     {r.carriedFrom && <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, color: AC, background: ACL, border: `1px solid ${ACL2}`, padding: "2px 6px", borderRadius: 20, marginTop: 2, whiteSpace: "nowrap" }}>↩ PV{r.carriedFrom}</span>}
+                    {r.convertedToReserveCode && <span title="Cette remarque a été convertie en réserve OPR" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: BR, background: BRB, border: `1px solid ${REDBRD}`, padding: "2px 6px", borderRadius: 20, marginTop: 2, whiteSpace: "nowrap" }}>OPR {r.convertedToReserveCode}</span>}
                     <input value={r.text} onChange={(e) => editRemarkText(post.id, r.id, e.target.value)} style={{ flex: 1, border: "none", outline: "none", fontSize: 13, color: r.status === "done" ? TX3 : TX, background: "transparent", fontFamily: "inherit", textDecoration: r.status === "done" ? "line-through" : "none", padding: 0, minWidth: 0 }} />
+                    {/* Convertir en réserve OPR — boucle PV → réception. Désactivé si déjà converti. */}
+                    {!r.convertedToReserveId && (
+                      <button onClick={() => convertRemarkToReserve(post.id, r.id)}
+                        title="Convertir cette remarque en réserve OPR"
+                        style={{ background: "none", border: `1px solid ${SBB}`, borderRadius: 6, cursor: "pointer", padding: "2px 7px", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontFamily: "inherit" }}>
+                        <Ico name="alert" size={10} color={BR} />
+                        <span style={{ fontSize: 9, fontWeight: 700, color: BR }}>OPR</span>
+                      </button>
+                    )}
                     <button onClick={() => removeRemark(post.id, r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                       <Ico name="x" size={13} color={TX3} />
                     </button>
@@ -1515,7 +1567,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
         </div>
 
         {/* Add post inside card */}
-        <div style={{ padding: "2px 8px 8px" }}>
+        <div style={{ padding: "2px 8px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
           <button
             onClick={() => {
               pushPostsHistory();
@@ -1527,6 +1579,26 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
           >
             <Ico name="plus" size={12} color={TX3} />{t("notes.addPost")}
           </button>
+          {/* Aide IA — opt-in. Compare la liste des postes au CDC (s'il est uploadé)
+              et propose les postes manquants pour ce type de chantier. */}
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <AskAiButton
+              size="compact"
+              label={project.cahierDesCharges?.extractedText ? "Postes manquants vu le CDC ?" : "Postes manquants pour ce chantier ?"}
+              sourceTag="notes_post_list"
+              contextHint={project.cahierDesCharges?.extractedText
+                ? "L'IA reçoit la liste des postes actuels + le cahier des charges complet."
+                : "L'IA reçoit la liste des postes actuels et le type de chantier."}
+              attachments={project.cahierDesCharges?.extractedText ? [{
+                type: "text",
+                name: project.cahierDesCharges.fileName || "Cahier des charges.pdf",
+                mimeType: "application/pdf",
+                content: project.cahierDesCharges.extractedText,
+                sourceTag: `Cahier des charges — ${project.name}`,
+              }] : undefined}
+              message={`Voici les postes actuels du chantier **${project.name}** :\n${project.posts.map(p => `- ${p.id} ${p.label}`).join("\n")}\n\nManque-t-il des postes essentiels pour ce type de chantier${project.cahierDesCharges?.extractedText ? ", au regard du cahier des charges en pièce jointe" : ""} ? Propose-moi une liste structurée des ajouts pertinents (id + label).`}
+            />
+          </div>
         </div>
           </>
         )}

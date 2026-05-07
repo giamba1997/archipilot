@@ -21,6 +21,10 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
   const [saved, setSaved] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [pdfErr, setPdfErr] = useState("");
+  // Tâches suggérées par l'IA, capturées en même temps que la génération du
+  // PV. Persistées sur le PV au save → affichées en bandeau dans Overview
+  // pour décision opt-in (jamais de création automatique).
+  const [aiSuggestedTasks, setAiSuggestedTasks] = useState([]);
   const [showSendModal, setShowSendModal] = useState(false);
   const [savedPvNum, setSavedPvNum] = useState(null);
   const timer = useRef(null);
@@ -89,19 +93,34 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
     if (pvRecipients?.length > 0) {
       ctxLines.push(`Filtre destinataires : ${pvRecipients.join(", ")} — ne garde que les remarques pertinentes pour ces destinataires.`);
     }
+    // PV précédent — passé au modèle pour qu'il puisse identifier les
+    // évolutions (actions toujours ouvertes, points qui ont avancé, points
+    // nouveaux). On cape à 6000 chars pour rester sous l'enveloppe tokens
+    // sans tronquer l'essentiel d'un PV standard. Quand le PV précédent
+    // existe, on autorise une section "00. Évolutions" en tête.
+    const prevPv = (project.pvHistory || [])[0];
+    const prevPvBlock = prevPv && (prevPv.content || prevPv.excerpt) ? [
+      "",
+      `[PV PRÉCÉDENT n°${prevPv.number}${prevPv.date ? ` du ${prevPv.date}` : ""} — pour identifier les évolutions, NE PAS reproduire intégralement]`,
+      String(prevPv.content || prevPv.excerpt || "").slice(0, 6000),
+    ].join("\n") : "";
+    const evolutionRule = prevPv
+      ? "\nSi tu repères une évolution notable par rapport au PV précédent (action levée, point qui avance, nouvelle remarque marquante), tu PEUX ajouter en tête une section \"00. Évolutions depuis le dernier PV\" très synthétique (max 4 lignes en bullets). Inclus-la SEULEMENT si l'évolution est concrète et utile à signaler — pas de bla-bla, pas de paraphrase. Sinon n'ajoute rien."
+      : "";
     const userPrompt = [
       "[CONTEXTE — pour ta compréhension uniquement, NE PAS reproduire dans la sortie]",
       ctxLines.join("\n") || "(aucun)",
+      prevPvBlock,
       "",
       "[NOTES BRUTES À TRANSFORMER]",
       notes,
       "",
       "[RAPPEL]",
-      "Produis UNIQUEMENT les sections numérotées et leurs remarques. Aucun en-tête, aucune intro, aucune conclusion, aucun markdown. Format strict NN. Titre / NN.X texte.",
+      "Produis UNIQUEMENT les sections numérotées et leurs remarques. Aucun en-tête, aucune intro, aucune conclusion, aucun markdown. Format strict NN. Titre / NN.X texte." + evolutionRule,
     ].join("\n");
     try {
       const { data, error } = await supabase.functions.invoke("generate-pv", {
-        body: { systemPrompt: SYS, userPrompt, maxTokens: pvTpl?.id === "detailed" ? 3000 : 2000 },
+        body: { systemPrompt: SYS, userPrompt, maxTokens: pvTpl?.id === "detailed" ? 3000 : 2000, extractTasks: true },
       });
       if (error) {
         const body = await parseFunctionError(error);
@@ -117,6 +136,11 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
       // numbering even if the model regresses despite the strict prompt.
       const cleaned = cleanPvOutput(txt);
       if (cleaned) setResult(cleaned); else throw new Error(t("result.emptyResponse"));
+      // Tâches suggérées par l'IA (extraction non-bloquante côté Edge Function).
+      // Stockées localement, attachées au PV au moment du save. Décision finale
+      // à l'utilisateur via une modal de revue ouverte depuis Overview.
+      const sugg = Array.isArray(data?.suggestedTasks) ? data.suggestedTasks : [];
+      setAiSuggestedTasks(sugg);
     } catch (e) { setErr(e.name === "AbortError" ? t("result.cancelled") : e.message); }
     finally { setLoading(false); clearInterval(timer.current); }
   };
@@ -142,10 +166,17 @@ export function ResultView({ project, setProjects, onBack, onBackHome, onOpenPla
     })).filter(po => po.remarks.length > 0 || po.notes.trim());
 
     setSavedPvNum(pvNum);
-    track("pv_generated", { pv_number: pvNum, project_name: project.name, _page: "result" });
+    track("pv_generated", { pv_number: pvNum, project_name: project.name, _page: "result", _ai_suggestions: aiSuggestedTasks.length });
+    // Suggestions IA : on attache un id stable à chacune et le statut "pending"
+    // pour que l'utilisateur puisse les retrouver dans le bandeau Overview.
+    const suggestedTasksWithIds = aiSuggestedTasks.map((t, i) => ({
+      ...t,
+      id: `sg_${pvNum}_${Date.now()}_${i}`,
+      status: "pending", // pending → user accepte/rejette via la modal de revue
+    }));
     setProjects((prev) => prev.map((p) => p.id === project.id ? {
       ...p,
-      pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: stripMarkdown(result).slice(0, 140) + "…", content: result, inputNotes, status: "draft" }, ...p.pvHistory],
+      pvHistory: [{ number: pvNum, date, author: profile.name || "Architecte", postsCount: filledCount, excerpt: stripMarkdown(result).slice(0, 140) + "…", content: result, inputNotes, status: "draft", suggestedTasks: suggestedTasksWithIds }, ...p.pvHistory],
       // Carry forward open/progress remarks; remove done ones
       posts: p.posts.map((po) => ({
         ...po,

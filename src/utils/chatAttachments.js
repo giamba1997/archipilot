@@ -10,8 +10,11 @@
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;       // 5 MB en entrée
 const MAX_PDF_BYTES   = 12 * 1024 * 1024;      // 12 MB en entrée
 const IMAGE_MAX_DIM   = 1600;                  // resize si plus grand que ça
-const PDF_MAX_PAGES   = 30;                    // limite extraction
+const PDF_MAX_PAGES   = 30;                    // limite extraction texte
 const PDF_MAX_TEXT    = 30000;                 // ~30k chars envoyés au modèle
+const PDF_RASTER_PAGES = 5;                    // pages rastérisées pour le mode vision
+const PDF_RASTER_SCALE = 1.4;                  // résolution de rendu (canvas)
+const PDF_RASTER_MAX_DIM = 1600;               // côté max après resize JPEG
 
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg", "image/png", "image/webp", "image/gif",
@@ -84,16 +87,24 @@ const resizeImage = async (file) => {
   });
 };
 
+// Charge pdfjs-dist en lazy + initialise le worker. Centralisé pour éviter
+// la duplication entre extractPdfText et rasterizePdfPages.
+const loadPdfjs = async () => {
+  const pdfjs = await import("pdfjs-dist");
+  const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  return pdfjs;
+};
+
 // Extraction texte d'un PDF via pdfjs-dist (déjà dans deps pour PDFPreview).
 // Exporté car réutilisé pour le cahier des charges (extraction au moment de
 // l'upload, le texte est ensuite stocké pour ne pas re-parser à chaque requête
 // chatbot).
+//
+// Retour : string vide si pdfjs ne trouve aucun texte (PDF scanné). Le caller
+// doit alors basculer en mode vision via rasterizePdfPages.
 export const extractPdfText = async (file) => {
-  const pdfjs = await import("pdfjs-dist");
-  // Worker setup — vite gère bien l'import direct du worker en dev/build.
-  const workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
-
+  const pdfjs = await loadPdfjs();
   const buf = await readFileAsArrayBuffer(file);
   const doc = await pdfjs.getDocument({ data: buf }).promise;
   const pageCount = Math.min(doc.numPages, PDF_MAX_PAGES);
@@ -110,6 +121,99 @@ export const extractPdfText = async (file) => {
     combined += `\n\n[Document plus long que ${PDF_MAX_PAGES} pages — seules les premières pages sont incluses.]`;
   }
   return combined;
+};
+
+// Extraction texte d'un .docx via mammoth. mammoth ne supporte PAS l'ancien
+// format .doc (binaire) — pour celui-là on retourne "" et le caller propose
+// une conversion. Retourne string vide si rien d'extractible.
+export const extractWordText = async (file) => {
+  const buf = await readFileAsArrayBuffer(file);
+  const mammoth = await import("mammoth/mammoth.browser");
+  // extractRawText perd la mise en forme (gras/listes) mais c'est tout ce
+  // qu'on veut pour nourrir l'IA. convertToHtml serait plus riche mais
+  // gonfle inutilement le payload tokens.
+  const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
+  return (value || "").slice(0, PDF_MAX_TEXT);
+};
+
+// Rastérise les N premières pages d'un PDF en images JPEG pour le mode vision.
+// Utilisé en fallback quand extractPdfText retourne du vide (PDF scanné).
+// Le modèle vision (gpt-4o-mini) lit ensuite les pages comme des images.
+//
+// Retourne : [{ pageNumber, dataUrl, width, height }] — vide si rastérisation
+// impossible (PDF protégé, corrompu).
+export const rasterizePdfPages = async (file, maxPages = PDF_RASTER_PAGES) => {
+  const pdfjs = await loadPdfjs();
+  const buf = await readFileAsArrayBuffer(file);
+  const doc = await pdfjs.getDocument({ data: buf }).promise;
+  const count = Math.min(doc.numPages, maxPages);
+  const pages = [];
+  for (let i = 1; i <= count; i++) {
+    const page = await doc.getPage(i);
+    const baseViewport = page.getViewport({ scale: PDF_RASTER_SCALE });
+    // Cap la dimension max pour éviter des canvases monstrueux
+    const maxDim = Math.max(baseViewport.width, baseViewport.height);
+    const scale = maxDim > PDF_RASTER_MAX_DIM
+      ? (PDF_RASTER_SCALE * PDF_RASTER_MAX_DIM) / maxDim
+      : PDF_RASTER_SCALE;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    pages.push({
+      pageNumber: i,
+      dataUrl: canvas.toDataURL("image/jpeg", 0.85),
+      width: canvas.width,
+      height: canvas.height,
+    });
+  }
+  return pages;
+};
+
+// Dispatcher unifié : prend un File (PDF ou Word), retourne ce qui a pu être
+// extrait. Le caller décide quoi en faire selon le résultat.
+//
+// Retour :
+//   { kind: "text",   text }         → texte extrait avec succès
+//   { kind: "vision", pages }        → pas de texte, on a des images de pages (PDF scanné)
+//   { kind: "empty" }                → ni l'un ni l'autre (format non supporté, .doc legacy…)
+export const extractDocumentText = async (file) => {
+  const ext = (file.name || "").toLowerCase();
+  const mimeType = file.type || "";
+
+  // Word .docx
+  if (
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    /\.docx$/i.test(ext)
+  ) {
+    try {
+      const text = await extractWordText(file);
+      if (text.trim()) return { kind: "text", text };
+    } catch (e) { console.warn("Word extraction failed:", e); }
+    return { kind: "empty" };
+  }
+
+  // Word .doc (binaire ancien) — non supporté
+  if (mimeType === "application/msword" || /\.doc$/i.test(ext)) {
+    return { kind: "empty" };
+  }
+
+  // PDF — tentative texte, fallback vision si rien
+  if (mimeType === "application/pdf" || /\.pdf$/i.test(ext)) {
+    try {
+      const text = await extractPdfText(file);
+      if (text.trim()) return { kind: "text", text };
+    } catch (e) { console.warn("PDF text extraction failed:", e); }
+    try {
+      const pages = await rasterizePdfPages(file);
+      if (pages.length > 0) return { kind: "vision", pages };
+    } catch (e) { console.warn("PDF rasterization failed:", e); }
+    return { kind: "empty" };
+  }
+
+  return { kind: "empty" };
 };
 
 // Process un fichier en payload pour ask-archipilot. Retourne un objet

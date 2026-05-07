@@ -5,9 +5,15 @@ import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
 import { PlanViewer } from "./PlanViewer";
 import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 
-export function GalleryView({ project, setProjects, onBack }) {
+// GalleryView supporte 2 modes (similaire à PlanManager) :
+//   - Standalone (view="gallery" dans App.jsx) : annotation photo en plein
+//     écran via state local activePhotoId.
+//   - Embarqué (onglet Photos) : `onAnnotatePhoto(photoId)` délègue au parent
+//     qui redirige vers la vue standalone (PlanViewer photo a besoin du plein
+//     écran). `autoAction = { photoId }` permet de pré-ouvrir l'annotation.
+export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, autoAction }) {
   const uploadRef = useRef(null);
-  const [activePhotoId, setActivePhotoId] = useState(null); // open in PlanViewer
+  const [activePhotoId, setActivePhotoId] = useState(autoAction?.photoId || null); // open in PlanViewer
   const [lightbox, setLightbox] = useState(null); // simple preview
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState(new Set());
@@ -98,12 +104,15 @@ export function GalleryView({ project, setProjects, onBack }) {
 
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
-      {/* Header */}
+      {/* Header — bouton retour seulement en standalone (onBack fourni). En
+          mode embarqué, le bouton "x" ne sert qu'à sortir de la sélection. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={selecting ? exitSelect : onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
-            <Ico name={selecting ? "x" : "back"} color={TX2} size={16} />
-          </button>
+          {(onBack || selecting) && (
+            <button onClick={selecting ? exitSelect : onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
+              <Ico name={selecting ? "x" : "back"} color={TX2} size={16} />
+            </button>
+          )}
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>
               {selecting ? `${selected.size} sélectionnée${selected.size !== 1 ? "s" : ""}` : "Photos du chantier"}
@@ -188,7 +197,11 @@ export function GalleryView({ project, setProjects, onBack }) {
           <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", zIndex: 2 }}>
             <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{lbIdx + 1} / {photos.length} — {new Date(lbPhoto.date).toLocaleDateString("fr-BE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { setActivePhotoId(lbPhoto.id); setLightbox(null); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: AC, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+              <button onClick={() => {
+                setLightbox(null);
+                if (onAnnotatePhoto) onAnnotatePhoto(lbPhoto.id);
+                else setActivePhotoId(lbPhoto.id);
+              }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: AC, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
                 <Ico name="edit" size={13} color="#fff" />
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Annoter</span>
               </button>

@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, LH, RAD, GRBG, REDBG, REDBRD, BL, BLB, TE, TEB, QT_DOC_BG, QT_DOC_FG, QT_PHOTO_BG, QT_PHOTO_FG, QT_PLAN_BG, QT_PLAN_FG, QT_LIST_BG, QT_LIST_FG, BR, BRB, SG, SGB } from "../constants/tokens";
-import { getStatus, STATUSES, nextPvStatus } from "../constants/statuses";
+import { getStatus, STATUSES, nextPvStatus, PV_STATUSES, getPvStatus } from "../constants/statuses";
+import { parseDateFR } from "../utils/dates";
 const updateProjectField = (project, setProjects, field, value) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, [field]: value } : p));
 import { RECURRENCES } from "../constants/templates";
 import { Ico, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "../components/ui";
@@ -9,6 +10,8 @@ import { relativeDate } from "../utils/dates";
 import { formatAddress } from "../utils/address";
 import { getPvDrafts, removePvDraft } from "../utils/offline";
 import { stripMarkdown, nextPvNumber } from "../utils/helpers";
+import { countTasks, sortTasks, getTaskStatus, getTaskPriority, isOverdue, isClosed, advanceTaskStatus } from "../utils/tasks";
+import { getProjectPhase } from "../utils/phases";
 import { isReadOnly, canEdit, canManageMembers } from "../components/modals/CollabModal";
 import { MeetingCard, MEETING_MODES } from "./MeetingCard";
 import { PvRow, SmallBtn } from "./PvRow";
@@ -16,6 +19,11 @@ import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
 import { usePresence } from "../hooks/usePresence";
 import { TimerCard } from "./TimerCard";
 import { CdcBanner } from "./CdcBanner";
+import { PlanManager } from "./PlanManager";
+import { PlanningView } from "./PlanningView";
+import { GalleryView } from "./GalleryView";
+import { AskAiButton } from "../components/ui";
+import { SuggestedTasksModal } from "../components/modals/SuggestedTasksModal";
 
 // Compact stack of avatars for live presence — shows up to 4 distinct
 // users currently on the project, with a +N pill if there are more.
@@ -69,7 +77,7 @@ const CardHeader = ({ title, action }) => (
   </div>
 );
 
-export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewChecklists, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onOpenSessions, onAskAiAboutCdc }) {
+export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewTasks, onOpr, onArchive, onDuplicate, onImportPV, setProjects, onCollab, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onDiscardTimer, onOpenSessions, onAskAiAboutCdc, onAnnotatePlan, onCropPlan, onAnnotatePhoto }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
@@ -95,10 +103,45 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   const [sideOpen, setSideOpen] = useState(false);
   const [mobileSheet, setMobileSheet] = useState(null); // "pv" | "actions" | "team" | "meeting"
   const [pvToDelete, setPvToDelete] = useState(null); // PV object pending deletion confirmation
+  // ── Onglets workspace projet ──
+  // "resume" est la vue par défaut. Les autres onglets (PV/Actions/Documents/
+  // Planning/Photos) montrent un panneau ciblé + un bouton pour ouvrir la vue
+  // dédiée (PlanManager, PlanningView, GalleryView) quand le sujet le justifie.
+  // Persistance localStorage pour que l'utilisateur retrouve son onglet après
+  // un aller-retour vers une vue standalone (ex : annotation plein écran).
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem(`archipilot_overview_tab:${project?.id}`) || "resume"; }
+    catch { return "resume"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(`archipilot_overview_tab:${project?.id}`, activeTab); }
+    catch { /* ignore */ }
+  }, [activeTab, project?.id]);
 
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
   const lastPV        = project.pvHistory[0] || null;
+
+  // Suggestions IA en attente — comptées sur tous les PV. Le banner ne
+  // s'affiche que si > 0 et la modal de revue est portée par Overview.
+  const pendingAiSuggestions = useMemo(() => {
+    let count = 0;
+    let lastPvNumber = null;
+    for (const pv of (project.pvHistory || [])) {
+      const pending = (pv.suggestedTasks || []).filter(s => s.status === "pending");
+      if (pending.length > 0) {
+        count += pending.length;
+        if (lastPvNumber === null) lastPvNumber = pv.number;
+      }
+    }
+    return { count, lastPvNumber };
+  }, [project.pvHistory]);
+  const [suggestionsModalOpen, setSuggestionsModalOpen] = useState(false);
+  const showToast = (msg) => {
+    // Toast minimal (pas d'API exposée par Overview, on log + alert simple).
+    // Dans un futur refacto, remonter showToast depuis App.jsx.
+    if (msg) console.log("[toast]", msg);
+  };
 
   return (
     <div className="ap-overview-wrap" style={{ maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
@@ -114,6 +157,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
       {/* Time tracking — déplacé dans le top header (TimerPill).
           La SessionsModal reste accessible via le pill chrono. */}
 
+      {/* Le header projet a fusionné avec la topbar (cf. App.jsx). Inutile
+          d'avoir deux blocs identiques empilés. Document de référence reste
+          juste sous la topbar comme document de travail visible. */}
+
       {/* ── Cahier des charges (toujours visible) ── */}
       <CdcBanner
         project={project}
@@ -121,7 +168,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         canEdit={_canEdit}
         onUpload={setCdc}
         onRemove={() => setCdc(null)}
-        onAskAi={onAskAiAboutCdc ? () => onAskAiAboutCdc(project) : null}
+        onAskAi={onAskAiAboutCdc ? (_cdc, mode) => onAskAiAboutCdc(project, mode) : null}
       />
 
       {/* ── Bandeau urgences ── */}
@@ -172,11 +219,101 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         );
       })()}
 
-      {/* ── Layout 2 colonnes ── */}
+      {/* La carte "Prochaine action recommandée" a été déplacée dans la
+          section Actions ouvertes du Résumé (sous-section "À faire maintenant")
+          pour éviter la répétition du CTA en haut de page. */}
+
+      {/* ═══ Tabs workspace projet ═══
+          Navigation entre les sous-vues du projet. Style "tabs de navigation"
+          (underline orange sous l'onglet actif), pas "boutons CTA". La barre
+          horizontale est délimitée par un fin trait gris ; l'underline 2px de
+          l'onglet actif vient s'y poser. Pas de fond, pas de bordure latérale. */}
+      {(() => {
+        // Règle d'affichage des compteurs :
+        //   - Actions : toujours visible (le 0 est lui-même informatif —
+        //     « rien à traiter en ce moment »)
+        //   - Autres (PV, Documents, Planning, Photos) : visible seulement
+        //     quand >0 pour éviter le bruit visuel des onglets vides
+        //   - Résumé / Plus : pas de compteur (vues d'agrégation)
+        const tabs = [
+          { id: "resume",     label: "Résumé" },
+          { id: "actions",    label: "Actions",   count: openActions.length,                showZero: true },
+          { id: "planning",   label: "Planning",  count: (project.lots || []).length,       showZero: false },
+          { id: "pv",         label: "PV",        count: (project.pvHistory || []).length, showZero: false },
+          { id: "documents",  label: "Documents", count: (project.planFiles || []).filter(f => f.type !== "folder").length, showZero: false },
+          { id: "photos",     label: "Photos",    count: (project.gallery || []).length,    showZero: false },
+        ];
+        return (
+          <div style={{
+            marginBottom: 16,
+            borderBottom: `1px solid #E8E1DA`,
+            display: "flex", gap: 2, flexWrap: "wrap",
+          }}>
+            {tabs.map(t => {
+              const active = activeTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setActiveTab(t.id)}
+                  aria-pressed={active}
+                  style={{
+                    padding: "10px 14px",
+                    border: "none",
+                    borderBottom: `2px solid ${active ? AC : "transparent"}`,
+                    marginBottom: -1,           // overlap avec le trait du conteneur
+                    background: "transparent",
+                    color: active ? AC : TX2,
+                    fontSize: FS.sm, fontWeight: active ? 700 : 600,
+                    cursor: "pointer", fontFamily: "inherit",
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    transition: "color 0.12s, border-color 0.12s",
+                    outline: "none",
+                  }}
+                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = TX; }}
+                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = TX2; }}>
+                  {t.label}
+                  {typeof t.count === "number" && (t.count > 0 || t.showZero) && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: TX3, background: SB2, padding: "1px 7px", borderRadius: 10, fontFamily: "ui-monospace, monospace" }}>
+                      {t.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ── Layout 2 colonnes — Visible uniquement dans l'onglet Résumé ── */}
+      {activeTab === "resume" && (
       <div className="ap-overview-grid" style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
 
         {/* ═══ Colonne principale ═══ */}
         <div className="ap-col-main" style={{ flex: "1 1 360px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+
+          {/* Banner suggestions IA — apparaît tant qu'il y a des tâches
+              potentielles non traitées sur les PV. Subtil, action explicite. */}
+          {pendingAiSuggestions.count > 0 && (
+            <div style={{
+              background: WH, border: `1px solid ${ACL2}`, borderRadius: 12,
+              padding: "12px 14px", display: "flex", alignItems: "center", gap: 12,
+            }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ico name="sparkle" size={14} color={AC} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: FS.sm, fontWeight: 700, color: TX }}>
+                  {pendingAiSuggestions.count} tâche{pendingAiSuggestions.count > 1 ? "s" : ""} potentielle{pendingAiSuggestions.count > 1 ? "s" : ""} détectée{pendingAiSuggestions.count > 1 ? "s" : ""} dans le{pendingAiSuggestions.lastPvNumber ? ` PV n°${pendingAiSuggestions.lastPvNumber}` : "s PV récents"}
+                </div>
+                <div style={{ fontSize: FS.xs, color: TX3, marginTop: 2 }}>
+                  Vérifie et accepte celles qui méritent d'être suivies — tu décides.
+                </div>
+              </div>
+              <button onClick={() => setSuggestionsModalOpen(true)}
+                style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                Voir les suggestions
+              </button>
+            </div>
+          )}
+
 
           {/* ── Mobile Dashboard — operational, action-oriented ── */}
           <div className="ap-mobile-dashboard" style={{ display: "none", flexDirection: "column", gap: 10 }}>
@@ -195,12 +332,11 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
             {/* Accès rapides — 4 colonnes */}
             {/* Quick access — 4 columns, bigger */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
               {[
+                { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
                 { label: "Documents", icon: "folder", color: BL, bg: BLB, count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
                 { label: "Photos",    icon: "camera", color: AC, bg: ACL, count: (project.gallery||[]).length, onClick: onGallery },
-                { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
-                { label: "Listes",    icon: "listcheck", color: TE, bg: TEB, count: (project.checklists||[]).length, onClick: onViewChecklists },
               ].map(s => (
                 <button key={s.label} onClick={s.onClick} style={{ padding: "12px 4px", border: `1px solid ${s.color}18`, borderRadius: 10, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                   <Ico name={s.icon} size={18} color={s.color} />
@@ -280,17 +416,6 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
           </div>
 
-          {/* CTA Nouveau PV — version compacte (≈70% de la colonne, plus de bannière pleine largeur) */}
-          {_canEdit && <button className="ap-touch-btn ap-cta-newpv" onClick={() => onStartNotes()} style={{ alignSelf: "flex-start", padding: "10px 16px 10px 12px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 10, letterSpacing: "-0.1px" }}>
-            <Ico name="edit" size={14} color="#fff" />
-            <span>{t("project.newPV")} · n°{nextPvNumber(project.pvHistory)}</span>
-            <span style={{ opacity: 0.75, fontWeight: 400 }}>·</span>
-            <span style={{ opacity: 0.85, fontWeight: 400 }}>
-              {project.nextMeeting ? t("project.meetingOn", { date: project.nextMeeting }) : t("project.prepareNextPV")}
-            </span>
-            <Ico name="arrowr" size={14} color="rgba(255,255,255,0.85)" />
-          </button>}
-
           {/* OPR Summary Card */}
           {(project.statusId === "reception" || (project.reserves || []).length > 0) && (() => {
             const res = project.reserves || [];
@@ -322,177 +447,158 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             );
           })()}
 
-          {/* Outils rapides — palette earth harmonisée (4 tints du même ton) */}
-          <div className="ap-quick-tools" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[
-              { label: "Documents",            icon: "folder",    color: QT_DOC_FG,   bg: QT_DOC_BG,   count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
-              { label: "Photos",               icon: "camera",    color: QT_PHOTO_FG, bg: QT_PHOTO_BG, count: (project.gallery||[]).length,     onClick: onGallery },
-              { label: t("project.planning"),  icon: "gantt",     color: QT_PLAN_FG,  bg: QT_PLAN_BG,  count: (project.lots||[]).length,        onClick: onViewPlanning },
-              { label: t("project.lists"),     icon: "listcheck", color: QT_LIST_FG,  bg: QT_LIST_BG,  count: (project.checklists||[]).length,  onClick: onViewChecklists },
-              ...((project.statusId === "reception" || (project.reserves || []).length > 0) ? [{ label: "Réserves", icon: "alert", color: BR, bg: BRB, count: (project.reserves || []).filter(r => r.status !== "levee").length, onClick: onOpr }] : []),
-            ].map((tb) => (
-              <button key={tb.label} onClick={tb.onClick} style={{ flex: "1 1 80px", padding: "10px 8px", border: `1px solid ${tb.color}25`, borderRadius: 10, background: tb.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <Ico name={tb.icon} size={16} color={tb.color} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: tb.color }}>{tb.label}</span>
-                {tb.count > 0 && <span style={{ fontSize: 10, color: tb.color, opacity: 0.75 }}>{tb.count}</span>}
-              </button>
-            ))}
-          </div>
+          {/* Anciennes cartes colorées Documents/Photos/Planning/Listes retirées —
+              remplacées par les onglets en haut de la page. */}
 
-          {/* Mobile: Accès rapides (Documents, Planning, Listes) */}
-          <div className="ap-mobile-shortcuts" style={{ display: "none", gap: SP.sm }}>
-            {[
-              { label: "Documents", icon: "folder", color: BL, bg: BLB, count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
-              { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
-              { label: "Listes",    icon: "listcheck", color: TE, bg: TEB, count: (project.checklists||[]).length, onClick: onViewChecklists },
-            ].map(s => (
-              <button key={s.label} onClick={s.onClick} style={{ flex: 1, padding: `${SP.sm + 2}px ${SP.sm}px`, border: `1px solid ${s.color}20`, borderRadius: RAD.lg, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: SP.sm, minHeight: 44 }}>
-                <Ico name={s.icon} size={16} color={s.color} />
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: FS.sm, fontWeight: 600, color: s.color }}>{s.label}</div>
-                  {s.count > 0 && <div style={{ fontSize: FS.xs - 1, color: s.color, opacity: 0.7 }}>{s.count} élément{s.count > 1 ? "s" : ""}</div>}
-                </div>
-              </button>
-            ))}
-          </div>
+          {/* À faire — la carte Actions ouvertes a été remplacée par cette
+              to-do list basée sur project.tasks[] (modèle riche : statuts,
+              priorités, échéances, parent). En tête : "À faire maintenant"
+              avec le prochain PV à préparer. Liste ensuite les tâches
+              ouvertes triées par priorité puis échéance. */}
+          {(() => {
+            const tasks = project.tasks || [];
+            // "Ouvertes" = tout sauf clôturées et brouillons (Créée). On
+            // priorise ce qui est réellement actif : Ouverte / En progrès /
+            // En attente de validation.
+            const openTasks = sortTasks(tasks.filter(t => !isClosed(t.status) && t.status !== "created"));
+            const top = openTasks.slice(0, 6);
+            const remaining = openTasks.length - top.length;
+            return (
+              <div className="ap-section-actions"><Card>
+                <CardHeader
+                  title="À faire"
+                  action={openTasks.length > 0
+                    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: TX3, background: SB2, padding: "2px 9px", borderRadius: 20 }}>{openTasks.length} ouverte{openTasks.length > 1 ? "s" : ""}</span>
+                    : null}
+                />
 
-          {/* Actions */}
-          <div className="ap-section-actions"><Card>
-            <CardHeader
-              title={t("project.actions")}
-              action={openActions.length > 0
-                ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: urgent.length > 0 ? BR : TX3, background: urgent.length > 0 ? BRB : SB2, padding: "2px 9px 2px 6px", borderRadius: 20 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: urgent.length > 0 ? BR : TX3, display: "inline-block" }} />
-                    {openActions.length} ouverte{openActions.length > 1 ? "s" : ""}
-                    {urgent.length > 0 && ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}`}
-                  </span>
-                : null}
-            />
-            {openActions.length === 0 && closedActions.length === 0 && (
-              <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>{t("project.noActions")}</div>
-            )}
-            {openActions.length === 0 && closedActions.length > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0" }}>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", background: SGB, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Ico name="check" size={13} color={GR} />
-                </div>
-                <span style={{ fontSize: 13, color: GR, fontWeight: 500 }}>{t("project.allActionsClosed")}</span>
-              </div>
-            )}
-            {/* Urgentes en premier */}
-            {project.actions.filter(a => a.open && a.urgent).map((a) => (
-              <div key={a.id} style={{ display: "flex", gap: 10, padding: "9px 10px", marginBottom: 4, background: BRB, border: `1px solid ${REDBRD}`, borderRadius: 8, alignItems: "flex-start" }}>
-                <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${BR}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, padding: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: BR, fontWeight: 600, lineHeight: 1.3 }}>{a.text}</div>
-                  <div style={{ fontSize: 11, color: BR, marginTop: 2 }}>{a.who} — {a.since}</div>
-                </div>
-              </div>
-            ))}
-            {/* Normales */}
-            {project.actions.filter(a => a.open && !a.urgent).map((a) => (
-              <div key={a.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderTop: `1px solid ${SB2}`, alignItems: "flex-start" }}>
-                <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${SBB}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2, padding: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: TX, lineHeight: 1.3 }}>{a.text}</div>
-                  <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{a.who} — {a.since}</div>
-                </div>
-              </div>
-            ))}
-            {/* Clôturées — discrètes */}
-            {closedActions.length > 0 && (
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${SB2}` }}>
-                {closedActions.map((a) => (
-                  <div key={a.id} style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "center", opacity: 0.55 }}>
-                    <button onClick={() => toggleAction(a.id)} style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${GR}`, background: SGB, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
-                      <Ico name="check" size={11} color={GR} />
-                    </button>
-                    <div style={{ fontSize: 12, color: TX3, textDecoration: "line-through", flex: 1, minWidth: 0 }}>{a.text}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card></div>
-
-          {/* Dernier PV */}
-          <div className="ap-section-pv"><Card>
-            <CardHeader
-              title={t("project.pvHistory")}
-              action={<SmallBtn onClick={onImportPV} icon="upload" label={t("import")} />}
-            />
-            {project.pvHistory.length === 0 ? (
-              <div style={{ padding: "16px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 13, color: TX3, marginBottom: 10 }}>{t("project.noPV")}</div>
-                <button onClick={() => onStartNotes("write")} style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <Ico name="edit" size={13} color="#fff" />{t("project.createFirstPV")}
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* PV le plus récent — mis en avant */}
-                {lastPV && (
-                  <div style={{ padding: "12px 14px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 10, marginBottom: project.pvHistory.length > 1 ? 10 : 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{lastPV.title || `PV n°${lastPV.number}`}</span>
-                          {lastPV.imported
-                            ? <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: BL, background: BLB, padding: "2px 7px 2px 5px", borderRadius: 20 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: BL, display: "inline-block" }} />{t("project.imported")}</span>
-                            : <PvStatusBadge status={lastPV.status} onClick={() => updatePvStatus(lastPV.number, nextPvStatus(lastPV.status || "draft"))} />
-                          }
-                        </div>
-                        <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 6, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{stripMarkdown(lastPV.excerpt)}</div>
-                        <div style={{ display: "flex", gap: 10, fontSize: FS.sm, color: TX3 }}>
-                          <span title={lastPV.date}>{relativeDate(lastPV.date)}</span><span>{lastPV.author}</span>
-                          {!lastPV.imported && <span>{lastPV.postsCount} poste{lastPV.postsCount > 1 ? "s" : ""}</span>}
-                        </div>
+                {/* Sous-section "À faire maintenant" — guidance contextuelle. */}
+                {_canEdit && (() => {
+                  const nextPvN = nextPvNumber(project.pvHistory);
+                  const hasMeeting = !!project.nextMeeting;
+                  return (
+                    <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 10, padding: "12px 14px", marginBottom: openTasks.length > 0 ? 12 : 0 }}>
+                      <div style={{ fontSize: FS.xs, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        À faire maintenant
                       </div>
-                      <div style={{ display: "flex", gap: SP.xs, flexShrink: 0 }}>
-                        <button onClick={() => onViewPV(lastPV)} style={{ background: WH, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.xs + 2}px ${SP.sm + 1}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
-                          <Ico name="edit" size={11} color={TX3} /><span style={{ fontSize: FS.sm, color: TX2, fontWeight: 500 }}>Rédaction</span>
+                      <div style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: 1.3, marginTop: 2 }}>
+                        Préparer le PV n°{nextPvN}
+                      </div>
+                      <div style={{ fontSize: FS.sm, color: TX2, lineHeight: 1.4, marginTop: 2 }}>
+                        À partir du dernier PV validé et des éléments du projet.
+                      </div>
+                      {!hasMeeting && (
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, fontSize: FS.xs, color: TX3, flexWrap: "wrap" }}>
+                          <Ico name="calendar" size={10} color={TX3} />
+                          <span>Aucune réunion planifiée</span>
+                          <span style={{ color: SBB }}>·</span>
+                          <button onClick={onEditInfo}
+                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: FS.xs, color: AC, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>
+                            Planifier maintenant
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                        {lastPV && (
+                          <button onClick={() => onViewPV(lastPV)}
+                            style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <Ico name="eye" size={11} color={TX3} />
+                            Voir le dernier PV
+                          </button>
+                        )}
+                        <button onClick={() => onStartNotes()}
+                          style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(192,90,44,0.2)" }}>
+                          <Ico name="edit" size={11} color={WH} />
+                          Préparer le PV n°{nextPvN}
                         </button>
-                        {(lastPV.content || lastPV.pdfDataUrl) && (
-                          <button onClick={() => onViewPdf(lastPV)} style={{ background: ACL, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.xs + 2}px ${SP.sm + 1}px`, display: "flex", alignItems: "center", gap: SP.xs, fontFamily: "inherit" }}>
-                            <Ico name="file" size={11} color={AC} /><span style={{ fontSize: FS.sm, color: AC, fontWeight: 600 }}>PDF</span>
-                          </button>
-                        )}
-                        {_canEdit && (
-                          <button onClick={() => setPvToDelete(lastPV)} title="Supprimer ce PV" aria-label="Supprimer ce PV" style={{ background: WH, border: `1px solid ${ACL2}`, borderRadius: RAD.sm, cursor: "pointer", padding: `${SP.xs + 2}px ${SP.sm + 1}px`, display: "flex", alignItems: "center", fontFamily: "inherit" }}>
-                            <Ico name="trash" size={11} color={TX3} />
-                          </button>
-                        )}
                       </div>
                     </div>
+                  );
+                })()}
+
+                {/* Liste des tâches ouvertes — checkbox compacte qui avance le statut. */}
+                {openTasks.length === 0 ? (
+                  <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>Aucune tâche ouverte.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${SBB}`, borderRadius: 8, overflow: "hidden" }}>
+                    {top.map((task, i) => {
+                      const status = getTaskStatus(task.status);
+                      const priority = getTaskPriority(task.priority);
+                      const overdue = isOverdue(task);
+                      const due = task.dueDate ? new Date(task.dueDate).toLocaleDateString("fr-BE", { day: "numeric", month: "short" }) : null;
+                      return (
+                        <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: i > 0 ? `1px solid ${SBB}` : "none", background: WH }}>
+                          <button onClick={() => setProjects(prev => prev.map(p => p.id !== project.id ? p : advanceTaskStatus(p, task.id)))}
+                            title={`Avancer le statut (actuel : ${status.label})`}
+                            style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
+                            <Ico name="arrowr" size={9} color={TX3} />
+                          </button>
+                          <span title={priority.label} style={{ width: 7, height: 7, borderRadius: "50%", background: priority.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, fontWeight: 700, color: TX3, fontFamily: "ui-monospace, monospace", flexShrink: 0 }}>#{task.number || "?"}</span>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: FS.sm, fontWeight: 500, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {task.title}
+                            {due && <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? BR : TX3, fontWeight: overdue ? 700 : 500 }}>· {due}{overdue && " (en retard)"}</span>}
+                          </div>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: status.color, background: status.bg, padding: "2px 7px", borderRadius: 10, flexShrink: 0 }}>{status.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
-                {/* Anciens PV — limité à 2 (3 total avec le dernier) */}
-                {project.pvHistory.slice(1, 3).map((pv, i) => (
-                  <PvRow key={i} pv={pv} onViewPV={onViewPV} onViewPdf={onViewPdf} updatePvStatus={updatePvStatus} onDeletePv={_canEdit ? setPvToDelete : null} t={t} />
-                ))}
-                {/* Bouton voir tout */}
-                {project.pvHistory.length > 3 && !showAllPV && (
-                  <button onClick={() => setShowAllPV(true)} style={{ width: "100%", marginTop: 6, padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontFamily: "inherit", fontSize: 11, fontWeight: 600, color: TX2 }}>
-                    <Ico name="clock" size={11} color={TX3} />
-                    Voir tout l'historique ({project.pvHistory.length} PV)
-                  </button>
-                )}
-                {showAllPV && project.pvHistory.slice(3).map((pv, i) => (
-                  <PvRow key={i + 3} pv={pv} onViewPV={onViewPV} onViewPdf={onViewPdf} updatePvStatus={updatePvStatus} t={t} />
-                ))}
-                {showAllPV && project.pvHistory.length > 3 && (
-                  <button onClick={() => setShowAllPV(false)} style={{ width: "100%", marginTop: 6, padding: "6px 12px", border: "none", borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, fontFamily: "inherit", fontSize: 10, color: TX3 }}>
-                    <Ico name="chevron-up" size={10} color={TX3} />Réduire
-                  </button>
-                )}
-              </>
-            )}
-          </Card></div>
 
+                {/* Lien vers la vue Tâches complète (Listes de contrôle retirée
+                    — voir Tasks pour le suivi des actions). */}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {(remaining > 0 || openTasks.length > 0) && (
+                    <button onClick={onViewTasks}
+                      style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <Ico name="listcheck" size={11} color={TX3} />
+                      {remaining > 0 ? `Voir toutes les tâches (+${remaining})` : "Ouvrir la vue Tâches"}
+                    </button>
+                  )}
+                </div>
+              </Card></div>
+            );
+          })()}
+
+          {/* ── Informations projet — déplacée depuis la colonne secondaire
+              pour densifier la zone principale du Résumé. ── */}
+          <Card>
+            <CardHeader title={t("project.info")} action={<button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>} />
+            <div className="ap-info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: `${SP.md}px ${SP.lg}px` }}>
+              {[
+                { icon: "users",    label: t("project.client"),     value: project.client },
+                { icon: "building", label: t("project.enterprise"), value: project.contractor },
+                { icon: "mappin",   label: t("project.address"),    value: formatAddress(project) },
+                { icon: "calendar", label: t("project.startDate"),  value: project.startDate },
+                { icon: "calendar", label: t("project.endDate"),    value: project.endDate || "—" },
+                ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => ({ icon: "file", label: cf.label, value: cf.value })),
+              ].filter(item => item.value).map((item, i) => (
+                <div key={i} style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 2 }}>
+                    <Ico name={item.icon} size={11} color={TX3} />
+                    <span style={{ fontSize: FS.xs, color: TX3, fontWeight: 500 }}>{item.label}</span>
+                  </div>
+                  <div style={{ fontSize: FS.base, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+            {/* Actions admin intégrées en pied de card Informations — discrètes */}
+            {_canManage && (
+              <div className="ap-admin-actions" style={{ display: "flex", gap: 4, marginTop: SP.md, paddingTop: SP.sm + 2, borderTop: `1px solid ${SB2}` }}>
+                <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
+                <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
+              </div>
+            )}
+          </Card>
 
         </div>
 
         {/* ═══ Colonne secondaire ═══ */}
         <div className="ap-overview-side" style={{ flex: "0 1 272px", display: "flex", flexDirection: "column", gap: SP.lg - 2, minWidth: 220 }}>
+
+          {/* La carte Participants est désormais positionnée APRÈS la
+              MeetingCard (Prochaine réunion) dans desktop-side ci-dessous. */}
 
           {/* ── Mobile: Participants inline (avatars cliquables) ── */}
           <div className="ap-mobile-participants" style={{ display: "none" }}>
@@ -557,9 +663,53 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           {/* ── Desktop: full cards (hidden on mobile) ── */}
           <div className="ap-desktop-side">
             <div style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
+              {/* Ordre demandé : Prochaine réunion d'abord, Participants ensuite. */}
               <MeetingCard project={project} setProjects={setProjects} rec={rec} />
 
-              {/* Suivi du temps — card visible sous Prochaine réunion */}
+              {/* Carte Participants — vit après la prochaine réunion. */}
+              <Card>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.sm }}>
+                  <span style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: LH.tight }}>Participants</span>
+                  <span style={{ fontSize: FS.xs, color: TX3 }}>{project.participants.length} {project.participants.length > 1 ? "participants" : "participant"}</span>
+                </div>
+                {project.participants.length === 0 ? (
+                  <div style={{ fontSize: FS.sm, color: TX3, fontStyle: "italic", padding: "4px 0 8px" }}>Aucun participant.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: SP.xs, marginBottom: SP.sm }}>
+                    {project.participants.slice(0, 6).map((p, i) => {
+                      const initials = (p.name || "?").split(" ").map(s => s[0] || "").join("").slice(0, 2).toUpperCase();
+                      return (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: AC, flexShrink: 0 }}>
+                            {initials}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: FS.sm, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name || "—"}</div>
+                            {p.role && <div style={{ fontSize: FS.xs, color: TX3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.role}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {project.participants.length > 6 && (
+                      <div style={{ fontSize: FS.xs, color: TX3, fontStyle: "italic", paddingLeft: 36 }}>+ {project.participants.length - 6} autre{project.participants.length - 6 > 1 ? "s" : ""}</div>
+                    )}
+                  </div>
+                )}
+                {_canManage && (
+                  <button onClick={onEditParticipants}
+                    style={{ width: "100%", padding: "8px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
+                    <Ico name="edit" size={11} color={TX3} />
+                    Gérer les participants
+                  </button>
+                )}
+                <button onClick={onCollab}
+                  style={{ width: "100%", padding: "8px 12px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <Ico name="users" size={11} color={WH} />
+                  Inviter des collaborateurs
+                </button>
+              </Card>
+
+              {/* Suivi du temps — sous les blocs principaux. */}
               {onStartTimer && (
                 <TimerCard
                   project={project}
@@ -567,66 +717,61 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                   onStart={onStartTimer}
                   onPauseResume={onPauseResumeTimer}
                   onStop={onStopTimer}
+                  onDiscard={onDiscardTimer}
                   onOpenSessions={onOpenSessions}
                 />
               )}
-
-              <Card>
-                <CardHeader
-                  title={`Participants (${project.participants.length})`}
-                  action={<button onClick={onEditParticipants} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>}
-                />
-                {project.participants.length === 0 && <div style={{ fontSize: 13, color: TX3 }}>Aucun participant.</div>}
-                {project.participants.map((p, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 0", borderTop: i > 0 ? `1px solid ${SB2}` : "none" }}>
-                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: AC, flexShrink: 0 }}>
-                      {p.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: TX3 }}>{p.role}{p.phone ? ` · ${p.phone}` : ""}</div>
-                    </div>
-                  </div>
-                ))}
-                <button className="ap-cta-collab" onClick={onCollab} style={{ width: "100%", marginTop: 10, padding: "8px 12px", border: `1px dashed ${SBB}`, borderRadius: 8, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: AC, transition: "all 0.15s" }}>
-                  <Ico name="plus" size={12} color={AC} />
-                  Inviter des collaborateurs
-                </button>
-              </Card>
-
-              <Card>
-                <CardHeader title={t("project.info")} action={<button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><Ico name="edit" size={13} color={TX3} /></button>} />
-                <div className="ap-info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${SP.md}px ${SP.lg}px` }}>
-                  {[
-                    { icon: "users",   label: t("project.client"),     value: project.client },
-                    { icon: "building", label: t("project.enterprise"), value: project.contractor },
-                    { icon: "mappin",  label: t("project.address"),     value: formatAddress(project) },
-                    { icon: "calendar", label: t("project.startDate"),  value: project.startDate },
-                    { icon: "calendar", label: t("project.endDate"),    value: project.endDate || "—" },
-                    ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => ({ icon: "file", label: cf.label, value: cf.value })),
-                  ].filter(item => item.value).map((item, i) => (
-                    <div key={i} style={{ minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 2 }}>
-                        <Ico name={item.icon} size={11} color={TX3} />
-                        <span style={{ fontSize: FS.xs, color: TX3, fontWeight: 500 }}>{item.label}</span>
-                      </div>
-                      <div style={{ fontSize: FS.base, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.value}</div>
-                    </div>
-                  ))}
-                </div>
-                {/* Actions admin intégrées en pied de card Informations — plus discrètes que la rangée flottante */}
-                {_canManage && (
-                  <div className="ap-admin-actions" style={{ display: "flex", gap: 4, marginTop: SP.md, paddingTop: SP.sm + 2, borderTop: `1px solid ${SB2}` }}>
-                    <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
-                    <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
-                  </div>
-                )}
-              </Card>
             </div>
           </div>
 
         </div>
       </div>
+      )}
+
+      {/* ═══ Onglet PV ═══ — historique complet, filtres statut + tri */}
+      {activeTab === "pv" && (
+        <TabPanelPv
+          project={project}
+          setProjects={setProjects}
+          onStartNotes={onStartNotes}
+          onViewPV={onViewPV}
+          onViewPdf={onViewPdf}
+          onImportPV={onImportPV}
+          canEdit={_canEdit}
+        />
+      )}
+
+      {/* ═══ Onglet Actions ═══ */}
+      {activeTab === "actions" && (
+        <TabPanelActions project={project} setProjects={setProjects}
+          openActions={openActions} closedActions={closedActions} canEdit={_canEdit} profile={profile} />
+      )}
+
+      {/* ═══ Onglet Documents — PlanManager embarqué inline ═══ */}
+      {activeTab === "documents" && (
+        <TabPanelDocuments project={project} setProjects={setProjects}
+          onAnnotate={onAnnotatePlan} onCrop={onCropPlan} />
+      )}
+
+      {/* ═══ Onglet Planning — PlanningView embarqué inline ═══ */}
+      {activeTab === "planning" && (
+        <TabPanelPlanning project={project} setProjects={setProjects} profile={profile} />
+      )}
+
+      {/* ═══ Onglet Photos — GalleryView embarqué inline ═══ */}
+      {activeTab === "photos" && (
+        <TabPanelPhotos project={project} setProjects={setProjects} onAnnotate={onAnnotatePhoto} />
+      )}
+
+      {/* Modal de revue des suggestions IA — déclenchée par le banner Résumé. */}
+      <SuggestedTasksModal
+        open={suggestionsModalOpen}
+        onClose={() => setSuggestionsModalOpen(false)}
+        project={project}
+        setProjects={setProjects}
+        profile={profile}
+        showToast={showToast}
+      />
 
       {/* ── Mobile Sheets ── */}
       {mobileSheet && (
@@ -808,3 +953,326 @@ function ProjectStatusSelector({ statusId, onChange }) {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Sous-composants des onglets workspace projet.
+// Pour l'instant : panneaux ciblés + bouton vers la vue dédiée pour les
+// modules lourds (PlanManager, PlanningView, GalleryView). On gardera
+// la même Coquille pour pouvoir enrichir progressivement chaque onglet.
+// ═══════════════════════════════════════════════════════════════════
+
+const PanelCard = ({ children, style = {} }) => (
+  <div style={{ background: WH, border: `1px solid #E8E1DA`, borderRadius: 16, padding: "18px 22px", ...style }}>{children}</div>
+);
+
+const PanelTitle = ({ children, action }) => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+    <span style={{ fontSize: FS.lg, fontWeight: 700, color: TX, lineHeight: LH.tight }}>{children}</span>
+    {action}
+  </div>
+);
+
+// ── Onglet PV ──────────────────────────────────────────────────────
+// Ordre canonique des statuts PV pour le tri "par statut" — repris de
+// PV_STATUSES dans constants/statuses.js (draft → review → validated → sent → late).
+const PV_STATUS_RANK = PV_STATUSES.reduce((map, s, i) => { map[s.id] = i; return map; }, {});
+
+function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, onImportPV, canEdit }) {
+  const pvs = project.pvHistory || [];
+  // Filtre par statut (multi). Set vide = tous affichés.
+  const [filterStatuses, setFilterStatuses] = useState(new Set());
+  // Tri : 4 modes possibles. Date desc par défaut (plus récent en haut).
+  const [sortBy, setSortBy] = useState("date_desc");
+
+  const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p =>
+    p.id !== project.id ? p : { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) }
+  ));
+
+  const visiblePvs = useMemo(() => {
+    let list = pvs;
+    if (filterStatuses.size > 0) {
+      list = list.filter(pv => filterStatuses.has(pv.status || "draft"));
+    }
+    list = [...list].sort((a, b) => {
+      if (sortBy === "status_asc" || sortBy === "status_desc") {
+        const ra = PV_STATUS_RANK[a.status || "draft"] ?? 99;
+        const rb = PV_STATUS_RANK[b.status || "draft"] ?? 99;
+        if (ra !== rb) return sortBy === "status_asc" ? ra - rb : rb - ra;
+        // tie-break par date (plus récent en premier)
+        return (parseDateFR(b.date)?.getTime() || 0) - (parseDateFR(a.date)?.getTime() || 0);
+      }
+      // Tri date
+      const da = parseDateFR(a.date)?.getTime() || 0;
+      const db = parseDateFR(b.date)?.getTime() || 0;
+      if (da !== db) return sortBy === "date_asc" ? da - db : db - da;
+      // tie-break par numéro
+      return sortBy === "date_asc" ? (a.number || 0) - (b.number || 0) : (b.number || 0) - (a.number || 0);
+    });
+    return list;
+  }, [pvs, filterStatuses, sortBy]);
+
+  const toggleFilterStatus = (id) => {
+    setFilterStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const t = (k) => k; // PvRow utilise t("project.imported") — fallback identité, le label est compréhensible
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <PanelCard>
+        <PanelTitle action={canEdit && (
+          <div style={{ display: "flex", gap: 6 }}>
+            {onImportPV && (
+              <button onClick={onImportPV}
+                style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <Ico name="upload" size={11} color={TX3} />Importer un PV
+              </button>
+            )}
+            <button onClick={() => onStartNotes()}
+              style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Ico name="edit" size={11} color={WH} />Nouveau PV
+            </button>
+          </div>
+        )}>Historique des PV</PanelTitle>
+
+        {pvs.length === 0 ? (
+          <div style={{ padding: "24px 0", textAlign: "center", color: TX3, fontSize: FS.sm }}>
+            Aucun PV pour le moment. Démarre la prise de notes pour générer le premier.
+          </div>
+        ) : (
+          <>
+            {/* Barre filtres + tri — discrète, alignée comme les autres cards. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap", paddingBottom: 10, borderBottom: `1px solid ${SBB}` }}>
+              {/* Filtre statut — pills multi-select */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 2 }}>Statut :</span>
+                {PV_STATUSES.map(s => {
+                  const active = filterStatuses.has(s.id);
+                  return (
+                    <button key={s.id} onClick={() => toggleFilterStatus(s.id)}
+                      style={{ padding: "4px 10px", border: `1px solid ${active ? s.color : SBB}`, borderRadius: 14, background: active ? s.bg : WH, color: active ? s.color : TX3, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot }} />
+                      {s.label}
+                    </button>
+                  );
+                })}
+                {filterStatuses.size > 0 && (
+                  <button onClick={() => setFilterStatuses(new Set())}
+                    style={{ background: "none", border: "none", padding: "4px 6px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: TX3, textDecoration: "underline" }}>
+                    Tout
+                  </button>
+                )}
+              </div>
+              <div style={{ flex: 1 }} />
+              {/* Tri — dropdown compact */}
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Trier :</span>
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+                  style={{ padding: "5px 8px", border: `1px solid ${SBB}`, borderRadius: 7, background: WH, color: TX2, fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>
+                  <option value="date_desc">Date — récent d'abord</option>
+                  <option value="date_asc">Date — ancien d'abord</option>
+                  <option value="status_asc">Statut — A → Z</option>
+                  <option value="status_desc">Statut — Z → A</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Liste PV — affichage à plat selon les filtres/tri */}
+            {visiblePvs.length === 0 ? (
+              <div style={{ padding: "20px 0", textAlign: "center", color: TX3, fontSize: FS.sm }}>
+                Aucun PV ne correspond aux filtres actifs.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {visiblePvs.map(pv => (
+                  <PvRow key={pv.number}
+                    pv={pv}
+                    onViewPV={() => onViewPV(pv)}
+                    onViewPdf={() => onViewPdf(pv)}
+                    updatePvStatus={updatePvStatus}
+                    onDeletePv={null}
+                    t={t}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </PanelCard>
+    </div>
+  );
+}
+
+// ── Onglet Actions ────────────────────────────────────────────────
+function TabPanelActions({ project, setProjects, openActions, closedActions, canEdit, profile }) {
+  const allActions = [...openActions, ...closedActions];
+  // Id de l'action qu'on vient de créer — à auto-focus dans son input.
+  const [autoFocusId, setAutoFocusId] = useState(null);
+  const updateAction = (id, patch) => setProjects(prev => prev.map(p =>
+    p.id !== project.id ? p : { ...p, actions: (p.actions || []).map(a => a.id === id ? { ...a, ...patch } : a) }
+  ));
+  const deleteAction = (id) => setProjects(prev => prev.map(p =>
+    p.id !== project.id ? p : { ...p, actions: (p.actions || []).filter(a => a.id !== id) }
+  ));
+  const addAction = () => {
+    const id = Math.max(0, ...(project.actions || []).map(a => a.id || 0)) + 1;
+    // createdAt + createdBy capturés à la création. Conservés tels quels
+    // après édition (le titre peut changer mais l'auteur initial reste).
+    const newAction = {
+      id, text: "", who: "", urgent: false, open: true, since: "",
+      createdAt: new Date().toISOString(),
+      createdBy: profile?.name || "—",
+    };
+    setProjects(prev => prev.map(p => p.id !== project.id ? p : { ...p, actions: [...(p.actions || []), newAction] }));
+    setAutoFocusId(id);
+  };
+  return (
+    <PanelCard>
+      <PanelTitle action={canEdit && (
+        <button onClick={addAction}
+          style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <Ico name="plus" size={11} color={WH} />Ajouter une action
+        </button>
+      )}>Actions de suivi</PanelTitle>
+      {allActions.length === 0 ? (
+        <div style={{ padding: "24px 0", textAlign: "center", color: TX3, fontSize: FS.sm }}>
+          Aucune action enregistrée. Les actions urgentes des PV apparaissent automatiquement ici.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {openActions.map(a => (
+            <ActionEditableRow key={a.id} action={a} autoFocus={autoFocusId === a.id}
+              onUpdate={(patch) => updateAction(a.id, patch)}
+              onClose={() => updateAction(a.id, { open: false })}
+              onDelete={() => deleteAction(a.id)}
+              onAutoFocusConsumed={() => setAutoFocusId(null)}
+              participants={project.participants || []}
+              canEdit={canEdit} />
+          ))}
+          {closedActions.length > 0 && (
+            <>
+              <div style={{ fontSize: FS.xs, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 14, marginBottom: 6 }}>
+                Clôturées · {closedActions.length}
+              </div>
+              {closedActions.map(a => (
+                <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, opacity: 0.65 }}>
+                  <button onClick={() => updateAction(a.id, { open: true })} title="Rouvrir l'action"
+                    style={{ width: 18, height: 18, border: "none", borderRadius: 4, background: SGB, cursor: "pointer", padding: 0, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="check" size={11} color={GR} />
+                  </button>
+                  <span style={{ flex: 1, fontSize: FS.sm, color: TX3, textDecoration: "line-through" }}>{a.text || "(sans titre)"}</span>
+                  {canEdit && (
+                    <button onClick={() => deleteAction(a.id)} title="Supprimer"
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                      <Ico name="trash" size={11} color={TX3} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </PanelCard>
+  );
+}
+
+// Ligne d'action éditable inline. Le titre est un input qui se confond avec
+// du texte, donc on peut taper directement. Toggle urgent + qui + supprimer
+// en bouts de ligne. autoFocus est utilisé pour les actions tout juste créées.
+function ActionEditableRow({ action, autoFocus, onUpdate, onClose, onDelete, onAutoFocusConsumed, participants, canEdit }) {
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+      onAutoFocusConsumed?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocus]);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", border: `1px solid ${action.urgent ? REDBRD : SBB}`, borderRadius: 8, background: action.urgent ? REDBG : WH }}>
+      <button onClick={onClose} title="Marquer comme close"
+        style={{ width: 18, height: 18, border: `1.5px solid ${SBB}`, borderRadius: 4, background: WH, cursor: "pointer", padding: 0, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <input
+          ref={inputRef}
+          value={action.text}
+          onChange={(e) => onUpdate({ text: e.target.value })}
+          placeholder="Décris l'action…"
+          disabled={!canEdit}
+          style={{ width: "100%", border: "none", background: "transparent", padding: 0, fontSize: FS.sm, fontWeight: 600, color: TX, fontFamily: "inherit", outline: "none" }}
+        />
+        <div style={{ fontSize: 10, color: TX3, marginTop: 2, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            list={`assignees-${action.id}`}
+            value={action.who || ""}
+            onChange={(e) => onUpdate({ who: e.target.value })}
+            placeholder="Assigné à…"
+            disabled={!canEdit}
+            style={{ border: "none", background: "transparent", padding: 0, fontSize: 10, color: TX3, fontFamily: "inherit", outline: "none", minWidth: 80, maxWidth: 160 }}
+          />
+          <datalist id={`assignees-${action.id}`}>
+            {participants.map((p, i) => <option key={i} value={p.name}>{p.role}</option>)}
+          </datalist>
+          {action.since && <span>· {action.since}</span>}
+          {/* Auteur + date de création — uniquement si l'info est en base
+              (les actions héritées d'avant cette feature ne les ont pas). */}
+          {action.createdAt && (
+            <span style={{ color: TX3 }}>
+              · Créée le {new Date(action.createdAt).toLocaleDateString("fr-BE", { day: "2-digit", month: "short", year: "numeric" })}
+              {action.createdBy ? ` par ${action.createdBy}` : ""}
+            </span>
+          )}
+        </div>
+      </div>
+      {canEdit && (
+        <>
+          <button onClick={() => onUpdate({ urgent: !action.urgent })}
+            title={action.urgent ? "Retirer l'urgence" : "Marquer urgent"}
+            style={{ padding: "4px 9px", border: `1px solid ${action.urgent ? BR : SBB}`, borderRadius: 12, background: action.urgent ? BR : WH, color: action.urgent ? WH : TX3, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            {action.urgent ? "URGENT" : "Urgent ?"}
+          </button>
+          <button onClick={onDelete} title="Supprimer"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <Ico name="trash" size={11} color={TX3} />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Onglet Documents ──────────────────────────────────────────────
+// PlanManager embarqué inline pour la liste/upload/dossiers. Annoter et
+// Rogner délèguent au parent qui ouvre la vue standalone plein écran
+// (meilleure UX qu'un overlay dans une zone d'onglet contrainte). Au retour,
+// localStorage restaure automatiquement l'onglet Documents actif.
+function TabPanelDocuments({ project, setProjects, onAnnotate, onCrop }) {
+  return <PlanManager project={project} setProjects={setProjects} onAnnotate={onAnnotate} onCrop={onCrop} />;
+}
+
+// ── Onglet Planning ───────────────────────────────────────────────
+// PlanningView embarqué directement (Hiérarchie + Gantt, filtre phase, lots,
+// tâches, modals lot/tâche). Pas de PanelCard wrapper pour ne pas contraindre
+// la timeline Gantt. Toutes les modals utilisent position:fixed donc
+// l'embarquement ne pose pas de problème comme avec PlanViewer.
+function TabPanelPlanning({ project, setProjects, profile }) {
+  return <PlanningView project={project} setProjects={setProjects} profile={profile} />;
+}
+
+// ── Onglet Photos ─────────────────────────────────────────────────
+// GalleryView embarqué inline. L'annotation photo (qui utilise PlanViewer
+// en plein écran) délègue au parent via onAnnotate, qui redirige vers la
+// vue standalone — même pattern que pour Annoter dans Documents.
+function TabPanelPhotos({ project, setProjects, onAnnotate }) {
+  return <GalleryView project={project} setProjects={setProjects} onAnnotatePhoto={onAnnotate} />;
+}
+
+// TabPanelPlus retiré — l'onglet Plus a été supprimé et le module Listes
+// de contrôle est déprécié. Dupliquer / Archiver restent dans la card
+// Informations (admin actions).

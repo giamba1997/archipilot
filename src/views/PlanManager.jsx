@@ -7,10 +7,19 @@ import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 import { CropTool } from "./CropTool";
 import { PlanViewer } from "./PlanViewer";
 
-export function PlanManager({ project, setProjects, onBack }) {
-  const [activePlanId, setActivePlanId] = useState(null);
+// PlanManager supporte deux modes :
+//   - Standalone (view="plan" dans App.jsx) : annotation et crop ouvrent en
+//     plein écran via les états locaux activePlanId / croppingItem.
+//   - Embarqué (dans l'onglet Documents) : on passe `onAnnotate(itemId)` et
+//     `onCrop(itemId)` pour déléguer ces actions au parent qui redirigera
+//     vers la vue standalone (le plein écran fonctionne mieux hors d'un onglet).
+//
+// `autoAction = { itemId, mode }` permet à App.jsx de pré-ouvrir la vue
+// standalone directement en mode annotation ou crop sur un fichier précis.
+export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, autoAction }) {
+  const [activePlanId, setActivePlanId] = useState(autoAction?.mode === "annotate" ? autoAction.itemId : null);
   const [newFolderParent, setNewFolderParent] = useState(null);
-  const [croppingItem, setCroppingItem] = useState(null); // file id being cropped
+  const [croppingItem, setCroppingItem] = useState(autoAction?.mode === "crop" ? autoAction.itemId : null); // file id being cropped
   const [newFolderName, setNewFolderName] = useState("");
   const [expanded, setExpanded] = useState({});
   const [renaming, setRenaming] = useState(null);
@@ -291,16 +300,17 @@ export function PlanManager({ project, setProjects, onBack }) {
   // Action buttons shared component — hidden on mobile
   const ItemActions = ({ item }) => (
     <div className="ap-plan-item-actions" style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-      {/* Annotate — only for images & PDFs */}
+      {/* Annotate — only for images & PDFs. En mode embarqué (onAnnotate
+          fourni), on délègue au parent qui redirige vers la vue standalone. */}
       {(item.type === "image" || item.type === "pdf") && (
-        <button onClick={() => setActivePlanId(item.id)} title="Annoter le plan" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${AC}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <button onClick={() => onAnnotate ? onAnnotate(item.id) : setActivePlanId(item.id)} title="Annoter le plan" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${AC}`, background: ACL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
           <Ico name="layers" size={11} color={AC} />
           <span style={{ fontSize: 9, fontWeight: 700, color: AC }}>Annoter</span>
         </button>
       )}
-      {/* Crop — images & PDFs */}
+      {/* Crop — images & PDFs. Même logique : callback en mode embarqué. */}
       {(item.type === "image" || item.type === "pdf") && (
-        <button onClick={() => setCroppingItem(item.id)} title="Rogner" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <button onClick={() => onCrop ? onCrop(item.id) : setCroppingItem(item.id)} title="Rogner" style={{ height: 28, padding: "0 8px", borderRadius: 6, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
           <Ico name="fit" size={11} color={TX2} />
           <span style={{ fontSize: 9, fontWeight: 600, color: TX2 }}>Rogner</span>
         </button>
@@ -421,11 +431,15 @@ export function PlanManager({ project, setProjects, onBack }) {
 
   return (
     <div>
-      {/* Header — desktop only */}
+      {/* Header — desktop only. Le bouton retour n'apparaît que si onBack
+          est fourni. Embarqué dans un onglet (TabPanelDocuments), onBack est
+          omis et le header reste, sans flèche de retour. */}
       <div className="ap-plan-header" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Ico name="back" color={TX2} />
-        </button>
+        {onBack && (
+          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Ico name="back" color={TX2} />
+          </button>
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: TX }}>Documents</div>
           <div style={{ fontSize: 12, color: TX3 }}>{fileCount} fichier{fileCount !== 1 ? "s" : ""} · {folderCount} dossier{folderCount !== 1 ? "s" : ""}</div>

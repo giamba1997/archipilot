@@ -480,8 +480,8 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
         onDrop={onDrop}
         style={{
           position: "fixed", bottom: 92, right: 24, zIndex: 999,
-          width: 420, maxWidth: "calc(100vw - 32px)",
-          height: 580, maxHeight: "calc(100vh - 130px)",
+          width: 560, maxWidth: "calc(100vw - 32px)",
+          height: 680, maxHeight: "calc(100vh - 130px)",
           background: WH, border: `1px solid ${SBB}`, borderRadius: 14,
           boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
           display: "flex", flexDirection: "column", overflow: "hidden",
@@ -889,17 +889,24 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // Auto-grow vertical jusqu'à maxHeight pour éviter la barre de scroll
+              // qui masque les premières lignes quand on rédige un paragraphe.
+              e.target.style.height = "auto";
+              const next = Math.min(e.target.scrollHeight, 280);
+              e.target.style.height = next + "px";
+            }}
             onKeyDown={handleKeyDown}
             disabled={loading}
             placeholder={pendingAttachments.length > 0 ? "Pose ta question sur ces fichiers…" : "Pose ta question…"}
-            rows={1}
+            rows={3}
             style={{
-              flex: 1, resize: "none",
-              padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8,
+              flex: 1, resize: "vertical",
+              padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8,
               fontSize: 13, fontFamily: "inherit", lineHeight: 1.5,
               background: SB, color: TX, boxSizing: "border-box",
-              minHeight: 36, maxHeight: 110, outline: "none",
+              minHeight: 80, maxHeight: 280, outline: "none",
             }}
             onFocus={(e) => { e.target.style.borderColor = AC; e.target.style.background = WH; }}
             onBlur={(e) => { e.target.style.borderColor = SBB; e.target.style.background = SB; }}
