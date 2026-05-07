@@ -33,10 +33,11 @@ async function notifyOnStatusChange(
   sb: ReturnType<typeof createClient>,
   row: Record<string, unknown>,
   newStatus: "signed" | "declined",
-): Promise<void> {
+): Promise<{ inserted: boolean; completed: boolean; error?: string }> {
+  const result = { inserted: false, completed: false, error: undefined as string | undefined };
   try {
     // Notif individuelle
-    await sb.from("notifications").insert({
+    const { error: notifErr } = await sb.from("notifications").insert({
       user_id: row.owner_user_id,
       type: newStatus === "signed" ? "opr_signed" : "opr_declined",
       project_id: String(row.project_id || ""),
@@ -51,6 +52,12 @@ async function notifyOnStatusChange(
         request_id: row.id,
       },
     });
+    if (notifErr) {
+      console.error("notif insert error:", notifErr);
+      result.error = `notif insert: ${notifErr.message || JSON.stringify(notifErr)}`;
+      return result;
+    }
+    result.inserted = true;
 
     // Si la nouvelle signature termine la liste, notif "completed"
     if (newStatus === "signed") {
@@ -62,7 +69,7 @@ async function notifyOnStatusChange(
       const all = siblings || [];
       const allSigned = all.length > 0 && all.every((s: { status: string }) => s.status === "signed");
       if (allSigned) {
-        await sb.from("notifications").insert({
+        const { error: cErr } = await sb.from("notifications").insert({
           user_id: row.owner_user_id,
           type: "opr_completed",
           project_id: String(row.project_id || ""),
@@ -75,12 +82,20 @@ async function notifyOnStatusChange(
             signatures_count: all.length,
           },
         });
+        if (cErr) {
+          console.error("opr_completed notif insert error:", cErr);
+          result.error = `completed notif insert: ${cErr.message || JSON.stringify(cErr)}`;
+        } else {
+          result.completed = true;
+        }
       }
     }
   } catch (e) {
     // Non bloquant : la signature est déjà enregistrée
     console.error("notifyOnStatusChange error:", e);
+    result.error = (e as Error).message;
   }
+  return result;
 }
 
 function publicShape(row: Record<string, unknown>) {
@@ -189,8 +204,8 @@ serve(async (req) => {
       }
 
       // Notifications cloche pour l'architecte (non bloquantes)
-      await notifyOnStatusChange(sb, row, "signed");
-      return jsonResponse(req, { success: true });
+      const notifResult = await notifyOnStatusChange(sb, row, "signed");
+      return jsonResponse(req, { success: true, debug_notif: notifResult });
     }
 
     // ── action: decline ────────────────────────────────
@@ -208,8 +223,8 @@ serve(async (req) => {
         return jsonResponse(req, { error: "Échec" }, 500);
       }
 
-      await notifyOnStatusChange(sb, row, "declined");
-      return jsonResponse(req, { success: true });
+      const notifResult = await notifyOnStatusChange(sb, row, "declined");
+      return jsonResponse(req, { success: true, debug_notif: notifResult });
     }
 
     return jsonResponse(req, { error: "Action inconnue" }, 400);
