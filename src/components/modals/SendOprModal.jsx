@@ -12,12 +12,29 @@ import { UpgradeRequiredModal } from "./UpgradeRequiredModal";
 //  - Email HTML via Resend (badge "OPR de chantier" en orange)
 //  - Track lecture par destinataire (réutilise pixel pv_read avec id "OPR-...")
 
-export function SendOprModal({ project, opr, profile, onClose, onSent, onUpgrade }) {
-  const [recipients, setRecipients] = useState(
-    project.participants
-      .filter(p => p.email)
-      .map(p => ({ email: p.email, name: p.name, role: p.role, checked: true })),
-  );
+export function SendOprModal({ project, opr, profile, extraRecipients = [], onClose, onSent, onUpgrade }) {
+  // Initial recipients = participants projet + signataires distants reçus.
+  // On dédoublonne par email (lowercase) — un signataire qui était déjà
+  // dans participants n'apparaît qu'une fois.
+  const [recipients, setRecipients] = useState(() => {
+    const seen = new Set();
+    const out = [];
+    for (const p of (project.participants || [])) {
+      if (!p.email) continue;
+      const key = p.email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ email: p.email, name: p.name, role: p.role, checked: true });
+    }
+    for (const r of extraRecipients) {
+      if (!r.email) continue;
+      const key = r.email.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ email: r.email, name: r.name || r.email, role: r.role || "", checked: true });
+    }
+    return out;
+  });
   const [extraEmail, setExtraEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");

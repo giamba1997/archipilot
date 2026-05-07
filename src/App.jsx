@@ -414,6 +414,14 @@ export default function App() {
         unsub = subscribeToNotifications(user.id, (notif) => {
           setNotifications(prev => [notif, ...prev]);
           if (notif.type === "invite") loadMyInvitations().then(setInvitations).catch(() => {});
+          // Toast immédiat pour les notifs OPR — l'archi sait tout de suite quand une signature arrive
+          if (notif.type === "opr_signed") {
+            showToast(`✦ ${notif.actor_name || "Un signataire"} a signé l'OPR n°${notif.data?.opr_number}`);
+          } else if (notif.type === "opr_declined") {
+            showToast(`${notif.actor_name || "Un signataire"} a refusé l'OPR n°${notif.data?.opr_number}`, "error");
+          } else if (notif.type === "opr_completed") {
+            showToast(`✓ OPR n°${notif.data?.opr_number} entièrement signé — prêt à diffuser`);
+          }
         });
       }).catch(() => {});
     } catch (e) { console.error("Notification subscription error:", e); }
@@ -1204,22 +1212,53 @@ export default function App() {
                 {notifications.length === 0 && invitations.length === 0 && (
                   <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: TX3 }}>{t("notif.empty")}</div>
                 )}
-                {notifications.map(n => (
-                  <div key={n.id} onClick={() => { if (!n.read) { markNotificationRead(n.id); setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x)); } }} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${SBB}`, cursor: "pointer", background: n.read ? "transparent" : "#FAFAF5" }}>
-                    {!n.read && <div style={{ width: 6, height: 6, borderRadius: "50%", background: AC, flexShrink: 0, marginTop: 5 }} />}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: TX, lineHeight: 1.5 }}>
-                        {n.type === "invite" && t("notif.invite", { actor: n.actor_name, project: n.project_name || n.project_id })}
-                        {n.type === "invite_accepted" && t("notif.inviteAccepted", { actor: n.actor_name })}
-                        {n.type === "comment" && t("notif.comment", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                {notifications.map(n => {
+                  const isOpr = n.type === "opr_signed" || n.type === "opr_declined" || n.type === "opr_completed";
+                  const handleClick = () => {
+                    if (!n.read) { markNotificationRead(n.id); setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x)); }
+                    // Navigation pour les notifs OPR : ouvrir le projet concerné en vue OPR
+                    if (isOpr && n.project_id) {
+                      const projId = parseInt(n.project_id) || n.project_id;
+                      const target = (projects || []).find(p => String(p.id) === String(projId)) || (sharedProjects || []).find(p => String(p.id) === String(projId));
+                      if (target) {
+                        setActiveId(target.id);
+                        setView("opr");
+                        setShowNotifications(false);
+                      }
+                    }
+                  };
+                  return (
+                    <div key={n.id} onClick={handleClick} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${SBB}`, cursor: "pointer", background: n.read ? "transparent" : "#FAFAF5" }}>
+                      {!n.read && <div style={{ width: 6, height: 6, borderRadius: "50%", background: AC, flexShrink: 0, marginTop: 5 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: TX, lineHeight: 1.5 }}>
+                          {n.type === "invite" && t("notif.invite", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                          {n.type === "invite_accepted" && t("notif.inviteAccepted", { actor: n.actor_name })}
+                          {n.type === "comment" && t("notif.comment", { actor: n.actor_name, project: n.project_name || n.project_id })}
+                          {n.type === "opr_signed" && (
+                            <>
+                              <strong>{n.actor_name || "Un signataire"}</strong> a signé l'OPR n°{n.data?.opr_number} <span style={{ color: TX3 }}>· {n.project_name}</span>
+                            </>
+                          )}
+                          {n.type === "opr_declined" && (
+                            <>
+                              <strong>{n.actor_name || "Un signataire"}</strong> a refusé de signer l'OPR n°{n.data?.opr_number} <span style={{ color: TX3 }}>· {n.project_name}</span>
+                            </>
+                          )}
+                          {n.type === "opr_completed" && (
+                            <>
+                              <strong style={{ color: GR }}>OPR n°{n.data?.opr_number} entièrement signé</strong> — prêt à diffuser <span style={{ color: TX3 }}>· {n.project_name}</span>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>{new Date(n.created_at).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                       </div>
-                      <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>{new Date(n.created_at).toLocaleDateString("fr-BE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                      <button onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); setNotifications(prev => prev.filter(x => x.id !== n.id)); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0, marginTop: 2 }}>
+                        <Ico name="x" size={12} color={TX3} />
+                      </button>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); setNotifications(prev => prev.filter(x => x.id !== n.id)); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0, marginTop: 2 }}>
-                      <Ico name="x" size={12} color={TX3} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -25,6 +25,64 @@ function isExpired(row: Record<string, unknown>): boolean {
   return new Date(exp).getTime() < Date.now();
 }
 
+// Crée les notifications cloche pour l'architecte propriétaire :
+//   - opr_signed | opr_declined : notif individuelle pour chaque action
+//   - opr_completed : déclenchée si TOUTES les demandes liées à cet OPR
+//                     sont passées à "signed" — débloque l'export consolidé
+async function notifyOnStatusChange(
+  sb: ReturnType<typeof createClient>,
+  row: Record<string, unknown>,
+  newStatus: "signed" | "declined",
+): Promise<void> {
+  try {
+    // Notif individuelle
+    await sb.from("notifications").insert({
+      user_id: row.owner_user_id,
+      type: newStatus === "signed" ? "opr_signed" : "opr_declined",
+      project_id: String(row.project_id || ""),
+      project_name: row.project_name,
+      actor_id: null,
+      actor_name: row.signatory_name,
+      data: {
+        opr_id: row.opr_id,
+        opr_number: row.opr_number,
+        signatory_role: row.signatory_role,
+        signatory_email: row.signatory_email,
+        request_id: row.id,
+      },
+    });
+
+    // Si la nouvelle signature termine la liste, notif "completed"
+    if (newStatus === "signed") {
+      const { data: siblings } = await sb
+        .from("opr_signature_requests")
+        .select("status")
+        .eq("opr_id", row.opr_id)
+        .eq("owner_user_id", row.owner_user_id);
+      const all = siblings || [];
+      const allSigned = all.length > 0 && all.every((s: { status: string }) => s.status === "signed");
+      if (allSigned) {
+        await sb.from("notifications").insert({
+          user_id: row.owner_user_id,
+          type: "opr_completed",
+          project_id: String(row.project_id || ""),
+          project_name: row.project_name,
+          actor_id: null,
+          actor_name: "",
+          data: {
+            opr_id: row.opr_id,
+            opr_number: row.opr_number,
+            signatures_count: all.length,
+          },
+        });
+      }
+    }
+  } catch (e) {
+    // Non bloquant : la signature est déjà enregistrée
+    console.error("notifyOnStatusChange error:", e);
+  }
+}
+
 function publicShape(row: Record<string, unknown>) {
   // Ne jamais exposer owner_user_id ni le token réel dans la réponse.
   return {
@@ -129,6 +187,9 @@ serve(async (req) => {
         console.error("opr-signing submit error:", updErr);
         return jsonResponse(req, { error: "Échec de l'enregistrement" }, 500);
       }
+
+      // Notifications cloche pour l'architecte (non bloquantes)
+      await notifyOnStatusChange(sb, row, "signed");
       return jsonResponse(req, { success: true });
     }
 
@@ -146,6 +207,8 @@ serve(async (req) => {
         console.error("opr-signing decline error:", updErr);
         return jsonResponse(req, { error: "Échec" }, 500);
       }
+
+      await notifyOnStatusChange(sb, row, "declined");
       return jsonResponse(req, { success: true });
     }
 

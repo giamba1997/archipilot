@@ -199,8 +199,23 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
             const inSigning = !!opr.signingRequest;
             const localSignatures = (opr.signatures || []).length;
             const remoteSigned = requests.filter(r => r.status === "signed").length;
+            const remoteDeclined = requests.filter(r => r.status === "declined").length;
             const remoteTotal = requests.length;
             const totalSignatures = localSignatures + remoteSigned;
+            // OPR "prêt à diffuser" = au moins une demande à distance, et toutes signées (pas de declined / pending)
+            const allRemoteSigned = remoteTotal > 0 && remoteSigned === remoteTotal;
+            const isCompleted = !!opr.completed;
+            const readyToDispatch = allRemoteSigned && !isCompleted;
+            // Construit la version "merged" de l'OPR avec toutes les signatures pour PDF/diffusion
+            const mergedSignatures = [
+              ...(opr.signatures || []),
+              ...requests.filter(r => r.status === "signed").map(r => ({
+                name: r.signatory_name, role: r.signatory_role, email: r.signatory_email,
+                dataUrl: r.signature_data_url, signedAt: r.signed_at,
+              })),
+            ];
+            const oprForDispatch = { ...opr, signatures: mergedSignatures };
+            const remoteRecipients = requests.map(r => ({ name: r.signatory_name, role: r.signatory_role, email: r.signatory_email }));
             return (
               <div key={opr.id || i} style={{ padding: "10px 0", borderTop: i > 0 ? `1px solid ${SB}` : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -208,8 +223,24 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                     <Ico name={totalSignatures > 0 ? "check" : "edit"} size={14} color={totalSignatures > 0 ? GR : TX3} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>
-                      OPR n°{opr.number} <span style={{ fontSize: 11, color: TX3, fontWeight: 500 }}>· {opr.type === "definitive" ? "Définitive" : "Provisoire"} · {opr.date}</span>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: TX, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span>OPR n°{opr.number}</span>
+                      <span style={{ fontSize: 11, color: TX3, fontWeight: 500 }}>· {opr.type === "definitive" ? "Définitive" : "Provisoire"} · {opr.date}</span>
+                      {readyToDispatch && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: GR, background: GRBG, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.05em", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <Ico name="check" size={9} color={GR} /> Prêt à diffuser
+                        </span>
+                      )}
+                      {isCompleted && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: TX2, background: SB, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Diffusé
+                        </span>
+                      )}
+                      {remoteDeclined > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: RD, background: REDBG, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          {remoteDeclined} refus
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 11, color: TX3 }}>
                       {totalSignatures > 0 && `${totalSignatures} signature${totalSignatures > 1 ? "s" : ""}${remoteTotal > 0 ? ` (${remoteSigned}/${remoteTotal} à distance)` : ""}`}
@@ -217,15 +248,16 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                       {(opr.reserves || []).length > 0 && ` · ${(opr.reserves || []).length} réserve${(opr.reserves || []).length > 1 ? "s" : ""} figée${(opr.reserves || []).length > 1 ? "s" : ""}`}
                     </div>
                   </div>
-                  <button onClick={() => generateOprPdf(project, { ...opr, signatures: [...(opr.signatures || []), ...requests.filter(r => r.status === "signed").map(r => ({ name: r.signatory_name, role: r.signatory_role, email: r.signatory_email, dataUrl: r.signature_data_url, signedAt: r.signed_at }))] }, profile)}
+                  <button onClick={() => generateOprPdf(project, oprForDispatch, profile)}
                     title="Télécharger le PDF (avec signatures actuelles)"
                     style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, color: TX2, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Ico name="file" size={11} color={TX2} /> PDF
                   </button>
-                  <button onClick={() => setSendOprOpen({ ...opr, signatures: [...(opr.signatures || []), ...requests.filter(r => r.status === "signed").map(r => ({ name: r.signatory_name, role: r.signatory_role, email: r.signatory_email, dataUrl: r.signature_data_url, signedAt: r.signed_at }))] })}
-                    title="Envoyer le PDF aux destinataires"
-                    style={{ background: AC, border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 11, fontWeight: 700, color: WH, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <Ico name="send" size={11} color={WH} /> {opr.sentAt ? "Renvoyer" : "Diffuser"}
+                  <button onClick={() => setSendOprOpen({ opr: oprForDispatch, extraRecipients: remoteRecipients })}
+                    title={readyToDispatch ? "Diffuser le rapport final consolidé" : "Envoyer le PDF aux destinataires"}
+                    style={{ background: readyToDispatch ? GR : AC, border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontSize: 11, fontWeight: 700, color: WH, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Ico name="send" size={11} color={WH} />
+                    {readyToDispatch ? "Diffuser le rapport final" : (opr.sentAt ? "Renvoyer" : "Diffuser")}
                   </button>
                 </div>
 
@@ -431,20 +463,30 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
       {sendOprOpen && (
         <SendOprModal
           project={project}
-          opr={sendOprOpen}
+          opr={sendOprOpen.opr}
+          extraRecipients={sendOprOpen.extraRecipients || []}
           profile={profile}
           onClose={() => setSendOprOpen(null)}
           onSent={(emails) => {
-            // Marque l'OPR comme envoyé dans oprHistory + ferme la modal
+            // Si tous les sigreqs distants sont signés au moment de la diffusion,
+            // on considère l'OPR comme finalisé (badge "Diffusé").
+            const targetOprId = sendOprOpen.opr.id;
+            const reqs = sigByOpr[targetOprId] || [];
+            const allRemoteSigned = reqs.length > 0 && reqs.every(r => r.status === "signed");
             setProjects(prev => prev.map(p => p.id !== project.id ? p : {
               ...p,
-              oprHistory: (p.oprHistory || []).map(o => o.id === sendOprOpen.id ? {
+              oprHistory: (p.oprHistory || []).map(o => o.id === targetOprId ? {
                 ...o,
                 sentAt: new Date().toISOString(),
                 sentTo: [...new Set([...(o.sentTo || []), ...emails])],
+                completed: o.completed || allRemoteSigned,
+                completedAt: o.completedAt || (allRemoteSigned ? new Date().toISOString() : null),
               } : o),
             }));
-            showToast?.(`OPR envoyé à ${emails.length} destinataire${emails.length > 1 ? "s" : ""}`);
+            showToast?.(allRemoteSigned
+              ? `OPR n°${sendOprOpen.opr.number} diffusé à ${emails.length} destinataire${emails.length > 1 ? "s" : ""}`
+              : `OPR envoyé à ${emails.length} destinataire${emails.length > 1 ? "s" : ""}`,
+            );
             setSendOprOpen(null);
           }}
         />
