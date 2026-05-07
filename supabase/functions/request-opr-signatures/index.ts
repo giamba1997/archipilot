@@ -168,6 +168,15 @@ serve(async (req) => {
         });
       }
 
+      const resendPayload: Record<string, unknown> = {
+        from: FROM_EMAIL,
+        to: [row.signatory_email],
+        subject: `Signature requise — OPR n°${row.opr_number} — ${row.project_name}`,
+        html,
+      };
+      // Resend tolère pas toujours un tableau attachments vide — on l'omet si absent.
+      if (attachments.length > 0) resendPayload.attachments = attachments;
+
       try {
         const resendRes = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -175,13 +184,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${RESEND_API_KEY}`,
           },
-          body: JSON.stringify({
-            from: FROM_EMAIL,
-            to: [row.signatory_email],
-            subject: `Signature requise — OPR n°${row.opr_number} — ${row.project_name}`,
-            html,
-            attachments,
-          }),
+          body: JSON.stringify(resendPayload),
         });
 
         if (resendRes.ok) {

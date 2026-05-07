@@ -27,6 +27,20 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
     if (relaunchingId) return;
     setRelaunchingId(sigreq.id);
     try {
+      // Génère un PDF preview pour pièce jointe (même version que l'envoi initial)
+      let pdfBase64 = null;
+      let pdfFileName = null;
+      try {
+        await import("jspdf");
+        const res = await generateOprPdf(project, opr, profile, { returnDataUrl: true });
+        if (res?.dataUrl) {
+          pdfBase64 = res.dataUrl.split(",")[1];
+          pdfFileName = res.fileName;
+        }
+      } catch (e) {
+        console.error("PDF generation for relaunch failed:", e);
+        // Non bloquant — on envoie sans pièce jointe
+      }
       const result = await requestOprSignatures({
         projectId: project.id,
         projectName: project.name,
@@ -43,6 +57,8 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
           role: sigreq.signatory_role || "",
           email: sigreq.signatory_email,
         }],
+        pdfBase64,
+        pdfFileName,
         authorName: profile?.name || profile?.email || "L'architecte",
         structureName: profile?.structure,
         customMessage: "",
@@ -50,7 +66,14 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
       if (result.error) {
         showToast?.(`Erreur : ${result.error}`, "error");
       } else {
-        showToast?.(`Nouveau lien envoyé à ${sigreq.signatory_email}`);
+        // Le sigreq peut être créé en DB mais l'email Resend peut échouer.
+        // delivery[].sent indique le résultat réel par destinataire.
+        const failed = (result.delivery || []).filter(d => !d.sent);
+        if (failed.length > 0) {
+          showToast?.(`Lien créé mais email non envoyé : ${failed[0].error || "erreur Resend"}`, "error");
+        } else {
+          showToast?.(`Nouveau lien envoyé à ${sigreq.signatory_email}`);
+        }
         await refreshSignatureRequests();
       }
     } catch (e) {
