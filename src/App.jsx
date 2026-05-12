@@ -35,7 +35,7 @@ class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
-import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadOrgProjects, saveOrgProjects, loadMyOrganizations, loadPendingInvitationForMe } from "./db";
+import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadOrgProjects, saveOrgProjects, loadMyOrganizations, loadPendingInvitationForMe, savePermit } from "./db";
 import { useInviteToken } from "./hooks/useInviteToken";
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext";
 import useUIStore from "./stores/useUIStore";
@@ -58,12 +58,26 @@ import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exp
 import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton, SyncBadge } from "./components/ui";
 
 // ── Extracted Components ──────────────────────────────────────
-import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
-import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, PhaseManagerModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { MobileBottomBar, CaptureSheet, QuickCaptureSheet, Sidebar } from "./components/layout";
+import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, PhaseManagerModal, PhaseWizardModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { ProjectDetail } from "./pages/ProjectDetail";
+
+// ── Détection v2 ────────────────────────────────────────────
+// La nouvelle page projet (`src/pages/ProjectDetail.jsx`) cohabite avec
+// l'Overview historique. Activation via pathname `/p/:id` — pas de
+// react-router setup à ce stade (cf. brief : intégration minimale).
+// Calcul module-scope car le pathname ne change pas sans reload en SPA.
+const v2ProjectIdFromUrl = (() => {
+  try {
+    const m = window.location.pathname.match(/^\/p\/([\w-]+)$/);
+    return m ? m[1] : null;
+  } catch { return null; }
+})();
 
 const INIT_PROJECTS = [
   {
@@ -146,7 +160,12 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
   const [upgradeFeature, setUpgradeFeature] = useState(null);
-  const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none", projectTemplate: "blank" });
+  const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", endDate: "", nextMeeting: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none", projectTemplate: "blank",
+    // Brouillon de dossier permis — créé en DB seulement si statusId === "permit"
+    // et qu'au moins la commune est renseignée. Permet d'ouvrir un dossier
+    // permis directement à la création du projet, sans aller dans PermitsView.
+    _permit: { commune: "", reference: "", procedure: "75j", depot_date: "", ar_date: "" },
+  });
   const [editInfo, setEditInfo] = useState({});
   const [editParts, setEditParts] = useState([]);
   const [profile, setProfile] = useState(INIT_PROFILE);
@@ -168,6 +187,10 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [toast, setToast] = useState(null);
+  // Wizard d'onboarding contextuel — déclenché au passage à une phase
+  // non encore vue par l'utilisateur. `null` = pas de wizard ouvert,
+  // sinon contient l'id de la phase à afficher.
+  const [phaseWizard, setPhaseWizard] = useState(null);
   const { inviteToken, setInviteToken, clearPendingInvite } = useInviteToken();
   const [agencyModalOpen, setAgencyModalOpen] = useState(false);
 
@@ -503,7 +526,27 @@ export default function App() {
   };
 
   const project = projects.find((p) => p.id === activeId) || sharedProjects.find((p) => p.id === activeId);
-  const updateProject = (id, u) => setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...u } : p));
+  // Déclenche le wizard d'onboarding pour une phase si :
+  //   - du contenu existe pour cette phase dans PHASE_WIZARDS
+  //   - l'utilisateur ne l'a pas déjà vu (localStorage)
+  // Sinon, no-op silencieux — pas d'alerte ni log.
+  const maybeShowPhaseWizard = (phaseId) => {
+    if (!phaseId || !PHASE_WIZARDS[phaseId]) return;
+    if (hasSeenWizard(phaseId)) return;
+    setPhaseWizard(phaseId);
+  };
+
+  const updateProject = (id, u) => {
+    // Détection de changement de phase pour déclencher le wizard
+    // d'onboarding contextuel (si la phase n'a pas encore été vue).
+    if (u && Object.prototype.hasOwnProperty.call(u, "statusId")) {
+      const prev = projects.find(p => p.id === id);
+      if (prev && prev.statusId !== u.statusId) {
+        maybeShowPhaseWizard(u.statusId);
+      }
+    }
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...u } : p));
+  };
   // Création projet allégée : on n'exige que Nom + Ville. Les autres champs
   // (MO, entreprise, dates) sont souvent inconnus en phase Esquisse — ils
   // se complètent plus tard via les chips de la Fiche. Empêcher la création
@@ -604,9 +647,18 @@ export default function App() {
       value: f.value || "",
     }));
 
+    // On extrait _permit pour ne PAS le sérialiser dans le JSONB du projet
+    // (c'est un brouillon de saisie, pas une donnée du projet). On le persiste
+    // en parallèle comme dossier dans la table permits si statusId === "permit"
+    // et commune renseignée.
+    const { _permit: permitDraft, ...projectFields } = newP;
+
     setProjects((prev) => [...prev, {
-      id, ...newP, address,
-      progress: 0, bureau: profile.structure, endDate: "", nextMeeting: "",
+      id, ...projectFields, address,
+      progress: 0, bureau: profile.structure,
+      // endDate et nextMeeting peuvent venir du formulaire phase-aware
+      endDate: projectFields.endDate || "",
+      nextMeeting: projectFields.nextMeeting || "",
       archived: false,
       participants,
       posts: posts.length > 0 ? posts : [{ id: "01", label: "Situation du chantier", notes: "" }],
@@ -622,8 +674,38 @@ export default function App() {
       // peut suggérer les expectedReserves du modèle, axe D du plan).
       _projectTemplateId: newP.projectTemplate,
     }]);
+
+    // Side-effect : si phase Permis et commune renseignée, on crée le dossier
+    // de suivi en DB. Async non-bloquant (fire-and-forget) — si la migration
+    // 012 n'est pas appliquée, savePermit retourne null et on continue.
+    if (newP.statusId === "permit" && permitDraft.commune?.trim()) {
+      savePermit({
+        project_id: id,
+        project_name: newP.name,
+        permit_type: "urbanisme",
+        procedure: permitDraft.procedure || "75j",
+        reference: permitDraft.reference || null,
+        commune: permitDraft.commune,
+        depot_date: permitDraft.depot_date || null,
+        ar_date: permitDraft.ar_date || null,
+        status: permitDraft.depot_date ? (permitDraft.ar_date ? "in_review" : "deposited") : "preparation",
+      }).then(saved => {
+        if (saved) {
+          showToast(`Projet "${newP.name}" créé · Dossier permis ouvert`);
+        }
+      }).catch(() => { /* table peut ne pas exister, silencieux */ });
+    } else {
+      showToast(`Projet "${newP.name}" créé`);
+    }
+
     setActiveId(id); setView("overview"); setModal(null);
-    setNewP({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", recurrence: "none", statusId: "sketch", postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none", projectTemplate: "blank" });
+    // Wizard d'onboarding contextuel — si l'archi crée directement en
+    // phase ≠ esquisse (par défaut), on lui présente les nouvelles
+    // options. L'esquisse n'a pas de wizard (c'est le point de départ).
+    if (newP.statusId && newP.statusId !== "sketch") {
+      maybeShowPhaseWizard(newP.statusId);
+    }
+    setNewP({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", endDate: "", nextMeeting: "", recurrence: "none", statusId: "sketch", postTemplate: profile.postTemplate || "general", pvTemplate: profile.pvTemplate || "standard", remarkNumbering: profile.remarkNumbering || "none", projectTemplate: "blank", _permit: { commune: "", reference: "", procedure: "75j", depot_date: "", ar_date: "" } });
     track("project_created", { project_name: newP.name, _page: "overview", _template: projTpl.id });
   };
 
@@ -1290,7 +1372,14 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setAgencyModalOpen(true)} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewTasks={() => setView("planning")} onAnnotatePlan={(itemId) => { setPlanAutoAction({ itemId, mode: "annotate" }); setView("plan"); }} onCropPlan={(itemId) => { setPlanAutoAction({ itemId, mode: "crop" }); setView("plan"); }} onAnnotatePhoto={(photoId) => { setGalleryAutoAction({ photoId }); setView("gallery"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onJournal={() => setView("journal")} onInvoices={() => setView("invoices")} onPermits={() => setView("permits")} onQuotes={() => setView("quotes")} onReports={() => setView("reports")} onCollab={() => setModal("collab")} showToast={showToast} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onDiscardTimer={discardActiveTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p, intent = "compare_ft") => {
+          {/* v2 — Mode preview : si l'URL est /p/:id, on bascule sur la nouvelle
+              ProjectDetail. Le projet rendu = le projet actuellement sélectionné
+              (pas forcément celui de l'URL — l'URL sert d'opt-in au mode v2,
+              pas de routing strict pour ce premier jet). */}
+          {view !== "profile" && project && view === "overview" && v2ProjectIdFromUrl && (
+            <ProjectDetail project={project} />
+          )}
+          {view !== "profile" && project && view === "overview" && !v2ProjectIdFromUrl && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewTasks={() => setView("planning")} onAnnotatePlan={(itemId) => { setPlanAutoAction({ itemId, mode: "annotate" }); setView("plan"); }} onCropPlan={(itemId) => { setPlanAutoAction({ itemId, mode: "crop" }); setView("plan"); }} onAnnotatePhoto={(photoId) => { setGalleryAutoAction({ photoId }); setView("gallery"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onJournal={() => setView("journal")} onInvoices={() => setView("invoices")} onPermits={() => setView("permits")} onQuotes={() => setView("quotes")} onReports={() => setView("reports")} onChantierVisit={() => setView("chantier")} onCollab={() => setModal("collab")} showToast={showToast} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onDiscardTimer={discardActiveTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p, intent = "compare_ft") => {
   const cdc = p.cahierDesCharges;
   if (!cdc) return;
   // Pièces jointes selon le mode d'extraction (texte intégral / pages images / rien).
@@ -1356,6 +1445,7 @@ export default function App() {
           {view !== "profile" && project && view === "permits" && <PermitsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "quotes" && <QuotesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "reports" && <ProgressReportsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "chantier" && <ChantierModeView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
           {view === "mapDashboard" && <MapDashboardView projects={projects} setProjects={setProjects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
           {view === "timesheet" && (() => {
@@ -1440,19 +1530,116 @@ export default function App() {
           <Field half label="Phase du projet" value={newP.statusId} onChange={(v) => setNewP((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
         </div>
 
-        {/* Bloc Optionnel — repliable, sous un séparateur. L'archi qui sait
-            déjà tout peut tout remplir d'un coup ; le débutant ou celui qui
-            crée un projet en esquisse passe directement à "Créer". */}
+        {/* Bloc phase-adaptatif — les champs proposés dépendent de la phase
+            choisie. Pour la phase "Permis", on collecte aussi les infos du
+            dossier urbanisme qui seront créées en DB en parallèle du projet
+            (un dossier de suivi prêt à recevoir l'AR). */}
+        {(() => {
+          const set = (key, v) => setNewP(p => ({ ...p, [key]: v }));
+          const setPermit = (key, v) => setNewP(p => ({ ...p, _permit: { ...p._permit, [key]: v } }));
+
+          // Bandeau d'intro + champs spécifiques à la phase. Le statusId
+          // est garanti d'avoir une valeur (défaut "sketch") donc on tape
+          // toujours dans une branche.
+          const PHASE_INTRO = {
+            sketch:       { label: "Esquisse",   desc: "Tu démarres en esquisse. L'essentiel suffit — tu compléteras au fil du projet." },
+            preliminary:  { label: "Avant-projet", desc: "Avant-projet : tu connais le client et le programme général." },
+            permit:       { label: "Permis",     desc: "Permis d'urbanisme : un dossier de suivi sera créé en parallèle pour traquer dépôt, AR et échéance." },
+            execution:    { label: "Exécution",  desc: "Phase d'exécution / études techniques. Renseigne ce qui est déjà cadré." },
+            construction: { label: "Chantier",   desc: "Chantier en cours. Configure le rythme des PV et les acteurs principaux." },
+            reception:    { label: "Réception",  desc: "Phase de réception (OPR). Le MO et l'entreprise sont nécessaires pour signer les PV de réception." },
+            closed:       { label: "Clôturé",    desc: "Projet clôturé — création pour archivage." },
+          };
+          const intro = PHASE_INTRO[newP.statusId] || PHASE_INTRO.sketch;
+          const phase = STATUSES.find(s => s.id === newP.statusId) || STATUSES[0];
+
+          return (
+            <div style={{ marginBottom: 14, border: `1px solid ${SBB}`, borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "10px 14px", background: phase.bg, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: phase.color }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: phase.color, textTransform: "uppercase", letterSpacing: "0.05em" }}>Phase {intro.label}</div>
+                  <div style={{ fontSize: 11, color: TX2, marginTop: 2, lineHeight: 1.4 }}>{intro.desc}</div>
+                </div>
+              </div>
+              <div style={{ padding: "12px 14px" }}>
+                {/* MO — utile dès la phase Esquisse (souvent l'archi a déjà
+                    le contact même sans contrat). Caché en phase Esquisse seulement
+                    si l'archi le veut vraiment. */}
+                {newP.statusId !== "sketch" && (
+                  <Field label="Maître d'ouvrage" value={newP.client} onChange={(v) => set("client", v)} placeholder="ex: M. Dupont" />
+                )}
+
+                {/* Entreprise — visible à partir de Permis (avant elle n'est
+                    en général pas désignée). */}
+                {["permit","execution","construction","reception","closed"].includes(newP.statusId) && (
+                  <Field label={newP.statusId === "construction" || newP.statusId === "reception" ? "Entreprise *" : "Entreprise"} value={newP.contractor} onChange={(v) => set("contractor", v)} placeholder="ex: BESIX" />
+                )}
+
+                {/* Bloc Permis — déclenche la création d'un dossier permis
+                    en DB si commune renseignée. */}
+                {newP.statusId === "permit" && (
+                  <div style={{ marginTop: 6, padding: 12, background: SB, borderRadius: 8, border: `1px dashed ${SBB}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+                      Dossier permis d'urbanisme
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Field half label="Commune" value={newP._permit.commune} onChange={(v) => setPermit("commune", v)} placeholder="ex: Schaerbeek" />
+                      <Field half label="Référence dossier (si connue)" value={newP._permit.reference} onChange={(v) => setPermit("reference", v)} placeholder="ex: URB/2026/0123" />
+                    </div>
+                    <Field label="Procédure" value={newP._permit.procedure} onChange={(v) => setPermit("procedure", v)} select options={[
+                      { id: "30j",  label: "30 jours (modif mineure)" },
+                      { id: "75j",  label: "75 jours (permis simple)" },
+                      { id: "105j", label: "105 jours (avec consultation)" },
+                      { id: "230j", label: "230 jours (avec EIE)" },
+                      { id: "autres", label: "Autres" },
+                    ]} />
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Field half label="Date de dépôt (si déjà déposé)" value={newP._permit.depot_date} onChange={(v) => setPermit("depot_date", v)} type="date" />
+                      <Field half label="Date d'AR (si reçu)" value={newP._permit.ar_date} onChange={(v) => setPermit("ar_date", v)} type="date" />
+                    </div>
+                    <div style={{ fontSize: 10, color: TX3, marginTop: 4, lineHeight: 1.4, fontStyle: "italic" }}>
+                      Si tu renseignes au moins la commune, un dossier de suivi sera créé automatiquement et accessible depuis la carte « Permis d'urbanisme » du projet.
+                    </div>
+                  </div>
+                )}
+
+                {/* Dates — pertinentes dès Permis (date de dépôt prévue),
+                    indispensables en construction/réception. */}
+                {["execution","construction","reception","closed"].includes(newP.statusId) && (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Field half label={newP.statusId === "closed" ? "Date de début (passée)" : "Date de début prévue"} value={newP.startDate} onChange={(v) => set("startDate", v)} placeholder="ex: 01/04/2026" />
+                    {["construction","reception","closed"].includes(newP.statusId) && (
+                      <Field half label="Date de fin prévue" value={newP.endDate} onChange={(v) => set("endDate", v)} placeholder="ex: 28/09/2026" />
+                    )}
+                  </div>
+                )}
+
+                {/* Réunions — pertinentes seulement en construction. */}
+                {newP.statusId === "construction" && (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Field half label="Prochaine réunion" value={newP.nextMeeting} onChange={(v) => set("nextMeeting", v)} placeholder="ex: 09/04/2026" />
+                    <Field half label="Récurrence" value={newP.recurrence} onChange={(v) => set("recurrence", v)} select options={RECURRENCES} />
+                  </div>
+                )}
+
+                {/* Description — disponible partout, utile surtout en amont. */}
+                {["sketch","preliminary"].includes(newP.statusId) && (
+                  <Field label="Description du projet (optionnel)" value={newP.desc} onChange={(v) => set("desc", v)} placeholder="ex: Maison unifamiliale 4 façades, 240 m²..." area />
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Adresse précise (optionnelle) — toujours dans un repliable car
+            non liée à la phase mais utile pour la géolocalisation / les PDF. */}
         <details style={{ marginBottom: 10 }}>
           <summary style={{ cursor: "pointer", fontSize: 11, color: TX3, fontWeight: 600, padding: "8px 0", userSelect: "none", display: "flex", alignItems: "center", gap: 6 }}>
-            <span>À compléter plus tard (optionnel)</span>
+            <span>Adresse précise du chantier (optionnel)</span>
             <span style={{ flex: 1, height: 1, background: SBB }} />
           </summary>
           <div style={{ paddingTop: 8 }}>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Field half label="Maître d'ouvrage" value={newP.client} onChange={(v) => setNewP((p) => ({ ...p, client: v }))} placeholder="ex: M. Dupont" />
-              <Field half label="Entreprise" value={newP.contractor} onChange={(v) => setNewP((p) => ({ ...p, contractor: v }))} placeholder="ex: BESIX" />
-            </div>
             <div style={{ display: "flex", gap: 10 }}>
               <Field half label="Rue" value={newP.street} onChange={(v) => setNewP((p) => ({ ...p, street: v }))} placeholder="ex: Rue de la Loi" />
               <div style={{ flex: "0 0 80px" }}><Field label="N°" value={newP.number} onChange={(v) => setNewP((p) => ({ ...p, number: v }))} placeholder="12" /></div>
@@ -1460,10 +1647,6 @@ export default function App() {
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: "0 0 100px" }}><Field label="Code postal" value={newP.postalCode} onChange={(v) => setNewP((p) => ({ ...p, postalCode: v }))} placeholder="1000" /></div>
               <Field half label="Pays" value={newP.country} onChange={(v) => setNewP((p) => ({ ...p, country: v }))} placeholder="Belgique" />
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Field half label="Date de début" value={newP.startDate} onChange={(v) => setNewP((p) => ({ ...p, startDate: v }))} placeholder="ex: 01/04/2026" />
-              <Field half label="Récurrence" value={newP.recurrence} onChange={(v) => setNewP((p) => ({ ...p, recurrence: v }))} select options={RECURRENCES} />
             </div>
           </div>
         </details>
@@ -1977,6 +2160,35 @@ Règles :
         />
       )}
 
+      {/* Wizard d'onboarding contextuel par phase. Le CTA mappe une chaîne
+          d'action (cf. constants/phaseWizards.js) vers une navigation
+          interne. Toute action non reconnue est un no-op silencieux. */}
+      {phaseWizard && (
+        <PhaseWizardModal
+          phaseId={phaseWizard}
+          onClose={() => setPhaseWizard(null)}
+          onAction={(action) => {
+            // Routing des CTAs vers les sous-vues du projet courant.
+            // Utilise les mêmes setView() que les cartes d'Overview pour
+            // garantir un comportement identique (gates de plan inclus).
+            switch (action) {
+              case "permits": setView("permits"); break;
+              case "quotes":  setView("quotes"); break;
+              case "planning":
+                if (!hasFeature(profile.plan, "planning")) { setUpgradeFeature("planning"); break; }
+                setView("planning"); break;
+              case "notes":   tryStartNewPv(); break;
+              case "opr":
+                if (!hasFeature(profile.plan, "opr")) { setUpgradeFeature("opr"); break; }
+                setView("opr"); break;
+              case "journal": setView("journal"); break;
+              case "reports": setView("reports"); break;
+              default: /* no-op */ break;
+            }
+          }}
+        />
+      )}
+
       {/* F5 — Drawer "Prochaines échéances" */}
       {showAlerts && (
         <AlertsDrawer
@@ -2024,18 +2236,55 @@ Règles :
         onCapture={() => setCaptureSheet(true)}
       />
 
-      {/* ── Mobile Capture Sheet ── */}
-      <CaptureSheet
+      {/* ── Mobile Quick Capture Sheet — 4 actions (Mobile Étape 2) ──
+          Remplace l'ancien CaptureSheet limité à Photo. Ouvre photo,
+          note vocale, nouvelle réserve ou PV dicté en 2 taps depuis
+          n'importe où dans l'app mobile. */}
+      <QuickCaptureSheet
         open={captureSheet}
         onClose={() => setCaptureSheet(false)}
-        photoCount={project ? (project.gallery || []).length : 0}
+        project={project}
         onPhoto={() => {
-          setCaptureSheet(false);
+          // Réutilise le file input mobile monté en permanence dans App.
+          // Délai court pour laisser le sheet se fermer avant d'ouvrir
+          // la caméra (sinon iOS Safari bloque le file picker).
           setTimeout(() => mobilePhotoRef.current?.click(), 150);
         }}
-        onGallery={() => {
-          setCaptureSheet(false);
-          setGallerySheet(true);
+        onStartPvDictation={() => {
+          // Mode "dictate" → NoteEditor démarre directement en dictée
+          setPvStartMode("dictate");
+          tryStartNewPv();
+        }}
+        onNewReserve={() => {
+          if (!hasFeature(profile.plan, "opr")) { setUpgradeFeature("opr"); return; }
+          setView("opr");
+          // L'OprView ouvre directement en mode "add" si le projet n'a
+          // pas encore de réserves — sinon l'archi tap "Nouvelle" depuis
+          // la liste. Pour forcer add à coup sûr, on pourrait passer un
+          // autoAction — feature à ajouter si besoin.
+        }}
+        onSaveVoiceMemo={(text) => {
+          // v1 : la note vocale devient une tâche du projet. L'archi
+          // pourra la convertir/déplacer depuis TasksView. Simple, sans
+          // nouveau schéma. Le titre est tronqué à 200 chars (limite
+          // affichage), le texte complet va en notes.
+          const trimmed = (text || "").trim();
+          if (!trimmed || !project) return;
+          const title = trimmed.length > 200 ? trimmed.slice(0, 200) + "…" : trimmed;
+          const newTask = {
+            id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            number: ((project.tasks || []).length || 0) + 1,
+            title,
+            notes: trimmed.length > 200 ? trimmed : "",
+            status: "open",
+            priority: "medium",
+            createdAt: new Date().toISOString(),
+            source: "voice_memo",
+          };
+          setProjects(prev => prev.map(p => p.id !== project.id ? p : {
+            ...p, tasks: [...(p.tasks || []), newTask],
+          }));
+          showToast("Note vocale enregistrée comme tâche");
         }}
       />
 

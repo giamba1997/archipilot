@@ -14,3 +14,4 @@ export { SuggestedTasksModal } from "./SuggestedTasksModal";
 export { SignOprModal } from "./SignOprModal";
 export { SendOprModal } from "./SendOprModal";
 export { RequestSignaturesModal } from "./RequestSignaturesModal";
+export { PhaseWizardModal } from "./PhaseWizardModal";

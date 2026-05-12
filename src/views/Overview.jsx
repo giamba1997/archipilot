@@ -19,7 +19,10 @@ import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
 import { usePresence } from "../hooks/usePresence";
 import { TimerCard } from "./TimerCard";
 import { CdcBanner } from "./CdcBanner";
-import { loadInvoices } from "../db";
+import { OverviewPhaseHero, getPhaseHeroVariant } from "./OverviewPhaseHero";
+import { InvoicesView } from "./InvoicesView";
+import { QuotesView } from "./QuotesView";
+import { loadInvoices, loadQuotes } from "../db";
 import { PlanManager } from "./PlanManager";
 import { PlanningView } from "./PlanningView";
 import { GalleryView } from "./GalleryView";
@@ -112,7 +115,7 @@ function ToolEntry({ icon, iconColor, title, subtitle, onClick }) {
   );
 }
 
-export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewTasks, onOpr, onJournal, onInvoices, onPermits, onQuotes, onReports, onArchive, onDuplicate, onImportPV, setProjects, onCollab, showToast: showToastProp, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onDiscardTimer, onOpenSessions, onAskAiAboutCdc, onAnnotatePlan, onCropPlan, onAnnotatePhoto }) {
+export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants, onViewPV, onViewPdf, onViewPlan, onViewPlanning, onViewTasks, onOpr, onJournal, onInvoices, onPermits, onQuotes, onReports, onChantierVisit, onArchive, onDuplicate, onImportPV, setProjects, onCollab, showToast: showToastProp, onGallery, activeContext, profile, activeTimer, onStartTimer, onPauseResumeTimer, onStopTimer, onDiscardTimer, onOpenSessions, onAskAiAboutCdc, onAnnotatePlan, onCropPlan, onAnnotatePhoto }) {
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
@@ -201,6 +204,18 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         });
       })
       .catch(() => { /* table peut ne pas exister, on tombe en silence */ });
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
+  // Compteur de devis — sert au badge de l'onglet Devis. Même pattern
+  // failsafe que invoicesSummary : silencieux si la table n'existe pas.
+  const [quotesCount, setQuotesCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    if (!project?.id) return;
+    loadQuotes({ projectId: project.id })
+      .then(qs => { if (!cancelled) setQuotesCount((qs || []).length); })
+      .catch(() => { /* table absente — count reste à 0 */ });
     return () => { cancelled = true; };
   }, [project?.id]);
 
@@ -309,15 +324,21 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         //   - Résumé / Plus : pas de compteur (vues d'agrégation)
         const tabs = [
           { id: "resume",     label: "Résumé" },
-          // Fiche projet — infos identité (client, MO, entreprise, participants,
-          // cahier des charges). Onglet statique, pas de compteur — c'est de la
-          // donnée de référence, pas de la production quotidienne.
-          { id: "fiche",      label: "Fiche" },
           { id: "actions",    label: "Actions",   count: openActions.length,                showZero: true },
           { id: "planning",   label: "Planning",  count: (project.lots || []).length,       showZero: false },
           { id: "pv",         label: "PV",        count: (project.pvHistory || []).length, showZero: false },
+          // Facturation & Devis — embarqués sous forme d'onglets pour un accès
+          // direct sans quitter l'Overview. Affichés seulement si compteur > 0
+          // pour ne pas alourdir la barre quand le projet est à un stade
+          // qui n'a pas encore de facture / devis.
+          { id: "invoices",   label: "Facturation", count: invoiceSummary?.total || 0,      showZero: false },
+          { id: "quotes",     label: "Devis",      count: quotesCount,                      showZero: false },
           { id: "documents",  label: "Documents", count: (project.planFiles || []).filter(f => f.type !== "folder").length, showZero: false },
           { id: "photos",     label: "Photos",    count: (project.gallery || []).length,    showZero: false },
+          // Fiche projet — placée en dernier car c'est une vue de référence
+          // (infos identité, participants, CDC). On y va occasionnellement
+          // pour consulter ou éditer, mais c'est pas du flux quotidien.
+          { id: "fiche",      label: "Fiche" },
         ];
         return (
           <div style={{
@@ -364,6 +385,138 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
         {/* ═══ Colonne principale ═══ */}
         <div className="ap-col-main" style={{ flex: "1 1 360px", display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+
+          {/* Hero adaptatif par phase — c'est l'élément le plus important
+              de la page, son contenu varie selon project.statusId.
+              Voir OverviewPhaseHero.jsx pour les 6 variants. */}
+          <OverviewPhaseHero
+            project={project}
+            onAskAiAboutCdc={onAskAiAboutCdc}
+            onEditParticipants={onEditParticipants}
+            onEditInfo={onEditInfo}
+            onPermits={onPermits}
+            onViewPlanning={onViewPlanning}
+            onStartNotes={onStartNotes}
+            onOpr={onOpr}
+            onJournal={onJournal}
+            onArchive={onArchive}
+            onChantierVisit={onChantierVisit}
+          />
+
+          {/* À faire — la carte Actions ouvertes a été remplacée par cette
+              to-do list basée sur project.tasks[] (modèle riche : statuts,
+              priorités, échéances, parent). En tête : "À faire maintenant"
+              avec le prochain PV à préparer. Liste ensuite les tâches
+              ouvertes triées par priorité puis échéance.
+              Masqué en phase Chantier car le hero (variant "tasks") prend
+              déjà ce rôle de manière plus visible.
+              Positionnée juste après le Hero pour être immédiatement
+              actionnable, sans avoir à scroller jusqu'en bas. */}
+          {getPhaseHeroVariant(project.statusId) !== "tasks" && (() => {
+            const tasks = project.tasks || [];
+            // "Ouvertes" = tout sauf clôturées et brouillons (Créée). On
+            // priorise ce qui est réellement actif : Ouverte / En progrès /
+            // En attente de validation.
+            const openTasks = sortTasks(tasks.filter(t => !isClosed(t.status) && t.status !== "created"));
+            const top = openTasks.slice(0, 6);
+            const remaining = openTasks.length - top.length;
+            return (
+              <div className="ap-section-actions"><Card>
+                <CardHeader
+                  title="À faire"
+                  action={openTasks.length > 0
+                    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: TX3, background: SB2, padding: "2px 9px", borderRadius: 20 }}>{openTasks.length} ouverte{openTasks.length > 1 ? "s" : ""}</span>
+                    : null}
+                />
+
+                {/* Sous-section "À faire maintenant" — guidance contextuelle. */}
+                {_canEdit && (() => {
+                  const nextPvN = nextPvNumber(project.pvHistory);
+                  const hasMeeting = !!project.nextMeeting;
+                  return (
+                    <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 10, padding: "12px 14px", marginBottom: openTasks.length > 0 ? 12 : 0 }}>
+                      <div style={{ fontSize: FS.xs, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        À faire maintenant
+                      </div>
+                      <div style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: 1.3, marginTop: 2 }}>
+                        Préparer le PV n°{nextPvN}
+                      </div>
+                      <div style={{ fontSize: FS.sm, color: TX2, lineHeight: 1.4, marginTop: 2 }}>
+                        À partir du dernier PV validé et des éléments du projet.
+                      </div>
+                      {!hasMeeting && (
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, fontSize: FS.xs, color: TX3, flexWrap: "wrap" }}>
+                          <Ico name="calendar" size={10} color={TX3} />
+                          <span>Aucune réunion planifiée</span>
+                          <span style={{ color: SBB }}>·</span>
+                          <button onClick={onEditInfo}
+                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: FS.xs, color: AC, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>
+                            Planifier maintenant
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                        {lastPV && (
+                          <button onClick={() => onViewPV(lastPV)}
+                            style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <Ico name="eye" size={11} color={TX3} />
+                            Voir le dernier PV
+                          </button>
+                        )}
+                        <button onClick={() => onStartNotes()}
+                          style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(192,90,44,0.2)" }}>
+                          <Ico name="edit" size={11} color={WH} />
+                          Préparer le PV n°{nextPvN}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Liste des tâches ouvertes — checkbox compacte qui avance le statut. */}
+                {openTasks.length === 0 ? (
+                  <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>Aucune tâche ouverte.</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${SBB}`, borderRadius: 8, overflow: "hidden" }}>
+                    {top.map((task, i) => {
+                      const status = getTaskStatus(task.status);
+                      const priority = getTaskPriority(task.priority);
+                      const overdue = isOverdue(task);
+                      const due = task.dueDate ? new Date(task.dueDate).toLocaleDateString("fr-BE", { day: "numeric", month: "short" }) : null;
+                      return (
+                        <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: i > 0 ? `1px solid ${SBB}` : "none", background: WH }}>
+                          <button onClick={() => setProjects(prev => prev.map(p => p.id !== project.id ? p : advanceTaskStatus(p, task.id)))}
+                            title={`Avancer le statut (actuel : ${status.label})`}
+                            style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
+                            <Ico name="arrowr" size={9} color={TX3} />
+                          </button>
+                          <span title={priority.label} style={{ width: 7, height: 7, borderRadius: "50%", background: priority.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, fontWeight: 700, color: TX3, fontFamily: "ui-monospace, monospace", flexShrink: 0 }}>#{task.number || "?"}</span>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: FS.sm, fontWeight: 500, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {task.title}
+                            {due && <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? BR : TX3, fontWeight: overdue ? 700 : 500 }}>· {due}{overdue && " (en retard)"}</span>}
+                          </div>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: status.color, background: status.bg, padding: "2px 7px", borderRadius: 10, flexShrink: 0 }}>{status.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Lien vers la vue Tâches complète (Listes de contrôle retirée
+                    — voir Tasks pour le suivi des actions). */}
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  {(remaining > 0 || openTasks.length > 0) && (
+                    <button onClick={onViewTasks}
+                      style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <Ico name="listcheck" size={11} color={TX3} />
+                      {remaining > 0 ? `Voir toutes les tâches (+${remaining})` : "Ouvrir la vue Tâches"}
+                    </button>
+                  )}
+                </div>
+              </Card></div>
+            );
+          })()}
 
           {/* Banner suggestions IA — apparaît tant qu'il y a des tâches
               potentielles non traitées sur les PV. Subtil, action explicite. */}
@@ -499,27 +652,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               conditionnel à la phase pour éviter le bruit (pas de Permis en
               chantier, pas de Rapport en esquisse, etc.). */}
 
-          {/* Honoraires — toujours visible : on facture à toutes les phases.
-              I3 — icône en rouge si factures en retard pour signaler l'urgence
-              de relance, sinon terracotta (couleur primaire). */}
-          <ToolEntry
-            icon="file"
-            iconColor={invoiceSummary?.overdueCount > 0 ? BR : AC}
-            title="Honoraires & facturation"
-            subtitle={invoicesSubtitle}
-            onClick={onInvoices}
-          />
-
-          {/* Devis — visible quand le projet a des lots (sinon pas de rattachement). */}
-          {(project.lots || []).length > 0 && (
-            <ToolEntry
-              icon="chart"
-              iconColor={SG}
-              title="Devis & soumissions"
-              subtitle="Upload + extraction IA + comparaison automatique"
-              onClick={onQuotes}
-            />
-          )}
+          {/* Facturation & Devis retirés du Résumé — désormais accessibles
+              directement via les onglets "Facturation" et "Devis" de la
+              tab bar (avec badge de compteur). L'overdue éventuel sera
+              surfacée dans le hero ou via une notif dédiée à terme. */}
 
           {/* Permis — visible en phase amont (esquisse/AVP/permis). */}
           {["sketch", "preliminary", "permit"].includes(project.statusId) && (
@@ -543,7 +679,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             />
           )}
 
-          {/* Journal — visible seulement si le projet a déjà du contenu chronologique. */}
+          {/* Journal — visible dès que la rédaction de PV est pertinente
+              (exécution / chantier / réception / clôturé). En amont, on
+              ne le montre que s'il y a déjà du contenu (cas import d'un
+              projet en cours). Le subtitle s'adapte selon le remplissage. */}
           {(() => {
             const journalCount =
               (project.pvHistory || []).length +
@@ -551,20 +690,26 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               (project.reserves || []).filter(r => r.createdAt).length +
               (project.gallery || []).length +
               (project.journalEntries || []).length;
-            if (journalCount === 0) return null;
+            const phaseRelevant = ["execution", "construction", "reception", "closed"].includes(project.statusId);
+            if (!phaseRelevant && journalCount === 0) return null;
             return (
               <ToolEntry
                 icon="history"
                 iconColor={TX2}
                 title="Journal de chantier"
-                subtitle={`${journalCount} entrée${journalCount > 1 ? "s" : ""} chronologique${journalCount > 1 ? "s" : ""}`}
+                subtitle={journalCount > 0
+                  ? `${journalCount} entrée${journalCount > 1 ? "s" : ""} chronologique${journalCount > 1 ? "s" : ""}`
+                  : "Timeline auto des PV, photos, OPR — export PDF conforme RGPT"}
                 onClick={onJournal}
               />
             );
           })()}
 
-          {/* OPR Summary Card */}
-          {(project.statusId === "reception" || (project.reserves || []).length > 0) && (() => {
+          {/* OPR Summary Card — masqué en phase Réception car le hero
+              prend déjà ce rôle (cf. OverviewPhaseHero variant "opr").
+              Reste visible dans les autres phases qui ont des réserves
+              (ex : réserves créées en Chantier avant la phase Réception). */}
+          {getPhaseHeroVariant(project.statusId) !== "opr" && (project.statusId === "reception" || (project.reserves || []).length > 0) && (() => {
             const res = project.reserves || [];
             const total = res.length;
             const levees = res.filter(r => r.status === "levee").length;
@@ -597,116 +742,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           {/* Anciennes cartes colorées Documents/Photos/Planning/Listes retirées —
               remplacées par les onglets en haut de la page. */}
 
-          {/* À faire — la carte Actions ouvertes a été remplacée par cette
-              to-do list basée sur project.tasks[] (modèle riche : statuts,
-              priorités, échéances, parent). En tête : "À faire maintenant"
-              avec le prochain PV à préparer. Liste ensuite les tâches
-              ouvertes triées par priorité puis échéance. */}
-          {(() => {
-            const tasks = project.tasks || [];
-            // "Ouvertes" = tout sauf clôturées et brouillons (Créée). On
-            // priorise ce qui est réellement actif : Ouverte / En progrès /
-            // En attente de validation.
-            const openTasks = sortTasks(tasks.filter(t => !isClosed(t.status) && t.status !== "created"));
-            const top = openTasks.slice(0, 6);
-            const remaining = openTasks.length - top.length;
-            return (
-              <div className="ap-section-actions"><Card>
-                <CardHeader
-                  title="À faire"
-                  action={openTasks.length > 0
-                    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: TX3, background: SB2, padding: "2px 9px", borderRadius: 20 }}>{openTasks.length} ouverte{openTasks.length > 1 ? "s" : ""}</span>
-                    : null}
-                />
-
-                {/* Sous-section "À faire maintenant" — guidance contextuelle. */}
-                {_canEdit && (() => {
-                  const nextPvN = nextPvNumber(project.pvHistory);
-                  const hasMeeting = !!project.nextMeeting;
-                  return (
-                    <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 10, padding: "12px 14px", marginBottom: openTasks.length > 0 ? 12 : 0 }}>
-                      <div style={{ fontSize: FS.xs, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        À faire maintenant
-                      </div>
-                      <div style={{ fontSize: FS.md, fontWeight: 700, color: TX, lineHeight: 1.3, marginTop: 2 }}>
-                        Préparer le PV n°{nextPvN}
-                      </div>
-                      <div style={{ fontSize: FS.sm, color: TX2, lineHeight: 1.4, marginTop: 2 }}>
-                        À partir du dernier PV validé et des éléments du projet.
-                      </div>
-                      {!hasMeeting && (
-                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, fontSize: FS.xs, color: TX3, flexWrap: "wrap" }}>
-                          <Ico name="calendar" size={10} color={TX3} />
-                          <span>Aucune réunion planifiée</span>
-                          <span style={{ color: SBB }}>·</span>
-                          <button onClick={onEditInfo}
-                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: FS.xs, color: AC, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 2 }}>
-                            Planifier maintenant
-                          </button>
-                        </div>
-                      )}
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-                        {lastPV && (
-                          <button onClick={() => onViewPV(lastPV)}
-                            style={{ padding: "8px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                            <Ico name="eye" size={11} color={TX3} />
-                            Voir le dernier PV
-                          </button>
-                        )}
-                        <button onClick={() => onStartNotes()}
-                          style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(192,90,44,0.2)" }}>
-                          <Ico name="edit" size={11} color={WH} />
-                          Préparer le PV n°{nextPvN}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Liste des tâches ouvertes — checkbox compacte qui avance le statut. */}
-                {openTasks.length === 0 ? (
-                  <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>Aucune tâche ouverte.</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${SBB}`, borderRadius: 8, overflow: "hidden" }}>
-                    {top.map((task, i) => {
-                      const status = getTaskStatus(task.status);
-                      const priority = getTaskPriority(task.priority);
-                      const overdue = isOverdue(task);
-                      const due = task.dueDate ? new Date(task.dueDate).toLocaleDateString("fr-BE", { day: "numeric", month: "short" }) : null;
-                      return (
-                        <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderTop: i > 0 ? `1px solid ${SBB}` : "none", background: WH }}>
-                          <button onClick={() => setProjects(prev => prev.map(p => p.id !== project.id ? p : advanceTaskStatus(p, task.id)))}
-                            title={`Avancer le statut (actuel : ${status.label})`}
-                            style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
-                            <Ico name="arrowr" size={9} color={TX3} />
-                          </button>
-                          <span title={priority.label} style={{ width: 7, height: 7, borderRadius: "50%", background: priority.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 10, fontWeight: 700, color: TX3, fontFamily: "ui-monospace, monospace", flexShrink: 0 }}>#{task.number || "?"}</span>
-                          <div style={{ flex: 1, minWidth: 0, fontSize: FS.sm, fontWeight: 500, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {task.title}
-                            {due && <span style={{ marginLeft: 8, fontSize: 10, color: overdue ? BR : TX3, fontWeight: overdue ? 700 : 500 }}>· {due}{overdue && " (en retard)"}</span>}
-                          </div>
-                          <span style={{ fontSize: 9, fontWeight: 700, color: status.color, background: status.bg, padding: "2px 7px", borderRadius: 10, flexShrink: 0 }}>{status.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Lien vers la vue Tâches complète (Listes de contrôle retirée
-                    — voir Tasks pour le suivi des actions). */}
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  {(remaining > 0 || openTasks.length > 0) && (
-                    <button onClick={onViewTasks}
-                      style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <Ico name="listcheck" size={11} color={TX3} />
-                      {remaining > 0 ? `Voir toutes les tâches (+${remaining})` : "Ouvrir la vue Tâches"}
-                    </button>
-                  )}
-                </div>
-              </Card></div>
-            );
-          })()}
+          {/* Carte "À faire" remontée juste après le Hero — voir plus haut. */}
 
           {/* Informations projet déplacée vers l'onglet Fiche. */}
 
@@ -779,28 +815,41 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           </div>
 
           {/* ── Desktop: full cards (hidden on mobile) ── */}
-          <div className="ap-desktop-side">
-            <div style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
-              {/* Prochaine réunion — reste en sidebar (info dynamique
-                  quotidienne, pas une donnée d'identité). */}
-              <MeetingCard project={project} setProjects={setProjects} rec={rec} />
+          {/* Sidebar adaptative — MeetingCard et TimerCard ne sont
+              pertinentes qu'en phases avec activité quotidienne. En
+              Esquisse/Avant-projet, pas encore de réunions chantier.
+              En Clôturé, le projet est terminé — pas de suivi temps actif.
+              Si les deux blocs sont masqués, on cache aussi la colonne
+              entière pour éviter le whitespace inutile. */}
+          {(() => {
+            const sidebarActivePhases = ["permit", "execution", "construction", "reception"];
+            const showSidebarBlocks = sidebarActivePhases.includes(project.statusId);
+            if (!showSidebarBlocks) return null;
+            return (
+              <div className="ap-desktop-side">
+                <div style={{ display: "flex", flexDirection: "column", gap: SP.lg - 2 }}>
+                  {/* Prochaine réunion — reste en sidebar (info dynamique
+                      quotidienne, pas une donnée d'identité). */}
+                  <MeetingCard project={project} setProjects={setProjects} rec={rec} />
 
-              {/* Carte Participants déplacée vers l'onglet Fiche. */}
+                  {/* Carte Participants déplacée vers l'onglet Fiche. */}
 
-              {/* Suivi du temps — sous les blocs principaux. */}
-              {onStartTimer && (
-                <TimerCard
-                  project={project}
-                  activeTimer={activeTimer}
-                  onStart={onStartTimer}
-                  onPauseResume={onPauseResumeTimer}
-                  onStop={onStopTimer}
-                  onDiscard={onDiscardTimer}
-                  onOpenSessions={onOpenSessions}
-                />
-              )}
-            </div>
-          </div>
+                  {/* Suivi du temps — sous les blocs principaux. */}
+                  {onStartTimer && (
+                    <TimerCard
+                      project={project}
+                      activeTimer={activeTimer}
+                      onStart={onStartTimer}
+                      onPauseResume={onPauseResumeTimer}
+                      onStop={onStopTimer}
+                      onDiscard={onDiscardTimer}
+                      onOpenSessions={onOpenSessions}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
         </div>
       </div>
@@ -1055,6 +1104,17 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
       {/* ═══ Onglet Planning — PlanningView embarqué inline ═══ */}
       {activeTab === "planning" && (
         <TabPanelPlanning project={project} setProjects={setProjects} profile={profile} showToast={showToast} />
+      )}
+
+      {/* ═══ Onglet Honoraires — InvoicesView embarquée inline ═══
+          Pas de prop onBack → pas de bouton retour (la nav passe par tabs). */}
+      {activeTab === "invoices" && (
+        <InvoicesView project={project} profile={profile} showToast={showToast} />
+      )}
+
+      {/* ═══ Onglet Devis — QuotesView embarquée inline ═══ */}
+      {activeTab === "quotes" && (
+        <QuotesView project={project} profile={profile} showToast={showToast} />
       )}
 
       {/* ═══ Onglet Photos — GalleryView embarqué inline ═══ */}

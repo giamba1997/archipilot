@@ -164,12 +164,15 @@ export function QuotesView({ project, profile, showToast, onBack }) {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
-      {/* Header */}
+      {/* Header — bouton retour conditionnel (mode plein écran uniquement).
+          Embarqué dans un onglet, la nav passe par la tab bar. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
-            <Ico name="back" color={TX2} size={16} />
-          </button>
+          {onBack && (
+            <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+              <Ico name="back" color={TX2} size={16} />
+            </button>
+          )}
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Devis & soumissions</div>
             <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Upload + extraction IA + comparaison par lot</div>

@@ -26,11 +26,14 @@ export function MobileBottomBar({ view, onNavigate, onCapture }) {
         {/* Left tabs */}
         <Tab id="overview" icon="building" label="Projet" active={isActive("overview")} onNavigate={onNavigate} />
         <Tab id="notes" icon="file" label="PV" active={isActive("notes")} onNavigate={onNavigate} />
-        {/* Center FAB — raised into the bump */}
+        {/* Center FAB — ouvre QuickCaptureSheet avec 4 actions capture.
+            L'icône passe de "camera" à "plus" pour signifier que c'est
+            un menu et pas une action unique. Le label "Capture" couvre
+            les 4 sous-actions (photo / voix / réserve / PV). */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <button onClick={onCapture} aria-label="Photo" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
-            <Ico name="camera" size={26} color="#fff" />
-            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Photo</span>
+          <button onClick={onCapture} aria-label="Capture rapide" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
+            <Ico name="plus" size={28} color="#fff" />
+            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Capture</span>
           </button>
         </div>
         {/* Right tabs */}
