@@ -14,7 +14,7 @@ function Tab({ id, icon, label, active, onNavigate }) {
 }
 
 export function MobileBottomBar({ view, onNavigate, onCapture }) {
-  const isActive = (id) => view === id || (id === "overview" && view === "overview") || (id === "notes" && (view === "notes" || view === "result")) || (id === "plan" && (view === "plan" || view === "planning" || view === "checklists"));
+  const isActive = (id) => view === id || (id === "overview" && (view === "overview" || view === "mobileHome")) || (id === "notes" && (view === "notes" || view === "result")) || (id === "plan" && (view === "plan" || view === "planning" || view === "checklists"));
   return (
     <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {/* Background shape — full width, deep bump hugging the 56px circle */}

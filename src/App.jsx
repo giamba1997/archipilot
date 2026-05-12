@@ -38,6 +38,7 @@ class ErrorBoundary extends Component {
 import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadProfile as dbLoadProfile, saveProfile as dbSaveProfile, uploadPhoto, deletePhoto, getPhotoUrl, inviteMember, loadProjectMembers, updateMemberRole, removeMember, loadMyInvitations, respondToInvitation, loadSharedProjects, loadNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, deleteAllNotifications, subscribeToNotifications, sendPvByEmail, loadPvSends, track, parseFunctionError, loadOrgProjects, saveOrgProjects, loadMyOrganizations, loadPendingInvitationForMe, savePermit } from "./db";
 import { useInviteToken } from "./hooks/useInviteToken";
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext";
+import { useIsMobile } from "./hooks/useIsMobile";
 import useUIStore from "./stores/useUIStore";
 
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST, BR, BRB } from "./constants/tokens";
@@ -64,7 +65,7 @@ import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { ProjectDetail } from "./pages/ProjectDetail";
 
 // ── Détection v2 ────────────────────────────────────────────
@@ -147,8 +148,23 @@ export default function App() {
     refreshMyOrgs,
     validateOrgContext,
   } = ws;
+  const isMobile = useIsMobile();
   const [view, _setView] = useState("overview");
   const setView = (v) => { _setView(v); track("page_viewed", { _page: v }); };
+  // ── Routage initial mobile (Étape 3) ──
+  // Au premier rendu sur mobile, on bascule sur la home mobile dédiée
+  // plutôt que sur l'Overview du dernier projet ouvert. La home agrège
+  // les infos urgentes du jour et laisse l'archi choisir son projet.
+  // On ne le fait qu'une fois (initialMobileViewRef.current) pour ne
+  // pas re-router quand la viewport passe sous 768px en cours d'usage.
+  const initialMobileViewRef = useRef(false);
+  useEffect(() => {
+    if (initialMobileViewRef.current) return;
+    if (!dbLoaded) return;
+    if (!isMobile) { initialMobileViewRef.current = true; return; }
+    initialMobileViewRef.current = true;
+    _setView("mobileHome");
+  }, [dbLoaded, isMobile]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);
@@ -1448,6 +1464,18 @@ export default function App() {
           {view !== "profile" && project && view === "chantier" && <ChantierModeView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
           {view === "mapDashboard" && <MapDashboardView projects={projects} setProjects={setProjects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
+          {view === "mobileHome" && (
+            <MobileHome
+              projects={projects}
+              notifications={notifications}
+              profile={profile}
+              onSelectProject={(id) => { setActiveId(id); setView("overview"); }}
+              onOpenAllProjects={() => setProjectPicker(true)}
+              onOpenMap={() => setView("mapDashboard")}
+              onOpenNotifications={() => setShowNotifications(true)}
+              onOpenNewProject={() => setModal("new")}
+            />
+          )}
           {view === "timesheet" && (() => {
             const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
             const myOrg = orgId ? (myOrgs || []).find(o => o.id === orgId) : null;
@@ -2232,7 +2260,15 @@ Règles :
       {/* ── Mobile Bottom Bar ── */}
       <MobileBottomBar
         view={view}
-        onNavigate={(tab) => { setView(tab); setSidebarOpen(false); }}
+        onNavigate={(tab) => {
+          // Sur mobile, l'onglet "Projet" route vers la home mobile dédiée
+          // (agrégateur d'urgences + sélecteur de projet) plutôt que vers
+          // l'Overview d'un projet auto-sélectionné, qui n'a pas toujours
+          // de sens si l'archi vient juste d'ouvrir l'app.
+          if (tab === "overview" && isMobile) tab = "mobileHome";
+          setView(tab);
+          setSidebarOpen(false);
+        }}
         onCapture={() => setCaptureSheet(true)}
       />
 

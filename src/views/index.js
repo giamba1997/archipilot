@@ -30,6 +30,7 @@ export { PublicSignPage } from "./PublicSignPage";
 export { ReserveLibrarySection } from "./ReserveLibrarySection";
 export { OverviewPhaseHero, getPhaseHeroVariant } from "./OverviewPhaseHero";
 export { ChantierModeView } from "./ChantierModeView";
+export { MobileHome } from "./MobileHome";
 export { JournalView } from "./JournalView";
 export { InvoicesView } from "./InvoicesView";
 export { PermitsView } from "./PermitsView";
