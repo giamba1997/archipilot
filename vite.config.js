@@ -12,6 +12,16 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Mode injectManifest : on fournit notre propre SW (src/sw.js) pour
+      // pouvoir y brancher les handlers push + notificationclick (Étape 4
+      // mobile). Le runtime caching et le precaching sont assurés par
+      // workbox côté SW, comme avec generateSW.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
+      },
       includeAssets: ['icon-512.png'],
       manifest: {
         name: 'ArchiPilot',
@@ -39,35 +49,6 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-      },
-      workbox: {
-        // Précache tous les assets statiques de l'app shell
-        globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
-        // Stratégie : Network-first pour les navigations, Cache-first pour les assets
-        runtimeCaching: [
-          {
-            // Assets JS/CSS déjà précachés — Cache-first
-            urlPattern: /\.(?:js|css)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-assets',
-              expiration: { maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 },
-            },
-          },
-          {
-            // Images — Cache-first, longue durée
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images',
-              expiration: { maxEntries: 100, maxAgeSeconds: 90 * 24 * 60 * 60 },
-            },
-          },
-        ],
-        // Garder les PV et notes accessibles offline via les données en cache
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/],
-        cleanupOutdatedCaches: true,
       },
       devOptions: {
         // Désactiver le SW en dev (évite les conflits HMR)

@@ -11,6 +11,7 @@ import { MfaSection } from "./MfaSection";
 import { PDFPreview } from "./PDFPreview";
 import { ReserveLibrarySection } from "./ReserveLibrarySection";
 import { sanitizeEmailHtml } from "../utils/sanitize";
+import { useWebPushSubscription } from "../hooks/useWebPushSubscription";
 
 
 const PROFILE_SECTIONS = [
@@ -22,6 +23,7 @@ const PROFILE_SECTIONS = [
   { id: "info", icon: "file", label: "Informations" },
   { id: "billing", icon: "file", label: "Facturation" },
   { id: "alerts", icon: "clock", label: "Alertes" },
+  { id: "push", icon: "bell", label: "Notifications push" },
   { id: "lang", icon: "building", label: "Langue" },
   { id: "appearance", icon: "chart", label: "Apparence PV" },
   { id: "preview", icon: "eye", label: "Aperçu" },
@@ -594,6 +596,13 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         })}
       </div>
 
+      {/* Notifications push (Mobile Étape 4) */}
+      <PushPreferencesSection
+        form={form}
+        set={set}
+        refFor={refFor}
+      />
+
       {/* Signature email */}
       <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Signature email</div>
@@ -948,6 +957,156 @@ function DataSection({ refFor }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── PushPreferencesSection — gestion abonnement + toggles catégories ──
+//
+// Bloc dédié aux notifications push : kill-switch + 6 toggles par
+// catégorie + état clair selon la compatibilité navigateur.
+//
+// Cas spéciaux gérés :
+//   - navigateur non compatible (iOS Safari < 16.4 / Firefox sans push) :
+//     affiche un message d'explication + lien aide
+//   - permission refusée : explique comment ré-autoriser dans les
+//     paramètres navigateur (texte court — pas de screenshot pour
+//     éviter de devoir maintenir 6 captures à jour)
+//   - utilisateur déjà abonné : bouton "Désactiver" + toggles catégorie
+//   - utilisateur non abonné : bouton "Activer" central + toggles grisés
+function PushPreferencesSection({ form, set, refFor }) {
+  const push = useWebPushSubscription();
+  const pushSettings = form.pushSettings || {
+    enabled: true, opr: true, permits: true, reserves: true,
+    invoices: true, collab: true, reception: true,
+  };
+  const updateSetting = (key, value) => {
+    set("pushSettings")({ ...pushSettings, [key]: value });
+  };
+
+  const isIos = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isStandalone = typeof window !== "undefined"
+    && (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone);
+
+  return (
+    <div ref={refFor("push")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Notifications push</div>
+      <div style={{ fontSize: 11, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
+        Reçois une alerte instantanée sur ton téléphone ou ton bureau quand quelque chose mérite ton attention (OPR signé, échéance permis, etc.). Les toggles ci-dessous permettent un opt-in granulaire.
+      </div>
+
+      {/* État haut : non supporté / iOS non-PWA / pas abonné / abonné */}
+      {!push.isSupported && (
+        <div style={{ padding: 12, background: SB, borderRadius: 10, fontSize: 12, color: TX2, marginBottom: 14, lineHeight: 1.5 }}>
+          <strong>Notifications push non disponibles sur ce navigateur.</strong> Les push fonctionnent sur Chrome, Edge, Firefox desktop, ainsi qu'iOS 16.4+ (uniquement si l'app est installée sur l'écran d'accueil).
+        </div>
+      )}
+
+      {push.isSupported && isIos && !isStandalone && (
+        <div style={{ padding: 12, background: ACL, borderRadius: 10, fontSize: 12, color: TX2, marginBottom: 14, lineHeight: 1.5 }}>
+          <strong>Sur iPhone, installe d'abord l'app.</strong> Ouvre cette page dans Safari, tape l'icône de partage, puis « Sur l'écran d'accueil ». Lance ArchiPilot depuis l'icône, et la permission push deviendra disponible (iOS 16.4+).
+        </div>
+      )}
+
+      {push.isSupported && push.permission === "denied" && (
+        <div style={{ padding: 12, background: BRB, borderRadius: 10, fontSize: 12, color: BR, marginBottom: 14, lineHeight: 1.5 }}>
+          <strong>Permission refusée précédemment.</strong> Ré-autorise les notifications via l'icône cadenas/info de la barre d'adresse (Chrome/Edge : icône à gauche de l'URL → Notifications → Autoriser).
+        </div>
+      )}
+
+      {push.isSupported && push.permission !== "denied" && (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", background: SB, borderRadius: 10, marginBottom: 14 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: push.isSubscribed ? SGB : SBB,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            <Ico name="bell" size={18} color={push.isSubscribed ? SG : TX3} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>
+              {push.isSubscribed ? "Cet appareil est abonné" : "Cet appareil n'est pas abonné"}
+            </div>
+            <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>
+              {push.isSubscribed ? "Tu reçois les notifications activées ci-dessous." : "Active pour recevoir les notifications push ici."}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={push.busy}
+            onClick={() => push.isSubscribed ? push.unsubscribe() : push.subscribe()}
+            style={{
+              padding: "8px 14px",
+              border: push.isSubscribed ? `1px solid ${SBB}` : "none",
+              borderRadius: 8,
+              background: push.isSubscribed ? WH : AC,
+              color: push.isSubscribed ? TX2 : "#fff",
+              fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+              cursor: push.busy ? "wait" : "pointer", flexShrink: 0,
+              opacity: push.busy ? 0.6 : 1,
+            }}
+          >
+            {push.busy ? "…" : push.isSubscribed ? "Désactiver" : "Activer"}
+          </button>
+        </div>
+      )}
+
+      {push.error && (
+        <div style={{ padding: "8px 12px", background: BRB, color: BR, borderRadius: 8, fontSize: 12, marginBottom: 14 }}>
+          {push.error}
+        </div>
+      )}
+
+      {/* Toggles catégories — actifs même si pas abonné (l'archi peut
+          configurer ses préfs avant d'activer l'abonnement) */}
+      {[
+        { id: "enabled",   label: "Notifications push activées",        desc: "Kill-switch global. Si désactivé, aucune push n'est envoyée." },
+        { id: "opr",       label: "OPR : signature / refus / complet",  desc: "Quand un signataire signe ou refuse, et quand toutes les signatures sont reçues." },
+        { id: "permits",   label: "Permis : échéance proche",           desc: "J-7, J-1 et J+0 avant la décision communale." },
+        { id: "reserves",  label: "Réserves critiques",                 desc: "Réserves urgentes non levées depuis 30 jours." },
+        { id: "invoices",  label: "Factures en retard",                 desc: "À partir de J+30 après la date d'échéance." },
+        { id: "collab",    label: "Collaboration",                      desc: "Invitations acceptées, modifs coéquipiers." },
+        { id: "reception", label: "Réception définitive",               desc: "J-30 avant l'anniversaire de l'OPR provisoire." },
+      ].map(opt => {
+        const v = pushSettings[opt.id] !== false;
+        const isGlobalKill = opt.id === "enabled";
+        const greyed = !isGlobalKill && pushSettings.enabled === false;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => updateSetting(opt.id, !v)}
+            style={{
+              display: "flex", alignItems: "center", gap: 12,
+              width: "100%", padding: "10px 12px",
+              border: `1px solid ${SBB}`, borderRadius: 10,
+              background: isGlobalKill ? ACL : WH,
+              marginBottom: 6, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+              opacity: greyed ? 0.45 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
+            <div style={{
+              width: 32, height: 18, borderRadius: 999,
+              background: v ? AC : SBB,
+              position: "relative", flexShrink: 0,
+              transition: "background 0.15s",
+            }}>
+              <div style={{
+                position: "absolute", top: 2, left: v ? 16 : 2,
+                width: 14, height: 14, borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.15s",
+              }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: isGlobalKill ? 700 : 600, color: TX }}>{opt.label}</div>
+              <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{opt.desc}</div>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

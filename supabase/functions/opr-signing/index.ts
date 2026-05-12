@@ -25,6 +25,31 @@ function isExpired(row: Record<string, unknown>): boolean {
   return new Date(exp).getTime() < Date.now();
 }
 
+// Déclenche une push notification au destinataire via l'edge function
+// dédiée (Mobile Étape 4). Fire-and-forget : tout échec est silencieux,
+// la notif cloche en DB reste la source de vérité.
+async function firePush(payload: {
+  target_user_id: string;
+  category: "opr";
+  title: string;
+  body: string;
+  deep_link?: string;
+  data?: Record<string, unknown>;
+}) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.warn("firePush failed (non-blocking):", e);
+  }
+}
+
 // Crée les notifications cloche pour l'architecte propriétaire :
 //   - opr_signed | opr_declined : notif individuelle pour chaque action
 //   - opr_completed : déclenchée si TOUTES les demandes liées à cet OPR
@@ -59,6 +84,20 @@ async function notifyOnStatusChange(
     }
     result.inserted = true;
 
+    // Push parallèle à la notif cloche (Étape 4)
+    firePush({
+      target_user_id: row.owner_user_id as string,
+      category: "opr",
+      title: newStatus === "signed"
+        ? `Signature OPR ${row.opr_number}`
+        : `Refus OPR ${row.opr_number}`,
+      body: newStatus === "signed"
+        ? `${row.signatory_name || "Un signataire"} a signé.`
+        : `${row.signatory_name || "Un signataire"} a refusé de signer.`,
+      deep_link: `/?project=${encodeURIComponent(String(row.project_id || ""))}&view=opr`,
+      data: { opr_id: row.opr_id, opr_number: row.opr_number },
+    });
+
     // Si la nouvelle signature termine la liste, notif "completed"
     if (newStatus === "signed") {
       const { data: siblings } = await sb
@@ -87,6 +126,14 @@ async function notifyOnStatusChange(
           result.error = `completed notif insert: ${cErr.message || JSON.stringify(cErr)}`;
         } else {
           result.completed = true;
+          firePush({
+            target_user_id: row.owner_user_id as string,
+            category: "opr",
+            title: `OPR ${row.opr_number} totalement signé`,
+            body: `${all.length} signature${all.length > 1 ? "s" : ""} reçue${all.length > 1 ? "s" : ""}. Tu peux exporter le document final.`,
+            deep_link: `/?project=${encodeURIComponent(String(row.project_id || ""))}&view=opr`,
+            data: { opr_id: row.opr_id, opr_number: row.opr_number, completed: true },
+          });
         }
       }
     }

@@ -165,6 +165,38 @@ export default function App() {
     initialMobileViewRef.current = true;
     _setView("mobileHome");
   }, [dbLoaded, isMobile]);
+
+  // ── Deep-link push (Mobile Étape 4) ──
+  // Quand l'archi clique sur une notification push, le SW poste un
+  // message `archipilot:deep-link` à toute fenêtre ouverte. On parse
+  // l'URL (?project=ID&view=opr) et on route vers la bonne vue. Pour
+  // les ouvertures à froid (app fermée → SW openWindow), le query
+  // string est lu une seule fois au mount.
+  useEffect(() => {
+    function applyDeepLink(url) {
+      try {
+        const u = new URL(url, window.location.origin);
+        const pid = u.searchParams.get("project");
+        const v = u.searchParams.get("view");
+        if (pid) setActiveId(isNaN(+pid) ? pid : +pid);
+        if (v) _setView(v);
+      } catch { /* malformed URL — ignore */ }
+    }
+    // 1. Cold start : query string présent
+    if (window.location.search.includes("project=") || window.location.search.includes("view=")) {
+      applyDeepLink(window.location.href);
+    }
+    // 2. Warm : SW poste un message
+    if (!("serviceWorker" in navigator)) return;
+    const onMsg = (e) => {
+      if (e.data?.type === "archipilot:deep-link" && e.data.url) {
+        applyDeepLink(e.data.url);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return () => navigator.serviceWorker.removeEventListener("message", onMsg);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);

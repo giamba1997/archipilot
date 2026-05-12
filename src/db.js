@@ -104,6 +104,16 @@ export async function loadProfile() {
       no_pv_30d:            false,
       email_digest:         false,
     },
+    // Mobile Étape 4 — préférences push (kill-switch + toggles par catégorie)
+    pushSettings: data.push_settings || {
+      enabled:   true,
+      opr:       true,
+      permits:   true,
+      reserves:  true,
+      invoices:  true,
+      collab:    true,
+      reception: true,
+    },
   };
 }
 
@@ -135,6 +145,7 @@ export async function saveProfile(profile) {
       invoice_payment_terms_days: profile.invoicePaymentTermsDays ?? 30,
       invoice_payment_note: profile.invoicePaymentNote || null,
       alert_settings: profile.alertSettings || undefined,
+      push_settings: profile.pushSettings || undefined,
     })
     .eq("id", user.id);
 
@@ -425,6 +436,34 @@ export async function markAllNotificationsRead() {
 
 export async function deleteNotification(id) {
   await supabase.from("notifications").delete().eq("id", id);
+}
+
+// ── Web Push (Mobile Étape 4) ──────────────────────────────
+//
+// Déclenche l'envoi d'une notification push à l'utilisateur authentifié.
+// Non bloquant : si l'edge function échoue (VAPID pas configuré, sub
+// expirée…), la notif cloche en DB reste bien créée — l'archi la verra
+// quand il rouvrira l'app. La push est une couche en plus.
+//
+// Le caller (côté client) passe target_user_id pour SES propres push.
+// L'edge function force target_user_id = self quand le JWT est un user
+// token, donc target_user_id est seulement respecté par le service role
+// (appels inter-fonctions).
+export async function triggerPushNotification({
+  category,    // "opr" | "permits" | "reserves" | "invoices" | "collab" | "reception"
+  title,
+  body,
+  deep_link,
+  data,
+}) {
+  try {
+    await supabase.functions.invoke("send-push-notification", {
+      body: { category, title, body, deep_link, data },
+    });
+  } catch (e) {
+    // Non bloquant — toute erreur push doit être silencieuse côté UX.
+    console.warn("triggerPushNotification failed (non-blocking):", e);
+  }
 }
 
 export async function deleteAllNotifications() {
