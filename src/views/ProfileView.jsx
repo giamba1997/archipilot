@@ -9,6 +9,8 @@ import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, loadMyO
 import { PricingSection } from "../components/modals/PricingSection";
 import { MfaSection } from "./MfaSection";
 import { PDFPreview } from "./PDFPreview";
+import { ReserveLibrarySection } from "./ReserveLibrarySection";
+import { sanitizeEmailHtml } from "../utils/sanitize";
 
 
 const PROFILE_SECTIONS = [
@@ -18,9 +20,12 @@ const PROFILE_SECTIONS = [
   { id: "account", icon: "mail", label: "Compte" },
   { id: "security", icon: "lock", label: "Sécurité" },
   { id: "info", icon: "file", label: "Informations" },
+  { id: "billing", icon: "file", label: "Facturation" },
+  { id: "alerts", icon: "clock", label: "Alertes" },
   { id: "lang", icon: "building", label: "Langue" },
   { id: "appearance", icon: "chart", label: "Apparence PV" },
   { id: "preview", icon: "eye", label: "Aperçu" },
+  { id: "library", icon: "checksq", label: "Bibliothèque" },
   { id: "data", icon: "file", label: "Données" },
 ];
 
@@ -137,6 +142,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       { id: "signature", icon: "edit", label: "Signature email", desc: form.emailSignature ? "Configurée" : "Non configurée" },
       { id: "lang", icon: "building", label: "Langue", desc: form.lang === "fr" ? "Français" : "English" },
       { id: "appearance", icon: "chart", label: "Apparence du PV", desc: `${(form.pdfColor || "#C95A1B").toUpperCase()} · ${form.pdfFont || "helvetica"}` },
+      { id: "library", icon: "checksq", label: "Bibliothèque de réserves", desc: "Modèles réutilisables pour les OPR" },
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
@@ -281,7 +287,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
                   <div
                     contentEditable suppressContentEditableWarning
                     role="textbox" aria-label="Signature email" aria-multiline="true"
-                    onInput={e => set("emailSignature")(e.currentTarget.innerHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/\bon\w+\s*=/gi, "data-removed="))}
+                    onInput={e => set("emailSignature")(sanitizeEmailHtml(e.currentTarget.innerHTML))}
                     onPaste={e => {
                       const items = e.clipboardData?.items;
                       if (!items) return;
@@ -297,7 +303,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
                         }
                       }
                     }}
-                    dangerouslySetInnerHTML={{ __html: form.emailSignature || "" }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(form.emailSignature || "") }}
                     style={{ width: "100%", minHeight: 120, padding: SP.md, border: `1px solid ${SBB}`, borderRadius: RAD.lg, fontSize: FS.base, lineHeight: LH.relaxed, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", outline: "none" }}
                   />
                   {!form.emailSignature && (
@@ -341,6 +347,10 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
                     ))}
                   </div>
                 </>
+              )}
+
+              {mobileSection === "library" && (
+                <ReserveLibrarySection />
               )}
 
               {/* Close / Done + auto-save */}
@@ -519,6 +529,71 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         </div>
       </div>
 
+      {/* Facturation — IBAN, n° TVA, conditions par défaut (F1) */}
+      <div ref={refFor("billing")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Facturation</div>
+        <div style={{ fontSize: 11, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
+          Infos utilisées dans le PDF de tes factures (IBAN, n° de TVA, conditions par défaut). Le n° de TVA est obligatoire pour une facture conforme en Belgique.
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Field half label="N° de TVA" value={form.vatNumber || ""} onChange={set("vatNumber")} placeholder="BE0123.456.789" />
+          <Field half label="IBAN" value={form.iban || ""} onChange={set("iban")} placeholder="BE68 5390 0754 7034" />
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Field half label="Délai paiement par défaut (jours)" value={String(form.invoicePaymentTermsDays ?? 30)} onChange={(v) => set("invoicePaymentTermsDays")(Number(v) || 0)} type="number" placeholder="30" />
+          <Field half label="Mention conditions" value={form.invoicePaymentNote || ""} onChange={set("invoicePaymentNote")} placeholder="ex : Paiement à 30 jours, intérêts de retard 8%" />
+        </div>
+      </div>
+
+      {/* F5 — Alertes : toggles par type d'échéance */}
+      <div ref={refFor("alerts")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Alertes & rappels</div>
+        <div style={{ fontSize: 11, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
+          Active les catégories que tu veux voir dans le panneau « Prochaines échéances » (icône horloge en haut). 100% local — aucune notification push, aucun email auto.
+        </div>
+        {[
+          { id: "reception_definitive", label: "Réception définitive J-365", desc: "Anniversaire de l'OPR provisoire pour planifier la définitive." },
+          { id: "reserve_overdue",      label: "Réserves en retard",          desc: "Réserves OPR dont l'échéance approche ou est dépassée." },
+          { id: "permit_deadline",      label: "Échéance permis",             desc: "Décision communale approchant (silence vaut acceptation/refus)." },
+          { id: "task_overdue",         label: "Tâches en retard",            desc: "Tâches avec échéance passée et non clôturées." },
+          { id: "invoice_overdue",      label: "Factures impayées",           desc: "Factures émises dont la date d'échéance est dépassée." },
+          { id: "no_pv_30d",            label: "Pas de PV depuis 30 jours",   desc: "Chantier actif sans nouveau PV depuis un mois." },
+        ].map(opt => {
+          const v = !!(form.alertSettings?.[opt.id] ?? true);
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => set("alertSettings")({ ...(form.alertSettings || {}), [opt.id]: !v })}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                width: "100%", padding: "10px 12px",
+                border: `1px solid ${SBB}`, borderRadius: 10, background: WH,
+                marginBottom: 6, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+              }}
+            >
+              <div style={{
+                width: 32, height: 18, borderRadius: 999,
+                background: v ? AC : SBB,
+                position: "relative", flexShrink: 0,
+                transition: "background 0.15s",
+              }}>
+                <div style={{
+                  position: "absolute", top: 2, left: v ? 16 : 2,
+                  width: 14, height: 14, borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 0.15s",
+                }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>{opt.label}</div>
+                <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{opt.desc}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Signature email */}
       <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Signature email</div>
@@ -527,7 +602,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
           contentEditable
           suppressContentEditableWarning
           role="textbox" aria-label="Signature email" aria-multiline="true"
-          onInput={e => set("emailSignature")(e.currentTarget.innerHTML.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/\bon\w+\s*=/gi, "data-removed="))}
+          onInput={e => set("emailSignature")(sanitizeEmailHtml(e.currentTarget.innerHTML))}
           onPaste={e => {
             const items = e.clipboardData?.items;
             if (!items) return;
@@ -563,7 +638,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
               }
             }
           }}
-          dangerouslySetInnerHTML={{ __html: form.emailSignature || "" }}
+          dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(form.emailSignature || "") }}
           style={{ width: "100%", minHeight: 100, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 10, fontSize: 12, lineHeight: 1.6, fontFamily: "inherit", background: SB, color: TX, boxSizing: "border-box", outline: "none", overflowWrap: "break-word", whiteSpace: "pre-wrap" }}
         />
         {!form.emailSignature && (
@@ -647,6 +722,9 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("profile.templatePreview")}</div>
         <PDFPreview form={form} />
       </div>
+
+      {/* Bibliothèque de réserves (F8) */}
+      <ReserveLibrarySection sectionRef={refFor("library")} />
 
       {/* Données & Compte */}
       <DataSection refFor={refFor} />

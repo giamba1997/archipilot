@@ -1,5 +1,12 @@
 import { BL, BLB, VI, VIB, GR, GRBG } from "./tokens";
 
+// ── Limites d'upload côté client ────────────────────────────
+// Bornes dures pour éviter crash navigateur + saturation localStorage/
+// row Supabase JSONB (~1MB pratique). Au-delà, message d'erreur clair.
+export const MAX_UPLOAD_PHOTO_BYTES = 5 * 1024 * 1024;  // 5 MB par photo
+export const MAX_UPLOAD_PDF_BYTES   = 10 * 1024 * 1024; // 10 MB par PDF
+export const MAX_UPLOAD_DOC_BYTES   = 12 * 1024 * 1024; // 12 MB cahier des charges (existant)
+
 export const STRUCTURE_TYPES = [
   { id: "architecte", label: "Architecte" },
   { id: "bureau_etudes", label: "Bureau d'études" },
@@ -56,13 +63,29 @@ export const INIT_PROFILE = {
   picture: null,
   pdfColor: "#C95A1B",
   pdfFont: "helvetica",
-  apiKey: "",
+  // apiKey retiré : l'IA passe désormais par les edge functions Supabase
+  // (OPENAI_API_KEY côté serveur). Champ BYO-key obsolète.
   lang: "fr",
   plan: "free",
   postTemplate: "general",
   pvTemplate: "standard",
   remarkNumbering: "none",
   emailSignature: "",
+  // F1 — émetteur de factures
+  iban: "",
+  vatNumber: "",
+  invoicePaymentTermsDays: 30,
+  invoicePaymentNote: "",
+  // F5 — préférences d'alertes
+  alertSettings: {
+    reception_definitive: true,
+    reserve_overdue:      true,
+    permit_deadline:      true,
+    task_overdue:         true,
+    invoice_overdue:      true,
+    no_pv_30d:            false,
+    email_digest:         false,
+  },
 };
 
 export const COLOR_PRESETS = [

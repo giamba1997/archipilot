@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { AC, ACL, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, BR, BRB, AM, AMB, SG, SGB } from "../constants/tokens";
+import { getReserveStatus, getReserveSeverity } from "../constants/statuses";
 import { Ico } from "../components/ui";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
 import { PlanViewer } from "./PlanViewer";
@@ -11,13 +12,35 @@ import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 //   - Embarqué (onglet Photos) : `onAnnotatePhoto(photoId)` délègue au parent
 //     qui redirige vers la vue standalone (PlanViewer photo a besoin du plein
 //     écran). `autoAction = { photoId }` permet de pré-ouvrir l'annotation.
-export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, autoAction }) {
+export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, autoAction, showToast }) {
   const uploadRef = useRef(null);
   const [activePhotoId, setActivePhotoId] = useState(autoAction?.photoId || null); // open in PlanViewer
   const [lightbox, setLightbox] = useState(null); // simple preview
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState(new Set());
+  // F/S6 — photo en cours de liaison à une réserve (id du photo, ou null)
+  const [linkingPhoto, setLinkingPhoto] = useState(null);
   const photos = (project.gallery || []).slice().reverse();
+  const reserves = project.reserves || [];
+
+  // Toggle le lien d'une photo vers une réserve. Stockage : un array
+  // `linkedReserves` sur le photo (forme libre, no migration nécessaire).
+  // Pas de duplication côté reserve.photos — l'affichage OprView scanne
+  // gallery pour reconstruire le set complet de photos liées.
+  const toggleReserveLink = (photoId, reserveId) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id !== project.id) return p;
+      return {
+        ...p,
+        gallery: (p.gallery || []).map(ph => {
+          if (ph.id !== photoId) return ph;
+          const cur = new Set(ph.linkedReserves || []);
+          if (cur.has(reserveId)) cur.delete(reserveId); else cur.add(reserveId);
+          return { ...ph, linkedReserves: [...cur] };
+        }),
+      };
+    }));
+  };
 
   const toggleSelect = (id) => setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const selectAll = () => setSelected(new Set(photos.map(p => p.id)));
@@ -181,6 +204,16 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                     <span style={{ fontSize: 9, fontWeight: 600, color: "#fff" }}>Annoté</span>
                   </div>
                 )}
+                {/* Réserve(s) liée(s) — badge en bas-gauche pour éviter chevauchement
+                    avec le badge "Annoté" en haut-droite */}
+                {(ph.linkedReserves || []).length > 0 && (
+                  <div style={{ position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 4, background: BR, display: "flex", alignItems: "center", gap: 3 }}>
+                    <Ico name="alert" size={9} color="#fff" />
+                    <span style={{ fontSize: 9, fontWeight: 600, color: "#fff" }}>
+                      {ph.linkedReserves.length === 1 ? "1 réserve" : `${ph.linkedReserves.length} réserves`}
+                    </span>
+                  </div>
+                )}
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 6px", background: "linear-gradient(transparent, rgba(0,0,0,0.45))" }}>
                   <span style={{ fontSize: 10, color: "#fff", fontWeight: 500 }}>{new Date(ph.date).toLocaleDateString("fr-BE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
@@ -205,6 +238,19 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                 <Ico name="edit" size={13} color="#fff" />
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Annoter</span>
               </button>
+              {/* Lier à une réserve — disponible quand le projet a au moins
+                  une réserve (sinon rien à lier). Le bouton ouvre une modale
+                  séparée pour ne pas surcharger la lightbox. */}
+              {reserves.length > 0 && (
+                <button onClick={() => setLinkingPhoto(lbPhoto.id)} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                  <Ico name="alert" size={13} color="#fff" />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>
+                    {(lbPhoto.linkedReserves || []).length > 0
+                      ? `Lien (${lbPhoto.linkedReserves.length})`
+                      : "Lier à une réserve"}
+                  </span>
+                </button>
+              )}
               <button onClick={() => { removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
                 <Ico name="trash" size={13} color="#fff" />
                 <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
@@ -229,6 +275,89 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
           <img src={getPhotoUrl(lbPhoto)} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }} />
         </div>
       )}
+
+      {/* F/S6 — Modale "Lier à une réserve" */}
+      {linkingPhoto && (() => {
+        const photo = photos.find(ph => ph.id === linkingPhoto);
+        if (!photo) return null;
+        const linked = new Set(photo.linkedReserves || []);
+        // Tri : réserves ouvertes (non levées) d'abord, puis partielles, puis levées
+        const orderStatus = (s) => s === "non_levee" ? 0 : s === "partiellement_levee" ? 1 : 2;
+        const sorted = [...reserves].sort((a, b) => orderStatus(a.status) - orderStatus(b.status) || (a.code || "").localeCompare(b.code || ""));
+        return (
+          <div onClick={() => setLinkingPhoto(null)} style={{ position: "fixed", inset: 0, zIndex: 320, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: WH, borderRadius: 14, width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
+              <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>Lier la photo à une réserve</div>
+                  <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
+                    {linked.size === 0 ? "Sélectionne une ou plusieurs réserves" : `${linked.size} réserve${linked.size > 1 ? "s" : ""} liée${linked.size > 1 ? "s" : ""}`}
+                  </div>
+                </div>
+                <button onClick={() => setLinkingPhoto(null)} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
+                  <Ico name="x" size={14} color={TX2} />
+                </button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+                {sorted.length === 0 ? (
+                  <div style={{ padding: 30, textAlign: "center", fontSize: 12, color: TX3 }}>
+                    Aucune réserve pour l'instant. Crée une réserve dans la vue OPR pour pouvoir lier des photos.
+                  </div>
+                ) : (
+                  sorted.map(r => {
+                    const isLinked = linked.has(r.id);
+                    const st = getReserveStatus(r.status);
+                    const sev = getReserveSeverity(r.severity);
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => {
+                          toggleReserveLink(linkingPhoto, r.id);
+                          showToast?.(isLinked ? `${r.code || "Réserve"} déliée` : `Photo liée à ${r.code || "la réserve"}`);
+                        }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          width: "100%", padding: "10px 12px",
+                          border: `1px solid ${isLinked ? ACL2 : SBB}`,
+                          background: isLinked ? ACL : WH,
+                          borderRadius: 10,
+                          marginBottom: 6,
+                          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <div style={{
+                          width: 22, height: 22, borderRadius: 6,
+                          border: `2px solid ${isLinked ? AC : SBB}`,
+                          background: isLinked ? AC : WH,
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                        }}>
+                          {isLinked && <Ico name="check" size={12} color="#fff" />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: TX, fontFamily: "ui-monospace, monospace" }}>{r.code || "?"}</span>
+                            <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: sev.bg, color: sev.color, fontWeight: 600 }}>{sev.label}</span>
+                            <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: st.bg, color: st.color, fontWeight: 600 }}>{st.label}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: TX2, lineHeight: 1.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {r.description || "(sans description)"}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div style={{ padding: "12px 20px", borderTop: `1px solid ${SBB}`, display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => setLinkingPhoto(null)} style={{ padding: "9px 18px", border: "none", borderRadius: 9, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  Terminé
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

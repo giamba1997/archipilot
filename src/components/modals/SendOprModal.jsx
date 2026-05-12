@@ -3,6 +3,7 @@ import { AC, SB, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, DIS, DIST } from "../../
 import { Ico } from "../ui";
 import { sendOprByEmail } from "../../db";
 import { generateOprPdf } from "../../utils/pdf";
+import { sanitizeEmailHtml } from "../../utils/sanitize";
 import { UpgradeRequiredModal } from "./UpgradeRequiredModal";
 
 // Modal d'envoi de l'OPR par email — calqué sur SendPvModal.
@@ -185,8 +186,8 @@ export function SendOprModal({ project, opr, profile, extraRecipients = [], onCl
           <div
             contentEditable suppressContentEditableWarning
             role="textbox" aria-label="Corps du message email" aria-multiline="true"
-            onInput={e => setEmailBody(e.currentTarget.innerHTML)}
-            dangerouslySetInnerHTML={{ __html: emailBody }}
+            onInput={e => setEmailBody(sanitizeEmailHtml(e.currentTarget.innerHTML))}
+            dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(emailBody) }}
             style={{ width: "100%", minHeight: 120, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, lineHeight: 1.6, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", outline: "none", overflowWrap: "break-word" }}
           />
         </div>

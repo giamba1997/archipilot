@@ -45,6 +45,7 @@ import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_S
 import { RECURRENCES, POST_TEMPLATES, PV_TEMPLATES, REMARK_NUMBERING } from "./constants/templates";
 import { STRUCTURE_TYPES, PLANS, PLAN_FEATURES, hasFeature, getLimit, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, DOC_CATEGORIES } from "./constants/config";
 import { PROJECT_TEMPLATES, getProjectTemplate } from "./constants/projectTemplates";
+import { PARTICIPANT_ROLES } from "./constants/participantRoles";
 import { getProjectPhases, getProjectPhase } from "./utils/phases";
 
 import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, savePvDraft, removePvDraft } from "./utils/offline";
@@ -54,7 +55,7 @@ import { parseNotesToRemarks, getDocCurrent } from "./utils/helpers";
 import { getActiveTimer, setActiveTimer as persistActiveTimer, elapsedSeconds, isPaused as timerIsPaused, formatTimer, formatDuration, buildSessionFromTimer, totalSecondsFor } from "./utils/timer";
 import { generatePDF } from "./utils/pdf";
 import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exportParticipantsCSV, importParticipantsCSV, generateICS, downloadICS, getGoogleCalendarUrl } from "./utils/csv";
-import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton } from "./components/ui";
+import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton, SyncBadge } from "./components/ui";
 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, Sidebar } from "./components/layout";
@@ -62,7 +63,7 @@ import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, 
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 
 const INIT_PROJECTS = [
   {
@@ -319,6 +320,7 @@ export default function App() {
   const [sharedProjects, setSharedProjects] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
   const [invitations, setInvitations] = useState([]);
 
   // Load data from Supabase on mount. The data source depends on the active
@@ -502,7 +504,11 @@ export default function App() {
 
   const project = projects.find((p) => p.id === activeId) || sharedProjects.find((p) => p.id === activeId);
   const updateProject = (id, u) => setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...u } : p));
-  const canCreate = newP.name.trim() && newP.client.trim() && newP.contractor.trim() && newP.city?.trim() && newP.startDate.trim();
+  // Création projet allégée : on n'exige que Nom + Ville. Les autres champs
+  // (MO, entreprise, dates) sont souvent inconnus en phase Esquisse — ils
+  // se complètent plus tard via les chips de la Fiche. Empêcher la création
+  // à cause d'eux pollue tous les projets précoces avec des "À définir".
+  const canCreate = newP.name.trim() && newP.city?.trim();
 
   // Gate the "Nouveau projet" entry: open upgrade modal if plan limit reached.
   const tryOpenNewProject = () => {
@@ -1176,6 +1182,19 @@ export default function App() {
             <span style={{ fontSize: 12, color: TX2, fontWeight: 500 }}>Rechercher</span>
             <kbd style={{ fontSize: 10, color: TX3, background: WH, border: `1px solid ${SBB}`, borderRadius: 4, padding: "1px 5px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 1.4 }}>⌘K</kbd>
           </button>
+          {/* F7 — Indicateur de synchronisation */}
+          <SyncBadge isOnline={isOnline} />
+
+          {/* F5 — Bouton "Prochaines échéances" (alertes calculées en local) */}
+          <button
+            onClick={() => setShowAlerts(true)}
+            aria-label="Prochaines échéances"
+            title="Prochaines échéances"
+            style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, borderRadius: RAD.md, display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <Ico name="clock" size={18} color={TX2} />
+          </button>
+
           {/* Notification bell */}
           <div style={{ position: "relative" }}>
             <button onClick={() => setShowNotifications(p => !p)} aria-label="Notifications" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, borderRadius: RAD.md, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -1271,7 +1290,7 @@ export default function App() {
               <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setAgencyModalOpen(true)} />
             </div>
           )}
-          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewTasks={() => setView("planning")} onAnnotatePlan={(itemId) => { setPlanAutoAction({ itemId, mode: "annotate" }); setView("plan"); }} onCropPlan={(itemId) => { setPlanAutoAction({ itemId, mode: "crop" }); setView("plan"); }} onAnnotatePhoto={(photoId) => { setGalleryAutoAction({ photoId }); setView("gallery"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onCollab={() => setModal("collab")} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onDiscardTimer={discardActiveTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p, intent = "compare_ft") => {
+          {view !== "profile" && project && view === "overview" && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewTasks={() => setView("planning")} onAnnotatePlan={(itemId) => { setPlanAutoAction({ itemId, mode: "annotate" }); setView("plan"); }} onCropPlan={(itemId) => { setPlanAutoAction({ itemId, mode: "crop" }); setView("plan"); }} onAnnotatePhoto={(photoId) => { setGalleryAutoAction({ photoId }); setView("gallery"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onJournal={() => setView("journal")} onInvoices={() => setView("invoices")} onPermits={() => setView("permits")} onQuotes={() => setView("quotes")} onReports={() => setView("reports")} onCollab={() => setModal("collab")} showToast={showToast} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onDiscardTimer={discardActiveTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p, intent = "compare_ft") => {
   const cdc = p.cahierDesCharges;
   if (!cdc) return;
   // Pièces jointes selon le mode d'extraction (texte intégral / pages images / rien).
@@ -1321,6 +1340,7 @@ export default function App() {
             setProjects={setProjects}
             onBack={() => { setView("overview"); setGalleryAutoAction(null); }}
             autoAction={galleryAutoAction}
+            showToast={showToast}
           />}
           {view !== "profile" && project && view === "plan" && <PlanManager
             project={project}
@@ -1328,10 +1348,16 @@ export default function App() {
             onBack={() => { setView("overview"); setPlanAutoAction(null); }}
             autoAction={planAutoAction}
           />}
-          {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "tasks" && <TasksView project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "journal" && <JournalView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "invoices" && <InvoicesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "permits" && <PermitsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "quotes" && <QuotesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "reports" && <ProgressReportsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
+          {view === "mapDashboard" && <MapDashboardView projects={projects} setProjects={setProjects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
           {view === "timesheet" && (() => {
             const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
             const myOrg = orgId ? (myOrgs || []).find(o => o.id === orgId) : null;
@@ -1405,25 +1431,42 @@ export default function App() {
           </div>
         </div>
 
+        {/* Bloc Essentiel — 2 champs obligatoires (Nom + Ville) + Phase
+            qui a une valeur par défaut. Tout le reste se complète plus
+            tard via les chips "À compléter" affichés dans la Fiche projet. */}
         <Field label="Nom du projet *" value={newP.name} onChange={(v) => setNewP((p) => ({ ...p, name: v }))} placeholder="ex: Rénovation Maison Dupont" />
         <div style={{ display: "flex", gap: 10 }}>
-          <Field half label="Maître d'ouvrage *" value={newP.client} onChange={(v) => setNewP((p) => ({ ...p, client: v }))} placeholder="ex: M. Dupont" />
-          <Field half label="Entreprise *" value={newP.contractor} onChange={(v) => setNewP((p) => ({ ...p, contractor: v }))} placeholder="ex: BESIX" />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Field half label="Rue" value={newP.street} onChange={(v) => setNewP((p) => ({ ...p, street: v }))} placeholder="ex: Rue de la Loi" />
-          <div style={{ flex: "0 0 80px" }}><Field label="N°" value={newP.number} onChange={(v) => setNewP((p) => ({ ...p, number: v }))} placeholder="12" /></div>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <div style={{ flex: "0 0 100px" }}><Field label="Code postal" value={newP.postalCode} onChange={(v) => setNewP((p) => ({ ...p, postalCode: v }))} placeholder="1000" /></div>
           <Field half label="Ville *" value={newP.city} onChange={(v) => setNewP((p) => ({ ...p, city: v }))} placeholder="Bruxelles" />
-          <Field half label="Pays" value={newP.country} onChange={(v) => setNewP((p) => ({ ...p, country: v }))} placeholder="Belgique" />
+          <Field half label="Phase du projet" value={newP.statusId} onChange={(v) => setNewP((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Field half label="Date de début *" value={newP.startDate} onChange={(v) => setNewP((p) => ({ ...p, startDate: v }))} placeholder="ex: 01/04/2026" />
-          <Field half label="Récurrence" value={newP.recurrence} onChange={(v) => setNewP((p) => ({ ...p, recurrence: v }))} select options={RECURRENCES} />
-        </div>
-        <Field label="Phase du projet" value={newP.statusId} onChange={(v) => setNewP((p) => ({ ...p, statusId: v }))} select options={STATUSES} />
+
+        {/* Bloc Optionnel — repliable, sous un séparateur. L'archi qui sait
+            déjà tout peut tout remplir d'un coup ; le débutant ou celui qui
+            crée un projet en esquisse passe directement à "Créer". */}
+        <details style={{ marginBottom: 10 }}>
+          <summary style={{ cursor: "pointer", fontSize: 11, color: TX3, fontWeight: 600, padding: "8px 0", userSelect: "none", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>À compléter plus tard (optionnel)</span>
+            <span style={{ flex: 1, height: 1, background: SBB }} />
+          </summary>
+          <div style={{ paddingTop: 8 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field half label="Maître d'ouvrage" value={newP.client} onChange={(v) => setNewP((p) => ({ ...p, client: v }))} placeholder="ex: M. Dupont" />
+              <Field half label="Entreprise" value={newP.contractor} onChange={(v) => setNewP((p) => ({ ...p, contractor: v }))} placeholder="ex: BESIX" />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field half label="Rue" value={newP.street} onChange={(v) => setNewP((p) => ({ ...p, street: v }))} placeholder="ex: Rue de la Loi" />
+              <div style={{ flex: "0 0 80px" }}><Field label="N°" value={newP.number} onChange={(v) => setNewP((p) => ({ ...p, number: v }))} placeholder="12" /></div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: "0 0 100px" }}><Field label="Code postal" value={newP.postalCode} onChange={(v) => setNewP((p) => ({ ...p, postalCode: v }))} placeholder="1000" /></div>
+              <Field half label="Pays" value={newP.country} onChange={(v) => setNewP((p) => ({ ...p, country: v }))} placeholder="Belgique" />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Field half label="Date de début" value={newP.startDate} onChange={(v) => setNewP((p) => ({ ...p, startDate: v }))} placeholder="ex: 01/04/2026" />
+              <Field half label="Récurrence" value={newP.recurrence} onChange={(v) => setNewP((p) => ({ ...p, recurrence: v }))} select options={RECURRENCES} />
+            </div>
+          </div>
+        </details>
 
         {/* Template summary from profile defaults */}
         <div style={{ padding: "10px 14px", background: SB, borderRadius: 10, border: `1px solid ${SBB}`, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -1502,10 +1545,18 @@ export default function App() {
           )}
         </div>
 
-        <button onClick={() => { updateProject(activeId, { ...editInfo, address: formatAddress(editInfo) }); setModal(null); }} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginTop: 12 }}>Enregistrer</button>
+        <button onClick={() => { updateProject(activeId, { ...editInfo, address: formatAddress(editInfo) }); setModal(null); showToast("Infos projet mises à jour"); }} style={{ width: "100%", padding: 14, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginTop: 12 }}>Enregistrer</button>
       </Modal>
 
       <Modal open={modal === "parts"} onClose={() => setModal(null)} title="Participants">
+        {/* Datalist de suggestions de rôles. Le navigateur affiche les options
+            quand l'archi clique dans le champ Rôle. Liste non-fermée — l'archi
+            peut toujours saisir un rôle libre (rétro-compat avec les données
+            existantes). Définie au niveau modale pour être partagée entre tous
+            les inputs role[i] des participants. */}
+        <datalist id="participant-roles-list">
+          {PARTICIPANT_ROLES.map(r => <option key={r} value={r} />)}
+        </datalist>
         {editParts.map((p, i) => (
           <div key={i} style={{ background: SB, borderRadius: 10, padding: "10px 12px", marginBottom: 8, border: `1px solid ${SBB}`, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -1521,7 +1572,7 @@ export default function App() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               <input value={p.name} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], name: e.target.value }; setEditParts(c); }} placeholder="Nom" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, gridColumn: "1 / -1", boxSizing: "border-box", width: "100%", minWidth: 0 }} />
-              <input value={p.role} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], role: e.target.value }; setEditParts(c); }} placeholder="Rôle" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", width: "100%", minWidth: 0 }} />
+              <input list="participant-roles-list" value={p.role} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], role: e.target.value }; setEditParts(c); }} placeholder="Rôle (MO, Architecte, Entreprise…)" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", width: "100%", minWidth: 0 }} />
               <input value={p.phone || ""} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], phone: e.target.value }; setEditParts(c); }} placeholder="Tél." type="tel" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", width: "100%", minWidth: 0 }} />
               <input value={p.email || ""} onChange={(e) => { const c = [...editParts]; c[i] = { ...c[i], email: e.target.value }; setEditParts(c); }} placeholder="Email" type="email" style={{ padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, gridColumn: "1 / -1", boxSizing: "border-box", width: "100%", minWidth: 0 }} />
             </div>
@@ -1539,11 +1590,11 @@ export default function App() {
               label="Rôles manquants pour ce chantier ?"
               sourceTag="participants_modal"
               contextHint="L'IA reçoit la liste des participants actuels et le type de chantier. Elle suggère les rôles typiques manquants."
-              message={`Voici les participants actuels du chantier **${project.name}** (${project.client ? `MO ${project.client}` : "MO inconnu"}, ${project.contractor ? `entreprise ${project.contractor}` : "entreprise inconnue"}) :\n${editParts.length === 0 ? "(aucun pour le moment)" : editParts.map(p => `- ${p.role || "(rôle ?)"} : ${p.name || "(nom ?)"}`).join("\n")}\n\nQuels rôles essentiels sont manquants pour ce type de chantier en Belgique (coordinateur sécurité-santé, certificateur PEB, ingénieur stabilité, géomètre, etc.) ? Donne-moi une liste courte adaptée.`}
+              message={`Voici les participants actuels du chantier **${project.name}** (${project.client ? `MO ${project.client}` : "MO inconnu"}, ${project.contractor ? `entreprise ${project.contractor}` : "entreprise inconnue"}) :\n${editParts.length === 0 ? "(aucun pour le moment)" : editParts.map(p => `- ${p.role || "(rôle ?)"} : ${p.name || "(nom ?)"}`).join("\n")}\n\nQuels rôles essentiels sont manquants pour ce type de chantier en Belgique ? Choisis tes suggestions dans cette liste de rôles standards :\n${PARTICIPANT_ROLES.map(r => `- ${r}`).join("\n")}\n\nSi un rôle critique manque vraiment (ex : coordinateur sécurité-santé pour un chantier avec plusieurs entreprises), signale-le. Donne-moi une liste courte (max 4) avec une justification d'une ligne par rôle.`}
             />
           </div>
         )}
-        <button onClick={() => { updateProject(activeId, { participants: editParts.filter((p) => p.name.trim()) }); setModal(null); }} style={{ width: "100%", padding: 13, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Enregistrer</button>
+        <button onClick={() => { const cleanParts = editParts.filter((p) => p.name.trim()); updateProject(activeId, { participants: cleanParts }); setModal(null); showToast(`${cleanParts.length} participant${cleanParts.length > 1 ? "s" : ""} enregistré${cleanParts.length > 1 ? "s" : ""}`); }} style={{ width: "100%", padding: 13, border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Enregistrer</button>
       </Modal>
 
       {/* Import PV modal */}
@@ -1902,6 +1953,7 @@ Règles :
             pvDate={modalData.date}
             pvContent={modalData.content || ""}
             profile={profile}
+            onUpdateSignature={(html) => { const next = { ...profile, emailSignature: html }; saveProfile(next); showToast("Signature mise à jour pour tes prochains emails"); }}
             onUpgrade={() => { setModalData(d => ({ ...d, _showSend: false })); setView("profile"); }}
             onClose={() => setModalData(d => ({ ...d, _showSend: false }))}
             onSent={(to) => {
@@ -1922,6 +1974,16 @@ Règles :
           projects={projects}
           onClose={() => setShowSearch(false)}
           onOpen={(projId, pv) => { setActiveId(projId); setView("overview"); setModalData(pv); setModal("viewpv"); }}
+        />
+      )}
+
+      {/* F5 — Drawer "Prochaines échéances" */}
+      {showAlerts && (
+        <AlertsDrawer
+          projects={projects}
+          profile={profile}
+          onClose={() => setShowAlerts(false)}
+          onSelectProject={(id) => { setActiveId(id); setView("overview"); }}
         />
       )}
 
@@ -2056,6 +2118,13 @@ Règles :
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Planning</div>
                   <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Coordination</div>
+                </button>
+                <button onClick={() => { setProjectPicker(false); setView("mapDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#D5E4C5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="mappin" size={18} color="#4D8030" />
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Carte</div>
+                  <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Chantiers géolocalisés</div>
                 </button>
               </div>
             )}

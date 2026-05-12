@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { markDirty, markSynced } from "./utils/offline";
 
 // supabase-js wraps non-2xx Edge Function responses in a FunctionsHttpError
 // whose .message is generic ("Edge Function returned a non-2xx status code").
@@ -35,6 +36,10 @@ export async function loadProjects() {
 
 let saveTimer = null;
 export function saveProjects(projects, activeId) {
+  // F7 — Marque la donnée comme "dirty" immédiatement (avant le debounce)
+  // pour que le badge de sync reflète l'attente correctement.
+  markDirty();
+
   // Debounce saves (1.5s) to avoid hammering the DB on every keystroke
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
@@ -48,6 +53,7 @@ export function saveProjects(projects, activeId) {
       .upsert({ user_id: user.id, projects, active_id: activeId }, { onConflict: "user_id" });
 
     if (error) console.error("saveProjects error:", error);
+    else markSynced();
   }, 1500);
 }
 
@@ -75,13 +81,29 @@ export async function loadProfile() {
     picture: data.picture_url || null,
     pdfColor: data.pdf_color || "#C95A1B",
     pdfFont: data.pdf_font || "helvetica",
-    apiKey: data.api_key || "",
+    // Note : api_key (champ user OpenAI BYO-key) supprimé du chargement —
+    // l'app utilise désormais OPENAI_API_KEY côté edge function uniquement.
     lang: data.lang || "fr",
     postTemplate: data.post_template || "general",
     pvTemplate: data.pv_template || "standard",
     remarkNumbering: data.remark_numbering || "none",
     plan: data.plan || "free",
     onboardingCompletedAt: data.onboarding_completed_at || null,
+    // F1 — émetteur de factures
+    iban: data.iban || "",
+    vatNumber: data.vat_number || "",
+    invoicePaymentTermsDays: data.invoice_payment_terms_days ?? 30,
+    invoicePaymentNote: data.invoice_payment_note || "",
+    // F5 — alertes (objet par catégorie, défaut côté DB via JSONB)
+    alertSettings: data.alert_settings || {
+      reception_definitive: true,
+      reserve_overdue:      true,
+      permit_deadline:      true,
+      task_overdue:         true,
+      invoice_overdue:      true,
+      no_pv_30d:            false,
+      email_digest:         false,
+    },
   };
 }
 
@@ -101,13 +123,18 @@ export async function saveProfile(profile) {
       picture_url: profile.picture,
       pdf_color: profile.pdfColor,
       pdf_font: profile.pdfFont,
-      api_key: profile.apiKey,
+      // api_key intentionnellement non écrit — voir loadProfile
       lang: profile.lang,
       post_template: profile.postTemplate,
       pv_template: profile.pvTemplate,
       remark_numbering: profile.remarkNumbering,
       plan: profile.plan || "free",
       onboarding_completed_at: profile.onboardingCompletedAt || null,
+      iban: profile.iban || null,
+      vat_number: profile.vatNumber || null,
+      invoice_payment_terms_days: profile.invoicePaymentTermsDays ?? 30,
+      invoice_payment_note: profile.invoicePaymentNote || null,
+      alert_settings: profile.alertSettings || undefined,
     })
     .eq("id", user.id);
 
@@ -593,6 +620,385 @@ export async function loadOprSignatureRequests(projectId, oprId) {
   const { data, error } = await q;
   if (error) { console.error("loadOprSignatureRequests error:", error); return []; }
   return data || [];
+}
+
+// ── Bibliothèque de réserves types (F8) ─────────────────────
+// Charge tous les modèles visibles pour l'utilisateur : ses modèles perso,
+// les modèles partagés de son agence, et les modèles système (seed).
+// RLS filtre côté serveur — on récupère tout en une requête. Trié par
+// fréquence d'usage décroissante pour que l'autocomplete propose
+// d'abord les plus utilisés.
+export async function loadReserveTemplates() {
+  const { data, error } = await supabase
+    .from("reserve_templates")
+    .select("*")
+    .order("usage_count", { ascending: false })
+    .order("description", { ascending: true });
+  if (error) { console.error("loadReserveTemplates error:", error); return []; }
+  return data || [];
+}
+
+// Crée ou met à jour un modèle perso (ou org si org_id fourni).
+// `template` : { id?, description, default_severity, default_contractor_type, category, org_id? }
+// Renvoie le modèle persisté (avec id généré si nouveau), ou null en cas d'erreur.
+export async function saveReserveTemplate(template) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const payload = {
+    description: template.description?.trim(),
+    default_severity: template.default_severity || 'major',
+    default_contractor_type: template.default_contractor_type || null,
+    category: template.category || null,
+  };
+  if (!payload.description) return null;
+
+  if (template.id) {
+    // UPDATE existant
+    const { data, error } = await supabase
+      .from("reserve_templates")
+      .update(payload)
+      .eq("id", template.id)
+      .select()
+      .single();
+    if (error) { console.error("saveReserveTemplate update error:", error); return null; }
+    return data;
+  }
+
+  // INSERT — modèle perso par défaut, ou org si template.org_id fourni
+  const insertPayload = {
+    ...payload,
+    owner_user_id: template.org_id ? null : user.id,
+    org_id: template.org_id || null,
+    is_system: false,
+  };
+  const { data, error } = await supabase
+    .from("reserve_templates")
+    .insert(insertPayload)
+    .select()
+    .single();
+  if (error) { console.error("saveReserveTemplate insert error:", error); return null; }
+  return data;
+}
+
+export async function deleteReserveTemplate(id) {
+  const { error } = await supabase
+    .from("reserve_templates")
+    .delete()
+    .eq("id", id);
+  if (error) { console.error("deleteReserveTemplate error:", error); return false; }
+  return true;
+}
+
+// Incrémente le compteur d'usage d'un modèle (et met à jour last_used_at).
+// Fire-and-forget : on n'attend pas la réponse pour ne pas bloquer l'UI
+// au moment où l'archi sauvegarde sa réserve.
+export function incrementReserveTemplateUsage(id) {
+  if (!id) return;
+  supabase.rpc("increment_reserve_template_usage", { _template_id: id })
+    .then(({ error }) => {
+      if (error) console.error("incrementReserveTemplateUsage error:", error);
+    });
+}
+
+// ── Honoraires & facturation (F1) ───────────────────────────
+// Charge les factures visibles : ses factures perso + celles de son agence
+// si l'utilisateur est membre. RLS filtre côté serveur.
+export async function loadInvoices({ projectId } = {}) {
+  let q = supabase
+    .from("invoices")
+    .select("*")
+    .order("issue_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (projectId) q = q.eq("project_id", String(projectId));
+  const { data, error } = await q;
+  if (error) { console.error("loadInvoices error:", error); return []; }
+  return data || [];
+}
+
+// Réserve un numéro de facture séquentiel pour l'année donnée.
+// Atomique côté serveur (verrou pessimiste dans le RPC). Renvoie "2026-001".
+export async function nextInvoiceNumber(year) {
+  const y = year || new Date().getFullYear();
+  const { data, error } = await supabase.rpc("next_invoice_number", { _year: y });
+  if (error) { console.error("nextInvoiceNumber error:", error); return null; }
+  return data;
+}
+
+// Crée ou met à jour une facture. L'archi peut fournir `number` manuellement
+// (reprise d'une numérotation existante), sinon on en réserve un nouveau.
+// Retourne la facture persistée ou null en cas d'erreur.
+export async function saveInvoice(invoice) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const isUpdate = !!invoice.id;
+  const payload = {
+    project_id:     String(invoice.project_id),
+    project_name:   invoice.project_name || null,
+    phase_id:       invoice.phase_id || null,
+    phase_label:    invoice.phase_label || null,
+    client_name:    invoice.client_name?.trim(),
+    client_address: invoice.client_address?.trim() || null,
+    client_vat:     invoice.client_vat?.trim() || null,
+    description:    invoice.description?.trim(),
+    amount_ht:      Number(invoice.amount_ht) || 0,
+    vat_rate:       Number(invoice.vat_rate) || 21,
+    issue_date:     invoice.issue_date,
+    due_date:       invoice.due_date,
+    status:         invoice.status || "draft",
+    payment_method: invoice.payment_method || null,
+    payment_ref:    invoice.payment_ref || null,
+    notes:          invoice.notes || null,
+  };
+
+  if (!payload.client_name || !payload.description) return null;
+
+  if (isUpdate) {
+    // status-driven timestamps : on n'écrase pas si déjà set
+    if (invoice.status === "sent" && !invoice._wasSent) payload.sent_at = new Date().toISOString();
+    if (invoice.status === "paid" && !invoice._wasPaid) payload.paid_at = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("invoices")
+      .update(payload)
+      .eq("id", invoice.id)
+      .select()
+      .single();
+    if (error) { console.error("saveInvoice update error:", error); return null; }
+    return data;
+  }
+
+  // INSERT — réserver un numéro si pas fourni
+  let number = invoice.number?.trim();
+  if (!number) {
+    const year = new Date(invoice.issue_date || Date.now()).getFullYear();
+    number = await nextInvoiceNumber(year);
+    if (!number) return null;
+  }
+
+  const insertPayload = {
+    ...payload,
+    owner_user_id: invoice.org_id ? null : user.id,
+    org_id: invoice.org_id || null,
+    number,
+  };
+  const { data, error } = await supabase
+    .from("invoices")
+    .insert(insertPayload)
+    .select()
+    .single();
+  if (error) { console.error("saveInvoice insert error:", error); return null; }
+  return data;
+}
+
+export async function deleteInvoice(id) {
+  const { error } = await supabase.from("invoices").delete().eq("id", id);
+  if (error) { console.error("deleteInvoice error:", error); return false; }
+  return true;
+}
+
+// ── Permis d'urbanisme (F4) ─────────────────────────────────
+export async function loadPermits({ projectId } = {}) {
+  let q = supabase
+    .from("permits")
+    .select("*")
+    .order("depot_date", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (projectId) q = q.eq("project_id", String(projectId));
+  const { data, error } = await q;
+  if (error) { console.error("loadPermits error:", error); return []; }
+  return data || [];
+}
+
+export async function savePermit(permit) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const payload = {
+    project_id:     String(permit.project_id),
+    project_name:   permit.project_name || null,
+    permit_type:    permit.permit_type || 'urbanisme',
+    procedure:      permit.procedure || '75j',
+    procedure_days: permit.procedure_days || null,
+    reference:      permit.reference?.trim() || null,
+    commune:        permit.commune?.trim() || null,
+    depot_date:     permit.depot_date || null,
+    ar_date:        permit.ar_date || null,
+    deadline_date:  permit.deadline_date || null,
+    decision_date:  permit.decision_date || null,
+    decision_text:  permit.decision_text?.trim() || null,
+    status:         permit.status || 'preparation',
+    documents:      permit.documents || [],
+    notes:          permit.notes?.trim() || null,
+  };
+
+  if (permit.id) {
+    const { data, error } = await supabase
+      .from("permits").update(payload).eq("id", permit.id).select().single();
+    if (error) { console.error("savePermit update error:", error); return null; }
+    return data;
+  }
+
+  const insertPayload = {
+    ...payload,
+    owner_user_id: permit.org_id ? null : user.id,
+    org_id: permit.org_id || null,
+  };
+  const { data, error } = await supabase
+    .from("permits").insert(insertPayload).select().single();
+  if (error) { console.error("savePermit insert error:", error); return null; }
+  return data;
+}
+
+export async function deletePermit(id) {
+  const { error } = await supabase.from("permits").delete().eq("id", id);
+  if (error) { console.error("deletePermit error:", error); return false; }
+  return true;
+}
+
+// ── Devis / soumissions (F3) ────────────────────────────────
+export async function loadQuotes({ projectId, lotId } = {}) {
+  let q = supabase
+    .from("quotes")
+    .select("*")
+    .order("uploaded_at", { ascending: false });
+  if (projectId) q = q.eq("project_id", String(projectId));
+  if (lotId) q = q.eq("lot_id", String(lotId));
+  const { data, error } = await q;
+  if (error) { console.error("loadQuotes error:", error); return []; }
+  return data || [];
+}
+
+export async function saveQuote(quote) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const payload = {
+    project_id:       String(quote.project_id),
+    lot_id:           quote.lot_id || null,
+    lot_label:        quote.lot_label || null,
+    contractor_name:  quote.contractor_name?.trim() || "Entreprise inconnue",
+    contractor_email: quote.contractor_email?.trim() || null,
+    file_name:        quote.file_name || null,
+    file_data_url:    quote.file_data_url || null,
+    total_ht:         quote.total_ht ?? null,
+    total_ttc:        quote.total_ttc ?? null,
+    validity_days:    quote.validity_days ?? null,
+    parsed:           quote.parsed || {},
+    parse_status:     quote.parse_status || 'pending',
+    parse_error:      quote.parse_error || null,
+    status:           quote.status || 'pending',
+    notes:            quote.notes || null,
+  };
+
+  if (quote.id) {
+    if (quote.status === "awarded" && !quote._wasAwarded) payload.awarded_at = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("quotes").update(payload).eq("id", quote.id).select().single();
+    if (error) { console.error("saveQuote update error:", error); return null; }
+    return data;
+  }
+
+  const insertPayload = {
+    ...payload,
+    owner_user_id: quote.org_id ? null : user.id,
+    org_id: quote.org_id || null,
+  };
+  const { data, error } = await supabase
+    .from("quotes").insert(insertPayload).select().single();
+  if (error) { console.error("saveQuote insert error:", error); return null; }
+  return data;
+}
+
+export async function deleteQuote(id) {
+  const { error } = await supabase.from("quotes").delete().eq("id", id);
+  if (error) { console.error("deleteQuote error:", error); return false; }
+  return true;
+}
+
+// Appelle l'edge function parse-quote (OpenAI Vision).
+// Le client envoie soit `text` (extrait via pdf.js), soit `imagesBase64`
+// (fallback pour les PDFs scannés).
+export async function parseQuotePdf({ text, imagesBase64, contractorHint }) {
+  const { data, error } = await supabase.functions.invoke("parse-quote", {
+    body: { text, imagesBase64, contractorHint },
+  });
+  if (error) {
+    console.error("parseQuotePdf error:", error);
+    const body = await parseFunctionError(error);
+    if (body.code === "plan_upgrade_required") return { upgradeRequired: body };
+    return { error: body.error || "Erreur de parsing IA" };
+  }
+  if (data?.error) return { error: data.error };
+  return { parsed: data };
+}
+
+// ── Rapports d'avancement (F10) ─────────────────────────────
+export async function loadProgressReports({ projectId } = {}) {
+  let q = supabase
+    .from("progress_reports")
+    .select("*")
+    .order("period_end", { ascending: false });
+  if (projectId) q = q.eq("project_id", String(projectId));
+  const { data, error } = await q;
+  if (error) { console.error("loadProgressReports error:", error); return []; }
+  return data || [];
+}
+
+export async function saveProgressReport(report) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const payload = {
+    project_id:    String(report.project_id),
+    project_name:  report.project_name || null,
+    period_start:  report.period_start,
+    period_end:    report.period_end,
+    content_md:    report.content_md || null,
+    content_html:  report.content_html || null,
+    pdf_url:       report.pdf_url || null,
+    status:        report.status || "draft",
+    sent_to:       report.sent_to || null,
+  };
+
+  if (report.id) {
+    if (report.status === "sent" && !report._wasSent) payload.sent_at = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("progress_reports").update(payload).eq("id", report.id).select().single();
+    if (error) { console.error("saveProgressReport update error:", error); return null; }
+    return data;
+  }
+
+  const insertPayload = {
+    ...payload,
+    owner_user_id: report.org_id ? null : user.id,
+    org_id: report.org_id || null,
+  };
+  const { data, error } = await supabase
+    .from("progress_reports").insert(insertPayload).select().single();
+  if (error) { console.error("saveProgressReport insert error:", error); return null; }
+  return data;
+}
+
+export async function deleteProgressReport(id) {
+  const { error } = await supabase.from("progress_reports").delete().eq("id", id);
+  if (error) { console.error("deleteProgressReport error:", error); return false; }
+  return true;
+}
+
+// Appelle l'edge function generate-progress-report (OpenAI synthesis)
+export async function generateProgressReportContent({ project_name, status_label, period_start, period_end, pvs, tasks, reserves, photos_count, permits }) {
+  const { data, error } = await supabase.functions.invoke("generate-progress-report", {
+    body: { project_name, status_label, period_start, period_end, pvs, tasks, reserves, photos_count, permits },
+  });
+  if (error) {
+    console.error("generateProgressReportContent error:", error);
+    const body = await parseFunctionError(error);
+    if (body.code === "plan_upgrade_required") return { upgradeRequired: body };
+    return { error: body.error || "Erreur de génération IA" };
+  }
+  if (data?.error) return { error: data.error };
+  return { content_md: data.content_md };
 }
 
 export async function loadPvSends(projectId, pvNumber) {

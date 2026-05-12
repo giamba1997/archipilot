@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG } from "../constants/tokens";
 import { RESERVE_STATUSES, RESERVE_SEVERITIES, getReserveStatus, getReserveSeverity, nextReserveStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
-import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests, requestOprSignatures } from "../db";
+import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests, requestOprSignatures, loadReserveTemplates, saveReserveTemplate, incrementReserveTemplateUsage } from "../db";
+import { MAX_UPLOAD_PHOTO_BYTES } from "../constants/config";
 import { SignOprModal, SendOprModal, RequestSignaturesModal } from "../components/modals";
 import { generateOprPdf } from "../utils/pdf";
 
@@ -18,7 +19,16 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
   const [requestSigOpen, setRequestSigOpen] = useState(false);
   const [signatureRequests, setSignatureRequests] = useState([]);
   const [relaunchingId, setRelaunchingId] = useState(null); // id du sigreq en cours de relance
+  const [reserveTemplates, setReserveTemplates] = useState([]); // F8 — bibliothèque
   const photoRef = useRef(null);
+
+  // Chargement de la bibliothèque de modèles (F8). Lazy : seulement quand
+  // l'OPR view est ouverte, jamais sur d'autres écrans. Si l'archi n'a
+  // aucun modèle (ni perso, ni org, ni système), l'autocomplete reste
+  // simplement masqué — zéro intrusion.
+  useEffect(() => {
+    loadReserveTemplates().then(setReserveTemplates).catch(() => setReserveTemplates([]));
+  }, []);
 
   // Renvoie un nouveau lien de signature pour un signataire ayant refusé / expiré.
   // Crée un nouveau sigreq frais (token, expiration) sans toucher à l'ancien
@@ -135,16 +145,24 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
   };
 
   const toggleStatus = (reserveId) => {
-    updateReserves(reserves.map(r => {
-      if (r.id !== reserveId) return r;
-      const next = nextReserveStatus(r.status);
-      return { ...r, status: next, resolvedAt: next === "levee" ? new Date().toISOString() : null };
-    }));
+    const target = reserves.find(r => r.id === reserveId);
+    if (!target) return;
+    const next = nextReserveStatus(target.status);
+    updateReserves(reserves.map(r => r.id !== reserveId
+      ? r
+      : { ...r, status: next, resolvedAt: next === "levee" ? new Date().toISOString() : null }
+    ));
+    // Feedback : confirme le nouveau statut pour éviter l'incertitude sur
+    // l'effet d'un clic (l'archi avance souvent en série sur 20 réserves).
+    const label = next === "levee" ? "Réserve levée" : next === "partiellement_levee" ? "Réserve en cours" : "Réserve réouverte";
+    showToast?.(`${target.code || "Réserve"} — ${label}`);
   };
 
   const deleteReserve = (reserveId) => {
+    const target = reserves.find(r => r.id === reserveId);
     if (!confirm("Supprimer cette réserve ?")) return;
     updateReserves(reserves.filter(r => r.id !== reserveId));
+    showToast?.(`${target?.code || "Réserve"} supprimée`);
   };
 
   // ── Add / Edit form ──
@@ -155,16 +173,24 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
         reserve={existing}
         contractors={contractors}
         nextCode={`R-${String(reserves.length + 1).padStart(3, "0")}`}
+        templates={reserveTemplates}
+        onTemplateAdded={(newTpl) => setReserveTemplates(prev => [newTpl, ...prev])}
         onSave={(reserve) => {
           if (mode === "edit") {
             updateReserves(reserves.map(r => r.id === reserve.id ? reserve : r));
+            showToast?.(`${reserve.code || "Réserve"} mise à jour`);
           } else {
             updateReserves([...reserves, reserve]);
+            showToast?.(`${reserve.code || "Réserve"} ajoutée`);
           }
+          // Fire-and-forget : si la réserve provient d'un modèle, on incrémente
+          // son compteur d'usage pour le faire remonter dans l'autocomplete.
+          if (reserve._templateId) incrementReserveTemplateUsage(reserve._templateId);
           setMode("list");
           setEditingId(null);
         }}
         onCancel={() => { setMode("list"); setEditingId(null); }}
+        showToast={showToast}
       />
     );
   }
@@ -491,24 +517,49 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                           <Ico name="calendar" size={11} color={TX3} /> {r.deadline}
                         </span>
                       )}
-                      {(r.photos || []).length > 0 && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <Ico name="camera" size={11} color={TX3} /> {r.photos.length} photo{r.photos.length > 1 ? "s" : ""}
-                        </span>
-                      )}
+                      {(() => {
+                        const directN = (r.photos || []).length;
+                        const linkedN = (project.gallery || []).filter(g => (g.linkedReserves || []).includes(r.id)).length;
+                        const total = directN + linkedN;
+                        if (total === 0) return null;
+                        return (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }} title={linkedN > 0 ? `${directN} directe${directN > 1 ? "s" : ""} + ${linkedN} liée${linkedN > 1 ? "s" : ""} depuis la galerie` : undefined}>
+                            <Ico name="camera" size={11} color={TX3} /> {total} photo{total > 1 ? "s" : ""}{linkedN > 0 ? ` (dont ${linkedN} liée${linkedN > 1 ? "s" : ""})` : ""}
+                          </span>
+                        );
+                      })()}
                     </div>
 
-                    {/* Photos */}
-                    {(r.photos || []).length > 0 && (
-                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                        {r.photos.slice(0, 4).map((ph, i) => (
-                          <img key={i} src={ph} style={{ width: 48, height: 48, borderRadius: 6, objectFit: "cover", border: `1px solid ${SBB}` }} />
-                        ))}
-                        {r.photos.length > 4 && (
-                          <div style={{ width: 48, height: 48, borderRadius: 6, background: SB, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: TX3 }}>+{r.photos.length - 4}</div>
-                        )}
-                      </div>
-                    )}
+                    {/* Photos directes (uploadées dans la réserve) + photos
+                        liées depuis la galerie (gallery[i].linkedReserves
+                        contient r.id). On marque les "liées" avec un petit
+                        coin coloré en haut-droite. Pas de duplication —
+                        c'est l'OprView qui reconstruit le set à l'affichage. */}
+                    {(() => {
+                      const direct = (r.photos || []).map(url => ({ url, source: "reserve" }));
+                      const linked = (project.gallery || [])
+                        .filter(g => (g.linkedReserves || []).includes(r.id))
+                        .map(g => ({ url: g.url || g.dataUrl, source: "gallery", photoId: g.id }));
+                      const all = [...direct, ...linked];
+                      if (all.length === 0) return null;
+                      return (
+                        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                          {all.slice(0, 6).map((p, i) => (
+                            <div key={i} style={{ position: "relative", width: 48, height: 48 }}>
+                              <img src={p.url} style={{ width: 48, height: 48, borderRadius: 6, objectFit: "cover", border: `1px solid ${SBB}`, display: "block" }} />
+                              {p.source === "gallery" && (
+                                <div title="Liée depuis la galerie" style={{ position: "absolute", top: -3, right: -3, width: 14, height: 14, borderRadius: "50%", background: AC, border: `2px solid ${WH}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <Ico name="image" size={7} color="#fff" />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {all.length > 6 && (
+                            <div style={{ width: 48, height: 48, borderRadius: 6, background: SB, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: TX3 }}>+{all.length - 6}</div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -594,7 +645,7 @@ function KpiBox({ label, value, color, accent }) {
 }
 
 // ── Reserve Form ──
-function ReserveForm({ reserve, contractors, nextCode, onSave, onCancel }) {
+function ReserveForm({ reserve, contractors, nextCode, templates = [], onTemplateAdded, showToast, onSave, onCancel }) {
   const [form, setForm] = useState(() => ({
     id: reserve?.id || Date.now() + Math.random(),
     code: reserve?.code || nextCode,
@@ -608,15 +659,89 @@ function ReserveForm({ reserve, contractors, nextCode, onSave, onCancel }) {
     notes: reserve?.notes || "",
     createdAt: reserve?.createdAt || new Date().toISOString(),
     resolvedAt: reserve?.resolvedAt || null,
+    // F8 — id du modèle source si la description vient de la bibliothèque
+    // (utilisé pour incrémenter usage_count à la sauvegarde, et pour
+    // masquer le bouton « Enregistrer comme modèle » dans ce cas)
+    _templateId: reserve?._templateId || null,
   }));
   const photoRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateSaved, setTemplateSaved] = useState(false);
 
   const set = (key) => (val) => setForm(f => ({ ...f, [key]: val }));
+
+  // ── F8 — matching de modèles ──
+  // Filtre la bibliothèque selon ce que l'archi est en train d'écrire.
+  // Match fuzzy : on coupe la query en mots et on garde les modèles qui
+  // contiennent tous les mots (insensible à la casse). Si la description
+  // est vide, on retourne les 5 modèles les plus utilisés comme suggestions
+  // de départ. Si elle dépasse 60 chars, plus de suggestion (l'archi sait
+  // ce qu'il veut écrire).
+  const matchingTemplates = (() => {
+    if (!templates.length) return [];
+    const q = form.description.trim().toLowerCase();
+    if (q.length > 60) return [];
+    if (!q) return templates.slice(0, 5);
+    const words = q.split(/\s+/).filter(w => w.length > 1);
+    if (!words.length) return templates.slice(0, 5);
+    return templates
+      .filter(t => {
+        const desc = t.description.toLowerCase();
+        return words.every(w => desc.includes(w));
+      })
+      .slice(0, 5);
+  })();
+
+  // Cache si la description courante correspond exactement à un modèle
+  // existant — auquel cas on n'affiche pas le bouton « Enregistrer ».
+  const descMatchesTemplate = !!templates.find(
+    t => t.description.trim().toLowerCase() === form.description.trim().toLowerCase()
+  );
+
+  const applyTemplate = (t) => {
+    setForm(f => ({
+      ...f,
+      description: t.description,
+      // On ne réécrase la sévérité/entreprise que si l'archi ne les a pas
+      // déjà touchées — sinon il perdrait son choix.
+      severity: f.severity === "major" ? (t.default_severity || f.severity) : f.severity,
+      contractor: !f.contractor && t.default_contractor_type ? t.default_contractor_type : f.contractor,
+      _templateId: t.id,
+    }));
+    setTemplateSaved(false);
+  };
+
+  const saveAsTemplate = async () => {
+    if (savingTemplate) return;
+    setSavingTemplate(true);
+    const created = await saveReserveTemplate({
+      description: form.description,
+      default_severity: form.severity,
+      default_contractor_type: form.contractor || null,
+      category: null,
+    });
+    setSavingTemplate(false);
+    if (created) {
+      onTemplateAdded?.(created);
+      setForm(f => ({ ...f, _templateId: created.id }));
+      setTemplateSaved(true);
+      showToast?.("Modèle enregistré dans votre bibliothèque");
+    } else {
+      showToast?.("Échec de l'enregistrement du modèle", "error");
+    }
+  };
 
   const handlePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) { alert("Format non supporté — image attendue."); e.target.value = ""; return; }
+    if (file.size > MAX_UPLOAD_PHOTO_BYTES) {
+      const mb = Math.round(file.size / 1024 / 1024);
+      alert(`Photo trop lourde (${mb} Mo). Limite : ${MAX_UPLOAD_PHOTO_BYTES / 1024 / 1024} Mo.`);
+      e.target.value = "";
+      return;
+    }
     setUploading(true);
     const reader = new FileReader();
     reader.onload = async (ev) => {
@@ -667,10 +792,84 @@ function ReserveForm({ reserve, contractors, nextCode, onSave, onCancel }) {
           </FormField>
         </div>
 
-        {/* Description */}
+        {/* Description + suggestions de la bibliothèque (F8) */}
         <FormField label="Description *">
-          <textarea value={form.description} onChange={e => set("description")(e.target.value)} placeholder="Décrivez le défaut constaté..."
-            rows={3} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }} />
+          {matchingTemplates.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 10, color: TX3, marginRight: 2 }}>Bibliothèque :</span>
+              {matchingTemplates.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => applyTemplate(t)}
+                  title={t.description}
+                  style={{
+                    padding: "3px 9px",
+                    border: `1px solid ${form._templateId === t.id ? ACL2 : SBB}`,
+                    borderRadius: 999,
+                    background: form._templateId === t.id ? ACL : WH,
+                    color: form._templateId === t.id ? AC : TX2,
+                    fontSize: 10,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    maxWidth: 260,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {t.description}
+                </button>
+              ))}
+            </div>
+          )}
+          <textarea
+            value={form.description}
+            onChange={e => {
+              const v = e.target.value;
+              setForm(f => ({
+                ...f,
+                description: v,
+                // Si l'archi modifie le texte après avoir choisi un modèle,
+                // on détache la référence — sinon usage_count s'incrémenterait
+                // pour un texte qui n'est plus le modèle.
+                _templateId: f._templateId && f.description !== v ? null : f._templateId,
+              }));
+              setTemplateSaved(false);
+            }}
+            placeholder="Décrivez le défaut constaté..."
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+          />
+          {/* Enregistrer comme modèle — apparaît seulement si la description est
+              inédite (>10 chars, pas déjà un modèle, pas en train d'éditer un
+              modèle). Toujours opt-in, jamais auto. */}
+          {form.description.trim().length > 10 && !form._templateId && !descMatchesTemplate && (
+            <div style={{ marginTop: 6, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={saveAsTemplate}
+                disabled={savingTemplate || templateSaved}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "4px 10px",
+                  border: `1px solid ${templateSaved ? GR : SBB}`,
+                  borderRadius: 8,
+                  background: templateSaved ? "#F0F9F1" : WH,
+                  color: templateSaved ? GR : TX2,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  cursor: savingTemplate || templateSaved ? "default" : "pointer",
+                  fontFamily: "inherit",
+                  transition: "all 0.15s",
+                }}
+              >
+                <Ico name={templateSaved ? "check" : "plus"} size={10} color={templateSaved ? GR : TX2} />
+                {templateSaved ? "Modèle enregistré" : savingTemplate ? "..." : "Enregistrer comme modèle"}
+              </button>
+            </div>
+          )}
         </FormField>
 
         {/* Contractor + Location */}

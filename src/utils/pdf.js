@@ -881,3 +881,487 @@ export async function generateOprPdf(project, opr, profile, options) {
   }
   doc.save(fileName);
 }
+
+// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// F2 \u2014 Journal de chantier
+//
+// G\u00E9n\u00E8re un PDF chronologique consolidant les \u00E9v\u00E9nements du chantier :
+// PV / OPR / r\u00E9serves / photos / actions / visites libres. Destin\u00E9 \u00E0
+// l'archivage et aux audits Cnac (le journal est l\u00E9galement obligatoire
+// pour les chantiers soumis au RGPT en Belgique).
+//
+// Input :
+//   timeline = liste d\u00E9j\u00E0 tri\u00E9e DESC par date, sortie de buildTimeline()
+//   profile  = pour le header cabinet et le footer signature
+//   options.draft = true \u2192 filigrane "BROUILLON" pour distinguer une
+//                          copie de travail d'une copie sign\u00E9e
+// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+export async function generateChantierJournalPdf(project, timeline, profile, options = {}) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = 210, H = 297;
+  const ML = 18, MR = 18;
+  const CW = W - ML - MR;
+
+  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const font   = profile?.pdfFont || "helvetica";
+  const DARK   = [29, 29, 27];
+  const GRAY   = [107, 107, 102];
+  const LGRAY  = [226, 225, 221];
+  const BGGRAY = [247, 246, 244];
+
+  // Couleurs de dot par type \u2014 align\u00E9es sur JournalView (coh\u00E9rence UX)
+  const TYPE_COLORS = {
+    pv:      [196, 121, 26],   // amber
+    opr:     [192, 90, 44],    // terracotta
+    reserve: [192, 69, 37],    // brick red
+    action:  [126, 109, 138],  // violet
+    photo:   [58, 115, 150],   // blueprint
+    manual:  [107, 107, 102],  // gray
+  };
+  const TYPE_LABELS = {
+    pv: "PV", opr: "OPR", reserve: "R\u00E9serve",
+    action: "Action", photo: "Photos", manual: "Visite",
+  };
+
+  let y = 0;
+
+  const checkY = (needed = 14) => {
+    if (y + needed > H - 22) {
+      doc.addPage();
+      y = 22;
+    }
+  };
+
+  // \u2500\u2500 HEADER \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFillColor(...AMBER);
+  doc.rect(0, 0, W, 11, "F");
+  y = 19;
+
+  if (profile?.picture && hasFeature(profile?.plan, "pdfCustomLogo")) {
+    try { doc.addImage(profile.picture, "JPEG", W - MR - 22, 13, 22, 22); } catch (_) { /* ignore */ }
+  }
+
+  const bureauName = profile?.structure || "ArchiPilot";
+  doc.setFont(font, "bold"); doc.setFontSize(14); doc.setTextColor(...DARK);
+  doc.text(bureauName, ML, y); y += 5.5;
+
+  doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+  const contactParts = [profile?.phone, profile?.email].filter(Boolean).join("   ");
+  if (profile?.address) { doc.text(profile.address, ML, y); y += 4.5; }
+  if (contactParts)      { doc.text(contactParts, ML, y);   y += 4.5; }
+
+  y = Math.max(y, 40);
+  doc.setDrawColor(...LGRAY); doc.setLineWidth(0.4);
+  doc.line(ML, y, W - MR, y); y += 9;
+
+  // \u2500\u2500 TITRE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const todayStr = new Date().toLocaleDateString("fr-BE");
+  doc.setFont(font, "bold"); doc.setFontSize(20); doc.setTextColor(...AMBER);
+  doc.text("JOURNAL DE CHANTIER", ML, y); y += 7;
+
+  doc.setFont(font, "normal"); doc.setFontSize(10); doc.setTextColor(...DARK);
+  doc.text(`E\u0301dition du ${todayStr}`, ML, y); y += 9;
+
+  // \u2500\u2500 FICHE PROJET \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFillColor(...BGGRAY);
+  doc.rect(ML, y, CW, 22, "F");
+
+  const bY = y + 5;
+  const c1 = ML + 5, c2 = ML + 90;
+
+  doc.setFont(font, "bold"); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text("CHANTIER", c1, bY);
+  doc.text("MA\u00CETRE D'OUVRAGE", c2, bY);
+
+  doc.setFont(font, "bold"); doc.setFontSize(9.5); doc.setTextColor(...DARK);
+  doc.text(doc.splitTextToSize(project.name || "", 82), c1, bY + 5);
+  doc.text(doc.splitTextToSize(project.client || "", 82), c2, bY + 5);
+
+  if (project.address) {
+    doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+    doc.text(project.address, c1, bY + 13);
+  }
+  y += 30;
+
+  // \u2500\u2500 STATS RAPIDES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  if (timeline.length > 0) {
+    const counts = {};
+    for (const e of timeline) counts[e.type] = (counts[e.type] || 0) + 1;
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const items = sorted.map(([type, n]) => `${TYPE_LABELS[type] || type} : ${n}`);
+    doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+    doc.text(`${timeline.length} entr\u00E9e${timeline.length > 1 ? "s" : ""} \u2014 ${items.join("   \u00B7   ")}`, ML, y);
+    y += 7;
+  }
+
+  // \u2500\u2500 S\u00C9PARATEUR \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  doc.setFillColor(...AMBER);
+  doc.rect(ML, y, CW, 0.8, "F");
+  y += 9;
+
+  // \u2500\u2500 TIMELINE \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  if (timeline.length === 0) {
+    doc.setFont(font, "italic"); doc.setFontSize(10); doc.setTextColor(...GRAY);
+    doc.text("Aucune entr\u00E9e dans le journal.", ML, y);
+  } else {
+    for (const e of timeline) {
+      const photos = (e.photos || []).slice(0, 4);
+      const hasPhotos = photos.length > 0;
+      // Estimation hauteur : titre + sous-titre + corps wrap + photos
+      const bodyLines = e.body ? doc.splitTextToSize(e.body, CW - 12) : [];
+      const bodyH = Math.min(bodyLines.length, 4) * 4;
+      const photoH = hasPhotos ? 22 : 0;
+      const entryH = 14 + bodyH + photoH + 4;
+      checkY(entryH);
+
+      // Dot type (\u00E0 gauche)
+      const dotColor = TYPE_COLORS[e.type] || GRAY;
+      doc.setFillColor(...dotColor);
+      doc.circle(ML + 2, y + 3.5, 1.8, "F");
+
+      // Date \u00E0 droite + chip type
+      const dateStr = e.date.toLocaleDateString("fr-BE", { day: "2-digit", month: "2-digit", year: "numeric" });
+      doc.setFont(font, "bold"); doc.setFontSize(9); doc.setTextColor(...DARK);
+      doc.text(e.title, ML + 7, y + 4.5);
+
+      doc.setFont(font, "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+      const dateW = doc.getTextWidth(dateStr);
+      doc.text(dateStr, ML + CW - dateW, y + 4.5);
+
+      // Chip type
+      const lbl = TYPE_LABELS[e.type] || e.type;
+      doc.setFontSize(6.5); doc.setTextColor(...dotColor);
+      doc.text(lbl.toUpperCase(), ML + 7, y + 8.5);
+
+      // Sous-titre (pr\u00E9sents / contractor / etc.)
+      if (e.subtitle) {
+        doc.setFont(font, "normal"); doc.setFontSize(8); doc.setTextColor(...GRAY);
+        const subLines = doc.splitTextToSize(e.subtitle, CW - 30);
+        doc.text(subLines[0] || "", ML + 7 + 14, y + 8.5);
+      }
+
+      let by = y + 13;
+
+      // Corps (4 lignes max)
+      if (bodyLines.length > 0) {
+        doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+        const lines = bodyLines.slice(0, 4);
+        for (const line of lines) {
+          doc.text(line, ML + 7, by);
+          by += 4;
+        }
+        if (bodyLines.length > 4) {
+          doc.setFontSize(7); doc.setTextColor(...GRAY);
+          doc.text("\u2026 (\u00E9lid\u00E9)", ML + 7, by);
+          by += 4;
+        }
+      }
+
+      // Photos (max 4 vignettes 18\u00D718)
+      if (hasPhotos) {
+        by += 1;
+        const thumbSize = 18;
+        for (let i = 0; i < photos.length; i++) {
+          try {
+            doc.addImage(photos[i], "JPEG", ML + 7 + i * (thumbSize + 2), by, thumbSize, thumbSize);
+          } catch (_) { /* ignore broken photos */ }
+        }
+        by += thumbSize + 2;
+      }
+
+      // Trait fin s\u00E9parateur entre entr\u00E9es
+      doc.setDrawColor(...LGRAY); doc.setLineWidth(0.2);
+      doc.line(ML + 7, by + 1, W - MR, by + 1);
+      y = by + 4;
+    }
+  }
+
+  // \u2500\u2500 FOOTER : pagination + signature \u00E9lectronique archi \u2500\u2500
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    doc.setFont(font, "normal"); doc.setFontSize(7); doc.setTextColor(...GRAY);
+    // Pagination
+    doc.text(`Page ${p} / ${pageCount}`, W - MR, H - 8, { align: "right" });
+    // Mention archi (= signature \u00E9lectronique au sens o\u00F9 l'archi atteste
+    // de la v\u00E9racit\u00E9 par son nom + sa structure et la date d'\u00E9dition)
+    const signLine = `Document attest\u00E9 par ${profile?.name || "l'architecte"} (${bureauName}) le ${todayStr}`;
+    doc.text(signLine, ML, H - 8);
+
+    // Filigrane "BROUILLON" si demand\u00E9
+    if (options.draft) {
+      try {
+        doc.saveGraphicsState();
+        doc.setGState(new doc.GState({ opacity: 0.08 }));
+        doc.setFont(font, "bold"); doc.setFontSize(96); doc.setTextColor(...GRAY);
+        doc.text("BROUILLON", W / 2, H / 2, { align: "center", angle: 45 });
+        doc.restoreGraphicsState();
+      } catch (_) {
+        doc.setFont(font, "bold"); doc.setFontSize(96); doc.setTextColor(230, 225, 220);
+        doc.text("BROUILLON", W / 2, H / 2, { align: "center", angle: 45 });
+      }
+    }
+
+    // Filigrane plan Free (coh\u00E9rence avec OPR/PV)
+    if (profile?.plan === "free") {
+      try {
+        doc.saveGraphicsState();
+        doc.setGState(new doc.GState({ opacity: 0.1 }));
+        doc.setFont(font, "bold"); doc.setFontSize(64); doc.setTextColor(...GRAY);
+        doc.text("ArchiPilot Free", W / 2, H * 0.78, { align: "center", angle: 45 });
+        doc.restoreGraphicsState();
+      } catch (_) { /* ignore */ }
+    }
+  }
+
+  const safeName = (project.name || "projet").replace(/[^\w\s\u00C0-\u024F]/g, "").replace(/\s+/g, "_");
+  const safeDate = todayStr.replace(/\//g, "-");
+  const fileName = `Journal_${safeName}_${safeDate}.pdf`;
+  if (options.returnDataUrl) {
+    return { dataUrl: doc.output("datauristring"), fileName };
+  }
+  doc.save(fileName);
+  return { fileName };
+}
+
+// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// F1 \u2014 PDF facture (conforme TVA belge)
+//
+// Mentions obligatoires d'une facture en Belgique (Code TVA art 53\u00A72) :
+//   \u2022 mention "Facture" + num\u00E9ro s\u00E9quentiel + date d'\u00E9mission
+//   \u2022 identification compl\u00E8te \u00E9metteur (nom, adresse, n\u00B0 TVA)
+//   \u2022 identification compl\u00E8te client (nom, adresse, n\u00B0 TVA si pro)
+//   \u2022 description, qt\u00E9, prix HT, taux TVA, montant TVA, total TTC
+//   \u2022 date d'\u00E9ch\u00E9ance + conditions de paiement
+//
+// IBAN n'est pas l\u00E9galement obligatoire mais indispensable en pratique.
+// Communication structur\u00E9e bancaire (XXX/XXXX/XXXXX) recommand\u00E9e si on
+// veut un matching automatique \u00E0 la r\u00E9ception du virement.
+// \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+export async function generateInvoicePdf(invoice, profile, options = {}) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = 210, H = 297;
+  const ML = 18, MR = 18;
+  const CW = W - ML - MR;
+
+  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const font   = profile?.pdfFont || "helvetica";
+  const DARK   = [29, 29, 27];
+  const GRAY   = [107, 107, 102];
+  const LGRAY  = [226, 225, 221];
+  const BGGRAY = [247, 246, 244];
+
+  const fmtMoney = (n) => {
+    const v = Number(n) || 0;
+    return v.toLocaleString("fr-BE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " \u20AC";
+  };
+  const fmtDateBE = (iso) => {
+    if (!iso) return "\u2014";
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString("fr-BE");
+  };
+
+  // Recalcule TTC c\u00F4t\u00E9 client (les colonnes g\u00E9n\u00E9r\u00E9es en DB ne sont visibles
+  // qu'apr\u00E8s reload \u2014 pour les brouillons non encore sauv\u00E9s, on calcule ici).
+  const amountHt  = Number(invoice.amount_ht) || 0;
+  const vatRate   = Number(invoice.vat_rate) || 21;
+  const amountVat = invoice.amount_vat != null ? Number(invoice.amount_vat) : Math.round(amountHt * vatRate) / 100;
+  const amountTtc = invoice.amount_ttc != null ? Number(invoice.amount_ttc) : Math.round(amountHt * (100 + vatRate)) / 100;
+
+  let y = 0;
+
+  // \u2500\u2500 HEADER bande ambr\u00E9e \u2500\u2500
+  doc.setFillColor(...AMBER);
+  doc.rect(0, 0, W, 11, "F");
+  y = 19;
+
+  if (profile?.picture && hasFeature(profile?.plan, "pdfCustomLogo")) {
+    try { doc.addImage(profile.picture, "JPEG", W - MR - 22, 13, 22, 22); } catch (_) { /* ignore */ }
+  }
+
+  // \u2500\u2500 Bloc \u00E9metteur (haut gauche) \u2500\u2500
+  doc.setFont(font, "bold"); doc.setFontSize(14); doc.setTextColor(...DARK);
+  doc.text(profile?.structure || "ArchiPilot", ML, y); y += 5.5;
+
+  doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+  if (profile?.address)    { doc.text(profile.address, ML, y); y += 4.5; }
+  const contact = [profile?.phone, profile?.email].filter(Boolean).join("   ");
+  if (contact)              { doc.text(contact, ML, y); y += 4.5; }
+  if (profile?.vatNumber)   { doc.text(`N\u00B0 TVA : ${profile.vatNumber}`, ML, y); y += 4.5; }
+
+  y = Math.max(y, 42);
+  doc.setDrawColor(...LGRAY); doc.setLineWidth(0.4);
+  doc.line(ML, y, W - MR, y); y += 9;
+
+  // \u2500\u2500 Titre + num\u00E9ro \u2500\u2500
+  doc.setFont(font, "bold"); doc.setFontSize(22); doc.setTextColor(...AMBER);
+  doc.text("FACTURE", ML, y);
+
+  doc.setFontSize(11); doc.setTextColor(...DARK);
+  const numLabel = `N\u00B0 ${invoice.number || "\u2014"}`;
+  const numW = doc.getTextWidth(numLabel);
+  doc.text(numLabel, W - MR - numW, y);
+  y += 7;
+
+  // Dates \u00E9mission / \u00E9ch\u00E9ance \u2014 align\u00E9es droite
+  doc.setFont(font, "normal"); doc.setFontSize(9); doc.setTextColor(...GRAY);
+  const dEmission = `Date d'\u00E9mission : ${fmtDateBE(invoice.issue_date)}`;
+  const dDue      = `\u00C9ch\u00E9ance : ${fmtDateBE(invoice.due_date)}`;
+  doc.text(dEmission, W - MR - doc.getTextWidth(dEmission), y); y += 4;
+  doc.text(dDue,      W - MR - doc.getTextWidth(dDue), y); y += 8;
+
+  // \u2500\u2500 Bloc CLIENT (encadr\u00E9) \u2500\u2500
+  doc.setFillColor(...BGGRAY);
+  const clientH = 28;
+  doc.rect(ML, y, CW, clientH, "F");
+
+  doc.setFont(font, "bold"); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text("FACTURE ADRESS\u00C9E \u00C0", ML + 5, y + 5);
+
+  doc.setFont(font, "bold"); doc.setFontSize(10); doc.setTextColor(...DARK);
+  doc.text(invoice.client_name || "\u2014", ML + 5, y + 11);
+
+  doc.setFont(font, "normal"); doc.setFontSize(9); doc.setTextColor(...GRAY);
+  if (invoice.client_address) {
+    const lines = doc.splitTextToSize(invoice.client_address, CW - 70);
+    let cy = y + 16;
+    for (const l of lines.slice(0, 2)) { doc.text(l, ML + 5, cy); cy += 4; }
+  }
+  if (invoice.client_vat) {
+    doc.text(`N\u00B0 TVA : ${invoice.client_vat}`, ML + 5, y + clientH - 4);
+  }
+
+  // R\u00E9f\u00E9rence projet \u00E0 droite du bloc
+  doc.setFont(font, "bold"); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text("PROJET", ML + CW - 55, y + 5);
+  doc.setFont(font, "bold"); doc.setFontSize(9.5); doc.setTextColor(...DARK);
+  doc.text(doc.splitTextToSize(invoice.project_name || invoice.project_id || "\u2014", 50), ML + CW - 55, y + 11);
+  if (invoice.phase_label) {
+    doc.setFont(font, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+    doc.text(`Phase : ${invoice.phase_label}`, ML + CW - 55, y + clientH - 4);
+  }
+  y += clientH + 10;
+
+  // \u2500\u2500 Tableau lignes \u2500\u2500
+  // En-t\u00EAte
+  doc.setFillColor(...AMBER);
+  doc.rect(ML, y, CW, 7, "F");
+  doc.setFont(font, "bold"); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
+  doc.text("DESCRIPTION", ML + 4, y + 4.7);
+  doc.text("TVA",        ML + CW - 55, y + 4.7);
+  doc.text("MONTANT HT", ML + CW - 4 - doc.getTextWidth("MONTANT HT"), y + 4.7);
+  y += 7;
+
+  // Ligne (une seule en v1, description multilignes possible)
+  const descLines = doc.splitTextToSize(invoice.description || "", CW - 70);
+  const lineH = Math.max(10, descLines.length * 4 + 4);
+
+  doc.setFillColor(255, 255, 255);
+  doc.rect(ML, y, CW, lineH, "F");
+  doc.setDrawColor(...LGRAY); doc.setLineWidth(0.2);
+  doc.rect(ML, y, CW, lineH, "S");
+
+  doc.setFont(font, "normal"); doc.setFontSize(9.5); doc.setTextColor(...DARK);
+  let dy = y + 5;
+  for (const line of descLines) { doc.text(line, ML + 4, dy); dy += 4; }
+  doc.text(`${vatRate}%`, ML + CW - 55, y + 5);
+  const htStr = fmtMoney(amountHt);
+  doc.text(htStr, ML + CW - 4 - doc.getTextWidth(htStr), y + 5);
+  y += lineH + 4;
+
+  // \u2500\u2500 R\u00E9cap totaux (align\u00E9s droite) \u2500\u2500
+  const recapX = ML + CW - 70;
+  const valX   = ML + CW;
+  const recapRows = [
+    { label: "Total HT",           value: fmtMoney(amountHt),  bold: false },
+    { label: `TVA (${vatRate}%)`,  value: fmtMoney(amountVat), bold: false },
+    { label: "Total TTC",          value: fmtMoney(amountTtc), bold: true  },
+  ];
+  for (const r of recapRows) {
+    doc.setFont(font, r.bold ? "bold" : "normal");
+    doc.setFontSize(r.bold ? 12 : 9.5);
+    doc.setTextColor(...(r.bold ? DARK : GRAY));
+    if (r.bold) {
+      // Bandeau ambr\u00E9 pour le TTC
+      doc.setFillColor(...AMBER);
+      doc.rect(recapX, y - 4, CW - (recapX - ML), 8, "F");
+      doc.setTextColor(255, 255, 255);
+    }
+    doc.text(r.label, recapX + 2, y + (r.bold ? 1 : 0));
+    const valStr = r.value;
+    doc.text(valStr, valX - doc.getTextWidth(valStr), y + (r.bold ? 1 : 0));
+    y += r.bold ? 10 : 5;
+  }
+  y += 4;
+
+  // \u2500\u2500 Conditions de paiement \u2500\u2500
+  doc.setFont(font, "bold"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+  doc.text("CONDITIONS DE PAIEMENT", ML, y); y += 5;
+
+  doc.setFont(font, "normal"); doc.setFontSize(9.5); doc.setTextColor(...DARK);
+  const payNote = profile?.invoicePaymentNote
+    || `Paiement \u00E0 l'\u00E9ch\u00E9ance du ${fmtDateBE(invoice.due_date)} par virement bancaire.`;
+  const payLines = doc.splitTextToSize(payNote, CW);
+  for (const l of payLines.slice(0, 3)) { doc.text(l, ML, y); y += 4; }
+  y += 2;
+
+  if (profile?.iban) {
+    doc.setFont(font, "bold"); doc.setFontSize(9.5); doc.setTextColor(...DARK);
+    doc.text(`IBAN : ${profile.iban}`, ML, y); y += 5;
+  }
+  if (invoice.payment_ref) {
+    doc.setFont(font, "normal"); doc.setFontSize(9.5); doc.setTextColor(...DARK);
+    doc.text(`Communication : ${invoice.payment_ref}`, ML, y); y += 5;
+  }
+
+  if (invoice.notes) {
+    y += 4;
+    doc.setFont(font, "bold"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+    doc.text("NOTES", ML, y); y += 5;
+    doc.setFont(font, "normal"); doc.setFontSize(9); doc.setTextColor(...DARK);
+    const nl = doc.splitTextToSize(invoice.notes, CW);
+    for (const l of nl.slice(0, 6)) { doc.text(l, ML, y); y += 4; }
+  }
+
+  // \u2500\u2500 Footer \u2500\u2500
+  doc.setFont(font, "normal"); doc.setFontSize(7); doc.setTextColor(...GRAY);
+  const footer = profile?.vatNumber
+    ? `Facture \u00E9mise par ${profile?.structure || profile?.name || "ArchiPilot"} \u2014 TVA ${profile.vatNumber}`
+    : `Facture \u00E9mise par ${profile?.structure || profile?.name || "ArchiPilot"}`;
+  doc.text(footer, W / 2, H - 8, { align: "center" });
+
+  // Filigrane si brouillon (status 'draft' ou option explicite)
+  if (invoice.status === "draft" || options.draft) {
+    try {
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.08 }));
+      doc.setFont(font, "bold"); doc.setFontSize(96); doc.setTextColor(...GRAY);
+      doc.text("BROUILLON", W / 2, H / 2, { align: "center", angle: 45 });
+      doc.restoreGraphicsState();
+    } catch (_) {
+      doc.setFont(font, "bold"); doc.setFontSize(96); doc.setTextColor(230, 225, 220);
+      doc.text("BROUILLON", W / 2, H / 2, { align: "center", angle: 45 });
+    }
+  }
+
+  // Filigrane Free
+  if (profile?.plan === "free") {
+    try {
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.1 }));
+      doc.setFont(font, "bold"); doc.setFontSize(64); doc.setTextColor(...GRAY);
+      doc.text("ArchiPilot Free", W / 2, H * 0.78, { align: "center", angle: 45 });
+      doc.restoreGraphicsState();
+    } catch (_) { /* ignore */ }
+  }
+
+  const safeNum = (invoice.number || "DRAFT").replace(/[^\w-]/g, "_");
+  const safeClient = (invoice.client_name || "client").replace(/[^\w\s\u00C0-\u024F]/g, "").replace(/\s+/g, "_");
+  const fileName = `Facture_${safeNum}_${safeClient}.pdf`;
+  if (options.returnDataUrl) {
+    return { dataUrl: doc.output("datauristring"), fileName };
+  }
+  doc.save(fileName);
+  return { fileName };
+}

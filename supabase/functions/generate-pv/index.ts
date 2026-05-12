@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { handleCors, jsonResponse } from "../_shared/cors.ts";
 import { authenticateUser, PlanUpgradeError } from "../_shared/auth.ts";
 import { checkAiUsage, incrementAiUsage } from "../_shared/ai-usage.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 
@@ -43,6 +44,19 @@ serve(async (req) => {
 
   try {
     const user = await authenticateUser(req);
+
+    // Hard cap anti-abus — applique même sur plans Pro/Team (qui ont
+    // checkAiUsage = Infinity). Protège contre compte compromis qui
+    // tenterait de spammer OpenAI.
+    const rl = await checkRateLimit(user.id, { action: "generate_pv", maxCalls: 50, windowSeconds: 3600 });
+    if (!rl.allowed) {
+      return jsonResponse(req, {
+        error: "Limite anti-abus atteinte (50 PV/heure). Réessayez plus tard ou contactez le support.",
+        code: "rate_limited",
+        resetAt: rl.resetAt,
+      }, 429);
+    }
+
     await checkAiUsage(user);
 
     let body = await req.json();
@@ -63,7 +77,9 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: body.model || "gpt-4o-mini",
-        max_tokens: maxTokens || 2000,
+        // Hard cap côté serveur : un client malveillant pourrait sinon
+        // demander 100k tokens et exploser la facture OpenAI.
+        max_tokens: Math.min(Number(maxTokens) || 2000, 4000),
         temperature: 0.3,
         messages,
       }),

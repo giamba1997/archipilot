@@ -4,9 +4,10 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, DIS, DIS
 import { Ico } from "../ui";
 import { sendPvByEmail } from "../../db";
 import { generatePDF } from "../../utils/pdf";
+import { sanitizeEmailHtml } from "../../utils/sanitize";
 import { UpgradeRequiredModal } from "./UpgradeRequiredModal";
 
-export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, onSent, onUpgrade }) {
+export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onClose, onSent, onUpgrade, onUpdateSignature }) {
   const t = useT();
   const [step, setStep] = useState("recipients"); // "recipients" | "preview" | "sent"
   const [recipients, setRecipients] = useState(
@@ -22,6 +23,17 @@ export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onC
   const [emailBody, setEmailBody] = useState(
     `Bonjour,<br><br>Veuillez trouver ci-${includePdf ? "joint" : "dessous"} le proc\u00E8s-verbal n\u00B0${pvNumber} relatif au chantier \u00AB\u00A0${project.name}\u00A0\u00BB, dress\u00E9 en date du ${pvDate}.<br><br>Merci d'en prendre connaissance et de me faire part de vos \u00E9ventuelles remarques.<br><br>${signatureHtml}`
   );
+
+  // F8 \u2014 \u00C9dition rapide de la signature globale depuis la modale d'envoi.
+  // \u00C9vite l'aller-retour Profil \u2192 revenir ici quand l'archi d\u00E9tecte une
+  // coquille au moment d'envoyer. Le bouton "Mettre \u00E0 jour" persiste la
+  // signature dans le profil pour TOUS les futurs emails (pas juste celui-ci).
+  const [editingSignature, setEditingSignature] = useState(false);
+  const [draftSignature, setDraftSignature] = useState(profile.emailSignature || "");
+  const saveSignature = () => {
+    onUpdateSignature?.(sanitizeEmailHtml(draftSignature));
+    setEditingSignature(false);
+  };
 
   const toggleRecipient = (email) => setRecipients(prev => prev.map(r => r.email === email ? { ...r, checked: !r.checked } : r));
 
@@ -199,15 +211,60 @@ export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onC
               />
 
               {/* Email body */}
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Message</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>Message</div>
+                {onUpdateSignature && !editingSignature && (
+                  <button
+                    type="button"
+                    onClick={() => { setDraftSignature(profile.emailSignature || ""); setEditingSignature(true); }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: "2px 6px", cursor: "pointer", fontSize: 10, color: AC, fontWeight: 600, fontFamily: "inherit" }}
+                    title="Modifier ma signature pour tous les prochains emails"
+                  >
+                    <Ico name="edit" size={10} color={AC} />
+                    Modifier ma signature
+                  </button>
+                )}
+              </div>
               <div
                 contentEditable
                 suppressContentEditableWarning
                 role="textbox" aria-label="Corps du message email" aria-multiline="true"
-                onInput={e => setEmailBody(e.currentTarget.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: emailBody }}
+                onInput={e => setEmailBody(sanitizeEmailHtml(e.currentTarget.innerHTML))}
+                dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(emailBody) }}
                 style={{ width: "100%", minHeight: 140, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, lineHeight: 1.6, fontFamily: "inherit", background: WH, color: TX, marginBottom: 10, boxSizing: "border-box", outline: "none", overflowWrap: "break-word" }}
               />
+
+              {/* F8 — Éditeur inline de la signature globale du profil.
+                  Permet à l'archi de fixer une coquille sans quitter la modale.
+                  La sanitization est appliquée à la sauvegarde (cohérent avec
+                  l'éditeur Profil → Signature email). */}
+              {editingSignature && (
+                <div style={{ marginBottom: 10, padding: 12, background: ACL, border: `1px solid ${ACL2}`, borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: AC, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                    <Ico name="edit" size={11} color={AC} />
+                    Signature email globale — affectera tous les futurs envois
+                  </div>
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    role="textbox" aria-label="Signature email" aria-multiline="true"
+                    onInput={e => setDraftSignature(e.currentTarget.innerHTML)}
+                    dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(draftSignature) }}
+                    style={{ width: "100%", minHeight: 70, padding: "8px 10px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, lineHeight: 1.6, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", outline: "none", overflowWrap: "break-word" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+                    <button type="button" onClick={() => setEditingSignature(false)} style={{ padding: "5px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, color: TX2, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      Annuler
+                    </button>
+                    <button type="button" onClick={saveSignature} style={{ padding: "5px 12px", border: "none", borderRadius: 6, background: AC, color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                      Mettre à jour ma signature
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 9, color: TX3, marginTop: 6, fontStyle: "italic" }}>
+                    La signature courante dans le message ci-dessus n'est pas modifiée — utilise l'éditeur du message pour ce mail-là.
+                  </div>
+                </div>
+              )}
 
               {/* Visual preview */}
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Aperçu visuel</div>
@@ -224,7 +281,7 @@ export function SendPvModal({ project, pvNumber, pvDate, pvContent, profile, onC
                   <div style={{ fontSize: 12, fontWeight: 600, color: TX, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subject || "(sans objet)"}</div>
                 </div>
                 {/* Email body preview */}
-                <div style={{ padding: 16, fontSize: 12, lineHeight: 1.7, color: TX, background: WH, margin: 10, borderRadius: 8 }} dangerouslySetInnerHTML={{ __html: emailBody }} />
+                <div style={{ padding: 16, fontSize: 12, lineHeight: 1.7, color: TX, background: WH, margin: 10, borderRadius: 8 }} dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(emailBody) }} />
                 {/* PV excerpt */}
                 <div style={{ margin: "0 10px 10px", padding: 12, background: "#F7F6F4", borderRadius: 8, border: `1px solid ${SBB}` }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>PV de chantier</div>

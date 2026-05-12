@@ -7,7 +7,7 @@ import { getTaskStatus, getTaskPriority, sortTasks, isOverdue, isClosed, advance
 import { Ico, PB, Modal } from "../components/ui";
 import { TaskEditModal } from "../components/modals/TaskEditModal";
 
-export function PlanningView({ project, setProjects, onBack, profile }) {
+export function PlanningView({ project, setProjects, onBack, profile, showToast }) {
   const EMPTY_LOT = { name: "", contractor: "", startDate: "", endDate: "", duration: "", progress: 0, color: "amber", steps: [], postId: "", phaseId: "" };
   const EMPTY_STEP = { name: "", startDate: "", endDate: "", duration: "", done: false };
   const [modal,     setModal]     = useState(null); // null | "add" | "edit"
@@ -18,10 +18,12 @@ export function PlanningView({ project, setProjects, onBack, profile }) {
   const t = useT();
   // ── Vue : "hierarchy" (Phase → Lot → Tâche, par défaut) | "gantt" ─────
   const [viewMode, setViewMode] = useState("hierarchy");
-  // Filtre phase : par défaut = phase active du projet pour ne pas noyer
-  // l'utilisateur. Valeur "_all" = tout afficher (toutes phases + transverses).
-  // Le filtre s'applique aux DEUX vues (hiérarchie & Gantt).
-  const [phaseFilter, setPhaseFilter] = useState(project.statusId || "_all");
+  // Filtre phase : par défaut "_all" pour que l'archi voit ses lots dès
+  // qu'il les crée, même s'ils sont rattachés à une phase future. Filtrer
+  // par phase active masquait les nouveaux lots créés en amont (ex : créer
+  // un lot Permis quand le projet est en Esquisse → invisible, déroutant).
+  // L'archi qui veut focus sur une phase clique sur sa pill, c'est explicite.
+  const [phaseFilter, setPhaseFilter] = useState("_all");
   // Tâches : modal de création/édition contextuelle (pré-rempli avec lotId)
   const [taskModal, setTaskModal] = useState(null); // null | { mode: "create"|"edit", taskId?, lotId? }
   // Pliage des lots dans la vue hiérarchique. Par défaut tous ouverts.
@@ -103,6 +105,7 @@ export function PlanningView({ project, setProjects, onBack, profile }) {
     }).filter(Boolean);
     if (newLots.length > 0) {
       setProjects(prev => prev.map(p => p.id === project.id ? { ...p, lots: [...(p.lots || []), ...newLots] } : p));
+      showToast?.(`${newLots.length} lot${newLots.length > 1 ? "s importés" : " importé"} depuis le CSV`);
     }
     setImportData(null);
   };
@@ -113,6 +116,7 @@ export function PlanningView({ project, setProjects, onBack, profile }) {
 
   // ── Mutations tâches (utilisées par les sous-blocs hiérarchiques) ────
   const saveTask = (task) => {
+    const wasUpdate = (project.tasks || []).some(t => t.id === task.id);
     setProjects(prev => prev.map(p => {
       if (p.id !== project.id) return p;
       const exists = (p.tasks || []).some(t => t.id === task.id);
@@ -128,13 +132,28 @@ export function PlanningView({ project, setProjects, onBack, profile }) {
       }
       return { ...p, tasks: next };
     }));
+    showToast?.(wasUpdate ? "Tâche mise à jour" : `Tâche #${task.number || ""} créée`);
   };
-  const deleteTask = (id) => setProjects(prev => prev.map(p => p.id !== project.id ? p : { ...p, tasks: (p.tasks || []).filter(t => t.id !== id) }));
-  const advanceTask = (id) => setProjects(prev => prev.map(p => p.id !== project.id ? p : advanceTaskStatus(p, id)));
+  const deleteTask = (id) => {
+    const target = (project.tasks || []).find(t => t.id === id);
+    setProjects(prev => prev.map(p => p.id !== project.id ? p : { ...p, tasks: (p.tasks || []).filter(t => t.id !== id) }));
+    showToast?.(`Tâche ${target?.title ? `« ${target.title.slice(0, 40)} »` : ""} supprimée`);
+  };
+  const advanceTask = (id) => {
+    setProjects(prev => prev.map(p => p.id !== project.id ? p : advanceTaskStatus(p, id)));
+    // Feedback léger : le statut bouge, l'archi voit que ça a marché.
+    const target = (project.tasks || []).find(t => t.id === id);
+    if (target) {
+      const newStatus = advanceTaskStatus(project, id).tasks?.find(t => t.id === id)?.status;
+      const label = getTaskStatus(newStatus)?.label || newStatus;
+      showToast?.(`Tâche → ${label}`);
+    }
+  };
 
   const saveLot = () => {
     if (!editLot.name.trim()) return;
-    if (modal === "add") {
+    const isAdd = modal === "add";
+    if (isAdd) {
       setProjects((prev) => prev.map((p) => p.id === project.id ? {
         ...p, lots: [...(p.lots || []), { ...editLot, id: Date.now() }]
       } : p));
@@ -144,11 +163,16 @@ export function PlanningView({ project, setProjects, onBack, profile }) {
       } : p));
     }
     setModal(null); setEditLot(EMPTY_LOT); setEditingId(null);
+    showToast?.(isAdd ? `Lot "${editLot.name}" créé` : `Lot "${editLot.name}" mis à jour`);
   };
 
-  const deleteLot = (id) => setProjects((prev) => prev.map((p) => p.id === project.id ? {
-    ...p, lots: (p.lots || []).filter((l) => l.id !== id)
-  } : p));
+  const deleteLot = (id) => {
+    const target = (project.lots || []).find(l => l.id === id);
+    setProjects((prev) => prev.map((p) => p.id === project.id ? {
+      ...p, lots: (p.lots || []).filter((l) => l.id !== id)
+    } : p));
+    showToast?.(`Lot "${target?.name || ""}" supprimé`);
+  };
 
   const setProgress = (id, val) => setProjects((prev) => prev.map((p) => p.id === project.id ? {
     ...p, lots: (p.lots || []).map((l) => l.id === id ? { ...l, progress: val } : l)

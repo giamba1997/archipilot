@@ -9,3 +9,4 @@ export { KpiCard } from "./KpiCard";
 export { VUMeter } from "./VUMeter";
 export { AskAiButton } from "./AskAiButton";
 export { TaskSearchSelect } from "./TaskSearchSelect";
+export { SyncBadge } from "./SyncBadge";

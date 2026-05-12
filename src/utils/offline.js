@@ -25,3 +25,28 @@ export function removePvDraft(draftId) {
   const drafts = getPvDrafts().filter(d => d.id !== draftId);
   localStorage.setItem(OFFLINE_DRAFTS_KEY, JSON.stringify(drafts));
 }
+
+// ── F7 — État de synchronisation visible ────────────────────
+// Persisté en localStorage à chaque dirty / clean pour que le badge
+// puisse refléter "non synchronisé" même après un reload tab offline.
+const SYNC_STATE_KEY = "archipilot_sync_state";
+
+export function getSyncState() {
+  try {
+    return JSON.parse(localStorage.getItem(SYNC_STATE_KEY) || '{"dirty":false,"lastSyncedAt":null,"changedAt":null}');
+  } catch {
+    return { dirty: false, lastSyncedAt: null, changedAt: null };
+  }
+}
+
+export function markDirty() {
+  const s = getSyncState();
+  s.dirty = true;
+  s.changedAt = new Date().toISOString();
+  try { localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
+
+export function markSynced() {
+  const s = { dirty: false, lastSyncedAt: new Date().toISOString(), changedAt: null };
+  try { localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
