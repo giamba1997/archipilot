@@ -639,8 +639,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           })()}
 
           {/* Banner suggestions IA — apparaît tant qu'il y a des tâches
-              potentielles non traitées sur les PV. Subtil, action explicite. */}
-          {pendingAiSuggestions.count > 0 && (
+              potentielles non traitées sur les PV. Subtil, action explicite.
+              Masqué sur mobile : le triage des suggestions IA = workflow
+              bureau (lire chaque suggestion, accepter/rejeter, attribuer). */}
+          {pendingAiSuggestions.count > 0 && !isMobile && (
             <div style={{
               background: WH, border: `1px solid ${ACL2}`, borderRadius: 12,
               padding: "12px 14px", display: "flex", alignItems: "center", gap: 12,
@@ -664,69 +666,45 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           )}
 
 
-          {/* ── Mobile Dashboard — operational, action-oriented ── */}
+          {/* ── Mobile Dashboard — minimaliste ──
+              On a tranché : sur mobile, le Résumé ne montre que ce qui
+              est *actionnable en mouvement*. Tout le reste (Planning,
+              Documents, Photos, Actions, Historique PV, Infos projet)
+              est déjà accessible via le tab switcher en haut de page —
+              les dupliquer ici crée du bruit visuel.
+              On garde donc :
+                - Prochaine réunion (avec lien Itinéraire si adresse)
+                - Participants (tap-to-call = pattern mobile natif)
+              + le hero PhaseHero + la card À faire restent au-dessus. */}
           <div className="ap-mobile-dashboard" style={{ display: "none", flexDirection: "column", gap: 10 }}>
 
-            {/* Prochaine réunion */}
-            <button onClick={() => setMobileSheet("meeting")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: project.nextMeeting ? ACL : WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: project.nextMeeting ? WH : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ico name="calendar" size={14} color={project.nextMeeting ? AC : TX3} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: AC, textTransform: "uppercase", letterSpacing: "0.05em" }}>Prochaine réunion</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>{project.nextMeeting || "Non planifiée"}</div>
-              </div>
-              <Ico name="arrowr" size={14} color={TX3} />
-            </button>
-
-            {/* Accès rapides — 4 colonnes */}
-            {/* Quick access — 4 columns, bigger */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              {[
-                { label: "Planning",  icon: "gantt",  color: GR, bg: GRBG, count: (project.lots||[]).length, onClick: onViewPlanning },
-                { label: "Documents", icon: "folder", color: BL, bg: BLB, count: (project.planFiles||[]).filter(f=>f.type!=="folder").length, onClick: onViewPlan },
-                { label: "Photos",    icon: "camera", color: AC, bg: ACL, count: (project.gallery||[]).length, onClick: onGallery },
-              ].map(s => (
-                <button key={s.label} onClick={s.onClick} style={{ padding: "12px 4px", border: `1px solid ${s.color}18`, borderRadius: 10, background: s.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                  <Ico name={s.icon} size={18} color={s.color} />
-                  <span style={{ fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>
-                  {s.count > 0 && <span style={{ fontSize: 9, color: s.color, opacity: 0.7 }}>{s.count}</span>}
-                </button>
-              ))}
+            {/* Prochaine réunion (+ Itinéraire si adresse projet dispo) */}
+            <div style={{ display: "flex", alignItems: "stretch", gap: 0, background: project.nextMeeting ? ACL : WH, border: `1px solid ${project.nextMeeting ? ACL2 : SBB}`, borderRadius: 10, overflow: "hidden" }}>
+              <button onClick={() => setMobileSheet("meeting")} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: project.nextMeeting ? WH : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="calendar" size={14} color={project.nextMeeting ? AC : TX3} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: AC, textTransform: "uppercase", letterSpacing: "0.05em" }}>Prochaine réunion</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>{project.nextMeeting || "Non planifiée"}</div>
+                </div>
+              </button>
+              {(() => {
+                const mapsUrl = buildMapsUrl(project);
+                if (!mapsUrl) return null;
+                return (
+                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 12px", borderLeft: `1px solid ${SBB}`, color: AC, textDecoration: "none", fontSize: 11, fontWeight: 700, fontFamily: "inherit", flexShrink: 0 }}>
+                    <Ico name="mappin" size={13} color={AC} />Y aller
+                  </a>
+                );
+              })()}
             </div>
 
-            {/* ── Sections — independent cards ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-
-              {/* Actions */}
-              <button onClick={() => setMobileSheet("actions")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: openActions.length > 0 ? (urgent.length > 0 ? BRB : SB) : GRBG, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="alert" size={16} color={openActions.length > 0 ? (urgent.length > 0 ? RD : TX3) : GR} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Actions</div>
-                  <div style={{ fontSize: 11, color: openActions.length > 0 ? (urgent.length > 0 ? BR : TX3) : GR }}>
-                    {openActions.length === 0 ? "Toutes clôturées" : `${openActions.length} ouverte${openActions.length > 1 ? "s" : ""}${urgent.length > 0 ? ` · ${urgent.length} urgente${urgent.length > 1 ? "s" : ""}` : ""}`}
-                  </div>
-                </div>
-                <Ico name="arrowr" size={14} color={TX3} />
-              </button>
-
-              {/* Historique PV */}
-              <button onClick={() => setMobileSheet("pv")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="file" size={16} color={AC} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Historique des PV</div>
-                  <div style={{ fontSize: 11, color: TX3 }}>
-                    {project.pvHistory.length === 0 ? "Aucun PV" : `${project.pvHistory.length} PV${lastPV ? ` · dernier : PV n°${lastPV.number}` : ""}`}
-                  </div>
-                </div>
-                <Ico name="arrowr" size={14} color={TX3} />
-              </button>
-
-              {/* Participants */}
+            {/* Participants — tap-to-call inline. La carte ouvre le sheet
+                team pour voir tout, mais les avatars du haut sont
+                directement cliquables (avec tel: si numéro). */}
+            {project.participants && project.participants.length > 0 && (
               <button onClick={() => setMobileSheet("team")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Ico name="users" size={16} color={AC} />
@@ -734,7 +712,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Participants ({project.participants.length})</div>
                   <div style={{ fontSize: 11, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {project.participants.length === 0 ? "Aucun participant" : project.participants.slice(0, 3).map(p => p.name.split(" ")[0]).join(", ")}{project.participants.length > 3 ? "…" : ""}
+                    {project.participants.slice(0, 3).map(p => p.name.split(" ")[0]).join(", ")}{project.participants.length > 3 ? "…" : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", flexShrink: 0, marginRight: 4 }}>
@@ -746,22 +724,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                 </div>
                 <Ico name="arrowr" size={14} color={TX3} />
               </button>
-
-              {/* Infos projet */}
-              <button onClick={() => setMobileSheet("info")} className="ap-profile-card" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Ico name="building" size={16} color={TX3} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Infos projet</div>
-                  <div style={{ fontSize: 11, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {[project.client, project.contractor, project.city].filter(Boolean).join(" · ") || "Aucune info"}
-                  </div>
-                </div>
-                <Ico name="arrowr" size={14} color={TX3} />
-              </button>
-
-            </div>
+            )}
 
           </div>
 
@@ -777,8 +740,11 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               tab bar (avec badge de compteur). L'overdue éventuel sera
               surfacée dans le hero ou via une notif dédiée à terme. */}
 
-          {/* Permis — visible en phase amont (esquisse/AVP/permis). */}
-          {["sketch", "preliminary", "permit"].includes(project.statusId) && (
+          {/* Cards ToolEntry (Permis / Rapport MO / Journal) — visibles
+              desktop seulement. Sur mobile, le tab switcher en haut de
+              page expose déjà ces vues. Garder les cards créerait une
+              double porte d'entrée + alourdirait le Résumé. */}
+          {!isMobile && ["sketch", "preliminary", "permit"].includes(project.statusId) && (
             <ToolEntry
               icon="file"
               iconColor={ST}
@@ -788,8 +754,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             />
           )}
 
-          {/* Rapport MO — visible en phase d'exécution / chantier / réception. */}
-          {["execution", "construction", "reception"].includes(project.statusId) && (
+          {!isMobile && ["execution", "construction", "reception"].includes(project.statusId) && (
             <ToolEntry
               icon="sparkle"
               iconColor={AM}
@@ -799,11 +764,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             />
           )}
 
-          {/* Journal — visible dès que la rédaction de PV est pertinente
-              (exécution / chantier / réception / clôturé). En amont, on
-              ne le montre que s'il y a déjà du contenu (cas import d'un
-              projet en cours). Le subtitle s'adapte selon le remplissage. */}
-          {(() => {
+          {!isMobile && (() => {
             const journalCount =
               (project.pvHistory || []).length +
               (project.oprHistory || []).length +
