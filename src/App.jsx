@@ -2280,20 +2280,49 @@ Règles :
       )}
 
       {!isOnline && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: TX, color: "#fff", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 12, zIndex: 999 }}>
+        // Sur mobile, on remonte la barre offline au-dessus de la
+        // MobileBottomBar (60px nav + safe-area) — sinon le banner masque
+        // la nav et l'archi ne peut plus naviguer. On condense aussi le
+        // texte (un écran 6" ne tient pas les 3 segments séparés par "·").
+        <div style={{
+          position: "fixed",
+          bottom: isMobile ? `calc(60px + env(safe-area-inset-bottom, 0px))` : 0,
+          left: 0, right: 0,
+          background: TX, color: "#fff",
+          padding: isMobile ? "8px 14px" : "10px 20px",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          fontSize: 12, zIndex: 999,
+        }}>
           <Ico name="wifioff" size={14} color="#fff" />
-          <span>Mode hors-ligne</span>
+          <span>Hors-ligne</span>
           <span style={{ opacity: 0.6 }}>·</span>
-          <span style={{ opacity: 0.7 }}>Notes et photos sauvegardées localement</span>
-          <span style={{ opacity: 0.6 }}>·</span>
-          <span style={{ opacity: 0.7 }}>Sync automatique au retour du réseau</span>
+          <span style={{ opacity: 0.7 }}>
+            {isMobile ? "sync au retour" : "Notes et photos sauvegardées localement"}
+          </span>
+          {!isMobile && (
+            <>
+              <span style={{ opacity: 0.6 }}>·</span>
+              <span style={{ opacity: 0.7 }}>Sync automatique au retour du réseau</span>
+            </>
+          )}
         </div>
       )}
 
-      {/* Toast reconnexion */}
+      {/* Toast reconnexion — repositionné au-dessus du bottom bar sur mobile
+          pour la même raison (sinon il chevauche la nav). */}
       {showReconnected && (
-        <div style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", background: GR, color: "#fff", padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 999, display: "flex", alignItems: "center", gap: 6 }}>
-          <Ico name="check" size={14} color="#fff" />Reconnecté — Données synchronisées
+        <div style={{
+          position: "fixed",
+          bottom: isMobile ? `calc(76px + env(safe-area-inset-bottom, 0px))` : 16,
+          left: "50%", transform: "translateX(-50%)",
+          background: GR, color: "#fff",
+          padding: "10px 20px", borderRadius: 10,
+          fontSize: 13, fontWeight: 600, zIndex: 999,
+          display: "flex", alignItems: "center", gap: 6,
+          whiteSpace: "nowrap",
+        }}>
+          <Ico name="check" size={14} color="#fff" />
+          {isMobile ? "Reconnecté · synchronisé" : "Reconnecté — Données synchronisées"}
         </div>
       )}
 
