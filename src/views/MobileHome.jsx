@@ -7,6 +7,7 @@ import { Ico } from "../components/ui";
 import { getStatus } from "../constants/statuses";
 import { loadPermits, loadInvoices } from "../db";
 import { parseDateFR, relativeDate } from "../utils/dates";
+import { buildMapsUrl } from "../utils/address";
 import { useGeolocation, haversineKm } from "../hooks/useGeolocation";
 
 // ── MobileHome — vue d'accueil mobile dédiée ──────────────
@@ -228,17 +229,21 @@ export function MobileHome({
           />
         )}
 
-        {meetingsToday.map(p => (
-          <UrgencyRow
-            key={`m-${p.id}`}
-            icon="calendar"
-            color={AC}
-            bg={ACL}
-            title={p.name}
-            sub="Réunion prévue aujourd'hui"
-            onClick={() => onSelectProject?.(p.id)}
-          />
-        ))}
+        {meetingsToday.map(p => {
+          const mapsUrl = buildMapsUrl(p);
+          return (
+            <UrgencyRow
+              key={`m-${p.id}`}
+              icon="calendar"
+              color={AC}
+              bg={ACL}
+              title={p.name}
+              sub="Réunion prévue aujourd'hui"
+              onClick={() => onSelectProject?.(p.id)}
+              extraAction={mapsUrl ? { href: mapsUrl, label: "Y aller", icon: "mappin" } : null}
+            />
+          );
+        })}
 
         {permitsSoon.map(pe => {
           const days = Math.ceil((new Date(pe.deadline_date) - TODAY_TS) / 86400000);
@@ -433,27 +438,50 @@ function Section({ title, iconName, right, children }) {
   );
 }
 
-function UrgencyRow({ icon, color, bg, title, sub, onClick }) {
+function UrgencyRow({ icon, color, bg, title, sub, onClick, extraAction }) {
+  // Compose : tap sur la ligne → action principale (ouvre projet).
+  // Si `extraAction` est fourni, on rend un lien à droite qui ne propage
+  // pas le click (ex: "Y aller" → Google Maps, sans ouvrir le projet).
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "12px 14px", textAlign: "left",
-        border: `1px solid ${SBB}`, background: WH,
-        borderRadius: RAD.md, cursor: "pointer",
-        fontFamily: "inherit", width: "100%",
-      }}
-    >
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Ico name={icon} size={18} color={color} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-        <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{sub}</div>
-      </div>
-      <Ico name="chevron-right" size={16} color={TX3} />
-    </button>
+    <div style={{ display: "flex", alignItems: "stretch", gap: 0, border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, overflow: "hidden" }}>
+      <button
+        onClick={onClick}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "12px 14px", textAlign: "left",
+          border: "none", background: "transparent",
+          cursor: "pointer", fontFamily: "inherit", flex: 1, minWidth: 0,
+        }}
+      >
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Ico name={icon} size={18} color={color} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+          <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{sub}</div>
+        </div>
+        {!extraAction && <Ico name="chevron-right" size={16} color={TX3} />}
+      </button>
+      {extraAction && (
+        <a
+          href={extraAction.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "0 14px",
+            borderLeft: `1px solid ${SBB}`,
+            color: AC, textDecoration: "none",
+            fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+            flexShrink: 0,
+          }}
+        >
+          <Ico name={extraAction.icon || "mappin"} size={14} color={AC} />
+          {extraAction.label}
+        </a>
+      )}
+    </div>
   );
 }
 

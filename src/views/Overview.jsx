@@ -7,7 +7,7 @@ const updateProjectField = (project, setProjects, field, value) => setProjects(p
 import { RECURRENCES } from "../constants/templates";
 import { Ico, Modal, Field, StatusBadge, PvStatusBadge, KpiCard } from "../components/ui";
 import { relativeDate } from "../utils/dates";
-import { formatAddress } from "../utils/address";
+import { formatAddress, buildMapsUrl } from "../utils/address";
 import { getPvDrafts, removePvDraft } from "../utils/offline";
 import { stripMarkdown, nextPvNumber } from "../utils/helpers";
 import { countTasks, sortTasks, getTaskStatus, getTaskPriority, isOverdue, isClosed, advanceTaskStatus } from "../utils/tasks";
@@ -1090,15 +1090,35 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                 { icon: "calendar", label: t("project.startDate"),  value: project.startDate },
                 { icon: "calendar", label: t("project.endDate"),    value: project.endDate || "—" },
                 ...(project.customFields || []).filter(cf => cf.label && cf.value).map(cf => ({ icon: "file", label: cf.label, value: cf.value })),
-              ].filter(item => item.value).map((item, i) => (
-                <div key={i} style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 2 }}>
-                    <Ico name={item.icon} size={11} color={TX3} />
-                    <span style={{ fontSize: FS.xs, color: TX3, fontWeight: 500 }}>{item.label}</span>
+              ].filter(item => item.value).map((item, i) => {
+                // L'adresse devient un lien d'itinéraire sur mobile (geo deep-link).
+                // Marche aussi desktop mais surtout utile en route.
+                const isAddress = item.icon === "mappin";
+                if (isAddress) {
+                  const mapsUrl = buildMapsUrl(project);
+                  if (mapsUrl) {
+                    return (
+                      <a key={i} href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ minWidth: 0, textDecoration: "none", color: "inherit" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 2 }}>
+                          <Ico name={item.icon} size={11} color={AC} />
+                          <span style={{ fontSize: FS.xs, color: AC, fontWeight: 600 }}>{item.label} · Itinéraire</span>
+                        </div>
+                        <div style={{ fontSize: FS.base, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: "underline" }}>{item.value}</div>
+                      </a>
+                    );
+                  }
+                }
+                return (
+                  <div key={i} style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 2 }}>
+                      <Ico name={item.icon} size={11} color={TX3} />
+                      <span style={{ fontSize: FS.xs, color: TX3, fontWeight: 500 }}>{item.label}</span>
+                    </div>
+                    <div style={{ fontSize: FS.base, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.value}</div>
                   </div>
-                  <div style={{ fontSize: FS.base, color: TX, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.value}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             {_canManage && !isMobile && (
               <div className="ap-admin-actions" style={{ display: "flex", gap: 4, marginTop: SP.md, paddingTop: SP.sm + 2, borderTop: `1px solid ${SB2}` }}>

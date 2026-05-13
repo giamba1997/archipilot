@@ -59,7 +59,7 @@ import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exp
 import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton, SyncBadge } from "./components/ui";
 
 // ── Extracted Components ──────────────────────────────────────
-import { MobileBottomBar, CaptureSheet, QuickCaptureSheet, Sidebar } from "./components/layout";
+import { MobileBottomBar, CaptureSheet, QuickCaptureSheet, MobilePvDictateSheet, Sidebar } from "./components/layout";
 import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, PhaseManagerModal, PhaseWizardModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
@@ -211,6 +211,7 @@ export default function App() {
   }, [isMobile, view]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
+  const [mobilePvDictateOpen, setMobilePvDictateOpen] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);
   const [projectPicker, setProjectPicker] = useState(false);
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false);
@@ -2331,7 +2332,13 @@ Règles :
           setTimeout(() => mobilePhotoRef.current?.click(), 150);
         }}
         onStartPvDictation={() => {
-          // Mode "dictate" → NoteEditor démarre directement en dictée
+          // Sur mobile, on ouvre le sheet vocal one-shot (dicte → IA → envoie
+          // en 2-3 taps). Sur desktop, on garde le flow NoteEditor classique.
+          if (isMobile && project) {
+            setCaptureSheet(false);
+            setTimeout(() => setMobilePvDictateOpen(true), 100);
+            return;
+          }
           setPvStartMode("dictate");
           tryStartNewPv();
         }}
@@ -2366,6 +2373,18 @@ Règles :
           }));
           showToast("Note vocale enregistrée comme tâche");
         }}
+      />
+
+      {/* ── Mobile PV vocal one-shot — sheet ──
+          Dicter → IA structure → revoir → envoyer en 2-3 taps. Réutilise
+          useWhisperRecorder + generate-pv + generatePDF + sendPvByEmail. */}
+      <MobilePvDictateSheet
+        open={mobilePvDictateOpen}
+        onClose={() => setMobilePvDictateOpen(false)}
+        project={project}
+        profile={profile}
+        setProjects={setProjects}
+        showToast={showToast}
       />
 
       {/* ── Mobile Project Picker ── */}
