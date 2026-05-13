@@ -1328,15 +1328,21 @@ export default function App() {
           {/* F7 — Indicateur de synchronisation */}
           <SyncBadge isOnline={isOnline} />
 
-          {/* F5 — Bouton "Prochaines échéances" (alertes calculées en local) */}
-          <button
-            onClick={() => setShowAlerts(true)}
-            aria-label="Prochaines échéances"
-            title="Prochaines échéances"
-            style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, borderRadius: RAD.md, display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <Ico name="clock" size={18} color={TX2} />
-          </button>
+          {/* F5 — Bouton "Prochaines échéances" (alertes calculées en local).
+              Masqué sur mobile : MobileHome agrège déjà les mêmes urgences
+              dans son bloc "Aujourd'hui" (réunions du jour, permis J-7,
+              factures en retard, notifs non lues) — ce bouton ferait
+              double emploi côté mobile. */}
+          {!isMobile && (
+            <button
+              onClick={() => setShowAlerts(true)}
+              aria-label="Prochaines échéances"
+              title="Prochaines échéances"
+              style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, borderRadius: RAD.md, display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <Ico name="clock" size={18} color={TX2} />
+            </button>
+          )}
 
           {/* Notification bell */}
           <div style={{ position: "relative" }}>
@@ -2262,8 +2268,9 @@ Règles :
         />
       )}
 
-      {/* F5 — Drawer "Prochaines échéances" */}
-      {showAlerts && (
+      {/* F5 — Drawer "Prochaines échéances". Inaccessible sur mobile :
+          le bloc Aujourd'hui de MobileHome remplace cette fonctionnalité. */}
+      {showAlerts && !isMobile && (
         <AlertsDrawer
           projects={projects}
           profile={profile}
