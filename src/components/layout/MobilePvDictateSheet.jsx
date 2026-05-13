@@ -113,6 +113,14 @@ export function MobilePvDictateSheet({ open, onClose, project, profile, setProje
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Memos déplacés AVANT les early returns — règle des hooks de React :
+  // un hook ne peut pas être conditionnel. Si on les laissait après le
+  // `if (!open) return null`, le hook count varierait entre les renders
+  // selon que `open` est true ou false → crash "Rendered more hooks than
+  // during the previous render".
+  const pvNum = useMemo(() => nextPvNumber(project?.pvHistory || []), [project?.pvHistory]);
+  const date = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
+
   if (!open) return null;
 
   // Guard projet manquant — au lieu de crasher sur project.name plus bas,
@@ -194,9 +202,6 @@ export function MobilePvDictateSheet({ open, onClose, project, profile, setProje
       clearInterval(genTimer.current);
     }
   };
-
-  const pvNum = useMemo(() => nextPvNumber(project?.pvHistory || []), [project?.pvHistory]);
-  const date = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
 
   // Persiste le PV en pvHistory (status: draft ou sent). Pattern emprunté à ResultView.
   const persistPv = (status, attachedTasks) => {
