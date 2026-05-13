@@ -2701,7 +2701,7 @@ Règles :
         profile={profile}
         onImport={importProjectFromFolder}
       />
-      <ChatLauncher open={chatOpen} onToggle={toggleChat} />
+      <ChatLauncher open={chatOpen} onToggle={toggleChat} isMobile={isMobile} />
       <ChatModal
         open={chatOpen}
         onClose={closeChat}
@@ -2711,6 +2711,7 @@ Règles :
         activeProjectId={activeId}
         prefill={chatPrefill}
         onPrefillConsumed={clearChatPrefill}
+        isMobile={isMobile}
       />
 
       {/* Modal de gestion des phases personnalisées du projet. Ouverte depuis

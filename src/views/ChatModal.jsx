@@ -176,7 +176,7 @@ const titleForConversation = (msgs) => {
 // Reçoit les data du parent pour construire le contexte (stuff context: pas
 // d'embeddings, pas d'indexation — l'utilisateur a sa data en mémoire et on
 // l'injecte directement dans le prompt).
-export function ChatModal({ open, onClose, projects, profile, activeContext, activeProjectId, prefill, onPrefillConsumed }) {
+export function ChatModal({ open, onClose, projects, profile, activeContext, activeProjectId, prefill, onPrefillConsumed, isMobile = false }) {
   const [messages, setMessages] = useState(() => loadHistory());
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -479,9 +479,18 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
         onDragOver={onDragOver}
         onDrop={onDrop}
         style={{
-          position: "fixed", bottom: 92, right: 24, zIndex: 999,
-          width: 560, maxWidth: "calc(100vw - 32px)",
-          height: 680, maxHeight: "calc(100vh - 130px)",
+          // Sur mobile : le panneau s'ouvre au-dessus du FAB (lui-même
+          // au-dessus de la MobileBottomBar). 76 + 56 (FAB) + 8 gap +
+          // safe-area = ~140 px d'offset bas. Sur desktop, on garde 92.
+          position: "fixed",
+          bottom: isMobile ? `calc(140px + env(safe-area-inset-bottom, 0px))` : 92,
+          right: isMobile ? 12 : 24,
+          left: isMobile ? 12 : "auto",
+          zIndex: 999,
+          width: isMobile ? "auto" : 560, maxWidth: "calc(100vw - 32px)",
+          height: 680, maxHeight: isMobile
+            ? "calc(100vh - 220px - env(safe-area-inset-bottom, 0px))"
+            : "calc(100vh - 130px)",
           background: WH, border: `1px solid ${SBB}`, borderRadius: 14,
           boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
           display: "flex", flexDirection: "column", overflow: "hidden",
@@ -952,14 +961,20 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
 }
 
 // Bouton flottant qui ouvre la modal — bottom-right.
-export function ChatLauncher({ open, onToggle, hasUnread = false }) {
+export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = false }) {
+  // Sur mobile, on remonte le FAB pour qu'il ne chevauche pas la
+  // MobileBottomBar (60 px nav + safe-area). En desktop, on garde
+  // l'ancrage bas standard.
+  const bottomOffset = isMobile
+    ? `calc(76px + env(safe-area-inset-bottom, 0px))`
+    : 24;
   return (
     <button
       onClick={onToggle}
       aria-label={open ? "Fermer l'assistant" : "Ouvrir l'assistant"}
       title={open ? "Fermer l'assistant" : "Ouvrir l'assistant ArchiPilot"}
       style={{
-        position: "fixed", bottom: 24, right: 24, zIndex: 997,
+        position: "fixed", bottom: bottomOffset, right: isMobile ? 16 : 24, zIndex: 997,
         width: 56, height: 56, borderRadius: "50%",
         background: AC, color: "#fff", border: "none",
         cursor: "pointer", fontFamily: "inherit",
