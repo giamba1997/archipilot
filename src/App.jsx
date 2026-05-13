@@ -2305,16 +2305,21 @@ Règles :
       {/* ── Mobile Bottom Bar ── */}
       <MobileBottomBar
         view={view}
+        notifsOpen={showNotifications}
+        unreadCount={(notifications || []).filter(n => !n.read).length}
         onNavigate={(tab) => {
-          // Sur mobile, l'onglet "Projet" route vers la home mobile dédiée
+          // Sur mobile, l'onglet "Accueil" route vers la home mobile dédiée
           // (agrégateur d'urgences + sélecteur de projet) plutôt que vers
-          // l'Overview d'un projet auto-sélectionné, qui n'a pas toujours
-          // de sens si l'archi vient juste d'ouvrir l'app.
+          // l'Overview d'un projet auto-sélectionné.
           if (tab === "overview" && isMobile) tab = "mobileHome";
           setView(tab);
           setSidebarOpen(false);
         }}
         onCapture={() => setCaptureSheet(true)}
+        onNotifs={() => {
+          setShowNotifications(v => !v);
+          setSidebarOpen(false);
+        }}
       />
 
       {/* ── Mobile Quick Capture Sheet — 4 actions (Mobile Étape 2) ──
