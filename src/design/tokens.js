@@ -180,6 +180,11 @@ export const tokens = {
     sm:    "0 1px 2px rgba(28, 25, 23, 0.04)",
     md:    "0 2px 8px rgba(28, 25, 23, 0.06)",
     focus: "0 0 0 3px rgba(184, 92, 44, 0.35)",  // Anneau brand pour focus visible (WCAG 2.4.11)
+    // Card prioritaire ("À faire", éléments mis en avant) — élévation
+    // tintée brand, très subtile. Combinée avec une bordure latérale
+    // `brand.500` 3px sur Card(priority), elle signale l'importance sans
+    // virer au "fond brand plein" qui violerait la règle d'or.
+    priority: "0 2px 8px rgba(184, 92, 44, 0.08)",
   },
 
   // ── TRANSITIONS ──

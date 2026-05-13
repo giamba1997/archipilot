@@ -5,6 +5,7 @@ import { Badge } from "../components/ui/v2/Badge";
 import { Card } from "../components/ui/v2/Card";
 import { Tabs } from "../components/ui/v2/Tabs";
 import { IconButton } from "../components/ui/v2/IconButton";
+import { SectionHeader } from "../components/ui/v2/SectionHeader";
 
 // ── ProjectDetail (v2) ─────────────────────────────────────
 //
@@ -89,11 +90,19 @@ const MOCK_PROJECT = {
     title: "Préparer le PV n°11",
     subtitle: "À partir du dernier PV validé et des éléments du projet.",
   },
+  // Convention : chaque module a un `metric` (texte court qui décrit l'état
+  // factuel) et un `metricTone` qui colore cette ligne ("neutral" par
+  // défaut, "warning" si attention non-urgente, "danger" si urgent,
+  // "success" si positif/résolu). Discipline d'un seul indicateur coloré
+  // visible par card — si l'archi a deux signaux concurrents sur le même
+  // module, on choisit le plus critique pour la couleur, l'autre reste
+  // factuel en neutral.500. Pour les empty states, on choisit un texte qui
+  // explique le pourquoi et propose une action plutôt qu'un "Aucune donnée".
   modules: [
-    { id: "billing",  title: "Honoraires & facturation", subtitle: "Émettre une facture conforme TVA · numérotation auto", iconKey: "file",  action: "Ouvrir" },
-    { id: "quotes",   title: "Devis & soumissions",      subtitle: "Upload + extraction IA + comparaison automatique",   iconKey: "chart", action: "Ouvrir" },
-    { id: "journal",  title: "Journal de chantier",      subtitle: "17 entrées chronologiques",                            iconKey: "clock", action: "Ouvrir" },
-    { id: "reserves", title: "Réserves OPR",             subtitle: "0/2 levées",                                           iconKey: "alert", action: "Gérer"  },
+    { id: "billing",  title: "Honoraires & facturation", metric: "Facture #007 en attente · 15 jours en retard", metricTone: "warning", iconKey: "file",  action: "Ouvrir" },
+    { id: "quotes",   title: "Devis & soumissions",      metric: "2 devis à comparer · dernière màj il y a 3 jours", metricTone: "neutral", iconKey: "chart", action: "Ouvrir" },
+    { id: "journal",  title: "Journal de chantier",      metric: "17 entrées · dernière hier",                       metricTone: "neutral", iconKey: "clock", action: "Ouvrir" },
+    { id: "reserves", title: "Réserves OPR",             metric: "2 réserves ouvertes (0 levées)",                    metricTone: "warning", iconKey: "alert", action: "Gérer"  },
   ],
   tabs: [
     { id: "summary",  label: "Résumé" },
@@ -249,37 +258,103 @@ function CompleteLink() {
       <span style={{ display: "inline-flex" }}>
         <Icons.edit size={14} />
       </span>
-      Compléter les informations
+      Quelques champs manquent — 2 minutes pour tout boucler
     </button>
   );
 }
 
-// Onglet Résumé : bloc "À faire" + cards de modules. C'est le seul
-// onglet où `brand.500` apparaît (sur le CTA "À faire").
+// Onglet Résumé : zone d'action ("À faire maintenant") + zone d'outils.
+// Les SectionHeader découpent visuellement la page comme la home mobile
+// le fait avec "AUJOURD'HUI" et "MES CHANTIERS" — l'archi sait toujours
+// dans quel registre il lit. C'est le seul onglet où `brand.500` apparaît
+// (Card priority + bouton primaire de la TodoCard).
 function SummaryTab({ project }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
-      <TodoCard todo={project.todo} />
-      {project.modules.map(m => (
-        <ModuleCard key={m.id} module={m} />
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[5] }}>
+      {/* ── Zone d'action ──
+          Le titre passe par SectionHeader pour matcher exactement le
+          format de la home mobile (icône 16px + label uppercase en
+          neutral.500). La card en dessous est en `priority` : bordure
+          latérale brand.500 + ombre tintée → l'œil capte instantanément
+          que c'est ici que ça se passe, sans crier. */}
+      {project.todo ? (
+        <section>
+          <SectionHeader icon="bolt" label="À faire maintenant" />
+          <TodoCard todo={project.todo} />
+        </section>
+      ) : (
+        // Empty state chaleureux — on constate factuellement et on
+        // ajoute une note humaine, comme sur la home mobile.
+        <section>
+          <SectionHeader icon="bolt" label="À faire maintenant" />
+          <EmptyTodo />
+        </section>
+      )}
+
+      {/* ── Zone des outils ── */}
+      <section>
+        <SectionHeader icon="wrench" label="Outils du projet" />
+        <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
+          {project.modules.map(m => (
+            <ModuleCard key={m.id} module={m} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
 
+// Empty state quand rien d'urgent n'est à faire. Ton volontairement
+// humain — l'inverse du "Aucune donnée disponible" SaaS générique.
+function EmptyTodo() {
+  return (
+    <Card padding={4} style={{ background: tokens.color.neutral[100], border: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3] }}>
+        <div
+          style={{
+            width: 40, height: 40,
+            borderRadius: tokens.radius.full,
+            background: tokens.color.neutral[0],
+            color: tokens.color.semantic.success.fg,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Svg size={20}>
+            <polyline points="20 6 9 17 4 12" />
+          </Svg>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontSize: tokens.font.size.md,
+              fontWeight: tokens.font.weight.semibold,
+              color: tokens.color.neutral[900],
+              marginBottom: 2,
+            }}
+          >
+            Tout est sous contrôle pour ce projet.
+          </div>
+          <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700] }}>
+            Rien d'urgent à traiter ici — tu peux respirer (ou rattraper de l'admin).
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 // Bloc "À faire maintenant" — le seul CTA primaire visible de la page.
-// Card légèrement tintée (brand.50) pour signaler l'importance sans
-// crier. Bouton primaire `brand.500` qui contient l'action principale.
+// On utilise la prop `priority` de Card (bordure latérale brand.500 3px
+// + ombre shadow.priority tintée) pour élever la card visuellement sans
+// virer au fond plein brand-50 — ce qui respecte la règle "hiérarchie par
+// élévation visuelle, pas par couleur". Le label "À faire maintenant" est
+// porté par le SectionHeader au-dessus, on n'a plus besoin de l'overline
+// dans la card elle-même.
 function TodoCard({ todo }) {
   if (!todo) return null;
   return (
-    <Card
-      padding={4}
-      style={{
-        background: tokens.color.brand[50],
-        border: `1px solid ${tokens.color.brand[200]}`,
-      }}
-    >
+    <Card priority padding={4}>
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3] }}>
         {/* Carré d'icône à gauche — brand.500 plein parce qu'on est dans
             le contexte exclusif du CTA primaire de la page. */}
@@ -300,18 +375,6 @@ function TodoCard({ todo }) {
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: tokens.font.size.xs,
-              fontWeight: tokens.font.weight.semibold,
-              color: tokens.color.brand[700],
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: 2,
-            }}
-          >
-            À faire maintenant
-          </div>
           <div
             style={{
               fontSize: tokens.font.size.md,
@@ -346,12 +409,26 @@ function TodoCard({ todo }) {
   );
 }
 
-// Card module — clickable, ouvre la sous-vue correspondante.
-// Toute la card est interactive (Card variant="interactive") pour
-// élargir la zone de clic ; le bouton "Ouvrir" reste visible pour
-// renforcer l'affordance.
+// Map d'un `metricTone` vers une couleur sémantique. Centralisé ici pour
+// que la convention "un seul indicateur coloré par card" reste pilotable
+// depuis les données — pas d'override couleur en dur dans l'UI.
+const METRIC_COLOR = {
+  neutral: tokens.color.neutral[500],
+  warning: tokens.color.semantic.warning.fg,
+  danger:  tokens.color.semantic.danger.fg,
+  success: tokens.color.semantic.success.fg,
+};
+
+// Card module — clickable, ouvre la sous-vue correspondante. Toute la
+// card est interactive (élargit la zone de clic) ; le bouton "Ouvrir"
+// reste visible pour renforcer l'affordance. La métrique d'attention
+// (`m.metric`) s'affiche DANS le corps de la card avec une couleur
+// dérivée de `m.metricTone` — c'est ce qui rend la lecture utile :
+// l'archi voit l'état du projet sans avoir à cliquer.
 function ModuleCard({ module: m }) {
   const IconComp = Icons[m.iconKey] || Icons.file;
+  const metricColor = METRIC_COLOR[m.metricTone] || METRIC_COLOR.neutral;
+  const isAlert = m.metricTone === "warning" || m.metricTone === "danger";
   return (
     <Card
       onClick={() => { /* hook à venir : navigation vers la sous-vue */ }}
@@ -361,8 +438,7 @@ function ModuleCard({ module: m }) {
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3] }}>
         {/* Bloc d'icône neutre — 40×40, fond neutral.100, icône en
             neutral.500. C'est volontairement sobre : chaque module ne
-            cherche PAS à se distinguer par la couleur (vu dans le diag
-            UX précédent — la palette arc-en-ciel fatiguait l'œil). */}
+            cherche PAS à se distinguer par la couleur. */}
         <div
           style={{
             width: 40,
@@ -393,14 +469,15 @@ function ModuleCard({ module: m }) {
           <div
             style={{
               fontSize: tokens.font.size.sm,
-              color: tokens.color.neutral[500],
+              color: metricColor,
+              fontWeight: isAlert ? tokens.font.weight.medium : tokens.font.weight.regular,
               lineHeight: tokens.font.leading.normal,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}
           >
-            {m.subtitle}
+            {m.metric}
           </div>
         </div>
 
@@ -421,7 +498,7 @@ function ModuleCard({ module: m }) {
 }
 
 // Placeholder pour les onglets non encore portés. Évite que l'archi
-// tombe sur une zone vide silencieuse — message explicite.
+// tombe sur une zone vide silencieuse — message explicite et chaleureux.
 function TabPlaceholder({ label }) {
   return (
     <div
@@ -439,7 +516,7 @@ function TabPlaceholder({ label }) {
       <div style={{ fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[700], marginBottom: tokens.space[1] }}>
         Onglet « {label || "—"} »
       </div>
-      Cet onglet sera construit dans un prompt ultérieur avec les nouveaux composants atomiques.
+      On y travaille — cette vue arrive bientôt avec les nouveaux composants.
     </div>
   );
 }
@@ -451,40 +528,23 @@ function NextMeetingPanel({ meeting }) {
   if (!meeting) return null;
   return (
     <Card padding={4} style={{ background: tokens.color.neutral[100] }}>
-      {/* En-tête du panneau */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: tokens.space[2],
-          marginBottom: tokens.space[3],
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: tokens.space[2],
-            fontSize: tokens.font.size.xs,
-            fontWeight: tokens.font.weight.semibold,
-            color: tokens.color.neutral[500],
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          <Icons.calendar size={14} />
-          Prochaine réunion
-        </div>
-        <IconButton
-          variant="ghost"
-          size="sm"
-          label="Plus d'actions (calendrier, .ics)"
-          onClick={() => { /* hook à venir : popover Cal / .ics */ }}
-        >
-          <Icons.more size={14} />
-        </IconButton>
-      </div>
+      {/* En-tête du panneau — SectionHeader pour matcher le format de la
+          zone centrale (cohérence visuelle entre main et sidebar).
+          L'action droite est le kebab pour Cal / .ics. */}
+      <SectionHeader
+        icon="calendar"
+        label="Prochaine réunion"
+        action={
+          <IconButton
+            variant="ghost"
+            size="sm"
+            label="Plus d'actions (calendrier, .ics)"
+            onClick={() => { /* hook à venir : popover Cal / .ics */ }}
+          >
+            <Icons.more size={14} />
+          </IconButton>
+        }
+      />
 
       {/* Date en grand, suivie du badge overdue éventuel. */}
       <div
@@ -548,24 +608,17 @@ function TimeTrackingPanel({ tracking }) {
   const mins = totalMinutes % 60;
   const formatted = totalMinutes === 0 ? "0 min" : hours > 0 ? `${hours}h${mins > 0 ? mins.toString().padStart(2, "0") : ""}` : `${mins} min`;
 
+  // Empty state chaleureux quand l'archi n'a encore rien tracké :
+  // pas "0 sessions enregistrées" sec, mais une phrase qui décrit
+  // l'usage et invite à démarrer.
+  const emptyState = totalMinutes === 0 && sessionCount === 0;
+  const subtitle = emptyState
+    ? "Démarre une session pour suivre tes heures sur ce projet."
+    : `${sessionCount} session${sessionCount > 1 ? "s" : ""} enregistrée${sessionCount > 1 ? "s" : ""}`;
+
   return (
     <Card padding={4} style={{ background: tokens.color.neutral[100] }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: tokens.space[2],
-          fontSize: tokens.font.size.xs,
-          fontWeight: tokens.font.weight.semibold,
-          color: tokens.color.neutral[500],
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          marginBottom: tokens.space[3],
-        }}
-      >
-        <Icons.clock size={14} />
-        Suivi du temps
-      </div>
+      <SectionHeader icon="clock" label="Suivi du temps" />
 
       <div
         style={{
@@ -582,10 +635,11 @@ function TimeTrackingPanel({ tracking }) {
         style={{
           fontSize: tokens.font.size.sm,
           color: tokens.color.neutral[500],
+          lineHeight: tokens.font.leading.normal,
           marginBottom: tokens.space[3],
         }}
       >
-        {sessionCount} session{sessionCount > 1 ? "s" : ""} enregistrée{sessionCount > 1 ? "s" : ""}
+        {subtitle}
       </div>
 
       <Button

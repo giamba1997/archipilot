@@ -16,6 +16,12 @@ import { tokens } from "../../../design/tokens";
 // Props :
 //   variant     "default" | "interactive"  (défaut "default")
 //   padding     clé de tokens.space (1 à 12)  (défaut 4)
+//   priority    boolean — élève la card visuellement : bordure latérale
+//               gauche 3px brand.500 + ombre tintée shadow.priority. À
+//               utiliser pour LA card mise en avant d'une zone (ex. "À
+//               faire" en haut du projet). Un seul priority par zone —
+//               sinon la hiérarchie est diluée et `brand.500` perd son
+//               sens de "rare et précieux" (cf. règle d'or des tokens).
 //   onClick     handler — déclenche le variant interactive automatiquement
 //   as          tag HTML — "div" par défaut, "button" si onClick fourni
 //                          (override possible si besoin sémantique précis)
@@ -28,6 +34,7 @@ export const Card = forwardRef(function Card(
   {
     variant,
     padding = 4,
+    priority = false,
     onClick,
     as,
     ariaLabel,
@@ -49,9 +56,20 @@ export const Card = forwardRef(function Card(
   // permet de forcer un <div role="button"> dans les cas rares.
   const Tag = as || (onClick ? "button" : "div");
 
+  // Pour les cards `priority`, on utilise une bordure latérale gauche
+  // brand.500 3px qui se superpose à la bordure neutre standard du reste.
+  // Astuce : `border-left` plus large + même couleur globale. Plus simple
+  // qu'un pseudo-élément ::before et fonctionne avec les transitions hover.
+  const borderColor = hover && isInteractive
+    ? tokens.color.brand[200]
+    : tokens.color.neutral[200];
+
   const baseStyle = {
     background: hover && isInteractive ? tokens.color.brand[50] : tokens.color.neutral[0],
-    border: `1px solid ${hover && isInteractive ? tokens.color.brand[200] : tokens.color.neutral[200]}`,
+    border: `1px solid ${borderColor}`,
+    borderLeft: priority
+      ? `3px solid ${tokens.color.brand[500]}`
+      : `1px solid ${borderColor}`,
     borderRadius: tokens.radius.lg,
     padding: tokens.space[padding] || tokens.space[4],
     cursor: isInteractive ? "pointer" : "default",
@@ -63,7 +81,11 @@ export const Card = forwardRef(function Card(
     width: "100%",
     boxSizing: "border-box",
     outline: "none",
-    boxShadow: focused && isInteractive ? tokens.shadow.focus : "none",
+    boxShadow: focused && isInteractive
+      ? tokens.shadow.focus
+      : priority
+        ? tokens.shadow.priority
+        : "none",
   };
 
   return (
