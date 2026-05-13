@@ -1444,7 +1444,58 @@ export default function App() {
               (pas forcément celui de l'URL — l'URL sert d'opt-in au mode v2,
               pas de routing strict pour ce premier jet). */}
           {view !== "profile" && project && view === "overview" && v2ProjectIdFromUrl && (
-            <ProjectDetail project={project} />
+            <ProjectDetail
+              project={project}
+              profile={profile}
+              onStartNotes={tryStartNewPv}
+              onEditInfo={() => {
+                const addr = project.street
+                  ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" }
+                  : parseAddress(project.address);
+                setEditInfo({
+                  name: project.name, client: project.client, contractor: project.contractor,
+                  ...addr,
+                  statusId: project.statusId, startDate: project.startDate, endDate: project.endDate,
+                  progress: project.progress, nextMeeting: project.nextMeeting,
+                  recurrence: project.recurrence || "none",
+                  pvTemplate: project.pvTemplate || "standard",
+                  remarkNumbering: project.remarkNumbering || "none",
+                  customFields: project.customFields || [],
+                });
+                setModal("info");
+              }}
+              onInvoices={() => setView("invoices")}
+              onQuotes={() => setView("quotes")}
+              onJournal={() => setView("journal")}
+              onOpr={() => {
+                if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr");
+                setView("opr");
+              }}
+              onPermits={() => setView("permits")}
+              onReports={() => setView("reports")}
+              activeTimer={activeTimer}
+              onStartTimer={startTimer}
+              onOpenSessions={(pid) => setShowSessionsModal(pid)}
+              onEditMeeting={() => {
+                // Réutilise la modal `info` qui contient le champ nextMeeting.
+                // Pas de modal dédiée à ce stade — l'archi y édite le projet,
+                // le champ "Prochaine réunion" y est présent.
+                const addr = project.street
+                  ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" }
+                  : parseAddress(project.address);
+                setEditInfo({
+                  name: project.name, client: project.client, contractor: project.contractor,
+                  ...addr,
+                  statusId: project.statusId, startDate: project.startDate, endDate: project.endDate,
+                  progress: project.progress, nextMeeting: project.nextMeeting,
+                  recurrence: project.recurrence || "none",
+                  pvTemplate: project.pvTemplate || "standard",
+                  remarkNumbering: project.remarkNumbering || "none",
+                  customFields: project.customFields || [],
+                });
+                setModal("info");
+              }}
+            />
           )}
           {view !== "profile" && project && view === "overview" && !v2ProjectIdFromUrl && <Overview project={project} setProjects={setProjects} onStartNotes={tryStartNewPv} onEditInfo={() => { const addr = project.street ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" } : parseAddress(project.address); setEditInfo({ name: project.name, client: project.client, contractor: project.contractor, ...addr, statusId: project.statusId, startDate: project.startDate, endDate: project.endDate, progress: project.progress, nextMeeting: project.nextMeeting, recurrence: project.recurrence || "none", pvTemplate: project.pvTemplate || "standard", remarkNumbering: project.remarkNumbering || "none", customFields: project.customFields || [] }); setModal("info"); }} onEditParticipants={() => { setEditParts(project.participants.map((p) => ({ ...p }))); setModal("parts"); }} onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }} onViewPdf={async (pv) => { if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; } if (!pv.content) return; try { const { jsPDF } = await import("jspdf"); const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true }); setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" }); setModal("viewpv"); } catch (e) { console.error("PDF generation failed:", e); } }} onViewPlan={() => setView("plan")} onViewPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }} onArchive={() => updateProject(activeId, { archived: !project.archived })} onDuplicate={duplicateProject} onImportPV={() => { setImportPV({ number: String((project.pvHistory.length || 0) + 1), date: new Date().toLocaleDateString("fr-BE"), author: profile.name, pdfDataUrl: null, fileName: "" }); setModal("importpv"); }} onViewTasks={() => setView("planning")} onAnnotatePlan={(itemId) => { setPlanAutoAction({ itemId, mode: "annotate" }); setView("plan"); }} onCropPlan={(itemId) => { setPlanAutoAction({ itemId, mode: "crop" }); setView("plan"); }} onAnnotatePhoto={(photoId) => { setGalleryAutoAction({ photoId }); setView("gallery"); }} onOpr={() => { if (!hasFeature(profile.plan, "opr")) return setUpgradeFeature("opr"); setView("opr"); }} onJournal={() => setView("journal")} onInvoices={() => setView("invoices")} onPermits={() => setView("permits")} onQuotes={() => setView("quotes")} onReports={() => setView("reports")} onChantierVisit={() => setView("chantier")} onCollab={() => setModal("collab")} showToast={showToast} onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }} activeContext={activeContext} profile={profile} activeTimer={activeTimer} onStartTimer={startTimer} onPauseResumeTimer={pauseResumeTimer} onStopTimer={requestStopTimer} onDiscardTimer={discardActiveTimer} onOpenSessions={() => setShowSessionsModal(project.id)} onAskAiAboutCdc={(p, intent = "compare_ft") => {
   const cdc = p.cahierDesCharges;

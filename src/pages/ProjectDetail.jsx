@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { tokens } from "../design/tokens";
 import { Button } from "../components/ui/v2/Button";
 import { Badge } from "../components/ui/v2/Badge";
@@ -6,6 +6,9 @@ import { Card } from "../components/ui/v2/Card";
 import { Tabs } from "../components/ui/v2/Tabs";
 import { IconButton } from "../components/ui/v2/IconButton";
 import { SectionHeader } from "../components/ui/v2/SectionHeader";
+import { loadInvoices, loadQuotes } from "../db";
+import { formatAddress } from "../utils/address";
+import { parseDateFR } from "../utils/dates";
 
 // ── ProjectDetail (v2) ─────────────────────────────────────
 //
@@ -70,58 +73,309 @@ const Icons = {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Données fictives — alignées sur le brief.
-// Sert de preview tant que le wiring sur l'état réel n'est pas fait.
+// Mock minimal — sert de fallback quand le composant est rendu sans
+// `project` (preview sandbox). En production, App.jsx passe le projet
+// réel et toutes les valeurs affichées sont dérivées de cette donnée
+// + des fetches async (factures, devis) faits par le composant.
 // ─────────────────────────────────────────────────────────────
 
 const MOCK_PROJECT = {
-  name: "SNCB",
-  status: "Clôturé",
-  address: "Rue Neuve Cour 80, 1480 Tubize",
-  updatedAt: "07/05/2026",
-  nextMeeting: {
-    date: "09/05/2026",
-    overdueDays: 3,
-    type: "Sur site",
-    recurrence: "Ponctuel",
-  },
-  todo: {
-    type: "now",
-    title: "Préparer le PV n°11",
-    subtitle: "À partir du dernier PV validé et des éléments du projet.",
-  },
-  // Convention : chaque module a un `metric` (texte court qui décrit l'état
-  // factuel) et un `metricTone` qui colore cette ligne ("neutral" par
-  // défaut, "warning" si attention non-urgente, "danger" si urgent,
-  // "success" si positif/résolu). Discipline d'un seul indicateur coloré
-  // visible par card — si l'archi a deux signaux concurrents sur le même
-  // module, on choisit le plus critique pour la couleur, l'autre reste
-  // factuel en neutral.500. Pour les empty states, on choisit un texte qui
-  // explique le pourquoi et propose une action plutôt qu'un "Aucune donnée".
-  modules: [
-    { id: "billing",  title: "Honoraires & facturation", metric: "Facture #007 en attente · 15 jours en retard", metricTone: "warning", iconKey: "file",  action: "Ouvrir" },
-    { id: "quotes",   title: "Devis & soumissions",      metric: "2 devis à comparer · dernière màj il y a 3 jours", metricTone: "neutral", iconKey: "chart", action: "Ouvrir" },
-    { id: "journal",  title: "Journal de chantier",      metric: "17 entrées · dernière hier",                       metricTone: "neutral", iconKey: "clock", action: "Ouvrir" },
-    { id: "reserves", title: "Réserves OPR",             metric: "2 réserves ouvertes (0 levées)",                    metricTone: "warning", iconKey: "alert", action: "Gérer"  },
-  ],
-  tabs: [
+  id: "mock",
+  name: "SNCB Hall n°6",
+  statusId: "closed",
+  street: "Rue Neuve Cour", number: "80", postalCode: "1480", city: "Tubize", country: "Belgique",
+  nextMeeting: "",
+  recurrence: "none",
+  participants: [],
+  posts: [],
+  pvHistory: [],
+  reserves: [],
+  gallery: [],
+  planFiles: [],
+  lots: [],
+  customFields: [],
+  actions: [],
+  journalEntries: [],
+};
+
+// Mapping statusId → label + variant Badge sémantique. Volontairement
+// local au fichier : on découple le rendu v2 du registre `STATUSES` de
+// constants/statuses.js qui mélange palette earth historique et libellés.
+const STATUS_MAP = {
+  sketch:       { label: "Esquisse",        variant: "info"    },
+  preliminary:  { label: "Avant-projet",    variant: "info"    },
+  permit:       { label: "Permis en cours", variant: "warning" },
+  execution:    { label: "Exécution",       variant: "info"    },
+  construction: { label: "Chantier",        variant: "info"    },
+  reception:    { label: "Réception",       variant: "warning" },
+  closed:       { label: "Clôturé",         variant: "neutral" },
+};
+
+// ─────────────────────────────────────────────────────────────
+// Dérivations à partir de project + données async chargées
+// ─────────────────────────────────────────────────────────────
+
+// Statut visuel pour le badge du header. Fallback "Inconnu" si statusId
+// manque (vieux projets, données partielles) — neutre, pas alertant.
+function deriveStatus(project) {
+  return STATUS_MAP[project?.statusId] || { label: "Inconnu", variant: "neutral" };
+}
+
+// "À faire maintenant" — version v2 simplifiée d'OverviewPhaseHero.
+// Priorise : brouillon PV à finir > réserves ouvertes en réception >
+// PV à préparer en phase chantier > dossier permis à constituer.
+// Renvoie null si rien d'évident → l'UI affiche EmptyTodo.
+function deriveTodo(project) {
+  const reserves = project.reserves || [];
+  const openReserves = reserves.filter(r => r.status !== "levee");
+  const pvs = project.pvHistory || [];
+  const lastPv = pvs[0];
+  const phase = project.statusId;
+
+  if (lastPv && lastPv.status === "draft") {
+    return {
+      cta: "onStartNotes",
+      title: `Finir le PV n°${lastPv.number}`,
+      subtitle: "Brouillon en attente — finalise et envoie.",
+      buttonLabel: "Reprendre",
+    };
+  }
+  if (phase === "reception" && openReserves.length > 0) {
+    return {
+      cta: "onOpr",
+      title: `Lever ${openReserves.length} réserve${openReserves.length > 1 ? "s" : ""}`,
+      subtitle: "Avancer l'OPR vers la réception définitive.",
+      buttonLabel: "Gérer",
+    };
+  }
+  if (["execution", "construction", "reception"].includes(phase)) {
+    const nextNum = (pvs.length || 0) + 1;
+    return {
+      cta: "onStartNotes",
+      title: `Préparer le PV n°${nextNum}`,
+      subtitle: "À partir du dernier PV validé et des éléments du projet.",
+      buttonLabel: "Démarrer",
+    };
+  }
+  if (phase === "permit") {
+    return {
+      cta: "onPermits",
+      title: "Suivre le dossier permis",
+      subtitle: "Tracker dépôt, AR et échéance de décision.",
+      buttonLabel: "Ouvrir",
+    };
+  }
+  return null;
+}
+
+// Onglets + compteurs dynamiques.
+function deriveTabs(project) {
+  const openActions = (project.actions || []).filter(a => a.open).length;
+  return [
     { id: "summary",  label: "Résumé" },
     { id: "sheet",    label: "Fiche" },
-    { id: "actions",  label: "Actions",   count: 0, showZero: true },
-    { id: "planning", label: "Planning",  count: 3 },
-    { id: "pv",       label: "PV",        count: 10 },
-    { id: "docs",     label: "Documents", count: 2 },
-    { id: "photos",   label: "Photos",    count: 1 },
-  ],
-  timeTracking: { totalMinutes: 0, sessionCount: 7 },
-};
+    { id: "actions",  label: "Actions",   count: openActions,                                            showZero: true  },
+    { id: "planning", label: "Planning",  count: (project.lots || []).length,                            showZero: false },
+    { id: "pv",       label: "PV",        count: (project.pvHistory || []).length,                       showZero: false },
+    { id: "docs",     label: "Documents", count: (project.planFiles || []).filter(f => f.type !== "folder").length, showZero: false },
+    { id: "photos",   label: "Photos",    count: (project.gallery || []).length,                         showZero: false },
+  ];
+}
+
+// Modules du Résumé. Reçoit en plus invoiceSummary + quotesCount chargés
+// async pour pouvoir afficher des métriques contextuelles ("Facture en
+// retard", "2 devis à comparer") au lieu d'un baseline générique.
+function deriveModules(project, { invoiceSummary, quotesCount }) {
+  // Honoraires & facturation
+  let billingMetric, billingTone;
+  if (!invoiceSummary || invoiceSummary.total === 0) {
+    billingMetric = "Émettre une facture conforme TVA · numérotation auto";
+    billingTone = "neutral";
+  } else if (invoiceSummary.overdueCount > 0) {
+    const eur = Math.round(invoiceSummary.overdueTtc).toLocaleString("fr-BE");
+    billingMetric = `${invoiceSummary.overdueCount} facture${invoiceSummary.overdueCount > 1 ? "s" : ""} en retard · ${eur} € à relancer`;
+    billingTone = "warning";
+  } else if (invoiceSummary.pendingCount > 0) {
+    const eur = Math.round(invoiceSummary.pendingTtc).toLocaleString("fr-BE");
+    billingMetric = `${invoiceSummary.pendingCount} facture${invoiceSummary.pendingCount > 1 ? "s" : ""} en attente · ${eur} € TTC`;
+    billingTone = "neutral";
+  } else {
+    billingMetric = `${invoiceSummary.total} facture${invoiceSummary.total > 1 ? "s" : ""} émise${invoiceSummary.total > 1 ? "s" : ""} · à jour`;
+    billingTone = "success";
+  }
+
+  // Devis & soumissions
+  const quotesMetric = quotesCount > 0
+    ? `${quotesCount} devis · upload + comparaison IA`
+    : "Aucun devis · upload + comparaison IA";
+
+  // Journal — compteur agrégé (PV + OPR + photos + journalEntries)
+  const journalCount =
+    (project.pvHistory || []).length +
+    (project.oprHistory || []).length +
+    (project.reserves || []).filter(r => r.createdAt).length +
+    (project.gallery || []).length +
+    (project.journalEntries || []).length;
+  const journalMetric = journalCount > 0
+    ? `${journalCount} entrée${journalCount > 1 ? "s" : ""} chronologique${journalCount > 1 ? "s" : ""}`
+    : "Timeline auto des PV, photos et OPR";
+
+  // Réserves OPR
+  const reserves = project.reserves || [];
+  const totalRes = reserves.length;
+  const leveesRes = reserves.filter(r => r.status === "levee").length;
+  const openRes = totalRes - leveesRes;
+  let reservesMetric, reservesTone;
+  if (totalRes === 0) {
+    reservesMetric = "Aucune réserve · démarrer l'OPR";
+    reservesTone = "neutral";
+  } else if (openRes === 0) {
+    reservesMetric = `${totalRes} réserve${totalRes > 1 ? "s" : ""} · toutes levées`;
+    reservesTone = "success";
+  } else {
+    reservesMetric = `${openRes} réserve${openRes > 1 ? "s" : ""} ouverte${openRes > 1 ? "s" : ""} (${leveesRes}/${totalRes} levées)`;
+    reservesTone = "warning";
+  }
+
+  return [
+    { id: "billing",  title: "Honoraires & facturation", metric: billingMetric,  metricTone: billingTone,  iconKey: "file",  action: "Ouvrir", handlerKey: "onInvoices" },
+    { id: "quotes",   title: "Devis & soumissions",      metric: quotesMetric,   metricTone: "neutral",    iconKey: "chart", action: "Ouvrir", handlerKey: "onQuotes"   },
+    { id: "journal",  title: "Journal de chantier",      metric: journalMetric,  metricTone: "neutral",    iconKey: "clock", action: "Ouvrir", handlerKey: "onJournal"  },
+    { id: "reserves", title: "Réserves OPR",             metric: reservesMetric, metricTone: reservesTone, iconKey: "alert", action: totalRes === 0 ? "Démarrer" : "Gérer", handlerKey: "onOpr" },
+  ];
+}
+
+// Prochaine réunion dérivée. Le champ project.nextMeeting est une string
+// dd/mm/yyyy ; on calcule les jours d'écart pour le badge "Passée N j".
+function deriveNextMeeting(project) {
+  if (!project?.nextMeeting) return null;
+  const d = parseDateFR(project.nextMeeting);
+  if (!d) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+  return {
+    date: project.nextMeeting,
+    overdueDays: diff > 0 ? diff : 0,
+    daysUntil: diff < 0 ? -diff : 0,
+    type: "Sur site",  // pas de champ dédié sur project → valeur par défaut
+    recurrence: project.recurrence === "none" || !project.recurrence ? "Ponctuel" : project.recurrence,
+  };
+}
+
+// "MAJ" du projet — on prend le timestamp le plus récent qu'on trouve
+// (dernière entrée pvHistory de préférence, sinon ts de réserve récente,
+// sinon "—"). Format fr-BE court.
+function deriveUpdatedAt(project) {
+  let latest = 0;
+  const consider = (v) => {
+    if (!v) return;
+    const t = typeof v === "number" ? v : +new Date(v);
+    if (!isNaN(t) && t > latest) latest = t;
+  };
+  (project.pvHistory || []).forEach(pv => consider(pv.createdAt) || consider(pv.date));
+  (project.reserves || []).forEach(r => consider(r.lastUpdatedAt) || consider(r.createdAt));
+  (project.gallery || []).forEach(p => consider(p.date) || consider(p.createdAt));
+  if (latest === 0) return "—";
+  return new Date(latest).toLocaleDateString("fr-BE");
+}
 
 // ─────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────
 
-export function ProjectDetail({ project = MOCK_PROJECT }) {
+export function ProjectDetail({
+  project = MOCK_PROJECT,
+  profile,
+  // Handlers (passés depuis App.jsx). Tous optionnels — si null, les
+  // affordances correspondantes restent visuelles mais ne font rien
+  // (utile pour preview standalone).
+  onStartNotes,
+  onEditInfo,
+  onInvoices,
+  onQuotes,
+  onJournal,
+  onOpr,
+  onPermits,
+  onReports,
+  activeTimer,
+  onStartTimer,
+  onOpenSessions,
+  onEditMeeting,  // ouvre la modal d'édition meeting si fourni
+}) {
   const [activeTab, setActiveTab] = useState("summary");
+
+  // ── Lazy loads async (factures + devis) ──
+  // Mêmes failsafes que Overview : si la table n'existe pas (migration
+  // pas appliquée), on tombe silencieusement et la card garde son texte
+  // baseline. Pas de skeleton — la latence est < 200 ms en réel.
+  const [invoiceSummary, setInvoiceSummary] = useState(null);
+  const [quotesCount, setQuotesCount] = useState(0);
+
+  useEffect(() => {
+    if (!project?.id || project.id === "mock") return;
+    let cancelled = false;
+    loadInvoices({ projectId: project.id })
+      .then(invs => {
+        if (cancelled) return;
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const overdue = invs.filter(i =>
+          i.status === "overdue" || (i.status === "sent" && i.due_date && new Date(i.due_date) < today)
+        );
+        const pending = invs.filter(i => i.status === "sent" && !overdue.includes(i));
+        setInvoiceSummary({
+          total: invs.length,
+          overdueCount: overdue.length,
+          overdueTtc: overdue.reduce((s, i) => s + Number(i.amount_ttc || 0), 0),
+          pendingCount: pending.length,
+          pendingTtc: pending.reduce((s, i) => s + Number(i.amount_ttc || 0), 0),
+        });
+      })
+      .catch(() => { /* silencieux — table peut ne pas exister */ });
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
+  useEffect(() => {
+    if (!project?.id || project.id === "mock") return;
+    let cancelled = false;
+    loadQuotes({ projectId: project.id })
+      .then(qs => { if (!cancelled) setQuotesCount((qs || []).length); })
+      .catch(() => { /* idem */ });
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
+  // ── Dérivations memo ──
+  const status        = useMemo(() => deriveStatus(project),        [project]);
+  const todo          = useMemo(() => deriveTodo(project),          [project]);
+  const tabs          = useMemo(() => deriveTabs(project),          [project]);
+  const nextMeeting   = useMemo(() => deriveNextMeeting(project),   [project]);
+  const updatedAt     = useMemo(() => deriveUpdatedAt(project),     [project]);
+  const modules       = useMemo(
+    () => deriveModules(project, { invoiceSummary, quotesCount }),
+    [project, invoiceSummary, quotesCount]
+  );
+
+  // Map handlerKey → callback réel pour pouvoir router le tap depuis
+  // ModuleCard et TodoCard sans propager 8 props en cascade.
+  const handlerMap = {
+    onStartNotes, onEditInfo,
+    onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports,
+  };
+
+  // Suivi du temps — dérive depuis activeTimer + project.timeSessions.
+  // Total = somme des durées des sessions terminées. Pas de calcul live
+  // d'une session en cours pour rester simple à ce stade.
+  const timeTracking = useMemo(() => {
+    const sessions = project?.timeSessions || [];
+    const totalMinutes = sessions.reduce((sum, s) => {
+      const segs = s.segments || [];
+      const ms = segs.reduce((a, seg) => {
+        if (!seg.startedAt || !seg.endedAt) return a;
+        return a + (+new Date(seg.endedAt) - +new Date(seg.startedAt));
+      }, 0);
+      return sum + Math.floor(ms / 60000);
+    }, 0);
+    return { totalMinutes, sessionCount: sessions.length };
+  }, [project?.timeSessions]);
 
   return (
     <div
@@ -137,14 +391,25 @@ export function ProjectDetail({ project = MOCK_PROJECT }) {
     >
       {/* ── Colonne principale (flex 1) ── */}
       <main style={{ flex: 1, minWidth: 0 }}>
-        <ProjectHeader project={project} />
-        <Tabs items={project.tabs} activeId={activeTab} onChange={setActiveTab} />
+        <ProjectHeader
+          project={project}
+          status={status}
+          nextMeeting={nextMeeting}
+          updatedAt={updatedAt}
+          onEditInfo={onEditInfo}
+        />
+        <Tabs items={tabs} activeId={activeTab} onChange={setActiveTab} />
 
         {/* Le seul onglet construit en détail pour ce jet est "Résumé".
-            Les autres sont des placeholders explicites — l'utilisateur
-            sait qu'ils existent mais que le contenu sera porté plus tard. */}
-        {activeTab === "summary" && <SummaryTab project={project} />}
-        {activeTab !== "summary" && <TabPlaceholder label={project.tabs.find(t => t.id === activeTab)?.label} />}
+            Les autres sont des placeholders explicites — leur portage
+            (Fiche, Actions, Planning, PV, Documents, Photos) viendra
+            dans des itérations ultérieures avec le même standard. */}
+        {activeTab === "summary" && (
+          <SummaryTab todo={todo} modules={modules} handlerMap={handlerMap} />
+        )}
+        {activeTab !== "summary" && (
+          <TabPlaceholder label={tabs.find(t => t.id === activeTab)?.label} />
+        )}
       </main>
 
       {/* ── Panneau droit (320px fixe) ── */}
@@ -157,8 +422,14 @@ export function ProjectDetail({ project = MOCK_PROJECT }) {
           gap: tokens.space[3],
         }}
       >
-        <NextMeetingPanel meeting={project.nextMeeting} />
-        <TimeTrackingPanel tracking={project.timeTracking} />
+        <NextMeetingPanel meeting={nextMeeting} onEditMeeting={onEditMeeting} />
+        <TimeTrackingPanel
+          tracking={timeTracking}
+          activeTimer={activeTimer}
+          projectId={project?.id}
+          onStartTimer={onStartTimer ? () => onStartTimer(project) : null}
+          onOpenSessions={onOpenSessions ? () => onOpenSessions(project?.id) : null}
+        />
       </aside>
     </div>
   );
@@ -168,8 +439,19 @@ export function ProjectDetail({ project = MOCK_PROJECT }) {
 // Sous-composants
 // ─────────────────────────────────────────────────────────────
 
-// Header projet : titre, badges, adresse + date de MAJ, lien "Compléter"
-function ProjectHeader({ project }) {
+// Header projet : titre, badges, adresse + date de MAJ, lien "Compléter".
+// L'adresse est cliquable (geo: lien) — utile en preview desktop autant
+// que sur mobile dès qu'on a un projet réel avec une adresse.
+function ProjectHeader({ project, status, nextMeeting, updatedAt, onEditInfo }) {
+  const address = formatAddress(project);
+  // Détection des champs manquants — sert à montrer le lien "Compléter".
+  // Mêmes critères qu'Overview's chips "À compléter" (client, dates,
+  // adresse en phase tardive), mais simplifié à un seul lien pour ne
+  // pas alourdir le header.
+  const missing = !project?.client?.trim()
+    || !project?.contractor?.trim()
+    || (!project?.street?.trim() && !project?.address?.trim());
+
   return (
     <header style={{ marginBottom: tokens.space[5] }}>
       <div
@@ -194,17 +476,15 @@ function ProjectHeader({ project }) {
           {project.name}
         </h1>
 
-        {/* Statut projet — neutral parce que "Clôturé" est un état
-            terminal sans urgence. Si la phase devient "Esquisse", on
-            passe en info ; "En retard" → warning ou danger. */}
-        <Badge variant="neutral">{project.status}</Badge>
+        {/* Statut projet — variant dérivé du statusId. */}
+        <Badge variant={status.variant}>{status.label}</Badge>
 
         {/* Échéance dépassée — warning (ambre), pas terracotta.
             On dérive le libellé du nombre de jours pour rester
             humain (3 jours = "Passée 3j"). */}
-        {project.nextMeeting?.overdueDays > 0 && (
+        {nextMeeting?.overdueDays > 0 && (
           <Badge variant="warning" dot>
-            Passée {project.nextMeeting.overdueDays}j
+            Passée {nextMeeting.overdueDays}j
           </Badge>
         )}
       </div>
@@ -220,23 +500,24 @@ function ProjectHeader({ project }) {
           marginBottom: tokens.space[2],
         }}
       >
-        <span>{project.address}</span>
-        <span aria-hidden="true">·</span>
-        <span>MAJ {project.updatedAt}</span>
+        {address && <span>{address}</span>}
+        {address && <span aria-hidden="true">·</span>}
+        <span>MAJ {updatedAt}</span>
       </div>
 
-      {/* Lien discret pour compléter — texte neutral.700 + souligné au
-          hover (géré via state interne pour rester en CSS-in-JS). */}
-      <CompleteLink />
+      {/* Lien discret "Compléter" — visible seulement si des champs
+          essentiels manquent. Le ton reste humain (cf. brief). */}
+      {missing && <CompleteLink onClick={onEditInfo} />}
     </header>
   );
 }
 
-function CompleteLink() {
+function CompleteLink({ onClick }) {
   const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
+      onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -268,7 +549,7 @@ function CompleteLink() {
 // le fait avec "AUJOURD'HUI" et "MES CHANTIERS" — l'archi sait toujours
 // dans quel registre il lit. C'est le seul onglet où `brand.500` apparaît
 // (Card priority + bouton primaire de la TodoCard).
-function SummaryTab({ project }) {
+function SummaryTab({ todo, modules, handlerMap }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[5] }}>
       {/* ── Zone d'action ──
@@ -277,26 +558,17 @@ function SummaryTab({ project }) {
           neutral.500). La card en dessous est en `priority` : bordure
           latérale brand.500 + ombre tintée → l'œil capte instantanément
           que c'est ici que ça se passe, sans crier. */}
-      {project.todo ? (
-        <section>
-          <SectionHeader icon="bolt" label="À faire maintenant" />
-          <TodoCard todo={project.todo} />
-        </section>
-      ) : (
-        // Empty state chaleureux — on constate factuellement et on
-        // ajoute une note humaine, comme sur la home mobile.
-        <section>
-          <SectionHeader icon="bolt" label="À faire maintenant" />
-          <EmptyTodo />
-        </section>
-      )}
+      <section>
+        <SectionHeader icon="bolt" label="À faire maintenant" />
+        {todo ? <TodoCard todo={todo} handlerMap={handlerMap} /> : <EmptyTodo />}
+      </section>
 
       {/* ── Zone des outils ── */}
       <section>
         <SectionHeader icon="wrench" label="Outils du projet" />
         <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
-          {project.modules.map(m => (
-            <ModuleCard key={m.id} module={m} />
+          {modules.map(m => (
+            <ModuleCard key={m.id} module={m} handlerMap={handlerMap} />
           ))}
         </div>
       </section>
@@ -351,8 +623,9 @@ function EmptyTodo() {
 // élévation visuelle, pas par couleur". Le label "À faire maintenant" est
 // porté par le SectionHeader au-dessus, on n'a plus besoin de l'overline
 // dans la card elle-même.
-function TodoCard({ todo }) {
+function TodoCard({ todo, handlerMap }) {
   if (!todo) return null;
+  const cb = handlerMap?.[todo.cta];
   return (
     <Card priority padding={4}>
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3] }}>
@@ -400,9 +673,10 @@ function TodoCard({ todo }) {
           variant="primary"
           size="md"
           rightIcon={<Icons.chevronR size={16} />}
-          onClick={() => { /* hook à venir : déclenche la création du PV */ }}
+          onClick={cb || undefined}
+          disabled={!cb}
         >
-          Démarrer
+          {todo.buttonLabel || "Démarrer"}
         </Button>
       </div>
     </Card>
@@ -425,13 +699,14 @@ const METRIC_COLOR = {
 // (`m.metric`) s'affiche DANS le corps de la card avec une couleur
 // dérivée de `m.metricTone` — c'est ce qui rend la lecture utile :
 // l'archi voit l'état du projet sans avoir à cliquer.
-function ModuleCard({ module: m }) {
+function ModuleCard({ module: m, handlerMap }) {
   const IconComp = Icons[m.iconKey] || Icons.file;
   const metricColor = METRIC_COLOR[m.metricTone] || METRIC_COLOR.neutral;
   const isAlert = m.metricTone === "warning" || m.metricTone === "danger";
+  const cb = handlerMap?.[m.handlerKey];
   return (
     <Card
-      onClick={() => { /* hook à venir : navigation vers la sous-vue */ }}
+      onClick={cb || undefined}
       ariaLabel={`${m.title} — ${m.action}`}
       padding={4}
     >
@@ -488,7 +763,8 @@ function ModuleCard({ module: m }) {
           variant="secondary"
           size="sm"
           rightIcon={<Icons.chevronR size={14} />}
-          onClick={(e) => { e.stopPropagation(); /* hook à venir */ }}
+          onClick={(e) => { e.stopPropagation(); cb?.(); }}
+          disabled={!cb}
         >
           {m.action}
         </Button>
@@ -524,7 +800,7 @@ function TabPlaceholder({ label }) {
 // Panneau droit — Prochaine réunion. Fond neutral.100, pas brand.
 // UN seul bouton "Modifier" visible ; les actions Cal/.ics passent
 // dans un menu kebab (atome IconButton + popover à venir).
-function NextMeetingPanel({ meeting }) {
+function NextMeetingPanel({ meeting, onEditMeeting }) {
   if (!meeting) return null;
   return (
     <Card padding={4} style={{ background: tokens.color.neutral[100] }}>
@@ -591,7 +867,13 @@ function NextMeetingPanel({ meeting }) {
         </div>
       </div>
 
-      <Button variant="secondary" size="sm" fullWidth>
+      <Button
+        variant="secondary"
+        size="sm"
+        fullWidth
+        onClick={onEditMeeting || undefined}
+        disabled={!onEditMeeting}
+      >
         Modifier
       </Button>
     </Card>
@@ -601,9 +883,13 @@ function NextMeetingPanel({ meeting }) {
 // Panneau Suivi du temps — démarrage de la session courante.
 // Le bouton "Démarrer" est secondary (pas primary) : il y a déjà
 // un primary visible (TodoCard "Démarrer"), on ne duplique pas.
-function TimeTrackingPanel({ tracking }) {
+function TimeTrackingPanel({ tracking, activeTimer, projectId, onStartTimer, onOpenSessions }) {
   if (!tracking) return null;
   const { totalMinutes = 0, sessionCount = 0 } = tracking;
+  // Si une session est en cours sur CE projet, on bascule le bouton sur
+  // "Voir les sessions" plutôt que "Démarrer" — l'archi peut consulter
+  // / arrêter depuis le TimerBanner global déjà visible en haut de page.
+  const myTimerActive = activeTimer && activeTimer.projectId === projectId;
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
   const formatted = totalMinutes === 0 ? "0 min" : hours > 0 ? `${hours}h${mins > 0 ? mins.toString().padStart(2, "0") : ""}` : `${mins} min`;
@@ -647,9 +933,12 @@ function TimeTrackingPanel({ tracking }) {
         size="sm"
         fullWidth
         leftIcon={<Icons.play size={12} />}
-        onClick={() => { /* hook à venir : démarre une session de tracking */ }}
+        onClick={myTimerActive
+          ? (onOpenSessions || undefined)
+          : (onStartTimer || undefined)}
+        disabled={myTimerActive ? !onOpenSessions : !onStartTimer}
       >
-        Démarrer une session
+        {myTimerActive ? "Voir les sessions" : "Démarrer une session"}
       </Button>
     </Card>
   );

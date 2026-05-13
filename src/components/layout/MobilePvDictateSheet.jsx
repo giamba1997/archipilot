@@ -115,6 +115,25 @@ export function MobilePvDictateSheet({ open, onClose, project, profile, setProje
 
   if (!open) return null;
 
+  // Guard projet manquant — au lieu de crasher sur project.name plus bas,
+  // on affiche un message clair. Ne devrait jamais arriver en prod (App.jsx
+  // ferme le sheet si project est null), mais évite l'écran "Erreur de rendu"
+  // si le state était incohérent (race au close).
+  if (!project) {
+    return (
+      <div onClick={onClose} style={OVERLAY_STYLE}>
+        <div onClick={e => e.stopPropagation()} style={SHEET_STYLE}>
+          <div style={HANDLE_STYLE} />
+          <div style={{ padding: 24, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: TX, marginBottom: 8 }}>Aucun projet sélectionné</div>
+            <div style={{ fontSize: 12, color: TX3, marginBottom: 16 }}>Sélectionne un projet avant de dicter un PV.</div>
+            <button onClick={onClose} style={{ padding: "10px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Compris</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Étape suivante : stop recording puis appeler generate-pv
   const stopAndStructure = async () => {
     if (recorder.isRecording) recorder.stop();
