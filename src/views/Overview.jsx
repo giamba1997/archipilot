@@ -17,6 +17,7 @@ import { MeetingCard, MEETING_MODES } from "./MeetingCard";
 import { PvRow, SmallBtn } from "./PvRow";
 import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
 import { usePresence } from "../hooks/usePresence";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { TimerCard } from "./TimerCard";
 import { CdcBanner } from "./CdcBanner";
 import { OverviewPhaseHero, getPhaseHeroVariant } from "./OverviewPhaseHero";
@@ -155,6 +156,12 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
     try { localStorage.setItem(`archipilot_overview_tab:${project?.id}`, activeTab); }
     catch { /* ignore */ }
   }, [activeTab, project?.id]);
+
+  // Sur mobile, les onglets sont remplacés par un sélecteur compact
+  // (bouton + bottom sheet) — 9 pills wrappés mangent trop d'espace
+  // vertical au-dessus du contenu.
+  const isMobile = useIsMobile();
+  const [tabSheetOpen, setTabSheetOpen] = useState(false);
 
   const openActions   = project.actions.filter((a) => a.open);
   const closedActions = project.actions.filter((a) => !a.open);
@@ -340,6 +347,110 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           // pour consulter ou éditer, mais c'est pas du flux quotidien.
           { id: "fiche",      label: "Fiche" },
         ];
+        // Sur mobile : sélecteur compact (bouton + bottom sheet). Évite
+        // 2-3 rangées de pills wrappés au-dessus du contenu sur écran 6".
+        if (isMobile) {
+          const current = tabs.find(t => t.id === activeTab) || tabs[0];
+          return (
+            <>
+              <button
+                onClick={() => setTabSheetOpen(true)}
+                aria-label="Changer de vue"
+                aria-haspopup="dialog"
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  width: "100%", padding: "12px 14px",
+                  border: `1px solid ${SBB}`, borderRadius: 12,
+                  background: WH, marginBottom: 14,
+                  cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                }}
+              >
+                <span style={{ fontSize: 10, color: TX3, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Vue
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: TX, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {current.label}
+                </span>
+                {typeof current.count === "number" && (current.count > 0 || current.showZero) && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: AC, background: ACL, padding: "2px 8px", borderRadius: 10, fontFamily: "ui-monospace, monospace" }}>
+                    {current.count}
+                  </span>
+                )}
+                <Ico name="chevron-down" size={16} color={TX3} />
+              </button>
+
+              {tabSheetOpen && (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  onClick={() => setTabSheetOpen(false)}
+                  style={{
+                    position: "fixed", inset: 0, zIndex: 250,
+                    display: "flex", flexDirection: "column", justifyContent: "flex-end",
+                    background: "rgba(0, 0, 0, 0.4)",
+                  }}
+                >
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      position: "relative", background: WH,
+                      borderRadius: "20px 20px 0 0",
+                      padding: `${SP.xl}px ${SP.lg}px`,
+                      paddingBottom: `max(${SP.xl}px, env(safe-area-inset-bottom, 20px))`,
+                      animation: "sheetUp 0.25s ease-out",
+                      maxHeight: "85vh", overflowY: "auto",
+                    }}
+                  >
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: SBB, margin: "0 auto 14px" }} />
+                    <div style={{ fontSize: 11, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10, padding: "0 4px" }}>
+                      Choisir une vue
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {tabs.map(t => {
+                        const active = activeTab === t.id;
+                        const showCount = typeof t.count === "number" && (t.count > 0 || t.showZero);
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => { setActiveTab(t.id); setTabSheetOpen(false); }}
+                            aria-pressed={active}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 12,
+                              padding: "12px 14px", textAlign: "left",
+                              border: `1px solid ${active ? AC : SBB}`,
+                              background: active ? ACL : WH,
+                              borderRadius: 12, cursor: "pointer",
+                              fontFamily: "inherit", width: "100%",
+                            }}
+                          >
+                            <span style={{
+                              width: 22, height: 22, borderRadius: "50%",
+                              border: `2px solid ${active ? AC : SBB}`,
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              flexShrink: 0, background: WH,
+                            }}>
+                              {active && <span style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                            </span>
+                            <span style={{ flex: 1, fontSize: 14, fontWeight: active ? 700 : 600, color: active ? TX : TX2 }}>
+                              {t.label}
+                            </span>
+                            {showCount && (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: active ? AC : TX3, background: active ? WH : SB2, padding: "2px 9px", borderRadius: 10, fontFamily: "ui-monospace, monospace" }}>
+                                {t.count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        }
+
+        // Desktop : barre d'onglets classique avec sous-lignage actif
         return (
           <div style={{
             marginBottom: 16,
