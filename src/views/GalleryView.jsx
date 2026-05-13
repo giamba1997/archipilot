@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, BR, BRB, AM, AMB, SG, SGB } from "../constants/tokens";
 import { getReserveStatus, getReserveSeverity } from "../constants/statuses";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
 import { PlanViewer } from "./PlanViewer";
 import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
@@ -13,6 +14,7 @@ import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 //     qui redirige vers la vue standalone (PlanViewer photo a besoin du plein
 //     écran). `autoAction = { photoId }` permet de pré-ouvrir l'annotation.
 export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, autoAction, showToast }) {
+  const isMobile = useIsMobile();
   const uploadRef = useRef(null);
   const [activePhotoId, setActivePhotoId] = useState(autoAction?.photoId || null); // open in PlanViewer
   const [lightbox, setLightbox] = useState(null); // simple preview
@@ -156,20 +158,24 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
             </>
           ) : (
             <>
-              {photos.length > 0 && (
+              {!isMobile && photos.length > 0 && (
                 <button onClick={() => setSelecting(true)} style={{ padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: TX2 }}>
                   Sélectionner
                 </button>
               )}
-              <button onClick={() => uploadRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit" }}>
-                <Ico name="plus" size={14} color="#fff" />
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>Ajouter</span>
-              </button>
+              {!isMobile && (
+                <button onClick={() => uploadRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit" }}>
+                  <Ico name="plus" size={14} color="#fff" />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>Ajouter</span>
+                </button>
+              )}
             </>
           )}
         </div>
         <input ref={uploadRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }} />
       </div>
+
+      {isMobile && <MobileConsultationBanner hint="upload bureau, ou utilise la capture rapide pour ajouter une photo." />}
 
       {/* Gallery grid — 4 per row */}
       {photos.length === 0 ? (
@@ -179,9 +185,11 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: TX, marginBottom: 4 }}>Aucune photo</div>
           <div style={{ fontSize: 13, color: TX3, marginBottom: 16 }}>Ajoutez des photos de votre chantier pour les retrouver ici</div>
-          <button onClick={() => uploadRef.current?.click()} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#fff" }}>
-            <Ico name="plus" size={14} color="#fff" />Ajouter des photos
-          </button>
+          {!isMobile && (
+            <button onClick={() => uploadRef.current?.click()} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#fff" }}>
+              <Ico name="plus" size={14} color="#fff" />Ajouter des photos
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
@@ -230,18 +238,20 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
           <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", zIndex: 2 }}>
             <span style={{ fontSize: 13, color: "#fff", fontWeight: 500 }}>{lbIdx + 1} / {photos.length} — {new Date(lbPhoto.date).toLocaleDateString("fr-BE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => {
-                setLightbox(null);
-                if (onAnnotatePhoto) onAnnotatePhoto(lbPhoto.id);
-                else setActivePhotoId(lbPhoto.id);
-              }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: AC, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
-                <Ico name="edit" size={13} color="#fff" />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Annoter</span>
-              </button>
+              {!isMobile && (
+                <button onClick={() => {
+                  setLightbox(null);
+                  if (onAnnotatePhoto) onAnnotatePhoto(lbPhoto.id);
+                  else setActivePhotoId(lbPhoto.id);
+                }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: AC, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                  <Ico name="edit" size={13} color="#fff" />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Annoter</span>
+                </button>
+              )}
               {/* Lier à une réserve — disponible quand le projet a au moins
-                  une réserve (sinon rien à lier). Le bouton ouvre une modale
-                  séparée pour ne pas surcharger la lightbox. */}
-              {reserves.length > 0 && (
+                  une réserve. Affichage simple sur mobile (badge non-cliquable),
+                  édition bureau seulement. */}
+              {!isMobile && reserves.length > 0 && (
                 <button onClick={() => setLinkingPhoto(lbPhoto.id)} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
                   <Ico name="alert" size={13} color="#fff" />
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>
@@ -251,10 +261,12 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                   </span>
                 </button>
               )}
-              <button onClick={() => { removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
-                <Ico name="trash" size={13} color="#fff" />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
-              </button>
+              {!isMobile && (
+                <button onClick={() => { removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                  <Ico name="trash" size={13} color="#fff" />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
+                </button>
+              )}
               <button onClick={() => setLightbox(null)} style={{ width: 36, height: 36, border: "none", borderRadius: 8, background: "rgba(255,255,255,0.15)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Ico name="x" size={16} color="#fff" />
               </button>

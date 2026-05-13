@@ -5,7 +5,8 @@ import {
   DIS, DIST,
 } from "../constants/tokens";
 import { getStatus } from "../constants/statuses";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { loadProgressReports, saveProgressReport, deleteProgressReport, generateProgressReportContent, loadPermits } from "../db";
 
 // ── F10 — Rapports d'avancement client ──────────────────────
@@ -50,6 +51,7 @@ const parseDateAny = (s) => {
 };
 
 export function ProgressReportsView({ project, profile, showToast, onBack }) {
+  const isMobile = useIsMobile();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -160,7 +162,10 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
         </div>
       </div>
 
-      {/* Carte génération */}
+      {isMobile && <MobileConsultationBanner hint="génération de rapports IA depuis l'ordinateur." />}
+
+      {/* Carte génération — desktop seulement (la synthèse IA est une action bureau) */}
+      {!isMobile && (
       <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>Générer un nouveau rapport</div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -206,6 +211,7 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
           {generating ? "Synthèse IA en cours…" : "Générer le rapport"}
         </button>
       </div>
+      )}
 
       {/* Historique */}
       {loading ? (

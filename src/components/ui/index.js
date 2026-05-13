@@ -1,4 +1,5 @@
 export { Ico } from "./Ico";
+export { MobileConsultationBanner } from "./MobileConsultationBanner";
 export { Skeleton } from "./Skeleton";
 export { PB } from "./PB";
 export { Modal } from "./Modal";

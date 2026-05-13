@@ -3,7 +3,8 @@ import {
   AC, ACL, ACL2, BL, BLB, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, RD, GR,
   AM, AMB, ST, STB, REDBG, REDBRD, SP, FS, RAD, LH,
 } from "../constants/tokens";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { TaskEditModal } from "../components/modals/TaskEditModal";
 import {
   TASK_STATUSES, TASK_PRIORITIES, getTaskStatus, getTaskPriority,
@@ -19,6 +20,7 @@ export function TasksView({ project, setProjects, onBack, profile }) {
   const tasks = project.tasks || [];
   const lots = project.lots || [];
 
+  const isMobile = useIsMobile();
   const [editTaskId, setEditTaskId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [filterStatuses, setFilterStatuses] = useState(new Set(["created", "open", "in_progress", "pending_validation"])); // par défaut, tout sauf clôturées
@@ -106,14 +108,18 @@ export function TasksView({ project, setProjects, onBack, profile }) {
           <Kpi label="Urgentes" value={stats.urgent} color={BR} highlight={stats.urgent > 0} />
           <Kpi label="Clôturées" value={stats.closed} color={GR} />
         </div>
-        <button onClick={() => setCreating(true)}
-          style={{ padding: "10px 18px", border: "none", borderRadius: RAD.md, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Ico name="plus" size={13} color={WH} /> Nouvelle tâche
-        </button>
+        {!isMobile && (
+          <button onClick={() => setCreating(true)}
+            style={{ padding: "10px 18px", border: "none", borderRadius: RAD.md, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Ico name="plus" size={13} color={WH} /> Nouvelle tâche
+          </button>
+        )}
       </div>
 
-      {/* Barre de filtres */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.sm + 2}px ${SP.md}px`, marginBottom: SP.md }}>
+      {isMobile && <MobileConsultationBanner hint="tap pour avancer une tâche. Création + édition au bureau." />}
+
+      {/* Barre de filtres — desktop seulement (mobile = vue épurée) */}
+      {!isMobile && <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.lg, padding: `${SP.sm + 2}px ${SP.md}px`, marginBottom: SP.md }}>
         <div style={{ display: "flex", alignItems: "center", gap: SP.md, flexWrap: "wrap" }}>
           {/* Search */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "1 1 240px", minWidth: 200 }}>
@@ -168,7 +174,7 @@ export function TasksView({ project, setProjects, onBack, profile }) {
             Réinitialiser
           </button>
         </div>
-      </div>
+      </div>}
 
       {/* Liste des groupes */}
       {groups.length === 0 && tasks.length === 0 && (
@@ -180,9 +186,11 @@ export function TasksView({ project, setProjects, onBack, profile }) {
           <div style={{ fontSize: FS.sm, color: TX3, marginBottom: 14 }}>
             Crée une tâche manuellement, ou laisse l'IA en proposer après avoir généré un PV.
           </div>
-          <button onClick={() => setCreating(true)} style={{ padding: "9px 18px", border: "none", borderRadius: RAD.md, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Ico name="plus" size={13} color={WH} /> Nouvelle tâche
-          </button>
+          {!isMobile && (
+            <button onClick={() => setCreating(true)} style={{ padding: "9px 18px", border: "none", borderRadius: RAD.md, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Ico name="plus" size={13} color={WH} /> Nouvelle tâche
+            </button>
+          )}
         </div>
       )}
 
@@ -213,7 +221,7 @@ export function TasksView({ project, setProjects, onBack, profile }) {
             {g.tasks.map((t, i) => (
               <TaskRow key={t.id} task={t} project={project}
                 isLast={i === g.tasks.length - 1}
-                onClick={() => setEditTaskId(t.id)}
+                onClick={() => isMobile ? handleAdvance(t.id) : setEditTaskId(t.id)}
                 onAdvance={() => handleAdvance(t.id)}
               />
             ))}

@@ -197,6 +197,18 @@ export default function App() {
     return () => navigator.serviceWorker.removeEventListener("message", onMsg);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Garde : vues 100% bureau interdites sur mobile ──
+  // Planning Gantt, Devis (compare PDFs), Facturation (édition + PDF)
+  // sont des UIs admin qui n'ont pas leur place sur un écran 6". Si l'archi
+  // arrive sur ces views via deep-link ou état persistant, on redirige.
+  const MOBILE_FORBIDDEN_VIEWS = ["planning", "invoices", "quotes"];
+  useEffect(() => {
+    if (isMobile && MOBILE_FORBIDDEN_VIEWS.includes(view)) {
+      _setView("overview");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, view]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);

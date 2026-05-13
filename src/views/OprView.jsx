@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG } from "../constants/tokens";
 import { RESERVE_STATUSES, RESERVE_SEVERITIES, getReserveStatus, getReserveSeverity, nextReserveStatus } from "../constants/statuses";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests, requestOprSignatures, loadReserveTemplates, saveReserveTemplate, incrementReserveTemplateUsage } from "../db";
 import { MAX_UPLOAD_PHOTO_BYTES } from "../constants/config";
 import { SignOprModal, SendOprModal, RequestSignaturesModal } from "../components/modals";
@@ -10,6 +11,7 @@ import { generateOprPdf } from "../utils/pdf";
 // ── OPR View ─────────────────────────────────────────────────
 
 export function OprView({ project, setProjects, profile, showToast, onBack }) {
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState("list"); // "list" | "add" | "edit"
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("all"); // "all" | "non_levee" | "partiellement_levee" | "levee"
@@ -224,30 +226,38 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
           >
             <Ico name="file" size={13} color={reserves.length === 0 ? DIST : TX2} /> PDF
           </button>
-          <button
-            onClick={() => setSignOpen(true)}
-            disabled={reserves.length === 0}
-            title="Signer sur place lors de la réception (canvas tactile)"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
-          >
-            <Ico name="edit" size={13} color={reserves.length === 0 ? DIST : TX2} /> Signer sur place
-          </button>
-          <button
-            onClick={() => setRequestSigOpen(true)}
-            disabled={reserves.length === 0}
-            title="Envoyer un lien de signature par email à chaque participant"
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
-          >
-            <Ico name="send" size={13} color={reserves.length === 0 ? DIST : TX2} /> Envoyer pour signature
-          </button>
-          <button
-            onClick={() => setMode("add")}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            <Ico name="plus" size={14} color="#fff" /> Nouvelle réserve
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setSignOpen(true)}
+              disabled={reserves.length === 0}
+              title="Signer sur place lors de la réception (canvas tactile)"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+            >
+              <Ico name="edit" size={13} color={reserves.length === 0 ? DIST : TX2} /> Signer sur place
+            </button>
+          )}
+          {!isMobile && (
+            <button
+              onClick={() => setRequestSigOpen(true)}
+              disabled={reserves.length === 0}
+              title="Envoyer un lien de signature par email à chaque participant"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: reserves.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: reserves.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+            >
+              <Ico name="send" size={13} color={reserves.length === 0 ? DIST : TX2} /> Envoyer pour signature
+            </button>
+          )}
+          {!isMobile && (
+            <button
+              onClick={() => setMode("add")}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              <Ico name="plus" size={14} color="#fff" /> Nouvelle réserve
+            </button>
+          )}
         </div>
       </div>
+
+      {isMobile && <MobileConsultationBanner hint="création de réserves via la capture rapide ou depuis l'ordinateur." />}
 
       {/* KPI Dashboard */}
       {total > 0 && (
@@ -413,8 +423,8 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
         </div>
       )}
 
-      {/* Per-contractor breakdown */}
-      {contractorStats.length > 0 && (
+      {/* Per-contractor breakdown — desktop only (densité mobile) */}
+      {!isMobile && contractorStats.length > 0 && (
         <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>Par entreprise</div>
           {contractorStats.map((c, i) => (
@@ -443,7 +453,7 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
               {s.label} {s.id !== "all" && `(${reserves.filter(r => r.status === s.id).length})`}
             </button>
           ))}
-          {contractors.length > 1 && (
+          {!isMobile && contractors.length > 1 && (
             <select value={filterContractor} onChange={e => setFilterContractor(e.target.value)}
               style={{ padding: "5px 10px", border: `1px solid ${SBB}`, borderRadius: 20, background: WH, color: TX2, fontSize: 11, fontFamily: "inherit", cursor: "pointer" }}>
               <option value="all">Toutes les entreprises</option>
@@ -482,19 +492,28 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: TX, fontFamily: "monospace" }}>{r.code}</span>
                       <span style={{ fontSize: 10, fontWeight: 600, color: sev.color, background: sev.bg, padding: "2px 8px", borderRadius: 4 }}>{sev.label}</span>
-                      <button onClick={() => toggleStatus(r.id)} title="Cliquez pour changer le statut"
-                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 8px", borderRadius: 4, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />
-                        {st.label}
-                      </button>
-                      <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                        <button onClick={() => { setEditingId(r.id); setMode("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                          <Ico name="edit" size={13} color={TX3} />
+                      {isMobile ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 8px", borderRadius: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />
+                          {st.label}
+                        </span>
+                      ) : (
+                        <button onClick={() => toggleStatus(r.id)} title="Cliquez pour changer le statut"
+                          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 8px", borderRadius: 4, border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />
+                          {st.label}
                         </button>
-                        <button onClick={() => deleteReserve(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-                          <Ico name="x" size={13} color={TX3} />
-                        </button>
-                      </div>
+                      )}
+                      {!isMobile && (
+                        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                          <button onClick={() => { setEditingId(r.id); setMode("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                            <Ico name="edit" size={13} color={TX3} />
+                          </button>
+                          <button onClick={() => deleteReserve(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                            <Ico name="x" size={13} color={TX3} />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Description */}

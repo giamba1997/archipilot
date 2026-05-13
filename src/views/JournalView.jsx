@@ -5,7 +5,8 @@ import {
   DIS, DIST, REDBG, REDBRD,
 } from "../constants/tokens";
 import { getReserveSeverity, getReserveStatus } from "../constants/statuses";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto } from "../db";
 import { generateChantierJournalPdf } from "../utils/pdf";
 import { MAX_UPLOAD_PHOTO_BYTES } from "../constants/config";
@@ -227,6 +228,7 @@ export function JournalView({ project, setProjects, profile, onBack, showToast }
   const [drawerEntry, setDrawerEntry] = useState(null);
   const [addingManual, setAddingManual] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const isMobile = useIsMobile();
 
   const timeline = useMemo(
     () => buildTimeline(project, { typeFilter, search, periodDays }),
@@ -283,39 +285,45 @@ export function JournalView({ project, setProjects, profile, onBack, showToast }
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
-            onClick={exportPdf}
-            disabled={exporting || timeline.length === 0}
-            title="Télécharger le journal complet en PDF (pour archivage / audit Cnac)"
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "9px 14px", borderRadius: 10,
-              border: `1px solid ${SBB}`, background: WH,
-              color: timeline.length === 0 ? DIST : TX2,
-              fontSize: 13, fontWeight: 600,
-              cursor: exporting || timeline.length === 0 ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <Ico name="download" size={13} color={timeline.length === 0 ? DIST : TX2} />
-            {exporting ? "..." : "PDF"}
-          </button>
-          <button
-            onClick={() => setAddingManual(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "9px 14px", borderRadius: 10,
-              border: "none", background: AC, color: "#fff",
-              fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            <Ico name="plus" size={13} color="#fff" /> Entrée libre
-          </button>
+          {!isMobile && (
+            <button
+              onClick={exportPdf}
+              disabled={exporting || timeline.length === 0}
+              title="Télécharger le journal complet en PDF (pour archivage / audit Cnac)"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 14px", borderRadius: 10,
+                border: `1px solid ${SBB}`, background: WH,
+                color: timeline.length === 0 ? DIST : TX2,
+                fontSize: 13, fontWeight: 600,
+                cursor: exporting || timeline.length === 0 ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <Ico name="download" size={13} color={timeline.length === 0 ? DIST : TX2} />
+              {exporting ? "..." : "PDF"}
+            </button>
+          )}
+          {!isMobile && (
+            <button
+              onClick={() => setAddingManual(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 14px", borderRadius: 10,
+                border: "none", background: AC, color: "#fff",
+                fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <Ico name="plus" size={13} color="#fff" /> Entrée libre
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filtres */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      {isMobile && <MobileConsultationBanner hint="timeline en lecture, export PDF et entrées libres depuis l'ordinateur." />}
+
+      {/* Filtres — desktop seulement (mobile = timeline brute) */}
+      {!isMobile && <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         {/* Type */}
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           <FilterChip active={typeFilter === "all"} onClick={() => setTypeFilter("all")} label={`Tout (${counts.all})`} />
@@ -366,7 +374,7 @@ export function JournalView({ project, setProjects, profile, onBack, showToast }
             outline: "none", boxSizing: "border-box",
           }}
         />
-      </div>
+      </div>}
 
       {/* Timeline */}
       {timeline.length === 0 ? (

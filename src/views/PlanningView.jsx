@@ -4,10 +4,12 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL,
 import { calcLotStatus, LOT_COLORS } from "../constants/statuses";
 import { getProjectPhases, getProjectPhase } from "../utils/phases";
 import { getTaskStatus, getTaskPriority, sortTasks, isOverdue, isClosed, advanceTaskStatus, newTask, nextTaskNumber, getChildTasks } from "../utils/tasks";
-import { Ico, PB, Modal } from "../components/ui";
+import { Ico, PB, Modal, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { TaskEditModal } from "../components/modals/TaskEditModal";
 
 export function PlanningView({ project, setProjects, onBack, profile, showToast }) {
+  const isMobile = useIsMobile();
   const EMPTY_LOT = { name: "", contractor: "", startDate: "", endDate: "", duration: "", progress: 0, color: "amber", steps: [], postId: "", phaseId: "" };
   const EMPTY_STEP = { name: "", startDate: "", endDate: "", duration: "", done: false };
   const [modal,     setModal]     = useState(null); // null | "add" | "edit"
@@ -210,14 +212,19 @@ export function PlanningView({ project, setProjects, onBack, profile, showToast 
           <div style={{ fontSize: 17, fontWeight: 600, color: TX }}>{t("planning.title")}</div>
           <div style={{ fontSize: 12, color: TX3 }}>{project.name}{lots.length > 0 ? ` · ${lots.length} lot${lots.length > 1 ? "s" : ""} · ${overallProgress}% avancement` : ""}</div>
         </div>
-        <button onClick={() => importRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="upload" size={13} color={TX3} />Importer CSV
-        </button>
-        <button onClick={() => { setEditLot(EMPTY_LOT); setEditingId(null); setModal("add"); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="plus" size={14} color="#fff" />{t("planning.lot")}
-        </button>
+        {!isMobile && (
+          <button onClick={() => importRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="upload" size={13} color={TX3} />Importer CSV
+          </button>
+        )}
+        {!isMobile && (
+          <button onClick={() => { setEditLot(EMPTY_LOT); setEditingId(null); setModal("add"); }} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="plus" size={14} color="#fff" />{t("planning.lot")}
+          </button>
+        )}
         <input ref={importRef} type="file" accept=".csv,.xlsx,.xls,.tsv" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) handleImportFile(e.target.files[0]); e.target.value = ""; }} />
       </div>
+      {isMobile && <MobileConsultationBanner hint="création de lots et import CSV depuis l'ordinateur." />}
       <div style={{ fontSize: 10, color: TX3, marginBottom: 12, padding: "0 2px" }}>
         Format CSV pour import : <strong>Lot ; Responsable ; Début (YYYY-MM-DD) ; Fin (YYYY-MM-DD) ; Avancement (%)</strong>
       </div>

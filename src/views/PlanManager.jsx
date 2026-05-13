@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, PU, PUB, REDBG, GRBG } from "../constants/tokens";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
 import { makeProxyPlanSetProjects } from "../utils/proxySetProjects";
 import { CropTool } from "./CropTool";
@@ -17,6 +18,7 @@ import { PlanViewer } from "./PlanViewer";
 // `autoAction = { itemId, mode }` permet à App.jsx de pré-ouvrir la vue
 // standalone directement en mode annotation ou crop sur un fichier précis.
 export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, autoAction }) {
+  const isMobile = useIsMobile();
   const [activePlanId, setActivePlanId] = useState(autoAction?.mode === "annotate" ? autoAction.itemId : null);
   const [newFolderParent, setNewFolderParent] = useState(null);
   const [croppingItem, setCroppingItem] = useState(autoAction?.mode === "crop" ? autoAction.itemId : null); // file id being cropped
@@ -298,7 +300,20 @@ export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, 
   };
 
   // Action buttons shared component — hidden on mobile
-  const ItemActions = ({ item }) => (
+  const ItemActions = ({ item }) => {
+    // Mobile : on garde uniquement le téléchargement (read + emporter le fichier).
+    // Annoter / Rogner / Déplacer / Renommer / Supprimer = bureau.
+    if (isMobile) {
+      if (item.type !== "image" && item.type !== "folder" && item.dataUrl) {
+        return (
+          <a href={item.dataUrl} download={item.name} title="Télécharger" onClick={e => e.stopPropagation()} style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${SBB}`, background: WH, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none", flexShrink: 0 }}>
+            <Ico name="download" size={13} color={TX3} />
+          </a>
+        );
+      }
+      return null;
+    }
+    return (
     <div className="ap-plan-item-actions" style={{ display: "flex", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
       {/* Annotate — only for images & PDFs. En mode embarqué (onAnnotate
           fourni), on délègue au parent qui redirige vers la vue standalone. */}
@@ -334,7 +349,8 @@ export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, 
         <Ico name="trash" size={10} color={TX3} />
       </button>
     </div>
-  );
+    );
+  };
 
   // Recursive tree renderer
   const TreeNode = ({ parentId, depth = 0 }) => {
@@ -366,23 +382,25 @@ export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, 
                     <span style={{ fontSize: FS.sm, color: TX3, marginLeft: 6 }}>{childCount}</span>
                   </div>
                 )}
-                <div className="ap-plan-folder-actions" style={{ display: "flex", gap: 1, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setUploadTarget(folder.id); uploadRef.current?.click(); }} title="Importer ici" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ico name="plus" size={11} color={TX3} />
-                  </button>
-                  <button onClick={() => { setNewFolderParent(folder.id); setExpanded(p => ({ ...p, [folder.id]: true })); }} title="Sous-dossier" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ico name="folder" size={10} color={TX3} />
-                  </button>
-                  <button onClick={() => setMovingItem(folder.id)} title="Déplacer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ico name="arrowr" size={10} color={TX3} />
-                  </button>
-                  <button onClick={() => { setRenaming(folder.id); setRenameVal(folder.name); }} title="Renommer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ico name="textT" size={10} color={TX3} />
-                  </button>
-                  <button onClick={() => deleteItem(folder.id)} title="Supprimer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Ico name="trash" size={10} color={TX3} />
-                  </button>
-                </div>
+                {!isMobile && (
+                  <div className="ap-plan-folder-actions" style={{ display: "flex", gap: 1, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setUploadTarget(folder.id); uploadRef.current?.click(); }} title="Importer ici" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name="plus" size={11} color={TX3} />
+                    </button>
+                    <button onClick={() => { setNewFolderParent(folder.id); setExpanded(p => ({ ...p, [folder.id]: true })); }} title="Sous-dossier" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name="folder" size={10} color={TX3} />
+                    </button>
+                    <button onClick={() => setMovingItem(folder.id)} title="Déplacer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name="arrowr" size={10} color={TX3} />
+                    </button>
+                    <button onClick={() => { setRenaming(folder.id); setRenameVal(folder.name); }} title="Renommer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name="textT" size={10} color={TX3} />
+                    </button>
+                    <button onClick={() => deleteItem(folder.id)} title="Supprimer" style={{ width: 26, height: 26, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Ico name="trash" size={10} color={TX3} />
+                    </button>
+                  </div>
+                )}
               </div>
               {/* New subfolder inline */}
               {newFolderParent === folder.id && (/* ap-plan-new-folder — hidden on mobile */
@@ -447,18 +465,21 @@ export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, 
       </div>
 
       {/* Actions bar — desktop only */}
-      <div className="ap-plan-actions-bar" style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-        <button onClick={() => { setUploadTarget(null); uploadRef.current?.click(); }} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="upload" size={13} color="#fff" />Importer fichiers
-        </button>
-        <button onClick={() => openFolderPicker(null)} title="Importer un dossier de ton ordinateur (l'arborescence est préservée)" className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="folder" size={13} color={TX2} />Importer un dossier
-        </button>
-        <button onClick={() => setNewFolderParent("root")} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="plus" size={13} color={TX3} />Nouveau dossier
-        </button>
-        <input ref={uploadRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.dwg,.dxf,.skp,.rvt,.rfa,.ifc,.psd,.ai,.indd,.fig,.sketch,.3dm,.step,.stp,.odt,.ods,.odp,.rtf,.txt" multiple style={{ display: "none" }} onChange={(e) => { handleUpload(e.target.files, uploadTarget); e.target.value = ""; }} />
-      </div>
+      {!isMobile && (
+        <div className="ap-plan-actions-bar" style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          <button onClick={() => { setUploadTarget(null); uploadRef.current?.click(); }} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="upload" size={13} color="#fff" />Importer fichiers
+          </button>
+          <button onClick={() => openFolderPicker(null)} title="Importer un dossier de ton ordinateur (l'arborescence est préservée)" className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="folder" size={13} color={TX2} />Importer un dossier
+          </button>
+          <button onClick={() => setNewFolderParent("root")} className="ap-touch-btn" style={{ display: "flex", alignItems: "center", gap: 5, padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="plus" size={13} color={TX3} />Nouveau dossier
+          </button>
+          <input ref={uploadRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.dwg,.dxf,.skp,.rvt,.rfa,.ifc,.psd,.ai,.indd,.fig,.sketch,.3dm,.step,.stp,.odt,.ods,.odp,.rtf,.txt" multiple style={{ display: "none" }} onChange={(e) => { handleUpload(e.target.files, uploadTarget); e.target.value = ""; }} />
+        </div>
+      )}
+      {isMobile && <MobileConsultationBanner hint="import et gestion de documents depuis l'ordinateur." />}
       <div className="ap-plan-formats" style={{ fontSize: 10, color: TX3, marginBottom: 14, lineHeight: 1.6, padding: "0 2px" }}>
         Formats acceptés : <strong>Images</strong> (JPG, PNG, SVG, TIFF) · <strong>PDF</strong> · <strong>CAO</strong> (DWG, DXF, SketchUp, Revit, IFC) · <strong>Documents</strong> (Word, Excel, PowerPoint, CSV) · <strong>Design</strong> (PSD, AI, InDesign, Figma)
       </div>

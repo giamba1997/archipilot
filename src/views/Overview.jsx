@@ -329,17 +329,17 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         //   - Autres (PV, Documents, Planning, Photos) : visible seulement
         //     quand >0 pour éviter le bruit visuel des onglets vides
         //   - Résumé / Plus : pas de compteur (vues d'agrégation)
-        const tabs = [
+        const allTabs = [
           { id: "resume",     label: "Résumé" },
           { id: "actions",    label: "Actions",   count: openActions.length,                showZero: true },
-          { id: "planning",   label: "Planning",  count: (project.lots || []).length,       showZero: false },
+          { id: "planning",   label: "Planning",  count: (project.lots || []).length,       showZero: false, desktopOnly: true },
           { id: "pv",         label: "PV",        count: (project.pvHistory || []).length, showZero: false },
           // Facturation & Devis — embarqués sous forme d'onglets pour un accès
           // direct sans quitter l'Overview. Affichés seulement si compteur > 0
           // pour ne pas alourdir la barre quand le projet est à un stade
-          // qui n'a pas encore de facture / devis.
-          { id: "invoices",   label: "Facturation", count: invoiceSummary?.total || 0,      showZero: false },
-          { id: "quotes",     label: "Devis",      count: quotesCount,                      showZero: false },
+          // qui n'a pas encore de facture / devis. Desktop only — admin pure.
+          { id: "invoices",   label: "Facturation", count: invoiceSummary?.total || 0,      showZero: false, desktopOnly: true },
+          { id: "quotes",     label: "Devis",      count: quotesCount,                      showZero: false, desktopOnly: true },
           { id: "documents",  label: "Documents", count: (project.planFiles || []).filter(f => f.type !== "folder").length, showZero: false },
           { id: "photos",     label: "Photos",    count: (project.gallery || []).length,    showZero: false },
           // Fiche projet — placée en dernier car c'est une vue de référence
@@ -347,6 +347,15 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           // pour consulter ou éditer, mais c'est pas du flux quotidien.
           { id: "fiche",      label: "Fiche" },
         ];
+        // Sur mobile, on cache les onglets desktop-only (Planning/Facturation/
+        // Devis) — l'archi en mouvement n'y va jamais, et les UI complexes
+        // (Gantt, comparaison de PDF, édition de factures) sont incompatibles
+        // avec un écran 6".
+        const tabs = isMobile ? allTabs.filter(t => !t.desktopOnly) : allTabs;
+        // Si l'onglet courant est masqué (changement de viewport), retombe sur Résumé
+        if (isMobile && !tabs.some(t => t.id === activeTab)) {
+          setTimeout(() => setActiveTab("resume"), 0);
+        }
         // Sur mobile : sélecteur compact (bouton + bottom sheet). Évite
         // 2-3 rangées de pills wrappés au-dessus du contenu sur écran 6".
         if (isMobile) {
@@ -870,9 +879,11 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             <Card>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.sm }}>
                 <span style={{ fontSize: FS.sm, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3 }}>Équipe</span>
-                <button onClick={onEditParticipants} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", gap: SP.xs }}>
-                  <Ico name="edit" size={11} color={TX3} /><span style={{ fontSize: FS.xs, color: TX3 }}>Modifier</span>
-                </button>
+                {!isMobile && (
+                  <button onClick={onEditParticipants} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", gap: SP.xs }}>
+                    <Ico name="edit" size={11} color={TX3} /><span style={{ fontSize: FS.xs, color: TX3 }}>Modifier</span>
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", gap: SP.sm, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 2 }}>
                 {project.participants.map((p, i) => (
@@ -945,8 +956,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
 
                   {/* Carte Participants déplacée vers l'onglet Fiche. */}
 
-                  {/* Suivi du temps — sous les blocs principaux. */}
-                  {onStartTimer && (
+                  {/* Suivi du temps — sous les blocs principaux. Masqué
+                      sur mobile (l'archi en mouvement ne pointe pas son
+                      temps depuis le téléphone — il le fait au bureau). */}
+                  {!isMobile && onStartTimer && (
                     <TimerCard
                       project={project}
                       activeTimer={activeTimer}
@@ -973,8 +986,9 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           {/* Chips "À compléter" — affichés au-dessus de tout pour rappeler à
               l'archi les champs manquants après création allégée. Cliquables :
               ouvrent la modale d'édition. La règle de pertinence par phase
-              évite de spammer en Esquisse (où Entreprise n'est pas connue). */}
-          {_canEdit && (() => {
+              évite de spammer en Esquisse (où Entreprise n'est pas connue).
+              Masqués sur mobile (action = ouvrir un form d'édition = bureau). */}
+          {_canEdit && !isMobile && (() => {
             const chips = [];
             const lateStage = ["permit", "execution", "construction", "reception"].includes(project.statusId);
             const buildStage = ["execution", "construction", "reception"].includes(project.statusId);
@@ -1022,15 +1036,19 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           })()}
 
           {/* Cahier des charges — déplacé depuis le haut de Résumé.
-              Présent en premier car c'est le document de référence du projet. */}
-          <CdcBanner
-            project={project}
-            profile={profile}
-            canEdit={_canEdit}
-            onUpload={setCdc}
-            onRemove={() => setCdc(null)}
-            onAskAi={onAskAiAboutCdc ? (_cdc, mode) => onAskAiAboutCdc(project, mode) : null}
-          />
+              Présent en premier car c'est le document de référence du projet.
+              Masqué sur mobile : la lecture du CDC se fait au bureau, et
+              le module "Ask AI about CDC" est une action analytique bureau. */}
+          {!isMobile && (
+            <CdcBanner
+              project={project}
+              profile={profile}
+              canEdit={_canEdit}
+              onUpload={setCdc}
+              onRemove={() => setCdc(null)}
+              onAskAi={onAskAiAboutCdc ? (_cdc, mode) => onAskAiAboutCdc(project, mode) : null}
+            />
+          )}
 
           {/* Informations projet — déplacée depuis la zone principale du Résumé.
               Mêmes champs (client, MO, entreprise, adresse, dates, customFields)
@@ -1038,7 +1056,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           <Card>
             <CardHeader
               title={t("project.info")}
-              action={_canEdit && (
+              action={_canEdit && !isMobile && (
                 <button onClick={onEditInfo} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
                   <Ico name="edit" size={13} color={TX3} />
                 </button>
@@ -1082,7 +1100,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                 </div>
               ))}
             </div>
-            {_canManage && (
+            {_canManage && !isMobile && (
               <div className="ap-admin-actions" style={{ display: "flex", gap: 4, marginTop: SP.md, paddingTop: SP.sm + 2, borderTop: `1px solid ${SB2}` }}>
                 <SmallBtn onClick={onDuplicate} icon="dup" label={t("duplicate")} />
                 <SmallBtn onClick={onArchive} icon="archive" label={project.archived ? t("project.unarchive") : t("project.archive")} />
@@ -1143,18 +1161,18 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               </div>
             )}
             <div style={{ display: "flex", gap: SP.sm, flexWrap: "wrap" }}>
-              {_canManage && (
+              {_canManage && !isMobile && (
                 <button onClick={onEditParticipants}
                   style={{ flex: 1, minWidth: 160, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <Ico name="edit" size={11} color={TX3} />
                   Gérer les participants
                 </button>
               )}
-              <button onClick={onCollab}
+              {!isMobile && <button onClick={onCollab}
                 style={{ flex: 1, minWidth: 160, padding: "9px 12px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <Ico name="users" size={11} color={WH} />
                 Inviter des collaborateurs
-              </button>
+              </button>}
             </div>
           </Card>
 
@@ -1196,7 +1214,8 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           onViewPV={onViewPV}
           onViewPdf={onViewPdf}
           onImportPV={onImportPV}
-          canEdit={_canEdit}
+          canEdit={_canEdit && !isMobile}
+          isMobile={isMobile}
         />
       )}
 
@@ -1447,7 +1466,7 @@ const PanelTitle = ({ children, action }) => (
 // PV_STATUSES dans constants/statuses.js (draft → review → validated → sent → late).
 const PV_STATUS_RANK = PV_STATUSES.reduce((map, s, i) => { map[s.id] = i; return map; }, {});
 
-function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, onImportPV, canEdit }) {
+function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, onImportPV, canEdit, isMobile }) {
   const pvs = project.pvHistory || [];
   // Filtre par statut (multi). Set vide = tous affichés.
   const [filterStatuses, setFilterStatuses] = useState(new Set());
@@ -1515,8 +1534,10 @@ function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, o
           </div>
         ) : (
           <>
-            {/* Barre filtres + tri — discrète, alignée comme les autres cards. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap", paddingBottom: 10, borderBottom: `1px solid ${SBB}` }}>
+            {/* Barre filtres + tri — discrète, alignée comme les autres cards.
+                Masquée sur mobile (densité épurée — l'archi consulte la
+                dernière liste, pas besoin de filtre statut + tri). */}
+            {!isMobile && <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap", paddingBottom: 10, borderBottom: `1px solid ${SBB}` }}>
               {/* Filtre statut — pills multi-select */}
               <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 2 }}>Statut :</span>
@@ -1549,7 +1570,7 @@ function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, o
                   <option value="status_desc">Statut — Z → A</option>
                 </select>
               </div>
-            </div>
+            </div>}
 
             {/* Liste PV — affichage à plat selon les filtres/tri */}
             {visiblePvs.length === 0 ? (

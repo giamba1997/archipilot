@@ -4,7 +4,8 @@ import {
   AM, AMB, ST, STB, BR, BRB, SG, SGB,
   DIS, DIST,
 } from "../constants/tokens";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { loadQuotes, saveQuote, deleteQuote, parseQuotePdf } from "../db";
 import { extractPdfText } from "../utils/chatAttachments";
 import { MAX_UPLOAD_PDF_BYTES } from "../constants/config";
@@ -33,6 +34,7 @@ export function QuotesView({ project, profile, showToast, onBack }) {
   const [editingId, setEditingId] = useState(null);
   const [comparingLot, setComparingLot] = useState(null);
   const fileRef = useRef(null);
+  const isMobile = useIsMobile();
 
   const lots = project.lots || [];
   const [activeLotId, setActiveLotId] = useState(lots[0]?.id || "");
@@ -218,8 +220,10 @@ export function QuotesView({ project, profile, showToast, onBack }) {
         </div>
       )}
 
-      {/* Drop zone */}
-      <div
+      {isMobile && <MobileConsultationBanner hint="import et comparaison de devis depuis l'ordinateur." />}
+
+      {/* Drop zone — masquée sur mobile (l'import PDF/IA est une action bureau) */}
+      {!isMobile && <div
         onClick={() => !uploading && fileRef.current?.click()}
         onDragOver={e => e.preventDefault()}
         onDrop={e => {
@@ -247,7 +251,7 @@ export function QuotesView({ project, profile, showToast, onBack }) {
           ou clique pour parcourir · l'IA extrait les postes automatiquement
         </div>
         <input ref={fileRef} type="file" accept="application/pdf" style={{ display: "none" }} onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-      </div>
+      </div>}
 
       {/* Liste groupée par lot */}
       {loading ? (

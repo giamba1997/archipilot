@@ -4,7 +4,8 @@ import {
   AM, AMB, ST, STB, BR, BRB, SG, SGB,
   DIS, DIST, E_PERMIT_BG, E_TX_TAUPE2,
 } from "../constants/tokens";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { loadPermits, savePermit, deletePermit } from "../db";
 
 // ── F4 — Suivi des permis d'urbanisme ───────────────────────
@@ -86,6 +87,7 @@ export function PermitsView({ project, profile, showToast, onBack }) {
   const [permits, setPermits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     let cancelled = false;
@@ -144,13 +146,17 @@ export function PermitsView({ project, profile, showToast, onBack }) {
             <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Suivi des dossiers + alertes d'échéance</div>
           </div>
         </div>
-        <button
-          onClick={() => setEditing("new")}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          <Ico name="plus" size={13} color="#fff" /> Nouveau permis
-        </button>
+        {!isMobile && (
+          <button
+            onClick={() => setEditing("new")}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            <Ico name="plus" size={13} color="#fff" /> Nouveau permis
+          </button>
+        )}
       </div>
+
+      {isMobile && <MobileConsultationBanner hint="création et édition de permis depuis l'ordinateur." />}
 
       {/* Alertes échéance */}
       {alerts.length > 0 && (
@@ -209,14 +215,16 @@ export function PermitsView({ project, profile, showToast, onBack }) {
                       <div style={{ fontSize: 12, color: TX2, marginTop: 6, lineHeight: 1.5 }}>{p.notes}</div>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => setEditing(p)} title="Modifier" style={iconBtnStyle}>
-                      <Ico name="edit" size={14} color={TX2} />
-                    </button>
-                    <button onClick={() => handleDelete(p)} title="Supprimer" style={iconBtnStyle}>
-                      <Ico name="trash" size={14} color={RD} />
-                    </button>
-                  </div>
+                  {!isMobile && (
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <button onClick={() => setEditing(p)} title="Modifier" style={iconBtnStyle}>
+                        <Ico name="edit" size={14} color={TX2} />
+                      </button>
+                      <button onClick={() => handleDelete(p)} title="Supprimer" style={iconBtnStyle}>
+                        <Ico name="trash" size={14} color={RD} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );

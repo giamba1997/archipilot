@@ -4,7 +4,8 @@ import {
   AM, AMB, ST, STB, BR, BRB, SG, SGB,
   DIS, DIST, REDBRD,
 } from "../constants/tokens";
-import { Ico } from "../components/ui";
+import { Ico, MobileConsultationBanner } from "../components/ui";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { loadInvoices, saveInvoice, deleteInvoice, nextInvoiceNumber } from "../db";
 import { generateInvoicePdf } from "../utils/pdf";
 import { getProjectPhases } from "../utils/phases";
@@ -36,6 +37,7 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [editing, setEditing] = useState(null); // invoice object ou "new"
   const [downloadingId, setDownloadingId] = useState(null);
+  const isMobile = useIsMobile();
 
   // Charge au montage + à chaque changement de projet
   useEffect(() => {
@@ -134,13 +136,17 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
             <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Factures émises pour ce projet</div>
           </div>
         </div>
-        <button
-          onClick={() => setEditing("new")}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          <Ico name="plus" size={13} color="#fff" /> Nouvelle facture
-        </button>
+        {!isMobile && (
+          <button
+            onClick={() => setEditing("new")}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            <Ico name="plus" size={13} color="#fff" /> Nouvelle facture
+          </button>
+        )}
       </div>
+
+      {isMobile && <MobileConsultationBanner hint="création et édition de factures depuis l'ordinateur." />}
 
       {/* KPIs */}
       {invoices.length > 0 && (
@@ -217,14 +223,14 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
                 </div>
                 <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                   <IconBtn icon="download" title="Télécharger PDF" loading={downloadingId === inv.id} onClick={() => handleDownload(inv)} />
-                  {inv.status === "draft" && (
+                  {!isMobile && inv.status === "draft" && (
                     <IconBtn icon="send" title="Marquer comme envoyée" onClick={() => handleStatus(inv, "sent")} color={ST} />
                   )}
-                  {(inv.status === "sent" || inv.status === "overdue") && (
+                  {!isMobile && (inv.status === "sent" || inv.status === "overdue") && (
                     <IconBtn icon="check" title="Marquer comme payée" onClick={() => handleStatus(inv, "paid")} color={GR} />
                   )}
-                  <IconBtn icon="edit" title="Modifier" onClick={() => setEditing(inv)} />
-                  <IconBtn icon="trash" title="Supprimer" onClick={() => handleDelete(inv)} color={RD} />
+                  {!isMobile && <IconBtn icon="edit" title="Modifier" onClick={() => setEditing(inv)} />}
+                  {!isMobile && <IconBtn icon="trash" title="Supprimer" onClick={() => handleDelete(inv)} color={RD} />}
                 </div>
               </div>
             );
