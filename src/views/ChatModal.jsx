@@ -961,6 +961,13 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
 }
 
 // Bouton flottant qui ouvre la modal — bottom-right.
+//
+// Couleur : warm dark TX (pas AC terracotta). La terracotta est réservée
+// au FAB Visite (différenciateur PWA mobile, cf. mobile review P0). Avoir
+// deux cercles terracotta dans la même bande basse créait une ambiguïté
+// visuelle — gants + écran 6" = mis-taps probables. Le neutre TX reste
+// reconnaissable comme FAB (taille + forme + ombre) sans capter l'attention
+// au détriment du Visite FAB.
 export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = false }) {
   // Sur mobile, on remonte le FAB pour qu'il ne chevauche pas la
   // MobileBottomBar v3 : 60 px nav + 36 px du SVG bump (qui héberge le
@@ -978,12 +985,12 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
       style={{
         position: "fixed", bottom: bottomOffset, right: isMobile ? 16 : 24, zIndex: 997,
         width: 56, height: 56, borderRadius: "50%",
-        background: AC, color: "#fff", border: "none",
+        background: TX, color: "#fff", border: "none",
         cursor: "pointer", fontFamily: "inherit",
         display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: open
-          ? "0 4px 12px rgba(192,90,44,0.30)"
-          : "0 6px 20px rgba(192,90,44,0.35), 0 2px 6px rgba(0,0,0,0.10)",
+          ? "0 4px 12px rgba(28,25,23,0.25)"
+          : "0 6px 20px rgba(28,25,23,0.30), 0 2px 6px rgba(0,0,0,0.10)",
         transition: "all 0.18s ease",
         transform: open ? "scale(0.92)" : "scale(1)",
       }}
@@ -997,7 +1004,7 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
       {open ? (
         <Ico name="x" size={20} color="#fff" />
       ) : (
-        <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>✦</span>
+        <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1, color: "#fff" }}>✦</span>
       )}
       {hasUnread && !open && (
         <span style={{
