@@ -2389,7 +2389,11 @@ Règles :
           {toast.msg}
         </div>
       )}
-      {/* ── Mobile Bottom Bar ── */}
+      {/* ── Mobile Bottom Bar ──
+          Bottom bar v3 : [Accueil] [Chantiers] [🏗 Visite FAB] [Notifs] [Moi].
+          Le FAB central lance directement le Mode Chantier (différenciateur
+          PWA mobile) au lieu d'ouvrir QuickCaptureSheet — la capture passe
+          désormais par les phases de la visite. */}
       <MobileBottomBar
         view={view}
         notifsOpen={showNotifications}
@@ -2399,10 +2403,25 @@ Règles :
           // (agrégateur d'urgences + sélecteur de projet) plutôt que vers
           // l'Overview d'un projet auto-sélectionné.
           if (tab === "overview" && isMobile) tab = "mobileHome";
+          // L'onglet "Chantiers" pointera vers une vue liste cross-projects
+          // (search + filtres) dédiée. En attendant son implémentation, on
+          // alias sur mobileHome qui liste déjà les chantiers actifs.
+          if (tab === "chantiers") tab = "mobileHome";
           setView(tab);
           setSidebarOpen(false);
         }}
-        onCapture={() => setCaptureSheet(true)}
+        onStartChantier={() => {
+          setSidebarOpen(false);
+          if (project) {
+            setView("chantier");
+          } else {
+            // Pas de projet en contexte : on renvoie l'archi vers la home
+            // mobile pour qu'il en sélectionne un avant de démarrer la
+            // visite. Un toast court explique pourquoi.
+            setView(isMobile ? "mobileHome" : "overview");
+            showToast({ msg: "Sélectionne un chantier pour démarrer la visite", type: "info" });
+          }
+        }}
         onNotifs={() => {
           setShowNotifications(v => !v);
           setSidebarOpen(false);

@@ -64,6 +64,7 @@ export function Ico({ name, size = 18, color = TX3 }) {
     pipette:        "M7 21l-4-4 8.5-8.5 4 4L7 21z M14.5 5.5l4 4 M16.5 3.5a2.12 2.12 0 0 1 3 3l-2 2-4-4 2-2z",
     stop:           "M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
     sparkle:        "M12 4l1.8 5.4L19 12l-5.2 2.6L12 20l-1.8-5.4L5 12l5.2-2.6z M19 4l.6 1.6 1.6.6-1.6.6L19 8l-.6-1.6-1.6-.6 1.6-.6z",
+    home:           "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",
   };
   const d = paths[name] || "";
   return (

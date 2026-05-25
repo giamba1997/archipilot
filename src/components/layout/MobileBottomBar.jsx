@@ -32,23 +32,28 @@ function Tab({ id, icon, label, active, onNavigate, badge }) {
   );
 }
 
-// MobileBottomBar — Option A
-// [Accueil] [Notifs] [+ Capture] [Docs] [Profil]
+// MobileBottomBar — v3 (job-to-be-done driven)
+// [Accueil] [Chantiers] [🏗 Visite FAB] [Notifs] [Moi]
 //
-// Le tab "PV" historique a sauté : sur mobile, la création de PV passe
-// désormais par QuickCaptureSheet → MobilePvDictateSheet (dictée IA en
-// 2-3 taps), et la consultation par le switcher de l'Overview. Pointer
-// vers NoteEditor depuis le bottom bar envoyait l'archi dans une UI
-// desktop-heavy qu'on cherche justement à éviter.
+// Refonte qui place le Mode Chantier au centre comme différenciateur PWA
+// mobile. Le FAB ne déclenche plus la QuickCaptureSheet (capture out-of-
+// context) mais entre directement dans une visite :
+//   - Si un projet est actif → setView("chantier")
+//   - Sinon → fallback mobileHome (l'archi sélectionne d'abord un projet)
 //
-// Remplacé par "Notifs" qui consomme `unreadCount` et déclenche `onNotifs`
-// (ouvre le drawer notif). Badge BR si non lues.
-export function MobileBottomBar({ view, onNavigate, onCapture, onNotifs, notifsOpen, unreadCount = 0 }) {
+// Slot 2 "Chantiers" = navigation cross-projects (liste + search à venir).
+// Pour l'instant aliasée sur mobileHome qui liste déjà les chantiers
+// actifs — sera enrichie dans une étape ultérieure.
+//
+// Slot 5 "Moi" = profil utilisateur (renommé pour ton plus personnel,
+// même destination que l'ancien "Profil").
+export function MobileBottomBar({ view, onNavigate, onStartChantier, onNotifs, notifsOpen, unreadCount = 0 }) {
   const isActive = (id) =>
     view === id
-    || (id === "overview" && (view === "overview" || view === "mobileHome"))
-    || (id === "plan" && (view === "plan" || view === "planning" || view === "checklists"))
-    || (id === "notifs" && notifsOpen);
+    || (id === "overview"  && (view === "overview" || view === "mobileHome"))
+    || (id === "chantiers" && view === "chantiersList")
+    || (id === "notifs"    && notifsOpen)
+    || (id === "chantier"  && view === "chantier");
   return (
     <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {/* Background shape — full width, deep bump hugging the 56px circle */}
@@ -58,21 +63,19 @@ export function MobileBottomBar({ view, onNavigate, onCapture, onNotifs, notifsO
       </svg>
       <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: 60, padding: "0 4px" }}>
         {/* Left tabs */}
-        <Tab id="overview" icon="building" label="Accueil" active={isActive("overview")} onNavigate={onNavigate} />
-        <Tab id="notifs"   icon="bell"     label="Notifs"  active={isActive("notifs")}   onNavigate={onNotifs}  badge={unreadCount} />
-        {/* Center FAB — ouvre QuickCaptureSheet avec 4 actions capture.
-            L'icône passe de "camera" à "plus" pour signifier que c'est
-            un menu et pas une action unique. Le label "Capture" couvre
-            les 4 sous-actions (photo / voix / réserve / PV). */}
+        <Tab id="overview"  icon="home"   label="Accueil"   active={isActive("overview")}  onNavigate={onNavigate} />
+        <Tab id="chantiers" icon="folder" label="Chantiers" active={isActive("chantiers")} onNavigate={onNavigate} />
+        {/* Center FAB — démarre une visite Mode Chantier. L'icône `building`
+            évoque le chantier ; le libellé "Visite" lève l'ambiguïté. */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <button onClick={onCapture} aria-label="Capture rapide" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
-            <Ico name="plus" size={28} color="#fff" />
-            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Capture</span>
+          <button onClick={onStartChantier} aria-label="Démarrer une visite chantier" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
+            <Ico name="building" size={28} color="#fff" />
+            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Visite</span>
           </button>
         </div>
         {/* Right tabs */}
-        <Tab id="plan"    icon="folder" label="Docs"   active={isActive("plan")}    onNavigate={onNavigate} />
-        <Tab id="profile" icon="user"   label="Profil" active={isActive("profile")} onNavigate={onNavigate} />
+        <Tab id="notifs"  icon="bell" label="Notifs" active={isActive("notifs")}  onNavigate={onNotifs}  badge={unreadCount} />
+        <Tab id="profile" icon="user" label="Moi"    active={isActive("profile")} onNavigate={onNavigate} />
       </div>
     </nav>
   );
