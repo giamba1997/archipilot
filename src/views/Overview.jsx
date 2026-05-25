@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, LH, RAD, GRBG, REDBG, REDBRD, BL, BLB, TE, TEB, QT_DOC_BG, QT_DOC_FG, QT_PHOTO_BG, QT_PHOTO_FG, QT_PLAN_BG, QT_PLAN_FG, QT_LIST_BG, QT_LIST_FG, BR, BRB, SG, SGB, AM, AMB, ST } from "../constants/tokens";
 import { getStatus, STATUSES, nextPvStatus, PV_STATUSES, getPvStatus } from "../constants/statuses";
@@ -346,12 +346,31 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           // (infos identité, participants, CDC). On y va occasionnellement
           // pour consulter ou éditer, mais c'est pas du flux quotidien.
           { id: "fiche",      label: "Fiche" },
+          // ── Vues externes (ne sont PAS des sous-onglets Overview) ──
+          // Sur mobile, ces vues étaient atteignables uniquement via le
+          // PhaseHero CTA, qui dépend de la phase du projet : si on est en
+          // phase Chantier, pas de chemin visible vers OPR sans passer par
+          // une phase qui expose le CTA. Mobile review P0 : on expose les
+          // 4 vues dans le switcher pour garantir un chemin phase-indépendant.
+          // `external: handler` → onClick appelle le handler (setView dans
+          // App.jsx) au lieu de setActiveTab. Marqué visuellement par un
+          // séparateur dans le bottom sheet mobile.
+          { id: "opr",        label: "Réserves (OPR)", count: (project.reserves || []).filter(r => r.status !== "levee").length, showZero: false, external: onOpr,     mobileOnly: true },
+          { id: "permits",    label: "Permis",         external: onPermits,                                                                                                          mobileOnly: true },
+          { id: "journal",    label: "Journal",        count: (project.journalEntries || []).length, showZero: false, external: onJournal,                                            mobileOnly: true },
+          { id: "reports",    label: "Rapports",       external: onReports,                                                                                                          mobileOnly: true },
         ];
         // Sur mobile, on cache les onglets desktop-only (Planning/Facturation/
         // Devis) — l'archi en mouvement n'y va jamais, et les UI complexes
         // (Gantt, comparaison de PDF, édition de factures) sont incompatibles
         // avec un écran 6".
-        const tabs = isMobile ? allTabs.filter(t => !t.desktopOnly) : allTabs;
+        //
+        // Inversement, on cache les onglets mobileOnly sur desktop (OPR /
+        // Permis / Journal / Rapports) — ces vues ont déjà leurs propres
+        // entrées de navigation desktop, pas besoin de les dupliquer ici.
+        const tabs = isMobile
+          ? allTabs.filter(t => !t.desktopOnly)
+          : allTabs.filter(t => !t.mobileOnly);
         // Si l'onglet courant est masqué (changement de viewport), retombe sur Résumé
         if (isMobile && !tabs.some(t => t.id === activeTab)) {
           setTimeout(() => setActiveTab("resume"), 0);
@@ -415,40 +434,58 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                       Choisir une vue
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {tabs.map(t => {
-                        const active = activeTab === t.id;
+                      {tabs.map((t, i) => {
+                        const active = !t.external && activeTab === t.id;
                         const showCount = typeof t.count === "number" && (t.count > 0 || t.showZero);
+                        // Séparateur visuel + sous-titre avant la 1ère vue externe
+                        const isFirstExternal = !!t.external && tabs.slice(0, i).every(x => !x.external);
                         return (
-                          <button
-                            key={t.id}
-                            onClick={() => { setActiveTab(t.id); setTabSheetOpen(false); }}
-                            aria-pressed={active}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 12,
-                              padding: "12px 14px", textAlign: "left",
-                              border: `1px solid ${active ? AC : SBB}`,
-                              background: active ? ACL : WH,
-                              borderRadius: 12, cursor: "pointer",
-                              fontFamily: "inherit", width: "100%",
-                            }}
-                          >
-                            <span style={{
-                              width: 22, height: 22, borderRadius: "50%",
-                              border: `2px solid ${active ? AC : SBB}`,
-                              display: "inline-flex", alignItems: "center", justifyContent: "center",
-                              flexShrink: 0, background: WH,
-                            }}>
-                              {active && <span style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
-                            </span>
-                            <span style={{ flex: 1, fontSize: 14, fontWeight: active ? 700 : 600, color: active ? TX : TX2 }}>
-                              {t.label}
-                            </span>
-                            {showCount && (
-                              <span style={{ fontSize: 11, fontWeight: 700, color: active ? AC : TX3, background: active ? WH : SB2, padding: "2px 9px", borderRadius: 10, fontFamily: "ui-monospace, monospace" }}>
-                                {t.count}
-                              </span>
+                          <Fragment key={t.id}>
+                            {isFirstExternal && (
+                              <div style={{ marginTop: 8, marginBottom: 2, fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: 0.6, padding: "0 4px" }}>
+                                Autres vues du projet
+                              </div>
                             )}
-                          </button>
+                            <button
+                              onClick={() => {
+                                if (t.external) {
+                                  t.external();
+                                } else {
+                                  setActiveTab(t.id);
+                                }
+                                setTabSheetOpen(false);
+                              }}
+                              aria-pressed={active}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 12,
+                                padding: "12px 14px", textAlign: "left",
+                                border: `1px solid ${active ? AC : SBB}`,
+                                background: active ? ACL : WH,
+                                borderRadius: 12, cursor: "pointer",
+                                fontFamily: "inherit", width: "100%",
+                              }}
+                            >
+                              <span style={{
+                                width: 22, height: 22, borderRadius: "50%",
+                                border: `2px solid ${active ? AC : SBB}`,
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                flexShrink: 0, background: WH,
+                              }}>
+                                {active && <span style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                              </span>
+                              <span style={{ flex: 1, fontSize: 14, fontWeight: active ? 700 : 600, color: active ? TX : TX2 }}>
+                                {t.label}
+                              </span>
+                              {showCount && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: active ? AC : TX3, background: active ? WH : SB2, padding: "2px 9px", borderRadius: 10, fontFamily: "ui-monospace, monospace" }}>
+                                  {t.count}
+                                </span>
+                              )}
+                              {t.external && (
+                                <Ico name="chevron-right" size={14} color={TX3} />
+                              )}
+                            </button>
+                          </Fragment>
                         );
                       })}
                     </div>
