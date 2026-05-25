@@ -2511,9 +2511,13 @@ Règles :
           setSidebarOpen(false);
           // Mobile : page Notifs consolidée plein écran (sections
           // Invitations / Échéances / Non lues / Historique).
+          // Re-tap = destination (pas de toggle vers mobileHome) — cohérence
+          // avec les 4 autres slots qui sont tous des destinations. Évite
+          // que l'archi qui veut "rafraîchir" la page en re-tappant Notifs
+          // soit bouncé vers Accueil (cf. review UX P2).
           // Desktop : drawer dropdown classique sous la cloche header.
           if (isMobile) {
-            setView(view === "notifs" ? "mobileHome" : "notifs");
+            setView("notifs");
           } else {
             setShowNotifications(v => !v);
           }
