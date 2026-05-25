@@ -1576,6 +1576,7 @@ export default function App() {
               onOpenMap={() => setView("mapDashboard")}
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenNewProject={() => setModal("new")}
+              onResumeChantier={(id) => { setActiveId(id); setView("chantier"); }}
             />
           )}
           {view === "chantiersList" && (

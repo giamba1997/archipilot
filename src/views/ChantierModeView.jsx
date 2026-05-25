@@ -9,12 +9,14 @@ import { Ico } from "../components/ui";
 import { uploadPhoto } from "../db";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
 import { useConversationRecorder, transcribeAudioBlob } from "../hooks/useConversationRecorder";
+import { fetchWeatherAt, getCurrentPositionSafe, formatWeatherShort } from "../utils/weather";
 import {
   getActiveVisit,
   startVisit,
   endVisit,
   clearVisit,
   setPhase,
+  setWeather,
   setMeetingTranscript,
   togglePresent,
   logReserveAction,
@@ -62,6 +64,31 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
     const i = setInterval(() => setTick(t => t + 1), 30000);
     return () => clearInterval(i);
   }, []);
+
+  // ── Tier 1 : météo automatique au démarrage de la visite ──
+  // Fetch une fois si pas encore fait (ou si échec précédent — on
+  // re-essaie si l'archi reload). Préfère les coords du projet si
+  // dispo (déjà géocodé), sinon fallback géoloc silencieuse.
+  useEffect(() => {
+    if (visit.weather || visit._weatherFetched) return;
+    let cancelled = false;
+    (async () => {
+      let coords = (project.geo?.lat && project.geo?.lng)
+        ? { lat: project.geo.lat, lng: project.geo.lng }
+        : null;
+      if (!coords) coords = await getCurrentPositionSafe(5000);
+      if (cancelled) return;
+      if (!coords) {
+        setVisit(v => setWeather(v, null));
+        return;
+      }
+      const weather = await fetchWeatherAt(coords.lat, coords.lng);
+      if (cancelled) return;
+      setVisit(v => setWeather(v, weather));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visit.weather, visit._weatherFetched, project.geo]);
 
   // Sheets ouverts (photo, note vocale, nouvelle réserve, terminer)
   const [activeSheet, setActiveSheet] = useState(null); // null | "photo" | "voice" | "new-reserve" | "end"
@@ -179,6 +206,12 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // Ajout d'une photo à la galerie projet + tag dans la visite.
   // `voiceAnnotated` distingue une caption issue de la dictée Whisper
   // (badge mic affiché dans la galerie + lightbox) d'un caption tapé.
+  //
+  // Tier 1 : enrichissement GPS asynchrone non bloquant. La photo est
+  // d'abord sauvegardée immédiatement, puis on tente un getCurrentPosition
+  // en background et on patche `geo` sur la photo si dispo. Si la
+  // permission est refusée ou que la géoloc traîne, la photo reste
+  // utilisable sans coords — l'archi ne voit aucun blocage.
   const onAddPhoto = async (dataUrl, caption = "", voiceAnnotated = false) => {
     const photoId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const photo = {
@@ -195,6 +228,15 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       gallery: [...(p.gallery || []), photo],
     }));
     setVisit(v => addPhoto(v, photoId));
+
+    // Enrichissement GPS en background — patche la photo si dispo
+    getCurrentPositionSafe(4000).then(geo => {
+      if (!geo) return;
+      setProjects(prev => prev.map(p => p.id !== project.id ? p : {
+        ...p,
+        gallery: (p.gallery || []).map(ph => ph.id === photoId ? { ...ph, geo } : ph),
+      }));
+    });
 
     // Upload async vers Supabase Storage
     if (navigator.onLine) {
@@ -332,6 +374,20 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
                 ? `● Enr · Réunion · ${stats.meetingDuration < 60 ? `${stats.meetingDuration} min` : `${Math.floor(stats.meetingDuration / 60)}h${String(stats.meetingDuration % 60).padStart(2, "0")}`}`
                 : `Visite en cours · ${stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}`}
             </span>
+            {/* Chip météo (Tier 1) — visible dès que le fetch Open-Meteo
+                a abouti. Discret pour ne pas alourdir le header. */}
+            {visit.weather && (
+              <span title={`${visit.weather.label} · ${visit.weather.temperature}°C`} style={{
+                fontSize: 10, fontWeight: 700,
+                padding: "2px 6px", borderRadius: 999,
+                background: phase === "reunion" ? "rgba(255,255,255,0.15)" : SB,
+                color: phase === "reunion" ? "#fff" : TX2,
+                whiteSpace: "nowrap",
+                marginLeft: 2,
+              }}>
+                {formatWeatherShort(visit.weather)}
+              </span>
+            )}
           </div>
           <div style={{
             fontSize: 15, fontWeight: 700,

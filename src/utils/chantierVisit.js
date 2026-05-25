@@ -109,6 +109,17 @@ export function clearVisit() {
 // Helpers de mutation de la visite (immutable-style sur l'objet, puis
 // persistance). Renvoient la nouvelle visite pour faciliter le chaînage.
 
+// Stocke les conditions météo (Open-Meteo) au démarrage de la visite.
+// Appelé une seule fois en background depuis ChantierModeView quand
+// la visite n'a pas encore de météo. Le flag _weatherFetched évite
+// de retry à chaque re-render si le fetch a échoué.
+export function setWeather(visit, weather) {
+  if (!visit) return visit;
+  const next = { ...visit, weather: weather || null, _weatherFetched: true };
+  persistVisit(next);
+  return next;
+}
+
 // Stocke la transcription Whisper de la conversation enregistrée
 // pendant la Phase 2. Appelé une seule fois à la fin de la visite,
 // juste avant endVisit(), pour que composeDraftPvFromVisit puisse
@@ -226,6 +237,11 @@ export function composeDraftPvFromVisit(visit, project) {
   const sections = [];
 
   sections.push(`Visite réalisée le ${dateStr} (durée ${durationMin} min).`);
+  if (visit.weather && typeof visit.weather.temperature === "number") {
+    // Météo capturée au démarrage — légalement utile pour le journal
+    // de chantier RGPT (conditions de visite à consigner).
+    sections.push(`Conditions : ${visit.weather.label}, ${visit.weather.temperature}°C.`);
+  }
   sections.push("");
 
   // Présents

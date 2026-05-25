@@ -9,6 +9,7 @@ import { loadPermits } from "../db";
 import { parseDateFR, relativeDate } from "../utils/dates";
 import { buildMapsUrl } from "../utils/address";
 import { useGeolocation, haversineKm } from "../hooks/useGeolocation";
+import { getActiveVisit } from "../utils/chantierVisit";
 
 // ── MobileHome — vue d'accueil mobile dédiée ──────────────
 //
@@ -92,10 +93,25 @@ export function MobileHome({
   onOpenMap,
   onOpenNotifications,
   onOpenNewProject,
+  onResumeChantier,
 }) {
   const [permits, setPermits] = useState([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
   const geo = useGeolocation();
+
+  // Tier 1 : détection d'une visite Mode Chantier en cours pour
+  // proposer un raccourci "Reprendre". Évite à l'archi d'avoir à
+  // naviguer vers le projet + relancer une visite quand il avait
+  // juste fermé l'app pour répondre à un appel.
+  const activeVisit = useMemo(() => {
+    const v = getActiveVisit();
+    if (!v || v.endedAt) return null;
+    const proj = (projects || []).find(p => String(p.id) === String(v.projectId));
+    if (!proj) return null;
+    const start = v.startedAt ? new Date(v.startedAt) : null;
+    const ageMin = start ? Math.floor((Date.now() - start.getTime()) / 60000) : 0;
+    return { visit: v, project: proj, ageMin };
+  }, [projects]);
 
   // Charge les permis globaux (RLS-filtered) — 1 fois au mount, pour
   // détecter les échéances proches dans le bloc Aujourd'hui.
@@ -197,6 +213,45 @@ export function MobileHome({
 
   return (
     <div style={{ padding: `${SP.lg}px ${SP.md}px ${SP.xl * 4}px`, maxWidth: 640, margin: "0 auto" }}>
+      {/* Banner "Visite en cours" (Tier 1) — apparait si l'archi a quitté
+          le Mode Chantier sans terminer la visite (appel reçu, lock écran,
+          fermeture app). Tap reprend la visite exactement où elle était. */}
+      {activeVisit && (
+        <button
+          onClick={() => onResumeChantier?.(activeVisit.project.id)}
+          style={{
+            display: "flex", alignItems: "center", gap: 12, width: "100%",
+            padding: "12px 14px", marginBottom: SP.md,
+            background: ACL, border: `1px solid ${AC}`,
+            borderRadius: RAD.md, cursor: "pointer",
+            fontFamily: "inherit", textAlign: "left",
+            boxShadow: "0 2px 8px rgba(192,90,44,0.12)",
+          }}
+        >
+          <div style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: AC, display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0, position: "relative",
+          }}>
+            <Ico name="building" size={18} color="#fff" />
+            <span style={{
+              position: "absolute", inset: -3, borderRadius: "50%",
+              border: `2px solid ${AC}`, opacity: 0.4,
+              animation: "pulseDot 1.6s ease-in-out infinite",
+            }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: 0.6 }}>
+              Visite en cours · {activeVisit.ageMin < 60 ? `${activeVisit.ageMin} min` : `${Math.floor(activeVisit.ageMin / 60)}h${String(activeVisit.ageMin % 60).padStart(2, "0")}`}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
+              {activeVisit.project.name}
+            </div>
+          </div>
+          <span style={{ fontSize: 11, color: AC, fontWeight: 700 }}>Reprendre →</span>
+        </button>
+      )}
+
       {/* Header simple — pas de logo, le SidebarHeader le fait déjà */}
       <header style={{ marginBottom: SP.lg }}>
         <div style={{ fontSize: 13, color: TX3, fontWeight: 600, marginBottom: 2 }}>
