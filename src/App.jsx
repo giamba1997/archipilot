@@ -860,8 +860,12 @@ export default function App() {
     <ErrorBoundary>
     <LangContext.Provider value={profile.lang || "fr"}>
     <div style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif", display: "flex", minHeight: "100vh", background: BG }}>
-      {/* Skip to content link (accessibility) */}
-      <a href="#main-content" style={{
+      {/* Skip to content link (accessibility — clavier desktop uniquement).
+          Caché sur mobile via la classe `ap-skip-link` : pas de navigation
+          clavier sur touch, et un tap accidentel laissait l'inline style
+          top:0 persister (l'onBlur ne fire pas systématiquement sur
+          mobile), créant une bande orange visible en haut. */}
+      <a href="#main-content" className="ap-skip-link" style={{
         position: "absolute", top: -40, left: 0, padding: "8px 16px",
         background: AC, color: "#fff", fontSize: 14, fontWeight: 600,
         zIndex: 100000, textDecoration: "none", borderRadius: "0 0 8px 0",
@@ -1015,6 +1019,8 @@ export default function App() {
           .ap-sidebar-overlay { display: none !important; }
           .ap-hamburger { display: none !important; }
           .ap-back-btn { display: none !important; }
+          /* Skip link inutile sans clavier — masque sur mobile */
+          .ap-skip-link { display: none !important; }
 
           /* NoteEditor — stepper is now universal, hide old mobile-only stepper */
           .ap-note-mobile-stepper { display: none !important; }
