@@ -222,6 +222,12 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                     </span>
                   </div>
                 )}
+                {/* Badge mic — photo annotée vocalement pendant une visite */}
+                {ph.voiceAnnotated && (
+                  <div title="Photo avec annotation vocale" style={{ position: "absolute", bottom: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: AC, display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", zIndex: 2 }}>
+                    <Ico name="mic" size={10} color="#fff" />
+                  </div>
+                )}
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 8px 6px", background: "linear-gradient(transparent, rgba(0,0,0,0.45))" }}>
                   <span style={{ fontSize: 10, color: "#fff", fontWeight: 500 }}>{new Date(ph.date).toLocaleDateString("fr-BE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
@@ -285,6 +291,28 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
           )}
           {/* Image */}
           <img src={getPhotoUrl(lbPhoto)} alt="" onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }} />
+          {/* Caption / annotation (vocale ou tapée) — bandeau bas semi-transparent */}
+          {lbPhoto.caption && (
+            <div onClick={e => e.stopPropagation()} style={{
+              position: "absolute", bottom: 24, left: 16, right: 16, maxWidth: 720, margin: "0 auto",
+              padding: "12px 14px",
+              background: "rgba(0,0,0,0.65)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+              borderRadius: 10,
+              display: "flex", alignItems: "flex-start", gap: 10,
+              zIndex: 2,
+            }}>
+              {lbPhoto.voiceAnnotated && (
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: AC, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Ico name="mic" size={11} color="#fff" />
+                </div>
+              )}
+              <div style={{ fontSize: 13, color: "#fff", lineHeight: 1.5, flex: 1, minWidth: 0 }}>
+                {lbPhoto.caption}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

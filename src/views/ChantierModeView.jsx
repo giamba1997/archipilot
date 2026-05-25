@@ -142,13 +142,16 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   };
 
   // Ajout d'une photo à la galerie projet + tag dans la visite.
-  const onAddPhoto = async (dataUrl, caption = "") => {
+  // `voiceAnnotated` distingue une caption issue de la dictée Whisper
+  // (badge mic affiché dans la galerie + lightbox) d'un caption tapé.
+  const onAddPhoto = async (dataUrl, caption = "", voiceAnnotated = false) => {
     const photoId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const photo = {
       id: photoId,
       dataUrl,
       date: new Date().toISOString(),
       caption,
+      voiceAnnotated,
       // Tag de visite — utile pour le futur "filtre par visite" en galerie
       _visitId: visit.startedAt,
     };
@@ -644,18 +647,65 @@ function ReserveRow({ reserve, action, onLifted, onStill }) {
   );
 }
 
-// ── Sheet : Photo ──
+// ── Sheet : Photo + annotation vocale ──
+//
+// Flow mains-libres (Tier 2 ArchiPilot mobile) : après la capture, on
+// auto-démarre la dictée Whisper pour que l'archi puisse décrire ce
+// qu'il vient de photographier sans poser le téléphone. La transcription
+// devient le `caption` de la photo et un flag `voiceAnnotated` permet
+// d'afficher un badge mic sur les vignettes annotées vocalement.
+//
+// L'archi peut toujours : skip (sans annotation), recommencer la dictée
+// (si raté), ou éditer manuellement le texte transcrit avant de garder.
+// Aucun audio brut n'est stocké — seul le texte transcrit est gardé.
 function PhotoSheet({ onClose, onSubmit }) {
   const fileRef = useRef(null);
   const [photo, setPhoto] = useState(null);
-  const [caption, setCaption] = useState("");
+  const [annotation, setAnnotation] = useState("");
+  const [voiceAnnotated, setVoiceAnnotated] = useState(false);
+  const [recordingSec, setRecordingSec] = useState(0);
+  const [autoStarted, setAutoStarted] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
+  const recorder = useWhisperRecorder({
+    onResult: (text) => {
+      if (!text) return;
+      setAnnotation(t => (t ? t + " " : "") + text);
+      setVoiceAnnotated(true);
+    },
+    onError: (code) => {
+      if (code === "micDenied") setErrorMsg("Accès microphone refusé — tu peux quand même garder la photo.");
+      else if (code === "noMic") setErrorMsg("Aucun microphone détecté.");
+      else setErrorMsg("Dictée indisponible — la photo reste enregistrable.");
+    },
+  });
+
+  // Auto-open file picker à l'ouverture — l'archi a déjà tap "Photo",
+  // pas la peine de demander un second tap pour ouvrir la caméra.
   useEffect(() => {
-    // Auto-open file picker on mount — l'archi a déjà tap "Photo",
-    // il ne veut pas un second tap pour ouvrir la caméra.
     fileRef.current?.click();
   }, []);
+
+  // Auto-start dictée dès que la photo est capturée. Court délai pour
+  // laisser le navigateur peindre la preview avant de demander le mic.
+  useEffect(() => {
+    if (!photo || autoStarted || errorMsg) return;
+    setAutoStarted(true);
+    const t = setTimeout(() => { recorder.start(); }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo, autoStarted, errorMsg]);
+
+  // Chrono pendant l'enregistrement — affiché en overlay sur la photo.
+  useEffect(() => {
+    if (!recorder.isRecording) { setRecordingSec(0); return; }
+    const start = Date.now();
+    const id = setInterval(() => {
+      setRecordingSec(Math.floor((Date.now() - start) / 1000));
+    }, 250);
+    return () => clearInterval(id);
+  }, [recorder.isRecording]);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -665,16 +715,46 @@ function PhotoSheet({ onClose, onSubmit }) {
     reader.readAsDataURL(file);
   };
 
+  const ensureRecorderStopped = async () => {
+    if (recorder.isRecording) recorder.stop();
+    // Petit délai pour laisser Whisper rendre le dernier chunk avant
+    // de fermer la modale (sinon le dernier morceau de transcript est
+    // perdu si on submit immédiatement après l'arrêt).
+    if (recorder.isRecording || recorder.isTranscribing) {
+      await new Promise(r => setTimeout(r, 350));
+    }
+  };
+
   const submit = async () => {
     if (!photo) return;
+    await ensureRecorderStopped();
     setUploading(true);
-    await onSubmit(photo, caption);
+    await onSubmit(photo, annotation.trim(), voiceAnnotated && annotation.trim().length > 0);
     setUploading(false);
     onClose();
   };
 
+  const skip = async () => {
+    if (!photo) return;
+    if (recorder.isRecording) recorder.stop();
+    setUploading(true);
+    await onSubmit(photo, "", false);
+    setUploading(false);
+    onClose();
+  };
+
+  const restart = () => {
+    if (recorder.isRecording) recorder.stop();
+    setAnnotation("");
+    setVoiceAnnotated(false);
+    setErrorMsg("");
+    setTimeout(() => recorder.start(), 200);
+  };
+
+  const chrono = `${String(Math.floor(recordingSec / 60)).padStart(2, "0")}:${String(recordingSec % 60).padStart(2, "0")}`;
+
   return (
-    <SheetWrapper title="Ajouter une photo" onClose={onClose}>
+    <SheetWrapper title="Photo + annotation vocale" onClose={onClose}>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFile} />
       {!photo ? (
         <div style={{ padding: 30, textAlign: "center", color: TX3, fontSize: 13 }}>
@@ -688,17 +768,88 @@ function PhotoSheet({ onClose, onSubmit }) {
         </div>
       ) : (
         <>
-          <img src={photo} alt="" style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 10, marginBottom: 12, background: SB }} />
-          <input
-            value={caption}
-            onChange={e => setCaption(e.target.value)}
-            placeholder="Légende (optionnel)"
-            style={inputStyle}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button onClick={onClose} style={btnSecondary}>Annuler</button>
-            <button onClick={submit} disabled={uploading} style={{ ...btnPrimary, flex: 2 }}>
-              {uploading ? "..." : "Ajouter la photo"}
+          {/* Photo + overlay chrono enregistrement */}
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            <img src={photo} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 10, background: SB, display: "block" }} />
+            {recorder.isRecording && (
+              <div style={{ position: "absolute", top: 10, left: 10, padding: "5px 10px", background: "rgba(0,0,0,0.65)", borderRadius: 999, fontSize: 11, color: "#fff", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "ui-monospace, monospace", letterSpacing: "0.04em" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: RD, animation: "pulseDot 1.2s ease-in-out infinite" }} />
+                {chrono}
+              </div>
+            )}
+            {recorder.isTranscribing && !recorder.isRecording && (
+              <div style={{ position: "absolute", top: 10, left: 10, padding: "5px 10px", background: "rgba(0,0,0,0.65)", borderRadius: 999, fontSize: 11, color: "#fff", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Ico name="sparkle" size={11} color="#fff" />
+                Transcription…
+              </div>
+            )}
+          </div>
+
+          {/* Transcript area — toujours visible, devient éditable quand non vide */}
+          <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: voiceAnnotated ? AC : TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {voiceAnnotated ? "Annotation vocale" : recorder.isRecording ? "Dictée en cours…" : "Annotation"}
+              </span>
+              {voiceAnnotated && (
+                <Ico name="mic" size={12} color={AC} />
+              )}
+            </div>
+            {annotation ? (
+              <textarea
+                value={annotation}
+                onChange={e => setAnnotation(e.target.value)}
+                rows={3}
+                style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, color: TX, lineHeight: 1.5, resize: "vertical", outline: "none", fontFamily: "inherit", padding: 0, boxSizing: "border-box" }}
+              />
+            ) : (
+              <div style={{ fontSize: 12, color: TX3, lineHeight: 1.5, fontStyle: "italic", minHeight: 36 }}>
+                {recorder.isRecording
+                  ? "Décris ce que tu viens de photographier — la transcription apparaîtra ici."
+                  : "Tape Recommencer pour démarrer la dictée, ou Sans annotation pour passer."}
+              </div>
+            )}
+          </div>
+
+          {errorMsg && (
+            <div style={{ padding: "8px 12px", background: BRB, color: BR, borderRadius: 8, fontSize: 12, marginBottom: 12, lineHeight: 1.4 }}>
+              {errorMsg}
+            </div>
+          )}
+
+          {/* 3 actions : Skip / Recommencer / Garder */}
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={skip} disabled={uploading} style={{
+              flex: 1, padding: "11px 10px",
+              border: `1px solid ${SBB}`, background: WH, color: TX2,
+              borderRadius: 10, fontSize: 12, fontWeight: 600,
+              cursor: uploading ? "not-allowed" : "pointer", fontFamily: "inherit",
+            }}>
+              Sans annotation
+            </button>
+            <button onClick={restart} disabled={uploading || recorder.isTranscribing}
+              title="Recommencer la dictée"
+              style={{
+                padding: "11px 12px",
+                border: `1px solid ${SBB}`, background: WH, color: TX2,
+                borderRadius: 10, fontSize: 12, fontWeight: 600,
+                cursor: uploading || recorder.isTranscribing ? "not-allowed" : "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                minWidth: 44,
+              }}
+            >
+              <Ico name="undo" size={14} color={TX2} />
+            </button>
+            <button onClick={submit} disabled={uploading || recorder.isTranscribing} style={{
+              flex: 1.4, padding: "11px 14px",
+              border: "none", background: AC, color: "#fff",
+              borderRadius: 10, fontSize: 13, fontWeight: 700,
+              cursor: uploading || recorder.isTranscribing ? "not-allowed" : "pointer", fontFamily: "inherit",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+              opacity: uploading || recorder.isTranscribing ? 0.6 : 1,
+            }}>
+              <Ico name="check" size={14} color="#fff" />
+              {uploading ? "..." : "Garder"}
             </button>
           </div>
         </>
