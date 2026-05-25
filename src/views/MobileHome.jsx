@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AC, ACL, SB, SBB, TX, TX2, TX3, WH, SP, RAD,
-  BR, BRB, AM, AMB, ST, STB,
+  BR, AM, AMB, ST, STB,
 } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { getStatus } from "../constants/statuses";
-import { loadPermits, loadInvoices } from "../db";
+import { loadPermits } from "../db";
 import { parseDateFR, relativeDate } from "../utils/dates";
 import { buildMapsUrl } from "../utils/address";
 import { useGeolocation, haversineKm } from "../hooks/useGeolocation";
@@ -17,10 +17,15 @@ import { useGeolocation, haversineKm } from "../hooks/useGeolocation";
 // compacte, et agrège des sources hétérogènes pour exposer 4 blocs :
 //
 //   1. Aujourd'hui — items urgents (réunion du jour, permis J-7,
-//      factures en retard, notifs non lues)
+//      notifs non lues)
 //   2. Mes chantiers — 5 plus récents avec hint d'action
 //   3. Chantiers proches — opt-in géoloc, 3 plus proches avec distance
 //   4. Stats hebdo — 1 ligne motivationnelle
+//
+// Les factures en retard ont été retirées du bloc Aujourd'hui : l'écran
+// Facturation est forbidden sur mobile (édition + génération PDF), donc
+// proposer cette urgence ici menait à un fallback overview sans livrer
+// la promesse. La gestion des relances reste 100% desktop.
 //
 // Routage : App.jsx route vers MobileHome quand `view === "mobileHome"`,
 // défini par défaut au boot si `useIsMobile()` est vrai. L'archi sélectionne
@@ -89,23 +94,18 @@ export function MobileHome({
   onOpenNewProject,
 }) {
   const [permits, setPermits] = useState([]);
-  const [invoices, setInvoices] = useState([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
   const geo = useGeolocation();
 
-  // Charge permits + invoices globaux (RLS-filtered) — 1 fois au mount.
-  // Les onglets dédiés rechargent par projet, mais ici on agrège.
+  // Charge les permis globaux (RLS-filtered) — 1 fois au mount, pour
+  // détecter les échéances proches dans le bloc Aujourd'hui.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [pe, inv] = await Promise.all([
-          loadPermits().catch(() => []),
-          loadInvoices().catch(() => []),
-        ]);
+        const pe = await loadPermits().catch(() => []);
         if (cancelled) return;
         setPermits(pe || []);
-        setInvoices(inv || []);
       } finally {
         if (!cancelled) setLoadingExtras(false);
       }
@@ -134,25 +134,13 @@ export function MobileHome({
     });
   }, [permits]);
 
-  const invoicesOverdue = useMemo(() => {
-    return (invoices || []).filter(inv => {
-      if (inv.status === "paid" || inv.status === "cancelled" || inv.status === "draft") return false;
-      if (inv.status === "overdue") return true;
-      if (inv.status === "sent" && inv.due_date) {
-        const d = new Date(inv.due_date);
-        return !isNaN(d) && +d < TODAY_TS;
-      }
-      return false;
-    });
-  }, [invoices]);
-
   const unreadNotifs = useMemo(
     () => (notifications || []).filter(n => !n.read),
     [notifications]
   );
 
   const todayHasItems =
-    meetingsToday.length + permitsSoon.length + invoicesOverdue.length + unreadNotifs.length > 0;
+    meetingsToday.length + permitsSoon.length + unreadNotifs.length > 0;
 
   // ── Mes chantiers : 5 plus récents ──
   const recentProjects = useMemo(() => {
@@ -256,24 +244,6 @@ export function MobileHome({
               bg={AMB}
               title={proj?.name || pe.project_name || "Permis"}
               sub={`Permis : échéance dans ${days} jour${days > 1 ? "s" : ""}`}
-              onClick={() => proj && onSelectProject?.(proj.id)}
-            />
-          );
-        })}
-
-        {invoicesOverdue.map(inv => {
-          const proj = activeProjects.find(p => String(p.id) === String(inv.project_id));
-          const overdueDays = inv.due_date
-            ? Math.max(0, Math.floor((TODAY_TS - +new Date(inv.due_date)) / 86400000))
-            : 0;
-          return (
-            <UrgencyRow
-              key={`i-${inv.id}`}
-              icon="file"
-              color={BR}
-              bg={BRB}
-              title={proj?.name || inv.project_name || "Facture"}
-              sub={`Facture en retard${overdueDays > 0 ? ` (${overdueDays}j)` : ""}`}
               onClick={() => proj && onSelectProject?.(proj.id)}
             />
           );
@@ -413,7 +383,7 @@ export function MobileHome({
 
       {loadingExtras && (
         <div style={{ marginTop: SP.md, fontSize: 11, color: TX3, textAlign: "center" }}>
-          Chargement des permis et factures…
+          Chargement des permis…
         </div>
       )}
     </div>
