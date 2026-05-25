@@ -97,6 +97,9 @@ export function MobileHome({
 }) {
   const [permits, setPermits] = useState([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
+  // Cap visuel du bloc "Aujourd'hui" — révèle les items en surplus en
+  // place via un expander, sans toggle persisté. Reset au remount.
+  const [todayExpanded, setTodayExpanded] = useState(false);
   const geo = useGeolocation();
 
   // Tier 1 : détection d'une visite Mode Chantier en cours pour
@@ -262,59 +265,119 @@ export function MobileHome({
         </div>
       </header>
 
-      {/* ── Aujourd'hui ── */}
-      <Section title="Aujourd'hui" iconName="alert">
-        {!todayHasItems && (
-          <EmptyHint
-            icon="check"
-            text="Aucune échéance urgente."
-            sub="Tu peux respirer (ou rattraper de l'admin)."
-          />
-        )}
-
-        {meetingsToday.map(p => {
+      {/* ── Aujourd'hui ──
+          Cap automatique à TODAY_CAP items pour les archis chargés.
+          On flatten meetings + permits + notifs dans une liste triée par
+          score d'urgence (réunion today domine, puis permis J- décroissant,
+          puis notifs). "+ N autres" expand en place. Pas de toggle global
+          compact mode (rejeté en review).  */}
+      {(() => {
+        const TODAY_CAP = 3;
+        const items = [];
+        meetingsToday.forEach(p => {
           const mapsUrl = buildMapsUrl(p);
-          return (
-            <UrgencyRow
-              key={`m-${p.id}`}
-              icon="calendar"
-              color={AC}
-              bg={ACL}
-              title={p.name}
-              sub="Réunion prévue aujourd'hui"
-              onClick={() => onSelectProject?.(p.id)}
-              extraAction={mapsUrl ? { href: mapsUrl, label: "Y aller", icon: "mappin" } : null}
-            />
-          );
-        })}
-
-        {permitsSoon.map(pe => {
+          items.push({
+            key: `m-${p.id}`,
+            priority: 100,
+            node: (
+              <UrgencyRow
+                key={`m-${p.id}`}
+                icon="calendar"
+                color={AC}
+                bg={ACL}
+                title={p.name}
+                sub="Réunion prévue aujourd'hui"
+                onClick={() => onSelectProject?.(p.id)}
+                extraAction={mapsUrl ? { href: mapsUrl, label: "Y aller", icon: "mappin" } : null}
+              />
+            ),
+          });
+        });
+        permitsSoon.forEach(pe => {
           const days = Math.ceil((new Date(pe.deadline_date) - TODAY_TS) / 86400000);
           const proj = activeProjects.find(p => String(p.id) === String(pe.project_id));
-          return (
-            <UrgencyRow
-              key={`pe-${pe.id}`}
-              icon="file"
-              color={AM}
-              bg={AMB}
-              title={proj?.name || pe.project_name || "Permis"}
-              sub={`Permis : échéance dans ${days} jour${days > 1 ? "s" : ""}`}
-              onClick={() => proj && onSelectProject?.(proj.id)}
-            />
-          );
-        })}
-
-        {unreadNotifs.length > 0 && (
-          <UrgencyRow
-            icon="bell"
-            color={ST}
-            bg={STB}
-            title={`${unreadNotifs.length} notification${unreadNotifs.length > 1 ? "s" : ""} non lue${unreadNotifs.length > 1 ? "s" : ""}`}
-            sub="Tap pour ouvrir le centre de notifications"
-            onClick={() => onOpenNotifications?.()}
-          />
-        )}
-      </Section>
+          items.push({
+            key: `pe-${pe.id}`,
+            // J-0 = 80, J-7 = 59 — les échéances les plus proches passent en tête
+            priority: 80 - days * 3,
+            node: (
+              <UrgencyRow
+                key={`pe-${pe.id}`}
+                icon="file"
+                color={AM}
+                bg={AMB}
+                title={proj?.name || pe.project_name || "Permis"}
+                sub={`Permis : échéance dans ${days} jour${days > 1 ? "s" : ""}`}
+                onClick={() => proj && onSelectProject?.(proj.id)}
+              />
+            ),
+          });
+        });
+        if (unreadNotifs.length > 0) {
+          items.push({
+            key: "notifs",
+            priority: 30,
+            node: (
+              <UrgencyRow
+                key="notifs"
+                icon="bell"
+                color={ST}
+                bg={STB}
+                title={`${unreadNotifs.length} notification${unreadNotifs.length > 1 ? "s" : ""} non lue${unreadNotifs.length > 1 ? "s" : ""}`}
+                sub="Tap pour ouvrir le centre de notifications"
+                onClick={() => onOpenNotifications?.()}
+              />
+            ),
+          });
+        }
+        items.sort((a, b) => b.priority - a.priority);
+        const visible = todayExpanded ? items : items.slice(0, TODAY_CAP);
+        const hidden = items.length - visible.length;
+        return (
+          <Section title="Aujourd'hui" iconName="alert">
+            {!todayHasItems && (
+              <EmptyHint
+                icon="check"
+                text="Aucune échéance urgente."
+                sub="Tu peux respirer (ou rattraper de l'admin)."
+              />
+            )}
+            {visible.map(it => it.node)}
+            {hidden > 0 && (
+              <button
+                onClick={() => setTodayExpanded(true)}
+                style={{
+                  width: "100%", marginTop: 4,
+                  padding: "10px 12px",
+                  border: `1px dashed ${SBB}`, background: "transparent",
+                  borderRadius: RAD.md, color: AC,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Ico name="chevron-down" size={12} color={AC} />
+                + {hidden} autre{hidden > 1 ? "s" : ""}
+              </button>
+            )}
+            {todayExpanded && items.length > TODAY_CAP && (
+              <button
+                onClick={() => setTodayExpanded(false)}
+                style={{
+                  width: "100%", marginTop: 4,
+                  padding: "8px 12px",
+                  border: "none", background: "transparent",
+                  color: TX3,
+                  fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
+                }}
+              >
+                <Ico name="chevron-up" size={11} color={TX3} />
+                Réduire
+              </button>
+            )}
+          </Section>
+        );
+      })()}
 
       {/* ── Mes chantiers ── */}
       <Section
