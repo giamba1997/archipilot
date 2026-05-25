@@ -480,16 +480,16 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
         onDrop={onDrop}
         style={{
           // Sur mobile : le panneau s'ouvre au-dessus du FAB (lui-même
-          // au-dessus de la MobileBottomBar). 76 + 56 (FAB) + 8 gap +
-          // safe-area = ~140 px d'offset bas. Sur desktop, on garde 92.
+          // au-dessus de la MobileBottomBar v3). 108 + 56 (FAB) + 8 gap +
+          // safe-area = ~172 px d'offset bas. Sur desktop, on garde 92.
           position: "fixed",
-          bottom: isMobile ? `calc(140px + env(safe-area-inset-bottom, 0px))` : 92,
+          bottom: isMobile ? `calc(172px + env(safe-area-inset-bottom, 0px))` : 92,
           right: isMobile ? 12 : 24,
           left: isMobile ? 12 : "auto",
           zIndex: 999,
           width: isMobile ? "auto" : 560, maxWidth: "calc(100vw - 32px)",
           height: 680, maxHeight: isMobile
-            ? "calc(100vh - 220px - env(safe-area-inset-bottom, 0px))"
+            ? "calc(100vh - 252px - env(safe-area-inset-bottom, 0px))"
             : "calc(100vh - 130px)",
           background: WH, border: `1px solid ${SBB}`, borderRadius: 14,
           boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
@@ -963,10 +963,12 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
 // Bouton flottant qui ouvre la modal — bottom-right.
 export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = false }) {
   // Sur mobile, on remonte le FAB pour qu'il ne chevauche pas la
-  // MobileBottomBar (60 px nav + safe-area). En desktop, on garde
-  // l'ancrage bas standard.
+  // MobileBottomBar v3 : 60 px nav + 36 px du SVG bump (qui héberge le
+  // FAB Visite central) + safe-area = ~96 px de zone visuelle. On laisse
+  // 12 px de marge confort pour ne pas frôler la courbe du bord droit.
+  // En desktop, on garde l'ancrage bas standard.
   const bottomOffset = isMobile
-    ? `calc(76px + env(safe-area-inset-bottom, 0px))`
+    ? `calc(108px + env(safe-area-inset-bottom, 0px))`
     : 24;
   return (
     <button
