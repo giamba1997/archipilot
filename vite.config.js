@@ -21,6 +21,12 @@ export default defineConfig({
       filename: 'sw.js',
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
+        // Le bundle index dépasse le default 2 MiB depuis l'ajout
+        // progressif des modules mobile (Mode Chantier, MobileHome,
+        // MobileChantiersList). On accepte 5 MiB de précache par
+        // fichier — c'est cohérent avec une PWA qui embarque PDF,
+        // Whisper client, et html2canvas dans le bundle principal.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       includeAssets: ['icon-512.png'],
       manifest: {
