@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR,
   AM, AMB, ST, STB, BR, BRB, SG, SGB,
@@ -8,12 +8,14 @@ import { getReserveStatus, getReserveSeverity, RESERVE_SEVERITIES } from "../con
 import { Ico } from "../components/ui";
 import { uploadPhoto } from "../db";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
+import { useConversationRecorder, transcribeAudioBlob } from "../hooks/useConversationRecorder";
 import {
   getActiveVisit,
   startVisit,
   endVisit,
   clearVisit,
   setPhase,
+  setMeetingTranscript,
   togglePresent,
   logReserveAction,
   addNewReserve,
@@ -80,6 +82,39 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   const onResumeInspection = () => {
     setVisit(v => setPhase(v, "inspection"));
   };
+
+  // ── Enregistrement de la conversation (Phase 2) ──
+  // Le recorder vit au niveau de ChantierModeView pour persister à
+  // travers les bascules inspection ↔ reunion. Démarrage automatique
+  // au premier passage en "reunion" (après modal RGPD), pause si
+  // l'archi repasse en inspection, resume au retour. Stop à la fin
+  // de la visite via onEndVisit qui récupère le blob et déclenche
+  // la transcription Whisper.
+  const [recorderErrorMsg, setRecorderErrorMsg] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
+  const conv = useConversationRecorder({
+    onError: (code) => {
+      if (code === "micDenied") setRecorderErrorMsg("Accès micro refusé — la réunion ne sera pas enregistrée. Tu peux toujours saisir les décisions manuellement.");
+      else if (code === "noMic") setRecorderErrorMsg("Aucun micro détecté — la réunion ne sera pas enregistrée.");
+      else setRecorderErrorMsg("Enregistrement audio indisponible — la réunion continue sans transcription.");
+    },
+  });
+
+  useEffect(() => {
+    if (phase === "reunion") {
+      if (!conv.isRecording && !conv.error) {
+        conv.start();
+      } else if (conv.isRecording && conv.isPaused) {
+        conv.resume();
+      }
+    } else if (phase === "inspection" && conv.isRecording && !conv.isPaused) {
+      // Retour en inspection pendant la réunion : on PAUSE (pas stop).
+      // Le blob continue d'exister, l'archi peut reprendre la réunion
+      // sans avoir perdu l'audio.
+      conv.pause();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, conv.isRecording, conv.isPaused, conv.error]);
 
   // ── Mutations ──
 
@@ -176,15 +211,46 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   };
 
   // ── Terminer la visite ──
-  // Compose le brouillon de PV, le sauve, clear la visite, retour overview.
-  const onEndVisit = () => {
+  //
+  // Si une réunion (Phase 2) était active :
+  //   1. Stop le recorder, récupère le blob webm
+  //   2. Envoie à transcribe-audio (Whisper) — peut prendre quelques
+  //      secondes selon la durée audio
+  //   3. Persiste la transcription dans visit.meetingTranscript
+  //
+  // Puis compose le brouillon PV (qui inclura la transcription si
+  // présente), sauve, clear, retour overview. On reste sur l'écran
+  // pendant la transcription pour ne pas naviguer trop tôt — la UI
+  // affiche un état "Transcription en cours…" via `transcribing`.
+  const onEndVisit = async () => {
+    let blob = null;
+    if (conv.isRecording) {
+      try { blob = await conv.stop(); } catch { blob = null; }
+    }
+
+    let workingVisit = visit;
+    if (blob && blob.size > 0) {
+      setTranscribing(true);
+      try {
+        const text = await transcribeAudioBlob(blob);
+        if (text) {
+          workingVisit = setMeetingTranscript(workingVisit, text);
+          setVisit(workingVisit);
+        }
+      } catch (err) {
+        console.error("Meeting transcription failed:", err);
+        showToast?.("Transcription audio échouée — le brouillon est créé sans la conversation.", "error");
+      } finally {
+        setTranscribing(false);
+      }
+    }
+
     const finalVisit = endVisit();
     if (!finalVisit) {
       showToast?.("Aucune visite active", "error");
       return;
     }
     const content = composeDraftPvFromVisit(finalVisit, project);
-    // Numéro de PV = nb actuels + 1
     const pvNumber = (project.pvHistory || []).length + 1;
     const draft = {
       projectId: project.id,
@@ -287,7 +353,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       <div style={{ padding: "14px" }}>
 
       {phase === "reunion" ? (
-        <MeetingPhase stats={stats} project={project} />
+        <MeetingPhase stats={stats} recorder={conv} errorMsg={recorderErrorMsg} />
       ) : (
       <>
         {/* ── 3 boutons d'action tactiles ── */}
@@ -514,6 +580,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       {activeSheet === "end" && (
         <EndVisitSheet
           stats={stats}
+          transcribing={transcribing}
           onCancel={() => setActiveSheet(null)}
           onConfirm={onEndVisit}
         />
@@ -1011,9 +1078,28 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
 }
 
 // ── Sheet : Terminer la visite ──
-function EndVisitSheet({ stats, onCancel, onConfirm }) {
+function EndVisitSheet({ stats, transcribing, onCancel, onConfirm }) {
   return (
-    <SheetWrapper title="Terminer la visite" onClose={onCancel}>
+    <SheetWrapper title="Terminer la visite" onClose={transcribing ? undefined : onCancel}>
+      {transcribing && (
+        <div style={{
+          padding: "14px 16px", background: ACL, border: `1px solid ${ACL2}`,
+          borderRadius: 10, marginBottom: 12,
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: AC, display: "inline-flex", alignItems: "center", justifyContent: "center",
+            animation: "pulseDot 1.4s ease-in-out infinite",
+          }}>
+            <Ico name="sparkle" size={14} color="#fff" />
+          </div>
+          <div style={{ flex: 1, fontSize: 12, color: TX, lineHeight: 1.45 }}>
+            <strong>Transcription Whisper en cours…</strong><br />
+            Ne ferme pas l'app — la conversation est envoyée et structurée.
+          </div>
+        </div>
+      )}
       <div style={{ fontSize: 13, color: TX2, lineHeight: 1.6, marginBottom: 14 }}>
         Tu t'apprêtes à clôturer la visite. Un brouillon de PV sera créé
         avec ce qui a été collecté pendant la visite. Tu pourras l'éditer
@@ -1038,9 +1124,11 @@ function EndVisitSheet({ stats, onCancel, onConfirm }) {
       </div>
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={onCancel} style={btnSecondary}>Continuer la visite</button>
-        <button onClick={onConfirm} style={{ ...btnPrimary, flex: 2 }}>
-          Terminer · Créer le brouillon
+        <button onClick={onCancel} disabled={transcribing} style={{ ...btnSecondary, opacity: transcribing ? 0.5 : 1, cursor: transcribing ? "not-allowed" : "pointer" }}>
+          Continuer la visite
+        </button>
+        <button onClick={onConfirm} disabled={transcribing} style={{ ...btnPrimary, flex: 2, opacity: transcribing ? 0.6 : 1, cursor: transcribing ? "not-allowed" : "pointer" }}>
+          {transcribing ? "Transcription…" : "Terminer · Créer le brouillon"}
         </button>
       </div>
     </SheetWrapper>
@@ -1108,70 +1196,138 @@ const btnSecondary = {
   cursor: "pointer", fontFamily: "inherit",
 };
 
-// ── Phase 2 — Réunion (placeholder structurel) ──
+// ── Phase 2 — Réunion (enregistrement audio actif) ──
 //
-// Cette vue pose la STRUCTURE de la phase Réunion. L'enregistrement
-// audio (MediaRecorder + Wake Lock) sera branché dans une étape
-// dédiée — pour l'instant on affiche un état "armé" honnête : chrono
-// de réunion, hero rassurant, pas de promesse d'enregistrement actif.
-function MeetingPhase({ stats }) {
-  const meetingMin = stats.meetingDuration || 0;
-  const meetingChrono = meetingMin < 60
-    ? `${meetingMin} min`
-    : `${Math.floor(meetingMin / 60)}h${String(meetingMin % 60).padStart(2, "0")}`;
+// Une fois passée par le modal RGPD, on entre dans ce composant.
+// Le recorder est démarré par le useEffect parent — ici on rend
+// l'état live (chrono d'enregistrement effectif, niveau audio,
+// taille fichier) + un bouton Pause/Resume.
+//
+// Pause / Resume du MediaRecorder : le blob continue d'exister et
+// reprend là où il s'est arrêté. La pause auto a aussi lieu si
+// l'archi repasse en Phase Inspection (géré par le parent).
+function MeetingPhase({ recorder, errorMsg }) {
+  const recSec = recorder?.duration || 0;
+  const recChrono = `${String(Math.floor(recSec / 60)).padStart(2, "0")}:${String(recSec % 60).padStart(2, "0")}`;
+  const sizeKB = recorder?.estimatedSize ? Math.round(recorder.estimatedSize / 1024) : 0;
+  const sizeLabel = sizeKB < 1024 ? `${sizeKB} Ko` : `${(sizeKB / 1024).toFixed(1)} Mo`;
+  const isActive = recorder?.isRecording && !recorder?.isPaused;
+
   return (
     <div style={{ paddingTop: 8 }}>
+      {/* Hero : pose le téléphone */}
       <div style={{
-        textAlign: "center", padding: "32px 16px 24px",
+        textAlign: "center", padding: "28px 16px 22px",
         background: WH, border: `1px solid ${SBB}`, borderRadius: 12,
-        marginBottom: 16,
+        marginBottom: 14,
       }}>
         <div style={{
           width: 84, height: 84, borderRadius: "50%",
           background: "#FDECEC", color: RD,
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          marginBottom: 14,
-          position: "relative",
+          marginBottom: 14, position: "relative",
         }}>
           <Ico name="mic" size={38} color={RD} />
-          <span style={{
-            position: "absolute", inset: -6, borderRadius: "50%",
-            border: `2px solid ${RD}`, opacity: 0.5,
-            animation: "pulseDot 2.2s ease-in-out infinite",
-          }} />
+          {isActive && (
+            <span style={{
+              position: "absolute", inset: -6, borderRadius: "50%",
+              border: `2px solid ${RD}`, opacity: 0.5,
+              animation: "pulseDot 2.2s ease-in-out infinite",
+            }} />
+          )}
         </div>
         <div style={{ fontSize: 17, fontWeight: 800, color: TX, marginBottom: 4 }}>
           Pose le téléphone sur la table
         </div>
         <div style={{ fontSize: 13, color: TX2, lineHeight: 1.5, maxWidth: 320, margin: "0 auto" }}>
-          Mode réunion actif. Tu peux participer librement,
-          l'app reste en attente jusqu'à la fin de la visite.
-        </div>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          marginTop: 16, padding: "6px 14px",
-          background: "#FDECEC", color: RD,
-          borderRadius: 999, fontSize: 12, fontWeight: 700,
-          fontFamily: "ui-monospace, monospace",
-          letterSpacing: "0.04em",
-        }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: "50%", background: RD,
-            animation: "pulseDot 1.4s ease-in-out infinite",
-          }} />
-          Réunion · {meetingChrono}
+          La conversation est enregistrée. À la fin de la visite,
+          Whisper la transcrira et l'ajoutera au brouillon de PV.
         </div>
       </div>
 
+      {/* Card live : chrono + meter + bouton pause */}
+      {recorder?.isRecording && (
+        <div style={{
+          padding: "14px 16px", background: WH, border: `1px solid ${SBB}`,
+          borderRadius: 12, marginBottom: 14,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: recorder.isPaused ? AM : RD,
+                animation: recorder.isPaused ? "none" : "pulseDot 1.2s ease-in-out infinite",
+              }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: recorder.isPaused ? AM : RD, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {recorder.isPaused ? "En pause" : "Enregistrement"}
+              </span>
+            </div>
+            <span style={{
+              fontFamily: "ui-monospace, monospace",
+              fontSize: 16, fontWeight: 700, color: TX,
+              letterSpacing: "0.04em",
+            }}>
+              {recChrono}
+            </span>
+          </div>
+
+          {/* Audio meter — barre horizontale animée selon le niveau RMS */}
+          <div style={{
+            height: 6, background: SB, borderRadius: 999,
+            overflow: "hidden", marginBottom: 12,
+          }}>
+            <div style={{
+              height: "100%",
+              width: `${recorder.isPaused ? 0 : (recorder.audioLevel || 0)}%`,
+              background: `linear-gradient(90deg, ${SG}, ${AM}, ${RD})`,
+              borderRadius: 999,
+              transition: "width 100ms ease-out",
+            }} />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ fontSize: 11, color: TX3 }}>
+              ~ {sizeLabel} enregistrés
+            </span>
+            <button
+              onClick={recorder.isPaused ? recorder.resume : recorder.pause}
+              style={{
+                padding: "8px 14px",
+                border: `1px solid ${SBB}`,
+                background: recorder.isPaused ? AC : WH,
+                color: recorder.isPaused ? "#fff" : TX2,
+                borderRadius: 999,
+                fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", gap: 6,
+              }}
+            >
+              <Ico name={recorder.isPaused ? "send" : "stop"} size={11} color={recorder.isPaused ? "#fff" : TX2} />
+              {recorder.isPaused ? "Reprendre" : "Pause"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Erreur micro / wake lock — message clair, la visite continue */}
+      {errorMsg && (
+        <div style={{
+          padding: "12px 14px", background: BRB, color: BR,
+          borderRadius: 10, fontSize: 12, lineHeight: 1.5, marginBottom: 14,
+          display: "flex", alignItems: "flex-start", gap: 10,
+        }}>
+          <Ico name="alert" size={14} color={BR} />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Astuce IA */}
       <div style={{
         padding: "12px 14px", background: ACL, border: `1px solid ${ACL2}`,
         borderRadius: 10, fontSize: 12, color: TX2, lineHeight: 1.5,
       }}>
-        <strong style={{ color: TX }}>Bientôt :</strong> l'enregistrement
-        audio de la conversation (avec consentement) viendra alimenter
-        le brouillon de PV automatiquement. Pour l'instant, tu peux noter
-        manuellement les décisions importantes en repassant en
-        <em> Inspection</em>.
+        <strong style={{ color: TX }}>Astuce :</strong> parle naturellement,
+        l'IA structurera la conversation (présents, décisions, réserves)
+        au moment de finaliser le brouillon au bureau.
       </div>
     </div>
   );

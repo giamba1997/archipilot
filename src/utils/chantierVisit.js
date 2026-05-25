@@ -109,6 +109,17 @@ export function clearVisit() {
 // Helpers de mutation de la visite (immutable-style sur l'objet, puis
 // persistance). Renvoient la nouvelle visite pour faciliter le chaînage.
 
+// Stocke la transcription Whisper de la conversation enregistrée
+// pendant la Phase 2. Appelé une seule fois à la fin de la visite,
+// juste avant endVisit(), pour que composeDraftPvFromVisit puisse
+// l'injecter dans le brouillon PV.
+export function setMeetingTranscript(visit, transcript) {
+  if (!visit) return visit;
+  const next = { ...visit, meetingTranscript: transcript || "" };
+  persistVisit(next);
+  return next;
+}
+
 // Bascule entre les phases inspection / reunion. Au premier passage en
 // "reunion", on stamp `meetingStartedAt` ; les bascules suivantes le
 // préservent (le chrono total de la réunion s'accumule à travers les
@@ -264,6 +275,23 @@ export function composeDraftPvFromVisit(visit, project) {
   // Photos
   if (visit.photoIds.length > 0) {
     sections.push(`**Photos prises** : ${visit.photoIds.length} (consultables dans la galerie)`);
+  }
+
+  // Transcription de la réunion (Phase 2) — bloc final si présent.
+  // Whisper produit un texte brut sans diarization ; l'archi pourra
+  // éditer/structurer au desktop. La durée de réunion est calculée
+  // ici plutôt que stockée pour rester en phase avec endedAt.
+  if (visit.meetingTranscript && visit.meetingTranscript.trim()) {
+    sections.push("");
+    if (visit.meetingStartedAt) {
+      const meetingStart = new Date(visit.meetingStartedAt);
+      const meetingEnd = visit.endedAt ? new Date(visit.endedAt) : new Date();
+      const meetingMin = Math.max(1, Math.round((meetingEnd - meetingStart) / 60000));
+      sections.push(`**Compte-rendu de la réunion (${meetingMin} min)**`);
+    } else {
+      sections.push("**Compte-rendu de la réunion**");
+    }
+    sections.push(visit.meetingTranscript.trim());
   }
 
   return sections.join("\n").trim();
