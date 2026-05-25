@@ -65,7 +65,7 @@ import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { ProjectDetail } from "./pages/ProjectDetail";
 
 // ── Détection v2 ────────────────────────────────────────────
@@ -1572,9 +1572,17 @@ export default function App() {
               notifications={notifications}
               profile={profile}
               onSelectProject={(id) => { setActiveId(id); setView("overview"); }}
-              onOpenAllProjects={() => setProjectPicker(true)}
+              onOpenAllProjects={() => setView("chantiersList")}
               onOpenMap={() => setView("mapDashboard")}
               onOpenNotifications={() => setShowNotifications(true)}
+              onOpenNewProject={() => setModal("new")}
+            />
+          )}
+          {view === "chantiersList" && (
+            <MobileChantiersList
+              projects={projects}
+              onSelectProject={(id) => { setActiveId(id); setView("overview"); }}
+              onBack={() => setView(isMobile ? "mobileHome" : "overview")}
               onOpenNewProject={() => setModal("new")}
             />
           )}
@@ -2403,10 +2411,10 @@ Règles :
           // (agrégateur d'urgences + sélecteur de projet) plutôt que vers
           // l'Overview d'un projet auto-sélectionné.
           if (tab === "overview" && isMobile) tab = "mobileHome";
-          // L'onglet "Chantiers" pointera vers une vue liste cross-projects
-          // (search + filtres) dédiée. En attendant son implémentation, on
-          // alias sur mobileHome qui liste déjà les chantiers actifs.
-          if (tab === "chantiers") tab = "mobileHome";
+          // L'onglet "Chantiers" route vers la liste cross-projects dédiée
+          // (search + filtres). MobileHome reste pour les 5 plus récents
+          // + urgences ; chantiersList expose tout le portfolio.
+          if (tab === "chantiers") tab = "chantiersList";
           setView(tab);
           setSidebarOpen(false);
         }}
