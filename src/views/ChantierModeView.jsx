@@ -13,6 +13,7 @@ import {
   startVisit,
   endVisit,
   clearVisit,
+  setPhase,
   togglePresent,
   logReserveAction,
   addNewReserve,
@@ -62,6 +63,23 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
   // Sheets ouverts (photo, note vocale, nouvelle réserve, terminer)
   const [activeSheet, setActiveSheet] = useState(null); // null | "photo" | "voice" | "new-reserve" | "end"
+
+  // Modal RGPD de transition vers la Phase 2 (réunion)
+  const [showRgpdModal, setShowRgpdModal] = useState(false);
+
+  // Phase courante : "inspection" (default) ou "reunion" (assis autour
+  // de la table, enregistrement de la conversation). Bascule explicite.
+  const phase = visit.phase || "inspection";
+
+  // ── Mutations phase ──
+  const onRequestMeeting = () => setShowRgpdModal(true);
+  const onConfirmMeeting = () => {
+    setVisit(v => setPhase(v, "reunion"));
+    setShowRgpdModal(false);
+  };
+  const onResumeInspection = () => {
+    setVisit(v => setPhase(v, "inspection"));
+  };
 
   // ── Mutations ──
 
@@ -208,25 +226,49 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", animation: "fadeIn 0.2s ease", paddingBottom: 100 }}>
-      {/* ── Header : retour + nom projet + chrono + menu kebab ── */}
+      {/* ── Header sticky — change d'allure selon la phase ──
+          Inspection : fond blanc, chip ambre/pulse AC, sobre.
+          Réunion    : fond rouge profond, chip ENR pulse blanche,
+                       chrono de réunion mis en avant. */}
       <div style={{
         position: "sticky", top: 0, zIndex: 10,
-        background: WH, borderBottom: `1px solid ${SBB}`,
+        background: phase === "reunion" ? RD : WH,
+        borderBottom: phase === "reunion" ? "none" : `1px solid ${SBB}`,
         padding: "10px 14px",
         display: "flex", alignItems: "center", gap: 10,
+        color: phase === "reunion" ? "#fff" : TX,
       }}>
         <button onClick={onCancelVisit} title="Annuler la visite"
-          style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
-          <Ico name="x" color={TX2} size={14} />
+          style={{
+            background: phase === "reunion" ? "rgba(255,255,255,0.16)" : SB,
+            border: phase === "reunion" ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${SBB}`,
+            cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36,
+            display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8,
+          }}>
+          <Ico name="x" color={phase === "reunion" ? "#fff" : TX2} size={14} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 1 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: AC, animation: "pulseDot 1.6s ease-in-out infinite" }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Visite en cours · {stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: phase === "reunion" ? "#fff" : AC,
+              animation: "pulseDot 1.6s ease-in-out infinite",
+            }} />
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              color: phase === "reunion" ? "#fff" : AC,
+              textTransform: "uppercase", letterSpacing: "0.06em",
+            }}>
+              {phase === "reunion"
+                ? `● Enr · Réunion · ${stats.meetingDuration < 60 ? `${stats.meetingDuration} min` : `${Math.floor(stats.meetingDuration / 60)}h${String(stats.meetingDuration % 60).padStart(2, "0")}`}`
+                : `Visite en cours · ${stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}`}
             </span>
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{
+            fontSize: 15, fontWeight: 700,
+            color: phase === "reunion" ? "#fff" : TX,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
             {project.name}
           </div>
         </div>
@@ -241,6 +283,10 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
       <div style={{ padding: "14px" }}>
 
+      {phase === "reunion" ? (
+        <MeetingPhase stats={stats} project={project} />
+      ) : (
+      <>
         {/* ── 3 boutons d'action tactiles ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
           <ActionButton
@@ -375,9 +421,15 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
             </div>
           </Section>
         )}
+      </>
+      )}
       </div>
 
-      {/* ── Bouton sticky "Terminer la visite" ── */}
+      {/* ── Sticky footer — 2 boutons selon la phase ──
+          Inspection : "Terminer sans réunion" (secondaire) + "Passer
+          à la réunion" (primaire, déclenche le modal RGPD).
+          Réunion : "Reprendre l'inspection" (secondaire) + "Terminer
+          la visite" (primaire, ouvre EndVisitSheet pour confirmer). */}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0,
         background: WH, borderTop: `1px solid ${SBB}`,
@@ -386,18 +438,57 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
         boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.05)",
         zIndex: 20,
       }}>
-        <button
-          onClick={() => setActiveSheet("end")}
-          style={{
-            flex: 1, padding: "13px 16px", border: "none", borderRadius: 10,
-            background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          <Ico name="check" size={14} color="#fff" />
-          Terminer la visite
-        </button>
+        {phase === "inspection" ? (
+          <>
+            <button
+              onClick={() => setActiveSheet("end")}
+              style={{
+                flex: 1, padding: "13px 12px", border: `1px solid ${SBB}`, borderRadius: 10,
+                background: WH, color: TX2, fontSize: 13, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Terminer sans réunion
+            </button>
+            <button
+              onClick={onRequestMeeting}
+              style={{
+                flex: 1.4, padding: "13px 16px", border: "none", borderRadius: 10,
+                background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              <Ico name="users" size={14} color="#fff" />
+              Passer à la réunion
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={onResumeInspection}
+              style={{
+                flex: 1, padding: "13px 12px", border: `1px solid ${SBB}`, borderRadius: 10,
+                background: WH, color: TX2, fontSize: 13, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Reprendre l'inspection
+            </button>
+            <button
+              onClick={() => setActiveSheet("end")}
+              style={{
+                flex: 1.4, padding: "13px 16px", border: "none", borderRadius: 10,
+                background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              <Ico name="check" size={14} color="#fff" />
+              Terminer la visite
+            </button>
+          </>
+        )}
       </div>
 
       {/* ── Sheets / Modals ── */}
@@ -422,6 +513,12 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           stats={stats}
           onCancel={() => setActiveSheet(null)}
           onConfirm={onEndVisit}
+        />
+      )}
+      {showRgpdModal && (
+        <RgpdConfirmModal
+          onCancel={() => setShowRgpdModal(false)}
+          onConfirm={onConfirmMeeting}
         />
       )}
     </div>
@@ -859,5 +956,164 @@ const btnSecondary = {
   background: WH, color: TX2, fontSize: 13, fontWeight: 600,
   cursor: "pointer", fontFamily: "inherit",
 };
+
+// ── Phase 2 — Réunion (placeholder structurel) ──
+//
+// Cette vue pose la STRUCTURE de la phase Réunion. L'enregistrement
+// audio (MediaRecorder + Wake Lock) sera branché dans une étape
+// dédiée — pour l'instant on affiche un état "armé" honnête : chrono
+// de réunion, hero rassurant, pas de promesse d'enregistrement actif.
+function MeetingPhase({ stats }) {
+  const meetingMin = stats.meetingDuration || 0;
+  const meetingChrono = meetingMin < 60
+    ? `${meetingMin} min`
+    : `${Math.floor(meetingMin / 60)}h${String(meetingMin % 60).padStart(2, "0")}`;
+  return (
+    <div style={{ paddingTop: 8 }}>
+      <div style={{
+        textAlign: "center", padding: "32px 16px 24px",
+        background: WH, border: `1px solid ${SBB}`, borderRadius: 12,
+        marginBottom: 16,
+      }}>
+        <div style={{
+          width: 84, height: 84, borderRadius: "50%",
+          background: "#FDECEC", color: RD,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          marginBottom: 14,
+          position: "relative",
+        }}>
+          <Ico name="mic" size={38} color={RD} />
+          <span style={{
+            position: "absolute", inset: -6, borderRadius: "50%",
+            border: `2px solid ${RD}`, opacity: 0.5,
+            animation: "pulseDot 2.2s ease-in-out infinite",
+          }} />
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: TX, marginBottom: 4 }}>
+          Pose le téléphone sur la table
+        </div>
+        <div style={{ fontSize: 13, color: TX2, lineHeight: 1.5, maxWidth: 320, margin: "0 auto" }}>
+          Mode réunion actif. Tu peux participer librement,
+          l'app reste en attente jusqu'à la fin de la visite.
+        </div>
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          marginTop: 16, padding: "6px 14px",
+          background: "#FDECEC", color: RD,
+          borderRadius: 999, fontSize: 12, fontWeight: 700,
+          fontFamily: "ui-monospace, monospace",
+          letterSpacing: "0.04em",
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%", background: RD,
+            animation: "pulseDot 1.4s ease-in-out infinite",
+          }} />
+          Réunion · {meetingChrono}
+        </div>
+      </div>
+
+      <div style={{
+        padding: "12px 14px", background: ACL, border: `1px solid ${ACL2}`,
+        borderRadius: 10, fontSize: 12, color: TX2, lineHeight: 1.5,
+      }}>
+        <strong style={{ color: TX }}>Bientôt :</strong> l'enregistrement
+        audio de la conversation (avec consentement) viendra alimenter
+        le brouillon de PV automatiquement. Pour l'instant, tu peux noter
+        manuellement les décisions importantes en repassant en
+        <em> Inspection</em>.
+      </div>
+    </div>
+  );
+}
+
+// ── Modal RGPD — consentement avant Phase 2 (réunion) ──
+//
+// Affiché au tap "Passer à la réunion" pour rappeler à l'archi que
+// la phase Réunion va (à terme) enregistrer la conversation des
+// participants. Pas de checkbox alourdissante : les 3 vérifications
+// sont affichées et le bouton "Démarrer" sert d'acquit.
+function RgpdConfirmModal({ onCancel, onConfirm }) {
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed", inset: 0, zIndex: 260,
+        background: "rgba(0, 0, 0, 0.55)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 380,
+          background: WH, borderRadius: 16,
+          padding: "24px 22px",
+          fontFamily: "inherit",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.4)",
+        }}
+      >
+        <div style={{
+          width: 56, height: 56, borderRadius: "50%",
+          background: "#FDECEC", color: RD,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 14px",
+        }}>
+          <Ico name="mic" size={26} color={RD} />
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: TX, textAlign: "center", marginBottom: 6 }}>
+          Démarrer la réunion ?
+        </div>
+        <div style={{ fontSize: 13, color: TX2, textAlign: "center", lineHeight: 1.5, marginBottom: 18 }}>
+          Le mode réunion accompagnera la rédaction du PV.
+          L'enregistrement audio (à venir) servira à structurer
+          automatiquement le compte-rendu.
+        </div>
+
+        <div style={{
+          background: SB, border: `1px solid ${SBB}`, borderRadius: 10,
+          padding: 14, marginBottom: 18,
+        }}>
+          {[
+            "Les participants sont informés que tu prends note de la réunion.",
+            "Les données restent stockées uniquement sur ton compte.",
+            "Tu peux quitter ou reprendre l'inspection à tout moment.",
+          ].map((line, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "flex-start", gap: 9,
+              fontSize: 12, color: TX2, lineHeight: 1.45,
+              marginBottom: i < 2 ? 8 : 0,
+            }}>
+              <Ico name="check" size={14} color={GR} />
+              <span>{line}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onCancel} style={{
+            flex: 1, padding: "12px 14px", border: `1px solid ${SBB}`,
+            background: WH, color: TX2, borderRadius: 10,
+            fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            Annuler
+          </button>
+          <button onClick={onConfirm} style={{
+            flex: 1.4, padding: "12px 14px", border: "none",
+            background: RD, color: "#fff", borderRadius: 10,
+            fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+            boxShadow: `0 4px 14px ${RD}40`,
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
+            Démarrer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default ChantierModeView;

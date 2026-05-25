@@ -23,12 +23,21 @@ const ACTIVE_VISIT_KEY = "archipilot_active_visit";
 //   projectId: number,
 //   startedAt: ISO string,
 //   endedAt: ISO string | null,
+//   phase: 'inspection' | 'reunion',  // phase courante de la visite
+//   meetingStartedAt: ISO string | null,  // début Phase 2 si applicable
 //   presents: [{ name, role, present: boolean }],
 //   reserveActions: [{ reserveId, action: 'lifted' | 'still_present' | 'created', timestamp }],
 //   newReserveIds: [reserveId, ...],   // refs vers project.reserves créées pendant la visite
 //   decisions: [{ id, text, timestamp, source: 'text' | 'voice' }],
 //   photoIds: [photoId, ...],          // refs vers project.gallery prises pendant la visite
 // }
+//
+// Phase model : la visite démarre en "inspection" (tour de chantier,
+// photos, observations). L'archi bascule explicitement en "reunion"
+// (assis autour de la table, enregistrement de la conversation) via
+// un consentement RGPD modal. Bascule réversible — l'archi peut
+// "reprendre l'inspection" puis re-rentrer en réunion. Le chrono de
+// la réunion `meetingStartedAt` ne se réinitialise pas.
 
 export function getActiveVisit() {
   try {
@@ -66,6 +75,8 @@ export function startVisit(projectId, participants = []) {
     projectId,
     startedAt: new Date().toISOString(),
     endedAt: null,
+    phase: "inspection",
+    meetingStartedAt: null,
     presents: participants.map(p => ({ name: p.name, role: p.role, present: true })),
     reserveActions: [],
     newReserveIds: [],
@@ -97,6 +108,21 @@ export function clearVisit() {
 
 // Helpers de mutation de la visite (immutable-style sur l'objet, puis
 // persistance). Renvoient la nouvelle visite pour faciliter le chaînage.
+
+// Bascule entre les phases inspection / reunion. Au premier passage en
+// "reunion", on stamp `meetingStartedAt` ; les bascules suivantes le
+// préservent (le chrono total de la réunion s'accumule à travers les
+// éventuels retours en inspection).
+export function setPhase(visit, phase) {
+  if (!visit) return visit;
+  if (phase !== "inspection" && phase !== "reunion") return visit;
+  const next = { ...visit, phase };
+  if (phase === "reunion" && !visit.meetingStartedAt) {
+    next.meetingStartedAt = new Date().toISOString();
+  }
+  persistVisit(next);
+  return next;
+}
 
 export function togglePresent(visit, name) {
   if (!visit) return visit;
@@ -246,9 +272,11 @@ export function composeDraftPvFromVisit(visit, project) {
 // Statistiques live de la visite — affiche un récap "ce qu'il s'est passé"
 // pour donner du feedback à l'archi pendant qu'il travaille.
 export function getVisitStats(visit) {
-  if (!visit) return { duration: 0, lifted: 0, still: 0, created: 0, decisions: 0, photos: 0 };
+  if (!visit) return { duration: 0, lifted: 0, still: 0, created: 0, decisions: 0, photos: 0, phase: "inspection", meetingDuration: 0 };
   const start = visit.startedAt ? new Date(visit.startedAt) : null;
   const duration = start ? Math.floor((Date.now() - start.getTime()) / 60000) : 0;
+  const meetingStart = visit.meetingStartedAt ? new Date(visit.meetingStartedAt) : null;
+  const meetingDuration = meetingStart ? Math.floor((Date.now() - meetingStart.getTime()) / 60000) : 0;
   return {
     duration,
     lifted: visit.reserveActions.filter(a => a.action === "lifted").length,
@@ -256,5 +284,7 @@ export function getVisitStats(visit) {
     created: visit.newReserveIds.length,
     decisions: visit.decisions.length,
     photos: visit.photoIds.length,
+    phase: visit.phase || "inspection",
+    meetingDuration,
   };
 }
