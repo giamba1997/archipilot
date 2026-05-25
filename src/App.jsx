@@ -65,7 +65,7 @@ import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { ProjectDetail } from "./pages/ProjectDetail";
 
 // ── Détection v2 ────────────────────────────────────────────
@@ -1586,6 +1586,48 @@ export default function App() {
               onOpenNewProject={() => setModal("new")}
             />
           )}
+          {view === "notifs" && (
+            <MobileNotifs
+              projects={projects}
+              notifications={notifications}
+              invitations={invitations}
+              onSelectProject={(id, targetView) => {
+                const projId = parseInt(id) || id;
+                const exists = (projects || []).find(p => String(p.id) === String(projId)) || (sharedProjects || []).find(p => String(p.id) === String(projId));
+                if (!exists) return;
+                setActiveId(exists.id);
+                setView(targetView || "overview");
+              }}
+              onMarkRead={(id) => {
+                markNotificationRead(id);
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+              }}
+              onMarkAllRead={() => {
+                markAllNotificationsRead();
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+              }}
+              onDelete={(id) => {
+                deleteNotification(id);
+                setNotifications(prev => prev.filter(n => n.id !== id));
+              }}
+              onDeleteAll={() => {
+                deleteAllNotifications();
+                setNotifications([]);
+              }}
+              onAcceptInvite={async (id) => {
+                await respondToInvitation(id, true);
+                setInvitations(prev => prev.filter(i => i.id !== id));
+                showToast("Invitation acceptée");
+                track("invite_accepted", { _page: "notifs" });
+                setTimeout(() => loadSharedProjects().then(sp => setSharedProjects(sp)), 500);
+              }}
+              onDeclineInvite={async (id) => {
+                await respondToInvitation(id, false);
+                setInvitations(prev => prev.filter(i => i.id !== id));
+              }}
+              onBack={() => setView(isMobile ? "mobileHome" : "overview")}
+            />
+          )}
           {view === "timesheet" && (() => {
             const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
             const myOrg = orgId ? (myOrgs || []).find(o => o.id === orgId) : null;
@@ -2431,8 +2473,15 @@ Règles :
           }
         }}
         onNotifs={() => {
-          setShowNotifications(v => !v);
           setSidebarOpen(false);
+          // Mobile : page Notifs consolidée plein écran (sections
+          // Invitations / Échéances / Non lues / Historique).
+          // Desktop : drawer dropdown classique sous la cloche header.
+          if (isMobile) {
+            setView(view === "notifs" ? "mobileHome" : "notifs");
+          } else {
+            setShowNotifications(v => !v);
+          }
         }}
       />
 

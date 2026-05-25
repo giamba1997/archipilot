@@ -32,6 +32,7 @@ export { OverviewPhaseHero, getPhaseHeroVariant } from "./OverviewPhaseHero";
 export { ChantierModeView } from "./ChantierModeView";
 export { MobileHome } from "./MobileHome";
 export { MobileChantiersList } from "./MobileChantiersList";
+export { MobileNotifs } from "./MobileNotifs";
 export { JournalView } from "./JournalView";
 export { InvoicesView } from "./InvoicesView";
 export { PermitsView } from "./PermitsView";
