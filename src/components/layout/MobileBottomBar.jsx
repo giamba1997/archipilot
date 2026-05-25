@@ -47,7 +47,12 @@ function Tab({ id, icon, label, active, onNavigate, badge }) {
 //
 // Slot 5 "Moi" = profil utilisateur (renommé pour ton plus personnel,
 // même destination que l'ancien "Profil").
-export function MobileBottomBar({ view, onNavigate, onStartChantier, onNotifs, notifsOpen, unreadCount = 0 }) {
+//
+// `visitActive` : si une visite Mode Chantier est en cours (non terminée),
+// le FAB Visite affiche un ring pulsé pour rappeler à l'archi qu'il peut
+// reprendre. Visible sur toutes les pages — réutilise le FAB comme
+// indicateur global plutôt que d'ajouter une banner dupliquée.
+export function MobileBottomBar({ view, onNavigate, onStartChantier, onNotifs, notifsOpen, unreadCount = 0, visitActive = false }) {
   const isActive = (id) =>
     view === id
     || (id === "overview"  && (view === "overview" || view === "mobileHome"))
@@ -66,13 +71,32 @@ export function MobileBottomBar({ view, onNavigate, onStartChantier, onNotifs, n
         <Tab id="overview"  icon="home"   label="Accueil"   active={isActive("overview")}  onNavigate={onNavigate} />
         <Tab id="chantiers" icon="folder" label="Chantiers" active={isActive("chantiers")} onNavigate={onNavigate} />
         {/* Center FAB — démarre une visite Mode Chantier. L'icône `building`
-            évoque le chantier ; le libellé "Visite" lève l'ambiguïté. */}
+            évoque le chantier ; le libellé "Visite" lève l'ambiguïté.
+            Si une visite est en cours, un ring pulsé entoure le FAB pour
+            rappeler à l'archi qu'il peut reprendre (indicateur global,
+            visible sur toutes les pages). */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <button onClick={onStartChantier} aria-label="Démarrer une visite chantier" style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
+          <button onClick={onStartChantier} aria-label={visitActive ? "Reprendre la visite en cours" : "Démarrer une visite chantier"} style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
+            {visitActive && (
+              <>
+                <span style={{ position: "absolute", inset: -4, borderRadius: "50%", border: `2.5px solid ${WH}`, boxShadow: `0 0 0 2px ${AC}`, animation: "fabVisitePulse 1.8s ease-in-out infinite", pointerEvents: "none" }} />
+                <span style={{ position: "absolute", top: 4, right: 4, width: 9, height: 9, borderRadius: "50%", background: "#fff", border: `2px solid ${AC}`, animation: "fabVisiteDot 1.8s ease-in-out infinite", pointerEvents: "none" }} />
+              </>
+            )}
             <Ico name="building" size={28} color="#fff" />
-            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>Visite</span>
+            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>{visitActive ? "Reprendre" : "Visite"}</span>
           </button>
         </div>
+        <style>{`
+          @keyframes fabVisitePulse {
+            0%, 100% { transform: scale(1); opacity: 0.85; }
+            50% { transform: scale(1.08); opacity: 0.4; }
+          }
+          @keyframes fabVisiteDot {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.25); }
+          }
+        `}</style>
         {/* Right tabs */}
         <Tab id="notifs"  icon="bell" label="Notifs" active={isActive("notifs")}  onNavigate={onNotifs}  badge={unreadCount} />
         <Tab id="profile" icon="user" label="Moi"    active={isActive("profile")} onNavigate={onNavigate} />

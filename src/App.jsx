@@ -53,6 +53,7 @@ import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, sav
 import { relativeDate, parseDateFR, formatDateFR, calcNextMeeting, daysUntil } from "./utils/dates";
 import { formatAddress, parseAddress } from "./utils/address";
 import { parseNotesToRemarks, getDocCurrent } from "./utils/helpers";
+import { getActiveVisit } from "./utils/chantierVisit";
 import { getActiveTimer, setActiveTimer as persistActiveTimer, elapsedSeconds, isPaused as timerIsPaused, formatTimer, formatDuration, buildSessionFromTimer, totalSecondsFor } from "./utils/timer";
 import { generatePDF } from "./utils/pdf";
 import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exportParticipantsCSV, importParticipantsCSV, generateICS, downloadICS, getGoogleCalendarUrl } from "./utils/csv";
@@ -165,6 +166,21 @@ export default function App() {
     initialMobileViewRef.current = true;
     _setView("mobileHome");
   }, [dbLoaded, isMobile]);
+
+  // ── Indicateur global "visite en cours" sur le FAB Visite ──
+  // Lit getActiveVisit() à chaque changement de view : les démarrages
+  // et fins de visite passent toujours par un setView (entrée chantier
+  // ou retour overview), donc on capture les transitions sans poll.
+  // visitActive = true → MobileBottomBar pulse le FAB Visite sur toutes
+  // les pages (review UX P1, remplace une banner dupliquée).
+  const [activeVisitState, setActiveVisitState] = useState(() => {
+    const v = getActiveVisit();
+    return v && !v.endedAt ? v : null;
+  });
+  useEffect(() => {
+    const v = getActiveVisit();
+    setActiveVisitState(v && !v.endedAt ? v : null);
+  }, [view]);
 
   // ── Deep-link push (Mobile Étape 4) ──
   // Quand l'archi clique sur une notification push, le SW poste un
@@ -2455,6 +2471,7 @@ Règles :
         view={view}
         notifsOpen={showNotifications}
         unreadCount={(notifications || []).filter(n => !n.read).length}
+        visitActive={!!activeVisitState}
         onNavigate={(tab) => {
           // Sur mobile, l'onglet "Accueil" route vers la home mobile dédiée
           // (agrégateur d'urgences + sélecteur de projet) plutôt que vers
@@ -2469,15 +2486,26 @@ Règles :
         }}
         onStartChantier={() => {
           setSidebarOpen(false);
+          // Priorité 1 : visite en cours (peut être sur un projet différent
+          // de celui actuellement ouvert). On rebascule sur le projet de la
+          // visite et on entre directement dans Mode Chantier — c'est l'usage
+          // "tap FAB pour reprendre" depuis n'importe quelle page.
+          if (activeVisitState) {
+            const visitProjId = activeVisitState.projectId;
+            if (String(visitProjId) !== String(activeId)) {
+              setActiveId(visitProjId);
+            }
+            setView("chantier");
+            return;
+          }
+          // Priorité 2 : projet déjà sélectionné → démarrer une nouvelle visite.
           if (project) {
             setView("chantier");
-          } else {
-            // Pas de projet en contexte : on renvoie l'archi vers la home
-            // mobile pour qu'il en sélectionne un avant de démarrer la
-            // visite. Un toast court explique pourquoi.
-            setView(isMobile ? "mobileHome" : "overview");
-            showToast({ msg: "Sélectionne un chantier pour démarrer la visite", type: "info" });
+            return;
           }
+          // Sinon : pas de contexte → renvoie sur la home pour sélectionner.
+          setView(isMobile ? "mobileHome" : "overview");
+          showToast({ msg: "Sélectionne un chantier pour démarrer la visite", type: "info" });
         }}
         onNotifs={() => {
           setSidebarOpen(false);
