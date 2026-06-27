@@ -59,6 +59,7 @@ const Icons = {
   plus:     ({ size }) => <Svg size={size} sw={2}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Svg>,
   check:    ({ size }) => <Svg size={size} sw={2.2}><polyline points="20 6 9 17 4 12" /></Svg>,
   send:     ({ size }) => <Svg size={size} sw={1.6}><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z" /></Svg>,
+  mic:      ({ size }) => <Svg size={size} sw={2}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /></Svg>,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -124,7 +125,21 @@ const MOCK_PROJECT = {
     { name: "Devis Elek & Co — lot électricité.pdf", category: "Devis", size: 839680, modified: "19 juin" },
     { name: "Métré général — version 4.xlsx", category: "Tableur", size: 348160, modified: "14 juin" },
   ],
-  posts: [], gallery: [], customFields: [], actions: [], journalEntries: [], timeSessions: [],
+  gallery: [
+    { id: 1, caption: "façade nord", date: "24/06/2026", voiceNote: true, reserves: [{}, {}] },
+    { id: 2, caption: "gaines R+2", date: "24/06/2026", note: "à recouper" },
+    { id: 3, caption: "étanchéité N-E", date: "24/06/2026", reserves: [{}] },
+    { id: 4, caption: "hall principal", date: "24/06/2026" },
+    { id: 5, caption: "cage escalier", date: "24/06/2026", voiceNote: true },
+    { id: 6, caption: "menuiserie ext.", date: "24/06/2026" },
+    { id: 7, caption: "toiture", date: "24/06/2026" },
+    { id: 8, caption: "local technique", date: "24/06/2026" },
+    { id: 9, caption: "dalle R+1", date: "23/06/2026" },
+    { id: 10, caption: "cloisons", date: "23/06/2026" },
+    { id: 11, caption: "réseau CVC", date: "23/06/2026" },
+    { id: 12, caption: "façade sud", date: "23/06/2026" },
+  ],
+  posts: [], customFields: [], actions: [], journalEntries: [], timeSessions: [],
 };
 
 // statusId → label + variant Badge sémantique + ordre de phase (1..7).
@@ -481,6 +496,30 @@ function deriveDocuments(project) {
   return { folders, files };
 }
 
+// ── Photos : groupées par visite, badges annotation / réserve ──
+function photoDateLabel(d) {
+  if (!d) return "Sans date";
+  const x = parseDateFR(d) || new Date(d);
+  if (isNaN(+x)) return String(d);
+  return `Visite du ${x.toLocaleDateString("fr-BE", { day: "numeric", month: "long" })}`;
+}
+function derivePhotos(project) {
+  const photos = (project?.gallery || []).map((p, i) => ({
+    id: p.id ?? i,
+    url: p.url || p.dataUrl || p.src || null,
+    caption: p.caption || p.label || p.title || "",
+    hasVoice: !!(p.voiceNote || p.audio || (p.annotations || []).some(a => a?.type === "voice")),
+    hasText: !!(p.note || p.text || (p.annotations || []).some(a => a?.type === "text" || a?.type === "annotation")),
+    reserveCount: (p.reserves || p.linkedReserves || []).length || p.reserveCount || 0,
+    date: p.visitDate || p.date || "",
+    raw: p,
+  }));
+  const map = new Map(), order = [];
+  photos.forEach(p => { const k = p.date || "—"; if (!map.has(k)) { map.set(k, []); order.push(k); } map.get(k).push(p); });
+  order.sort((a, b) => (+(parseDateFR(b) || new Date(b)) || 0) - (+(parseDateFR(a) || new Date(a)) || 0));
+  return { total: photos.length, groups: order.map(k => ({ key: k, label: photoDateLabel(k), photos: map.get(k) })) };
+}
+
 function deriveUpdatedAt(project) {
   let latest = 0;
   const consider = (v) => {
@@ -524,6 +563,8 @@ export function ProjectDetail({
   onSendPv,
   onDocuments,
   onImportDoc,
+  onGallery,
+  onImportPhoto,
   activeTimer,
   onStartTimer,
   onOpenSessions,
@@ -588,7 +629,7 @@ export function ProjectDetail({
   const planning    = useMemo(() => derivePlanning(project), [project]);
   const journal     = useMemo(() => deriveJournal(project), [project]);
 
-  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onEditMeeting };
+  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onGallery, onImportPhoto, onEditMeeting };
 
   return (
     <div
@@ -638,7 +679,10 @@ export function ProjectDetail({
       {activeTab === "docs" && (
         <DocumentsTab project={project} handlerMap={handlerMap} />
       )}
-      {!["summary", "sheet", "actions", "planning", "pv", "docs"].includes(activeTab) && (
+      {activeTab === "photos" && (
+        <PhotosTab project={project} handlerMap={handlerMap} />
+      )}
+      {!["summary", "sheet", "actions", "planning", "pv", "docs", "photos"].includes(activeTab) && (
         <TabPlaceholder label={tabs.find(t => t.id === activeTab)?.label} />
       )}
     </div>
@@ -2129,6 +2173,100 @@ function FileRow({ file, isLast, onOpen }) {
           <Svg size={16}><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" /></Svg>
         </IconButton>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Onglet Photos : grilles par visite, tuiles avec badges annotation/réserve
+// ─────────────────────────────────────────────────────────────
+
+function PhotosTab({ project, handlerMap }) {
+  const data = useMemo(() => derivePhotos(project), [project]);
+  const [filter, setFilter] = useState("all");
+  const onGallery = handlerMap.onGallery;
+  const onImport = handlerMap.onImportPhoto || handlerMap.onGallery;
+
+  const groups = data.groups
+    .map(g => ({ ...g, photos: g.photos.filter(p => filter === "all" ? true : filter === "annotated" ? (p.hasVoice || p.hasText) : p.reserveCount > 0) }))
+    .filter(g => g.photos.length);
+  const shown = groups.reduce((s, g) => s + g.photos.length, 0);
+
+  return (
+    <div>
+      {/* Toolbar : filtres + compteur + sélection + import */}
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], marginBottom: tokens.space[4], flexWrap: "wrap" }}>
+        <SegToggle value={filter} onChange={setFilter} options={[{ id: "all", label: "Toutes" }, { id: "annotated", label: "Annotées" }, { id: "reserve", label: "Liées à réserve" }]} />
+        <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>{shown} photo{shown > 1 ? "s" : ""}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: tokens.space[2] }}>
+          <Button variant="secondary" size="md" onClick={onGallery || undefined} disabled={!onGallery}>Sélectionner</Button>
+          <Button variant="primary" size="md" leftIcon={<Svg size={15} sw={1.8}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></Svg>} onClick={onImport || undefined} disabled={!onImport}>Importer</Button>
+        </div>
+      </div>
+
+      {data.total === 0 ? (
+        <div style={{ padding: tokens.space[10], background: tokens.color.neutral[50], border: `1px dashed ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, textAlign: "center" }}>
+          <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[700], marginBottom: tokens.space[1] }}>Aucune photo</div>
+          <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>Prends des photos en visite de chantier — elles s'organisent ici par visite.</div>
+        </div>
+      ) : groups.length === 0 ? (
+        <div style={{ padding: tokens.space[8], color: tokens.color.neutral[500], fontSize: tokens.font.size.sm, textAlign: "center" }}>Aucune photo ne correspond à ce filtre.</div>
+      ) : (
+        groups.map((g, gi) => (
+          <div key={g.key} style={{ marginBottom: gi < groups.length - 1 ? tokens.space[6] : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[3] }}>
+              <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{g.label}</span>
+              <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>· {g.photos.length} photo{g.photos.length > 1 ? "s" : ""}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: tokens.space[3] }}>
+              {g.photos.map(p => <PhotoTile key={p.id} p={p} onOpen={onGallery} />)}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function PhotoTile({ p, onOpen }) {
+  const [hover, setHover] = useState(false);
+  const warm = "repeating-linear-gradient(45deg, #EDE4DA, #EDE4DA 11px, #E5D9CC 11px, #E5D9CC 22px)";
+  const neutral = `repeating-linear-gradient(45deg, ${tokens.color.neutral[200]}, ${tokens.color.neutral[200]} 11px, #DEDCDA 11px, #DEDCDA 22px)`;
+  const badge = (icon, key) => (
+    <span key={key} style={{ width: 22, height: 22, borderRadius: 7, background: "rgba(28,25,23,0.7)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</span>
+  );
+  return (
+    <div
+      onClick={onOpen ? () => onOpen(p.raw) : undefined}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: "relative", aspectRatio: "4 / 3", borderRadius: tokens.radius.lg, overflow: "hidden",
+        cursor: onOpen ? "pointer" : "default",
+        background: p.url ? tokens.color.neutral[100] : (p.reserveCount > 0 ? warm : neutral),
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: hover ? tokens.shadow.md : "none",
+        transition: tokens.transition.base,
+      }}
+    >
+      {p.url
+        ? <img src={p.url} alt={p.caption} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        : <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, color: p.reserveCount > 0 ? "#B58A6F" : tokens.color.neutral[500], padding: "0 8px", textAlign: "center" }}>{p.caption || "photo"}</span>}
+
+      {/* Badges d'annotation (haut-gauche) */}
+      {(p.hasVoice || p.hasText) && (
+        <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 5 }}>
+          {p.hasVoice && badge(<Icons.mic size={12} />, "v")}
+          {p.hasText && badge(<Icons.edit size={11} />, "t")}
+        </div>
+      )}
+
+      {/* Badge réserve (haut-droite) */}
+      {p.reserveCount > 0 && (
+        <div style={{ position: "absolute", top: 8, right: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: tokens.font.weight.semibold, padding: "2px 7px", borderRadius: tokens.radius.full, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg }}>{p.reserveCount} rés.</span>
+        </div>
+      )}
     </div>
   );
 }

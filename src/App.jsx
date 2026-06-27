@@ -1542,6 +1542,8 @@ export default function App() {
               }}
               onDocuments={() => setView("plan")}
               onImportDoc={() => setView("plan")}
+              onGallery={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); if (window.innerWidth > 768) setView("gallery"); else setGallerySheet(true); }}
+              onImportPhoto={() => { if (!hasFeature(profile.plan, "gallery")) return setUpgradeFeature("gallery"); setView("gallery"); }}
               activeTimer={activeTimer}
               onStartTimer={startTimer}
               onOpenSessions={(pid) => setShowSessionsModal(pid)}
