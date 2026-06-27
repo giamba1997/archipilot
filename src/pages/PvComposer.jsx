@@ -215,6 +215,20 @@ export function PvComposer({
     } catch (e) { setSending(false); alert("Envoi échoué : " + (e.message || "erreur")); }
   };
 
+  // Applique les remarques réparties par l'IA (dispatch-remarks) aux postes.
+  const applyDispatch = (grouped) => {
+    if (demo) return;
+    setProjects(prev => prev.map(p => p.id !== project.id ? p : {
+      ...p,
+      posts: (p.posts || []).map(po => {
+        const nr = grouped[po.id] || [];
+        if (!nr.length) return po;
+        const existing = (po.remarks || []).length > 0 ? po.remarks : (po.notes?.trim() ? parseNotesToRemarks(po.notes) : []);
+        return { ...po, remarks: [...existing, ...nr], notes: "" };
+      }),
+    }));
+  };
+
   const createTask = (task) => {
     if (demo) return;
     setProjects(prev => prev.map(p => {
@@ -270,7 +284,8 @@ export function PvComposer({
 
       {/* ── Contenu ── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { setSaisieMode(m === "dictate" ? "dictate" : "write"); setStep("saisie"); }} />}
+        {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} />}
+        {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => setStep("saisie")} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
@@ -420,6 +435,174 @@ function toDisplayRemark(r) {
   const status = r.carriedFrom ? "reported" : r.urgent ? "urgent" : r.status === "done" ? "done" : r.status === "progress" ? "observation" : "observation";
   const rec = (r.recipients || [])[0];
   return { id: r.id, text: r.text, status, recipient: rec ? { ini: initials(rec), name: rec } : null };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Étape 1 (variante) — Enregistrement audio (chrono + waveform +
+// transcription + remarques détectées réparties par l'IA)
+// ─────────────────────────────────────────────────────────────
+
+const AUDIO_DEMO_TRANSCRIPT = [
+  { who: "Gaëlle D.", t: "04:01", text: "…donc sur l'électricité, il faut reprendre le tirage des câbles dans la gaine du 2ᵉ, la section est sous-dimensionnée. Et attention, le tableau principal n'a pas de différentiel sur les prises du rez, c'est à corriger avant la mise sous tension." },
+  { who: "M. Genin", t: "04:20", text: "D'accord, on planifie ça pour la semaine prochaine. Pour le hall, l'appareillage est posé, c'est conforme au plan rév. C." },
+  { who: "Gaëlle D.", t: "04:31", text: "Parfait. Côté HVAC maintenant, la centrale de traitement d'air" },
+];
+const AUDIO_DEMO_DETECTED = [
+  { poste: "03 · ÉLECTRICITÉ", text: "Reprendre le tirage des câbles — gaine 2ᵉ étage sous-dimensionnée." },
+  { poste: "03 · ÉLECTRICITÉ", urgent: true, text: "Tableau principal sans différentiel sur les prises du rez — à corriger avant mise sous tension." },
+  { poste: "03 · ÉLECTRICITÉ", text: "Appareillage du hall posé, conforme au plan rév. C." },
+];
+
+function AudioStep({ project, meta, demo, onApply, onDone, onCancel }) {
+  const [elapsed, setElapsed] = useState(demo ? 272 : 0);
+  const [phase, setPhase] = useState("recording");
+  const [transcript, setTranscript] = useState("");
+  const [detected, setDetected] = useState([]);
+  const [err, setErr] = useState("");
+  const timerRef = useRef(null);
+
+  const dispatchRemarks = async (text) => {
+    const posts = (project.posts || []).map(po => ({ id: po.id, label: po.label }));
+    try {
+      if (!text?.trim()) throw new Error("Transcription vide — parle dans le micro avant de terminer.");
+      const { data, error } = await supabase.functions.invoke("dispatch-remarks", { body: { transcript: text, posts } });
+      if (error) throw new Error(error.message || "Erreur serveur");
+      if (data?.error) throw new Error(data.error);
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const norm = (id) => String(id).replace(/^0+/, "") || "0";
+      const postIds = posts.map(p => p.id);
+      const findPost = (raw) => { const s = String(raw); if (postIds.includes(s)) return s; return postIds.find(pid => norm(pid) === norm(s)) || postIds[0] || null; };
+      const grouped = {}, flat = [];
+      for (const it of items) {
+        const rid = findPost(it.postId);
+        if (!rid) continue;
+        (grouped[rid] = grouped[rid] || []).push({ id: Date.now() + Math.random(), text: it.text, urgent: !!it.urgent, status: "open" });
+        const label = (project.posts.find(p => p.id === rid) || {}).label || rid;
+        flat.push({ poste: `${rid} · ${String(label).toUpperCase()}`, text: it.text, urgent: !!it.urgent });
+      }
+      onApply(grouped);
+      setDetected(flat);
+      setPhase("done");
+    } catch (e) { setErr(e.message || "Erreur"); setPhase("error"); }
+  };
+
+  const recorder = useWhisperRecorder({
+    onResult: (text) => { setTranscript(text); setPhase("transcribing"); dispatchRemarks(text); },
+    onError: (code) => { setErr(code === "micDenied" ? "Micro refusé — autorise le micro." : "Erreur micro."); setPhase("error"); },
+  });
+
+  useEffect(() => {
+    if (demo) return;
+    recorder.start();
+    timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(timerRef.current);
+    // eslint-disable-next-line
+  }, []);
+
+  const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
+  const recording = demo || (recorder.isRecording && phase === "recording");
+  const finishRec = () => { if (demo) { setPhase("done"); setDetected(AUDIO_DEMO_DETECTED); return; } clearInterval(timerRef.current); setPhase("transcribing"); recorder.stop(); };
+
+  const lines = demo ? AUDIO_DEMO_TRANSCRIPT : (transcript ? [{ who: "Visite", t: mmss, text: transcript }] : []);
+  const detectedList = demo ? AUDIO_DEMO_DETECTED : detected;
+
+  return (
+    <>
+      <style>{`@keyframes pvpulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }`}</style>
+      <div style={{ flexShrink: 0, padding: `${tokens.space[4]} ${tokens.space[6]} 0` }}>
+        <div style={{ background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.lg, padding: `${tokens.space[3]} ${tokens.space[4]}`, display: "flex", alignItems: "center", gap: tokens.space[4] }}>
+          <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexShrink: 0 }}>
+            <span style={{ width: 9, height: 9, borderRadius: "50%", background: tokens.color.semantic.danger.fg, ...(recording ? { animation: "pvpulse 1.2s ease-in-out infinite" } : null) }} />
+            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, letterSpacing: "0.06em", color: tokens.color.neutral[700], textTransform: "uppercase" }}>{phase === "transcribing" ? "Transcription" : phase === "done" ? "Terminé" : "Enregistrement"}</span>
+            <span style={{ fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], fontVariantNumeric: "tabular-nums", marginLeft: tokens.space[2] }}>{mmss}</span>
+          </div>
+          <Waveform stream={recorder.stream} active={recording} />
+          <div style={{ marginLeft: "auto", flexShrink: 0 }}>
+            {phase === "recording" && <Button variant="primary" size="md" onClick={finishRec}>Terminer &amp; transcrire</Button>}
+            {phase === "transcribing" && <Button variant="primary" size="md" disabled>Analyse…</Button>}
+            {phase === "done" && <Button variant="primary" size="md" rightIcon={<I.chevron size={15} />} onClick={onDone}>Réviser la saisie</Button>}
+            {phase === "error" && <Button variant="secondary" size="md" onClick={onCancel}>Retour</Button>}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[1]}` }}>
+          <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>L'audio reste sur l'appareil · la transcription se lance au clic sur « Terminer ».</span>
+          {err && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg }}>{err}</span>}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${tokens.color.neutral[200]}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[6]} ${tokens.space[2]}` }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: tokens.color.semantic.danger.fg }} />
+            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Transcription</span>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]} ${tokens.space[5]}`, display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
+            {lines.length === 0
+              ? <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], padding: tokens.space[4] }}>{phase === "transcribing" ? "Transcription en cours…" : "Parle — le texte apparaîtra ici après « Terminer »."}</div>
+              : lines.map((l, i) => (
+                <div key={i}>
+                  <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], marginBottom: 2 }}>{l.who}{l.t ? ` · ${l.t}` : ""}</div>
+                  <div style={{ fontSize: tokens.font.size.base, color: tokens.color.neutral[700], lineHeight: 1.55 }}>{l.text}{demo && i === lines.length - 1 && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}</div>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div style={{ width: 360, flexShrink: 0, display: "flex", flexDirection: "column", background: tokens.color.neutral[0] }}>
+          <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[4]} ${tokens.space[2]}` }}>
+            <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.spark size={15} /></span>
+            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Remarques détectées</span>
+            {detectedList.length > 0 && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[400] }}>{detectedList.length} · réparties par l'IA</span>}
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[4]} ${tokens.space[4]}`, display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+            {detectedList.length === 0
+              ? <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], padding: tokens.space[4] }}>{phase === "transcribing" ? "L'IA analyse et range les remarques…" : "Les remarques détectées s'afficheront ici, rangées par poste."}</div>
+              : detectedList.map((d, i) => (
+                <div key={i} style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: d.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: tokens.space[3] }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[1] }}>
+                    <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[400] }}>{d.poste}</span>
+                    {d.urgent && <span style={{ fontSize: 9, fontWeight: tokens.font.weight.semibold, color: tokens.color.semantic.danger.fg, textTransform: "uppercase" }}>Urgent</span>}
+                  </div>
+                  <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], lineHeight: 1.4 }}>{d.text}</div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Waveform({ stream, active }) {
+  const [bars, setBars] = useState(() => Array.from({ length: 28 }, () => 0.2));
+  const rafRef = useRef(null);
+  useEffect(() => {
+    if (!active) { setBars(Array.from({ length: 28 }, () => 0.18)); return; }
+    if (!stream) {
+      let t = 0;
+      const tick = () => { t += 0.3; setBars(Array.from({ length: 28 }, (_, i) => 0.25 + 0.55 * Math.abs(Math.sin(t + i * 0.5)))); rafRef.current = requestAnimationFrame(tick); };
+      rafRef.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(rafRef.current);
+    }
+    let ctx, analyser, src, data;
+    try {
+      const AC2 = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC2();
+      src = ctx.createMediaStreamSource(stream);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      src.connect(analyser);
+      data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => { analyser.getByteFrequencyData(data); setBars(Array.from({ length: 28 }, (_, i) => Math.max(0.12, (data[i % data.length] || 0) / 255))); rafRef.current = requestAnimationFrame(tick); };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch { /* ignore */ }
+    return () => { cancelAnimationFrame(rafRef.current); try { src && src.disconnect(); ctx && ctx.close(); } catch { /* ignore */ } };
+  }, [stream, active]);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 2, height: 28, flex: 1, minWidth: 0, overflow: "hidden" }}>
+      {bars.map((b, i) => <span key={i} style={{ width: 3, height: `${Math.round(b * 100)}%`, background: active ? tokens.color.brand[500] : tokens.color.neutral[300], borderRadius: 2, transition: "height 0.08s linear" }} />)}
+    </div>
+  );
 }
 
 function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
