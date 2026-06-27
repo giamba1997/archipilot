@@ -22,17 +22,19 @@
 //   ✗ NOT for card fills
 //   ✗ NOT for section headers
 
-// ── Core ──
-export const AC   = "#C05A2C";   // Terracotta — CTAs, active states, key actions
-export const ACL  = "#FAF0EA";   // Soft terracotta bg — selected items, subtle highlights
-export const ACL2 = "#F0DDD0";   // Accent border — focus rings, selected borders
-export const SB   = "#F8F7F4";   // Surface (sidebar, inputs, subtle bg) — warm
-export const SB2  = "#F0EFEB";   // Surface hover — warm
-export const SBB  = "#E2E0DB";   // Borders (warm grey)
-export const TX   = "#2C2926";   // Primary text (warm dark brown)
-export const TX2  = "#6B6862";   // Secondary text (warm grey)
-export const TX3  = "#A09D96";   // Tertiary text (warm placeholders)
-export const BG   = "#FAFAF8";   // Page background — slightly warm
+// ── Core ── (aligné sur la Direction D — src/design/tokens.js)
+// Même terracotta de marque (brand.500 #B85C2C) + rampe neutre chaude du
+// handoff, pour que le chrome (sidebar/topbar) colle au contenu v2.
+export const AC   = "#B85C2C";   // Terracotta brand.500 — CTAs, active states
+export const ACL  = "#FDF6F1";   // brand.50 — fonds doux, items sélectionnés
+export const ACL2 = "#E8B58E";   // brand.200 — bordures d'accent, focus
+export const SB   = "#F5F5F4";   // neutral.100 — surfaces (sidebar, inputs)
+export const SB2  = "#EFEDEB";   // surface hover
+export const SBB  = "#E7E5E4";   // neutral.200 — bordures
+export const TX   = "#1C1917";   // neutral.900 — texte principal
+export const TX2  = "#44403C";   // neutral.700 — texte secondaire
+export const TX3  = "#78716C";   // neutral.500 — texte tertiaire
+export const BG   = "#FAFAF9";   // neutral.50 — fond de page
 export const WH   = "#FFFFFF";   // White
 export const RD   = "#DC2626";   // Danger / urgent
 export const GR   = "#16A34A";   // Success / resolved
@@ -55,57 +57,56 @@ export const RAD = { sm: 6, md: 8, lg: 10, xl: 12, xxl: 14, full: "50%" };
 // portée par le label + les step-dots (position), pas par la teinte. SEULE la
 // phase active (exécution/chantier) reçoit l'accent terracotta pour signaler
 // « c'est là que ça se passe ». Évite l'arc-en-ciel lavande/bleu/pêche/moss.
-export const E_LIN_BG       = "#EFEDE9";  // Esquisse — neutre chaud
-export const E_PRELIM_BG    = "#EFEDE9";  // Avant-projet — neutre chaud
-export const E_PERMIT_BG    = "#EFEDE9";  // Permis — neutre chaud
-export const E_PEACH_BG     = "#FAF0EA";  // Exécution / Chantier — accent terracotta doux
-export const E_BOIS_BG      = "#EFEDE9";  // Réception — neutre chaud
-export const E_GRAPHITE_BG  = "#E7E5E0";  // Clôturé — neutre un peu plus gris (archivé)
-export const E_TX_TAUPE     = "#2C2926";  // texte phase — neutre foncé (= TX)
-export const E_TX_TAUPE2    = "#2C2926";  // texte phase — neutre foncé
-export const E_TX_BOIS      = "#2C2926";  // texte phase — neutre foncé
-export const E_TX_DARK      = "#6B6862";  // texte discret (clôturé / brouillon = TX2)
+export const E_LIN_BG       = "#F5F5F4";  // Esquisse — neutral.100
+export const E_PRELIM_BG    = "#F5F5F4";  // Avant-projet
+export const E_PERMIT_BG    = "#F5F5F4";  // Permis
+export const E_PEACH_BG     = "#FDF6F1";  // Exécution / Chantier — brand.50 (phase active)
+export const E_BOIS_BG      = "#F5F5F4";  // Réception
+export const E_GRAPHITE_BG  = "#E7E5E4";  // Clôturé — neutral.200 (archivé)
+export const E_TX_TAUPE     = "#1C1917";  // texte phase — neutral.900 (= TX)
+export const E_TX_TAUPE2    = "#1C1917";  // texte phase
+export const E_TX_BOIS      = "#1C1917";  // texte phase
+export const E_TX_DARK      = "#44403C";  // texte discret (clôturé / brouillon = TX2)
 
 // ── Quick-tools tints (minimaliste : tuiles neutres) ────────
 // Discipline couleur : on retire les 4 jewel-tones (bleu/coral/moss/ocre) au
 // profit de tuiles neutres + icône neutre. La reconnaissance passe par la
 // forme de l'icône, pas par la teinte — moins de bruit, plus de cohérence.
-export const QT_DOC_BG     = "#F0EFEB";
-export const QT_DOC_FG     = "#6B6862";
-export const QT_PHOTO_BG   = "#F0EFEB";
-export const QT_PHOTO_FG   = "#6B6862";
-export const QT_PLAN_BG    = "#F0EFEB";
-export const QT_PLAN_FG    = "#6B6862";
-export const QT_LIST_BG    = "#F0EFEB";
-export const QT_LIST_FG    = "#6B6862";
+export const QT_DOC_BG     = "#F5F5F4";
+export const QT_DOC_FG     = "#78716C";
+export const QT_PHOTO_BG   = "#F5F5F4";
+export const QT_PHOTO_FG   = "#78716C";
+export const QT_PLAN_BG    = "#F5F5F4";
+export const QT_PLAN_FG    = "#78716C";
+export const QT_LIST_BG    = "#F5F5F4";
+export const QT_LIST_FG    = "#78716C";
 
 // ── Semantic colors (vivid — must function as traffic lights) ─────
-export const SG     = "#5A8C3F";  // grass green — résolu / levée
-export const SGB    = "#E2EDD3";  // grass bg
-export const BR     = "#D2362A";  // rouge urgent — distinct de l'accent terracotta (AC)
-                                  // pour ne pas confondre statut urgent et bouton d'action
-export const BRB    = "#F8DCCF";  // brick bg
-export const AM     = "#C0791A";  // amber — en cours / partielle / à relire
-export const AMB    = "#F8E5BD";  // amber bg
-export const ST     = "#3A7396";  // blueprint blue — envoyé / minor
-export const STB    = "#D6E1EB";  // blueprint bg
+export const SG     = "#166534";  // success.fg — résolu / levée
+export const SGB    = "#DCFCE7";  // success bg
+export const BR     = "#DC2626";  // danger — urgent (distinct de l'accent terracotta)
+export const BRB    = "#FEE2E2";  // danger bg
+export const AM     = "#B45309";  // warning — en cours / partielle / à relire
+export const AMB    = "#FEF3C7";  // warning bg
+export const ST     = "#1E40AF";  // info.fg — envoyé / minor
+export const STB    = "#DBEAFE";  // info bg
 
 // ── Legacy / lot color picker (still used for user-customisable lots) ──
 // Kept for the lot color picker UI; sober variants closer to the new palette.
 export const BL   = "#5A7A8F";   // steel blue (was bright #3B82F6)
 export const BLB  = "#E2E8EE";
-export const OR   = "#C05A2C";   // terracotta (collapsed onto AC family)
-export const ORB  = "#F5E1D2";
+export const OR   = "#B85C2C";   // terracotta brand (= AC)
+export const ORB  = "#FDF6F1";
 export const VI   = "#7E6D8A";   // violet désaturé (was #7C3AED)
 export const VIB  = "#E9E5EE";
 export const TE   = "#6B8B8E";   // teal sourd (was #0891B2)
 export const TEB  = "#E2EAEB";
 export const PU   = "#8A6E80";   // mauve sourd (was #A855F7)
 export const PUB  = "#EBE3E7";
-export const GRY  = "#6B6862";   // graphite chaud (was #6B7280 cold grey)
-export const GRYB = "#EAE7E1";
-export const REDBG  = "#F4E1DB"; // brique bg
-export const REDBRD = "#E0BFB4"; // brique border (subtle)
-export const GRBG   = "#EAEDE3"; // sauge bg
-export const DIS    = "#D6D2C9"; // disabled — warm
-export const DIST   = "#A09D96"; // disabled text — warm
+export const GRY  = "#78716C";   // neutral.500
+export const GRYB = "#F5F5F4";   // neutral.100
+export const REDBG  = "#FEF2F2"; // danger bg
+export const REDBRD = "#FECACA"; // danger border
+export const GRBG   = "#F0FDF4"; // success bg
+export const DIS    = "#E7E5E4"; // disabled — neutral.200
+export const DIST   = "#A8A29E"; // disabled text

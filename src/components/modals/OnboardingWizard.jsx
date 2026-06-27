@@ -283,7 +283,7 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
         <div style={{ padding: "20px 28px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 32, height: 32 }} />
-            <span style={{ fontSize: 14, fontWeight: 800, color: "#4A3428", letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: "#1C1917", letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {Array.from({ length: total }).map((_, i) => (
@@ -320,7 +320,7 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
             )}
           </div>
           <button onClick={handleNext} disabled={!canNext}
-            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: canNext ? AC : SBB, color: canNext ? "#fff" : TX3, fontSize: 13, fontWeight: 600, cursor: canNext ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, boxShadow: canNext ? "0 4px 12px rgba(201,90,27,0.25)" : "none", transition: "all .2s" }}>
+            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: canNext ? AC : SBB, color: canNext ? "#fff" : TX3, fontSize: 13, fontWeight: 600, cursor: canNext ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, boxShadow: canNext ? "0 4px 12px rgba(184,92,44,0.25)" : "none", transition: "all .2s" }}>
             {nextLabel}
             {step < total - 1 && <Ico name="send" size={13} color="#fff" />}
           </button>

@@ -894,7 +894,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                         background: isDone ? AC : isActive ? AC + "14" : SB2,
                         border: isActive ? `2px solid ${AC}` : "2px solid transparent",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: isDone ? "0 1px 3px rgba(192,90,44,0.25)" : "none",
+                        boxShadow: isDone ? "0 1px 3px rgba(184,92,44,0.25)" : "none",
                         transition: "all 0.3s",
                       }}>
                         {isDone
@@ -959,7 +959,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
         <div className="ap-section-hdr" style={{ padding: "11px 16px", borderBottom: `1px solid ${SBB}`, background: SB }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{ width: 22, height: 22, borderRadius: "50%", background: filledCount > 0 ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: filledCount > 0 ? "0 1px 3px rgba(217,123,13,0.25)" : "none" }}>
+              <div style={{ width: 22, height: 22, borderRadius: "50%", background: filledCount > 0 ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: filledCount > 0 ? "0 1px 3px rgba(184,92,44,0.25)" : "none" }}>
                 {filledCount > 0 ? <Ico name="check" size={11} color="#fff" /> : <span style={{ fontSize: 9, fontWeight: 700, color: TX3 }}>1</span>}
               </div>
               <span style={{ fontSize: 13, fontWeight: 700, color: TX, letterSpacing: "-0.1px" }}>{t("notes.posts")}</span>
@@ -1027,7 +1027,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
           /* Dispatching state */
           <div style={{ padding: "12px" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: ACL, borderRadius: 12, border: `1px solid ${ACL2}` }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 2px 10px rgba(217,123,13,0.15)" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 2px 10px rgba(184,92,44,0.15)" }}>
                 <div style={{ width: 22, height: 22, border: `3px solid ${AC}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 4 }}>Répartition en cours...</div>
@@ -1064,7 +1064,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
           /* Whisper en cours */
           <div style={{ padding: "12px" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 20px", background: ACL, borderRadius: 12, border: `1px solid ${ACL2}` }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 2px 10px rgba(217,123,13,0.15)" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 2px 10px rgba(184,92,44,0.15)" }}>
                 <div style={{ width: 22, height: 22, border: `3px solid ${AC}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 4 }}>Transcription en cours…</div>
@@ -1107,7 +1107,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 <button
                   onClick={submitTranscript}
                   disabled={!contTranscript.trim()}
-                  style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", border: "none", borderRadius: 10, background: contTranscript.trim() ? AC : SBB, color: contTranscript.trim() ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: contTranscript.trim() ? "pointer" : "default", fontFamily: "inherit", boxShadow: contTranscript.trim() ? "0 3px 12px rgba(217,123,13,0.2)" : "none" }}
+                  style={{ flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 20px", border: "none", borderRadius: 10, background: contTranscript.trim() ? AC : SBB, color: contTranscript.trim() ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: contTranscript.trim() ? "pointer" : "default", fontFamily: "inherit", boxShadow: contTranscript.trim() ? "0 3px 12px rgba(184,92,44,0.2)" : "none" }}
                 >
                   <span style={{ fontSize: 14 }}>✦</span>Répartir dans les postes
                 </button>
@@ -1229,7 +1229,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                     padding: "13px 20px", border: "none", borderRadius: 10, marginTop: 2,
                     background: AC,
                     color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                    boxShadow: "0 3px 14px rgba(217,123,13,0.25)", transition: "all 0.15s",
+                    boxShadow: "0 3px 14px rgba(184,92,44,0.25)", transition: "all 0.15s",
                   }}
                 >
                   {sel === "dictate" && hasSR ? (
@@ -1302,7 +1302,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                   fontSize: 13, fontWeight: 700,
                   cursor: freeWriteText.trim() && !contDispatching ? "pointer" : "not-allowed",
                   fontFamily: "inherit",
-                  boxShadow: freeWriteText.trim() && !contDispatching ? "0 3px 12px rgba(217,123,13,0.2)" : "none",
+                  boxShadow: freeWriteText.trim() && !contDispatching ? "0 3px 12px rgba(184,92,44,0.2)" : "none",
                 }}
               >
                 {contDispatching ? (
@@ -1632,7 +1632,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
 
       {/* ── Section 3 : Zone de génération ── */}
       {readyToGenerate ? (
-        <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${ACL2}`, background: WH, boxShadow: "0 2px 10px rgba(217,123,13,0.07)", transition: "all 0.3s" }}>
+        <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${ACL2}`, background: WH, boxShadow: "0 2px 10px rgba(184,92,44,0.07)", transition: "all 0.3s" }}>
           {/* Header */}
           <div className="ap-gen-header" style={{ background: AC, padding: "14px 20px", display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -1748,10 +1748,10 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                   background: AC,
                   color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                   letterSpacing: "-0.1px", transition: "box-shadow 0.3s, transform 0.15s",
-                  boxShadow: "0 3px 14px rgba(217,123,13,0.28)",
+                  boxShadow: "0 3px 14px rgba(184,92,44,0.28)",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 5px 20px rgba(217,123,13,0.38)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 3px 14px rgba(217,123,13,0.28)"; e.currentTarget.style.transform = "translateY(0)"; }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 5px 20px rgba(184,92,44,0.38)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 3px 14px rgba(184,92,44,0.28)"; e.currentTarget.style.transform = "translateY(0)"; }}
               >
                 <span style={{ fontSize: 15, opacity: 0.9 }}>✦</span>
                 {t("notes.generateBtn")}

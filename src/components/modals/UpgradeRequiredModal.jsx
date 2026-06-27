@@ -78,7 +78,7 @@ export function UpgradeRequiredModal({
             style={{
               width: 64, height: 64, borderRadius: RAD.full, background: WH,
               border: `1px solid ${ACL2}`,
-              boxShadow: "0 8px 24px rgba(192, 90, 44, 0.15)",
+              boxShadow: "0 8px 24px rgba(184,92,44, 0.15)",
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               marginBottom: SP.lg,
             }}
@@ -149,7 +149,7 @@ export function UpgradeRequiredModal({
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: SP.sm,
                 transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                boxShadow: "0 4px 14px rgba(192, 90, 44, 0.3)",
+                boxShadow: "0 4px 14px rgba(184,92,44, 0.3)",
               }}
               onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.98)")}
               onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}

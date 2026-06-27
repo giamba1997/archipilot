@@ -19,7 +19,7 @@ class ErrorBoundary extends Component {
             <p style={{ fontSize: 13, color: "#6B6B66", lineHeight: 1.6, marginBottom: 24 }}>
               Une erreur inattendue est survenue. Vos données sont en sécurité. Rechargez la page pour continuer.
             </p>
-            <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: "#C05A2C", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", border: "none", borderRadius: 8, background: "#B85C2C", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
               Recharger la page
             </button>
             {this.state.error && (
@@ -881,7 +881,7 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: BG, fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 42, height: 42, margin: "0 auto 12px" }} />
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#4A3428", marginBottom: 8, fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#1C1917", marginBottom: 8, fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
           <div style={{ width: 20, height: 20, border: `2.5px solid ${SBB}`, borderTopColor: AC, borderRadius: "50%", animation: "sp 0.6s linear infinite", margin: "0 auto" }} />
         </div>
       </div>
@@ -933,7 +933,7 @@ export default function App() {
         .sb-nav:hover { background: ${SB2} !important; }
         .sb-nav:hover span { color: ${TX} !important; }
         .sb-cta:hover { filter: brightness(1.06) !important; }
-        .method-card-dictate:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(201,90,27,0.18); }
+        .method-card-dictate:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(184,92,44,0.18); }
         .method-card-write:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-color: ${TX3} !important; }
         .ap-view-enter { animation: fadeIn 0.18s ease-out; }
         .profile-nav-item:hover { background: ${SB} !important; }
@@ -1152,7 +1152,7 @@ export default function App() {
         }
 
         @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,90,44,0.55); } 50% { box-shadow: 0 0 0 5px rgba(192,90,44,0); } }
+        @keyframes pulseDot { 0%, 100% { box-shadow: 0 0 0 0 rgba(184,92,44,0.55); } 50% { box-shadow: 0 0 0 5px rgba(184,92,44,0); } }
         @keyframes chatPopIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes chatTyping { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
@@ -1511,6 +1511,24 @@ export default function App() {
               }}
               onPermits={() => setView("permits")}
               onReports={() => setView("reports")}
+              onAddAction={({ text, who, urgent }) => {
+                setProjects(prev => prev.map(p => {
+                  if (p.id !== activeId) return p;
+                  const id = Math.max(0, ...(p.actions || []).map(a => a.id || 0)) + 1;
+                  const newAction = {
+                    id, text, who: who || "", urgent: !!urgent, open: true, since: "",
+                    createdAt: new Date().toISOString(), createdBy: profile?.name || "—",
+                  };
+                  return { ...p, actions: [...(p.actions || []), newAction] };
+                }));
+                showToast("Action ajoutée");
+              }}
+              onOpenAction={(a) => {
+                // Bascule rapide résolu / à traiter depuis le board v2.
+                setProjects(prev => prev.map(p =>
+                  p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => x.id === a.id ? { ...x, open: x.open === false ? true : false } : x) }
+                ));
+              }}
               activeTimer={activeTimer}
               onStartTimer={startTimer}
               onOpenSessions={(pid) => setShowSessionsModal(pid)}

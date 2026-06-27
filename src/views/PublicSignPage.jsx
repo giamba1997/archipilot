@@ -17,7 +17,7 @@ import { supabase } from "../supabase";
 //   submitting    — envoi en cours
 //   done          — signature enregistrée
 
-const AC = "#C95A1B";
+const AC = "#B85C2C";
 const TX = "#1D1D1B";
 const TX2 = "#3D3A36";
 const TX3 = "#807D77";
@@ -103,7 +103,7 @@ export function PublicSignPage({ token }) {
         {/* Brand header */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 40, height: 40, borderRadius: 10 }} />
-          <div style={{ fontFamily: "'Manrope', sans-serif", fontSize: 14, fontWeight: 800, color: "#4A3428", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
+          <div style={{ fontFamily: "'Manrope', sans-serif", fontSize: 14, fontWeight: 800, color: "#1C1917", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
         </div>
 
         {state === "loading" && <CardCenter><Spinner /><div style={{ color: TX3, fontSize: 13, marginTop: 12 }}>Chargement du document...</div></CardCenter>}

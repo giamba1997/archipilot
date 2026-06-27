@@ -20,7 +20,7 @@ export const PHASE_COLORS = [
   { id: "lavender", label: "Lavande",   color: "#6B4F86", bg: "#EBE2F0" },
   { id: "cream",    label: "Crème",     color: "#8B7B5A", bg: "#F0E8D5" },
   { id: "blueprint",label: "Bleu",      color: "#2E5680", bg: "#D6E1EB" },
-  { id: "peach",    label: "Terracotta",color: "#C05A2C", bg: "#F5DCC4" },
+  { id: "peach",    label: "Terracotta",color: "#B85C2C", bg: "#F5DCC4" },
   { id: "moss",     label: "Mousse",    color: "#4D8030", bg: "#D8E3CC" },
   { id: "graphite", label: "Graphite",  color: "#4A4644", bg: "#D8D5CE" },
   { id: "rose",     label: "Brique",    color: "#C04525", bg: "#F8DCCF" },

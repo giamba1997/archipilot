@@ -1192,7 +1192,7 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
 
             {/* Bannières mode actif (fixes dans planArea) */}
             {mode === "marker" && !pendingMarker && (
-              <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", background: "rgba(217,123,13,0.92)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "5px 14px 5px 10px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(4px)", zIndex: 20 }}>
+              <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", background: "rgba(184,92,44,0.92)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "5px 14px 5px 10px", borderRadius: 20, pointerEvents: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(4px)", zIndex: 20 }}>
                 <Ico name="mappin" size={12} color="#fff" />Cliquez pour ajouter une remarque
               </div>
             )}

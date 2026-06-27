@@ -78,7 +78,7 @@ export function MobileBottomBar({ view, onNavigate, onStartChantier, onNotifs, n
             rappeler à l'archi qu'il peut reprendre (indicateur global,
             visible sur toutes les pages). */}
         <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <button onClick={onStartChantier} aria-label={visitActive ? "Reprendre la visite en cours" : "Démarrer une visite chantier"} style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A54814 100%)`, border: "none", boxShadow: `0 0 20px rgba(201,90,27,0.4), 0 0 40px rgba(201,90,27,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
+          <button onClick={onStartChantier} aria-label={visitActive ? "Reprendre la visite en cours" : "Démarrer une visite chantier"} style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A04C20 100%)`, border: "none", boxShadow: `0 0 20px rgba(184,92,44,0.4), 0 0 40px rgba(184,92,44,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
             {visitActive && (
               <>
                 <span style={{ position: "absolute", inset: -4, borderRadius: "50%", border: `2.5px solid ${WH}`, boxShadow: `0 0 0 2px ${AC}`, animation: "fabVisitePulse 1.8s ease-in-out infinite", pointerEvents: "none" }} />

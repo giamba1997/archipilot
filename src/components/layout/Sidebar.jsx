@@ -60,7 +60,7 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 32, height: 32, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: "#4A3428", fontSize: 14, fontWeight: 800, letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</div>
+            <div style={{ color: "#1C1917", fontSize: 14, fontWeight: 800, letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</div>
           </div>
           <button onClick={onClose} aria-label="Réduire la barre latérale" title="Réduire la barre latérale" style={{ width: 32, height: 32, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = SB2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
             <Ico name="back" size={14} color={TX3} />
@@ -74,7 +74,7 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
         {/* Context switcher Personnel/Agences — retiré (POC solo, étage agence CUT). */}
 
         {/* CTA Nouveau projet — pleine largeur, signature element */}
-        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 0", minHeight: 38, border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 6, boxShadow: "0 1px 2px rgba(192,90,44,0.20)" }}>
+        <button onClick={onNewProject} className="sb-cta" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 0", minHeight: 38, border: "none", borderRadius: 8, background: AC, cursor: "pointer", fontFamily: "inherit", marginBottom: 6, boxShadow: "0 1px 2px rgba(184,92,44,0.20)" }}>
           <Ico name="plus" size={14} color="#fff" />
           <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "0.01em" }}>{t("sidebar.newProject")}</span>
         </button>
@@ -98,7 +98,7 @@ export function Sidebar({ projects, activeId, view, onSelect, open, onClose, pro
                 border: `1px solid ${isAct ? AC : SBB}`,
                 borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
                 background: WH,
-                boxShadow: isAct ? "0 1px 3px rgba(192,90,44,0.12)" : "none",
+                boxShadow: isAct ? "0 1px 3px rgba(184,92,44,0.12)" : "none",
                 transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
               }}>
                 <Ico name="chart" size={14} color={isAct ? AC : TX2} />

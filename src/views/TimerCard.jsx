@@ -124,7 +124,7 @@ export function TimerCard({ project, activeTimer, onStart, onPauseResume, onStop
             minHeight: 38, marginBottom: 10,
             cursor: isAnotherProjectActive ? "not-allowed" : "pointer",
             opacity: isAnotherProjectActive ? 0.7 : 1,
-            boxShadow: isAnotherProjectActive ? "none" : "0 1px 2px rgba(192,90,44,0.20)",
+            boxShadow: isAnotherProjectActive ? "none" : "0 1px 2px rgba(184,92,44,0.20)",
             transition: "filter 0.15s",
           }}
         >

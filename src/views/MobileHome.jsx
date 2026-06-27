@@ -231,7 +231,7 @@ export function MobileHome({
             background: ACL, border: `1px solid ${AC}`,
             borderRadius: RAD.md, cursor: "pointer",
             fontFamily: "inherit", textAlign: "left",
-            boxShadow: "0 2px 8px rgba(192,90,44,0.12)",
+            boxShadow: "0 2px 8px rgba(184,92,44,0.12)",
           }}
         >
           <div style={{

@@ -942,13 +942,13 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
         {isDragging && (
           <div style={{
             position: "absolute", inset: 0, zIndex: 10,
-            background: "rgba(192,90,44,0.08)",
+            background: "rgba(184,92,44,0.08)",
             border: `2px dashed ${AC}`, borderRadius: 14,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
             gap: 8, pointerEvents: "none",
             backdropFilter: "blur(2px)",
           }}>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(192,90,44,0.20)" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: WH, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(184,92,44,0.20)" }}>
               <Ico name="upload" size={22} color={AC} />
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: AC }}>Dépose tes fichiers ici</div>

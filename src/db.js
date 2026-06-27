@@ -79,7 +79,7 @@ export async function loadProfile() {
     phone: data.phone || "",
     email: data.email || user.email || "",
     picture: data.picture_url || null,
-    pdfColor: data.pdf_color || "#C95A1B",
+    pdfColor: data.pdf_color || "#B85C2C",
     pdfFont: data.pdf_font || "helvetica",
     // Note : api_key (champ user OpenAI BYO-key) supprimé du chargement —
     // l'app utilise désormais OPENAI_API_KEY côté edge function uniquement.

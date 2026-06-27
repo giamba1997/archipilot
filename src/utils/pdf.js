@@ -66,14 +66,14 @@ export const compositePlanImage = (project) => new Promise((resolve) => {
       // Shadow
       ctx.shadowColor = "rgba(0,0,0,0.3)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
       // Circle fill
-      ctx.fillStyle = "#C95A1B";
+      ctx.fillStyle = "#B85C2C";
       ctx.beginPath(); ctx.arc(mx, cy, r, 0, 2 * Math.PI); ctx.fill();
       ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
       // White border
       ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(2, r * 0.18);
       ctx.beginPath(); ctx.arc(mx, cy, r, 0, 2 * Math.PI); ctx.stroke();
       // Triangle pointer
-      ctx.fillStyle = "#C95A1B";
+      ctx.fillStyle = "#B85C2C";
       ctx.beginPath();
       ctx.moveTo(mx - r * 0.45, cy + r * 0.55);
       ctx.lineTo(mx + r * 0.45, cy + r * 0.55);
@@ -98,7 +98,7 @@ export async function generatePDF(project, pvNum, date, result, profile, options
   const ML = 18, MR = 18;
   const CW = W - ML - MR; // 174 mm
 
-  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const AMBER  = hexToRgb(profile?.pdfColor || "#B85C2C");
   const font   = profile?.pdfFont || "helvetica";
   const DARK   = [29, 29, 27];
   const GRAY   = [107, 107, 102];
@@ -503,7 +503,7 @@ export async function generateOprPdf(project, opr, profile, options) {
   const ML = 18, MR = 18;
   const CW = W - ML - MR;
 
-  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const AMBER  = hexToRgb(profile?.pdfColor || "#B85C2C");
   const font   = profile?.pdfFont || "helvetica";
   const DARK   = [29, 29, 27];
   const GRAY   = [107, 107, 102];
@@ -902,7 +902,7 @@ export async function generateChantierJournalPdf(project, timeline, profile, opt
   const ML = 18, MR = 18;
   const CW = W - ML - MR;
 
-  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const AMBER  = hexToRgb(profile?.pdfColor || "#B85C2C");
   const font   = profile?.pdfFont || "helvetica";
   const DARK   = [29, 29, 27];
   const GRAY   = [107, 107, 102];
@@ -1144,7 +1144,7 @@ export async function generateInvoicePdf(invoice, profile, options = {}) {
   const ML = 18, MR = 18;
   const CW = W - ML - MR;
 
-  const AMBER  = hexToRgb(profile?.pdfColor || "#C95A1B");
+  const AMBER  = hexToRgb(profile?.pdfColor || "#B85C2C");
   const font   = profile?.pdfFont || "helvetica";
   const DARK   = [29, 29, 27];
   const GRAY   = [107, 107, 102];

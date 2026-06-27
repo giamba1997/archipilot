@@ -208,7 +208,7 @@ export function CdcBanner({ project, profile, onUpload, onRemove, onAskAi, canEd
           <button
             onClick={() => askIa("compare_ft")}
             title="Ouvre le chat avec le document en pièce jointe. Joins ensuite la fiche technique à comparer."
-            style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(192,90,44,0.18)" }}
+            style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(184,92,44,0.18)" }}
           >
             <Ico name="sparkle" size={11} color={WH} />
             Comparer une FT

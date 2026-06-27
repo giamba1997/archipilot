@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { LegalPage, LegalLinks } from "./views/LegalPages";
 
 // ── Colors (matching App.jsx DA) ───────────────────────────
-const AC  = "#C05A2C";
+const AC  = "#B85C2C";
 const ACD = "#B8680A";
 const ACL = "#FDF4E7";
 const ACL2= "#FAE9CF";
@@ -417,13 +417,13 @@ export function AuthPage() {
           style={{
             width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
             background: loading ? "#D3D1C7" : hovered === "submit"
-              ? "linear-gradient(135deg, #A54814 0%, #A85A06 100%)"
-              : `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`,
+              ? "linear-gradient(135deg, #A04C20 0%, #8B3A14 100%)"
+              : `linear-gradient(135deg, ${AC} 0%, #A04C20 100%)`,
             color: "#fff", fontSize: 14, fontWeight: 700, cursor: loading ? "wait" : "pointer",
             fontFamily: "inherit", letterSpacing: "-0.1px",
             boxShadow: loading ? "none" : hovered === "submit"
-              ? "0 4px 16px rgba(201,90,27,0.35)"
-              : "0 3px 12px rgba(201,90,27,0.25)",
+              ? "0 4px 16px rgba(184,92,44,0.35)"
+              : "0 3px 12px rgba(184,92,44,0.25)",
             transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transform: hovered === "submit" && !loading ? "translateY(-1px)" : "none",
           }}
@@ -546,7 +546,7 @@ function PasswordStrength({ password }) {
     { ok: /[^A-Za-z0-9]/.test(password), label: "1 spécial" },
   ];
   const passed = checks.filter(c => c.ok).length;
-  const color = passed === 3 ? GR : passed >= 2 ? "#C05A2C" : RD;
+  const color = passed === 3 ? GR : passed >= 2 ? "#B85C2C" : RD;
 
   return (
     <div style={{ marginTop: 6 }}>
@@ -672,13 +672,13 @@ export function ResetPasswordPage() {
             style={{
               width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
               background: loading ? "#D3D1C7" : hovered === "reset"
-                ? "linear-gradient(135deg, #A54814 0%, #A85A06 100%)"
-                : `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`,
+                ? "linear-gradient(135deg, #A04C20 0%, #8B3A14 100%)"
+                : `linear-gradient(135deg, ${AC} 0%, #A04C20 100%)`,
               color: "#fff", fontSize: 15, fontWeight: 700, cursor: loading ? "wait" : "pointer",
               fontFamily: "inherit", letterSpacing: "-0.1px",
               boxShadow: loading ? "none" : hovered === "reset"
-                ? "0 4px 16px rgba(201,90,27,0.35)"
-                : "0 3px 12px rgba(201,90,27,0.25)",
+                ? "0 4px 16px rgba(184,92,44,0.35)"
+                : "0 3px 12px rgba(184,92,44,0.25)",
               transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               transform: hovered === "reset" && !loading ? "translateY(-1px)" : "none",
             }}
@@ -763,14 +763,14 @@ export function MfaVerifyPage() {
           style={{
             width: "100%", padding: "13px 20px", border: "none", borderRadius: 10,
             background: loading || code.length !== 6 ? "#D3D1C7" : hovered === "verify"
-              ? "linear-gradient(135deg, #A54814 0%, #A85A06 100%)"
-              : `linear-gradient(135deg, ${AC} 0%, #A54814 100%)`,
+              ? "linear-gradient(135deg, #A04C20 0%, #8B3A14 100%)"
+              : `linear-gradient(135deg, ${AC} 0%, #A04C20 100%)`,
             color: "#fff", fontSize: 15, fontWeight: 700,
             cursor: loading || code.length !== 6 ? "not-allowed" : "pointer",
             fontFamily: "inherit", letterSpacing: "-0.1px",
             boxShadow: loading || code.length !== 6 ? "none" : hovered === "verify"
-              ? "0 4px 16px rgba(201,90,27,0.35)"
-              : "0 3px 12px rgba(201,90,27,0.25)",
+              ? "0 4px 16px rgba(184,92,44,0.35)"
+              : "0 3px 12px rgba(184,92,44,0.25)",
             transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transform: hovered === "verify" && !(loading || code.length !== 6) ? "translateY(-1px)" : "none",
           }}
@@ -820,7 +820,7 @@ function PageShell({ children }) {
         }
         .auth-input:focus {
           border-color: ${AC} !important;
-          box-shadow: 0 0 0 3px rgba(201,90,27,0.12) !important;
+          box-shadow: 0 0 0 3px rgba(184,92,44,0.12) !important;
           outline: none !important;
         }
         .auth-input::placeholder { color: #A8A8A3; }
@@ -829,7 +829,7 @@ function PageShell({ children }) {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 20 }}>
           <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 40, height: 40, flexShrink: 0 }} />
-          <span style={{ fontSize: 20, fontWeight: 800, color: "#4A3428", letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: "#1C1917", letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
         </div>
 
         {/* Value props */}
