@@ -1540,6 +1540,8 @@ export default function App() {
                   setModal("viewpv");
                 } catch (e) { console.error("PDF generation failed:", e); }
               }}
+              onDocuments={() => setView("plan")}
+              onImportDoc={() => setView("plan")}
               activeTimer={activeTimer}
               onStartTimer={startTimer}
               onOpenSessions={(pid) => setShowSessionsModal(pid)}

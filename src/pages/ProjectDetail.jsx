@@ -113,7 +113,18 @@ const MOCK_PROJECT = {
     { id: 61, lotId: 6, title: "Peinture", status: "open", dueDate: "2026-10-10" },
     { id: 62, lotId: 6, title: "Sols souples", status: "open", dueDate: "2026-11-05" },
   ],
-  posts: [], gallery: [], planFiles: [], customFields: [], actions: [], journalEntries: [], timeSessions: [],
+  planFiles: [
+    { type: "folder", name: "Plans", count: 24 },
+    { type: "folder", name: "Permis", count: 8 },
+    { type: "folder", name: "Devis & marchés", count: 15 },
+    { type: "folder", name: "PV de chantier", count: 11 },
+    { type: "folder", name: "Administratif", count: 6 },
+    { name: "Plan d'exécution — Niveau R+2 — rév. C.pdf", category: "Plan", size: 4404019, modified: "hier · 16:40" },
+    { name: "Coupe AA — façade principale.dwg", category: "Plan", size: 1887436, modified: "23 juin" },
+    { name: "Devis Elek & Co — lot électricité.pdf", category: "Devis", size: 839680, modified: "19 juin" },
+    { name: "Métré général — version 4.xlsx", category: "Tableur", size: 348160, modified: "14 juin" },
+  ],
+  posts: [], gallery: [], customFields: [], actions: [], journalEntries: [], timeSessions: [],
 };
 
 // statusId → label + variant Badge sémantique + ordre de phase (1..7).
@@ -432,6 +443,44 @@ function derivePvList(project) {
     }));
 }
 
+// ── Documents : dossiers + fichiers récents ──
+function fileExt(name) {
+  const m = String(name || "").match(/\.([a-z0-9]+)$/i);
+  return m ? m[1].toLowerCase() : "";
+}
+// Type → badge carré (couleur sémantique douce) + libellé de colonne "Type".
+const FILE_KIND = {
+  pdf:  { label: "PDF", variant: "danger",  type: "Document" },
+  dwg:  { label: "DWG", variant: "info",    type: "Plan" },
+  dxf:  { label: "DXF", variant: "info",    type: "Plan" },
+  xls:  { label: "XLS", variant: "success", type: "Tableur" },
+  xlsx: { label: "XLS", variant: "success", type: "Tableur" },
+  doc:  { label: "DOC", variant: "info",    type: "Document" },
+  docx: { label: "DOC", variant: "info",    type: "Document" },
+  jpg:  { label: "IMG", variant: "neutral", type: "Image" },
+  jpeg: { label: "IMG", variant: "neutral", type: "Image" },
+  png:  { label: "IMG", variant: "neutral", type: "Image" },
+};
+function fileKind(name) {
+  return FILE_KIND[fileExt(name)] || { label: (fileExt(name) || "?").toUpperCase().slice(0, 3), variant: "neutral", type: "Fichier" };
+}
+function fmtSize(s) {
+  if (typeof s === "string") return s;
+  if (!s || isNaN(s)) return "—";
+  if (s < 1024) return `${s} o`;
+  if (s < 1048576) return `${Math.round(s / 1024)} Ko`;
+  return `${(s / 1048576).toFixed(1)} Mo`;
+}
+function deriveDocuments(project) {
+  const all = (project?.planFiles && project.planFiles.length ? project.planFiles : project?.documents) || [];
+  const folders = all.filter(f => f.type === "folder").map(f => ({ name: f.name, count: f.count ?? (f.children || []).length }));
+  const files = all.filter(f => f.type !== "folder").map(f => {
+    const kind = fileKind(f.name);
+    return { name: f.name || "Sans nom", kind, typeLabel: f.category || kind.type, size: fmtSize(f.size), modified: f.modified || (f.date ? pvDateShort(f.date) : ""), raw: f };
+  });
+  return { folders, files };
+}
+
 function deriveUpdatedAt(project) {
   let latest = 0;
   const consider = (v) => {
@@ -473,6 +522,8 @@ export function ProjectDetail({
   onViewPV,
   onViewPdf,
   onSendPv,
+  onDocuments,
+  onImportDoc,
   activeTimer,
   onStartTimer,
   onOpenSessions,
@@ -537,7 +588,7 @@ export function ProjectDetail({
   const planning    = useMemo(() => derivePlanning(project), [project]);
   const journal     = useMemo(() => deriveJournal(project), [project]);
 
-  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onViewPV, onViewPdf, onSendPv, onEditMeeting };
+  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onEditMeeting };
 
   return (
     <div
@@ -584,7 +635,10 @@ export function ProjectDetail({
       {activeTab === "pv" && (
         <PvTab project={project} handlerMap={handlerMap} />
       )}
-      {!["summary", "sheet", "actions", "planning", "pv"].includes(activeTab) && (
+      {activeTab === "docs" && (
+        <DocumentsTab project={project} handlerMap={handlerMap} />
+      )}
+      {!["summary", "sheet", "actions", "planning", "pv", "docs"].includes(activeTab) && (
         <TabPlaceholder label={tabs.find(t => t.id === activeTab)?.label} />
       )}
     </div>
@@ -1968,6 +2022,111 @@ function PvRow({ item, isLast, onView, onPdf, onSend }) {
         </IconButton>
         <IconButton variant="ghost" size="sm" label="Envoyer le PV" onClick={onSend ? () => onSend(item.raw) : undefined} disabled={!onSend}>
           <Icons.send size={16} />
+        </IconButton>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Onglet Documents : dossiers (grille) + fichiers récents (table)
+// ─────────────────────────────────────────────────────────────
+
+function docKindColors(variant) {
+  if (variant === "neutral") return { bg: tokens.color.neutral[100], fg: tokens.color.neutral[700] };
+  const s = tokens.color.semantic[variant];
+  return { bg: s.bg, fg: s.fg };
+}
+
+function DocumentsTab({ project, handlerMap }) {
+  const { folders, files } = useMemo(() => deriveDocuments(project), [project]);
+  const openDocs = handlerMap.onDocuments;
+  const onImport = handlerMap.onImportDoc || handlerMap.onDocuments;
+
+  return (
+    <div>
+      {/* Toolbar : fil d'ariane + import */}
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], marginBottom: tokens.space[5] }}>
+        <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>
+          Tous les fichiers <span style={{ color: tokens.color.neutral[300] }}>/</span> <span style={{ color: tokens.color.neutral[900], fontWeight: tokens.font.weight.medium }}>{project?.name || "Projet"}</span>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <Button variant="primary" size="md" leftIcon={<Svg size={15} sw={1.8}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></Svg>} onClick={onImport || undefined} disabled={!onImport}>
+            Importer
+          </Button>
+        </div>
+      </div>
+
+      {folders.length === 0 && files.length === 0 ? (
+        <div style={{ padding: tokens.space[10], background: tokens.color.neutral[50], border: `1px dashed ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, textAlign: "center" }}>
+          <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[700], marginBottom: tokens.space[1] }}>Aucun document</div>
+          <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>Importe plans, permis, devis et pièces administratives pour les retrouver ici.</div>
+        </div>
+      ) : (
+        <>
+          {folders.length > 0 && (
+            <>
+              <div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: tokens.space[3] }}>Dossiers</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: tokens.space[3], marginBottom: tokens.space[6] }}>
+                {folders.map((f, i) => <FolderCard key={i} folder={f} onClick={openDocs} />)}
+              </div>
+            </>
+          )}
+
+          {files.length > 0 && (
+            <>
+              <div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: tokens.space[3] }}>Fichiers récents</div>
+              <Card padding={0} style={{ borderRadius: tokens.radius.xl, overflow: "hidden" }}>
+                {/* En-tête de table */}
+                <div style={{ display: "flex", alignItems: "center", gap: tokens.space[4], padding: `${tokens.space[2]} ${tokens.space[4]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}`, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  <span style={{ flex: 1 }}>Nom</span>
+                  <span style={{ width: 90 }}>Type</span>
+                  <span style={{ width: 80 }}>Taille</span>
+                  <span style={{ width: 110 }}>Modifié</span>
+                  <span style={{ width: 32 }} />
+                </div>
+                {files.map((file, i) => <FileRow key={i} file={file} isLast={i === files.length - 1} onOpen={openDocs} />)}
+              </Card>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FolderCard({ folder, onClick }) {
+  return (
+    <Card onClick={onClick || undefined} ariaLabel={`Dossier ${folder.name}`} padding={4} style={{ borderRadius: tokens.radius.lg }}>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill={tokens.color.brand[100]} stroke="#B58A6F" strokeWidth="1.4" aria-hidden="true">
+        <path d="M4 7a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+      </svg>
+      <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], marginTop: tokens.space[2] }}>{folder.name}</div>
+      <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{folder.count} fichier{folder.count > 1 ? "s" : ""}</div>
+    </Card>
+  );
+}
+
+function FileRow({ file, isLast, onOpen }) {
+  const [hover, setHover] = useState(false);
+  const c = docKindColors(file.kind.variant);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onOpen ? () => onOpen(file.raw) : undefined}
+      style={{ display: "flex", alignItems: "center", gap: tokens.space[4], padding: `${tokens.space[3]} ${tokens.space[4]}`, borderBottom: isLast ? "none" : `1px solid ${tokens.color.neutral[100]}`, background: hover ? tokens.color.neutral[50] : "transparent", cursor: onOpen ? "pointer" : "default", transition: tokens.transition.base }}
+    >
+      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: tokens.space[3], minWidth: 0 }}>
+        <div style={{ width: 32, height: 32, borderRadius: tokens.radius.md, background: c.bg, color: c.fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 9, fontWeight: tokens.font.weight.bold }}>{file.kind.label}</div>
+        <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{file.name}</span>
+      </div>
+      <span style={{ width: 90, fontSize: tokens.font.size.xs, color: tokens.color.neutral[700] }}>{file.typeLabel}</span>
+      <span style={{ width: 80, fontSize: tokens.font.size.xs, color: tokens.color.neutral[700] }}>{file.size}</span>
+      <span style={{ width: 110, fontSize: tokens.font.size.xs, color: tokens.color.neutral[700] }}>{file.modified || "—"}</span>
+      <div style={{ width: 32, flexShrink: 0, display: "flex", justifyContent: "center" }} onClick={e => e.stopPropagation()}>
+        <IconButton variant="ghost" size="sm" label="Plus d'actions" onClick={onOpen ? () => onOpen(file.raw) : undefined} disabled={!onOpen}>
+          <Svg size={16}><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" /></Svg>
         </IconButton>
       </div>
     </div>
