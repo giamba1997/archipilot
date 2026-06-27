@@ -3,7 +3,9 @@ import { tokens } from "../design/tokens";
 import { Button } from "../components/ui/v2/Button";
 import { parseDateFR } from "../utils/dates";
 import { supabase } from "../supabase";
-import { parseFunctionError, track } from "../db";
+import { parseFunctionError, track, sendPvByEmail } from "../db";
+import { generatePDF } from "../utils/pdf";
+import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
 import { nextPvNumber, parseNotesToRemarks, stripMarkdown, cleanPvOutput } from "../utils/helpers";
 import { PV_TEMPLATES } from "../constants/templates";
 import { useT } from "../i18n";
@@ -180,11 +182,53 @@ export function PvComposer({
   };
   const removeRemark = (postId, rid) => mutatePost(postId, po => ({ ...po, remarks: (po.remarks || []).filter(r => r.id !== rid) }));
 
+  // ── Diffusion : destinataires, envoi email, création de tâches ──
+  const [diffChecked, setDiffChecked] = useState({});
+  const [diffAttachPdf, setDiffAttachPdf] = useState(true);
+  const [sending, setSending] = useState(false);
+  const isChecked = (i) => diffChecked[i] !== false; // coché par défaut
+  const recipients = useMemo(() => {
+    if (demo) return DIFF_RECIPIENTS;
+    const palette = [["#DBEAFE", tokens.color.semantic.info.fg], ["#DCFCE7", tokens.color.semantic.success.fg], [tokens.color.brand[100], tokens.color.brand[700]], [tokens.color.neutral[100], tokens.color.neutral[500]]];
+    return (project.participants || []).filter(p => p.email && p.email.trim()).map((p, i) => ({ ini: initials(p.name), name: p.name, email: p.email, role: p.role || "", avBg: palette[i % 4][0], avFg: palette[i % 4][1] }));
+  }, [project, demo]);
+  const subject = `PV n°${meta.num} — ${project?.name || ""}${project?.nextMeeting ? ` (${project.nextMeeting})` : ""}`;
+  const customMessage = `<p>Bonjour,</p><p>Veuillez trouver ci-joint le procès-verbal de la réunion de chantier. Les points en attente y sont détaillés par poste.</p><p>Bien cordialement,<br>${profile?.name || "L'architecte"}${profile?.agency ? ` — ${profile.agency}` : ""}</p>`;
+
+  const sendPv = async () => {
+    saveDraft();
+    if (demo) { finish(); return; }
+    const to = recipients.filter((_, i) => isChecked(i)).map(r => r.email).filter(Boolean);
+    if (!to.length) { finish(); return; }
+    setSending(true);
+    try {
+      let pdfBase64 = null, pdfFileName = null;
+      if (diffAttachPdf) {
+        try { const res = await generatePDF(project, meta.num, today, gen.content, profile, { returnDataUrl: true }); pdfBase64 = res.dataUrl.split(",")[1]; pdfFileName = res.fileName; } catch { /* PV part sans PDF si la génération échoue */ }
+      }
+      const r = await sendPvByEmail({ to, projectName: project.name, pvNumber: meta.num, pvDate: today, pvContent: gen.content, authorName: profile?.name || "Architecte", structureName: profile?.agency || profile?.structureName || "", pdfBase64, pdfFileName, subject, customMessage });
+      if (r?.upgradeRequired) { onRequireUpgrade?.(r.upgradeRequired.feature || "maxEmailPerMonth"); setSending(false); return; }
+      if (r?.error) throw new Error(r.error);
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: (p.pvHistory || []).map(pv => pv.number === meta.num ? { ...pv, status: "sent" } : pv) } : p));
+      finish();
+    } catch (e) { setSending(false); alert("Envoi échoué : " + (e.message || "erreur")); }
+  };
+
+  const createTask = (task) => {
+    if (demo) return;
+    setProjects(prev => prev.map(p => {
+      if (p.id !== project.id) return p;
+      const id = Math.max(0, ...(p.actions || []).map(a => a.id || 0)) + 1;
+      const newA = { id, text: task.title || task.description || "Action", who: "", urgent: task.severity === "major" || task.priority === "urgent", open: true, since: `PV n°${meta.num}`, createdAt: new Date().toISOString(), createdBy: profile?.name || "—" };
+      return { ...p, actions: [...(p.actions || []), newA] };
+    }));
+  };
+
   const stepIndex = step === "redaction" ? 2 : step === "diffusion" ? 3 : 1;
   const stepCta =
     step === "saisie" ? { label: "Continuer vers la rédaction", onClick: () => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); } }
     : step === "redaction" ? { label: "Continuer vers la diffusion", onClick: () => { saveDraft(); setStep("diffusion"); }, disabled: !demo && (gen.loading || (!gen.content && !gen.error)) }
-    : step === "diffusion" ? { label: "Valider et envoyer", onClick: () => { saveDraft(); finish(); } }
+    : step === "diffusion" ? { label: sending ? "Envoi…" : "Valider et envoyer", onClick: sendPv, disabled: sending }
     : null;
 
   return (
@@ -228,7 +272,7 @@ export function PvComposer({
         {step === "choice" && <ChoiceStep meta={meta} onChoose={() => setStep("saisie")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
-        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} />}
+        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
     </div>
   );
@@ -405,6 +449,16 @@ function SaisieStep({ project, meta, demo, onAddRemark }) {
     setDraft("");
   };
 
+  // Dictée : transcription Whisper → découpée en remarques sur le poste actif.
+  const recorder = useWhisperRecorder({
+    onResult: (text) => {
+      if (demo || !text) return;
+      const parts = String(text).split(/(?<=[.!?…])\s+/).map(s => s.trim()).filter(Boolean);
+      (parts.length ? parts : [text.trim()]).forEach(p => p && onAddRemark(activePoste, p, status));
+    },
+    onError: () => {},
+  });
+
   return (
     <>
       {/* Bandeau de contexte : date, météo, présents */}
@@ -484,21 +538,27 @@ function SaisieStep({ project, meta, demo, onAddRemark }) {
                   return <button key={m.id} onClick={() => setMode(m.id)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: tokens.radius.sm, border: "none", background: a ? tokens.color.neutral[0] : "transparent", boxShadow: a ? tokens.shadow.sm : "none", color: a ? tokens.color.neutral[900] : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: a ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{m.id === "dictate" && <I.mic size={12} />}{m.label}</button>;
                 })}
               </div>
-              <input
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") addRemark(); }}
-                placeholder={`Ajouter une remarque au poste ${poste.name}…`}
-                style={{ flex: 1, minWidth: 0, height: 34, border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: tokens.font.size.base, color: tokens.color.neutral[900] }}
-              />
-              <div style={{ display: "flex", alignItems: "center", gap: tokens.space[1], flexShrink: 0 }}>
-                {["observation", "urgent"].map(s => {
-                  const a = s === status;
-                  const sc = REMARK_STATUS[s];
-                  return <button key={s} onClick={() => setStatus(s)} style={{ height: 30, padding: `0 ${tokens.space[2]}`, background: a ? sc.bg : tokens.color.neutral[0], border: `1px solid ${a ? sc.border : tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: a ? sc.fg : tokens.color.neutral[500], cursor: "pointer", textTransform: "capitalize" }}>{s === "observation" ? "Observation" : "Urgent"}</button>;
-                })}
-              </div>
-              <Button variant="primary" size="md" onClick={addRemark} disabled={!draft.trim()}>Ajouter</Button>
+              {mode === "write" ? (
+                <>
+                  <input
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") addRemark(); }}
+                    placeholder={`Ajouter une remarque au poste ${poste.name}…`}
+                    style={{ flex: 1, minWidth: 0, height: 34, border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: tokens.font.size.base, color: tokens.color.neutral[900] }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: tokens.space[1], flexShrink: 0 }}>
+                    {["observation", "urgent"].map(s => {
+                      const a = s === status;
+                      const sc = REMARK_STATUS[s];
+                      return <button key={s} onClick={() => setStatus(s)} style={{ height: 30, padding: `0 ${tokens.space[2]}`, background: a ? sc.bg : tokens.color.neutral[0], border: `1px solid ${a ? sc.border : tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: a ? sc.fg : tokens.color.neutral[500], cursor: "pointer", textTransform: "capitalize" }}>{s === "observation" ? "Observation" : "Urgent"}</button>;
+                    })}
+                  </div>
+                  <Button variant="primary" size="md" onClick={addRemark} disabled={!draft.trim()}>Ajouter</Button>
+                </>
+              ) : (
+                <DictateBar recorder={recorder} demo={demo} posteName={poste.name} />
+              )}
             </div>
           </div>
         </div>
@@ -521,6 +581,30 @@ function PresentChip({ ini, name, present }) {
     <div style={{ display: "flex", alignItems: "center", gap: tokens.space[1], height: 28, padding: "0 10px 0 4px", borderRadius: tokens.radius.full, background: present ? tokens.color.semantic.success.bg : tokens.color.neutral[50], border: `1px solid ${present ? tokens.color.semantic.success.border : tokens.color.neutral[200]}`, whiteSpace: "nowrap" }}>
       <span style={{ width: 20, height: 20, borderRadius: tokens.radius.full, background: present ? "#DCFCE7" : tokens.color.neutral[100], color: present ? tokens.color.semantic.success.fg : tokens.color.neutral[500], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{ini}</span>
       <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: present ? tokens.color.semantic.success.fg : tokens.color.neutral[500], textDecoration: present ? "none" : "line-through" }}>{name}</span>
+    </div>
+  );
+}
+
+function DictateBar({ recorder: rec, demo, posteName }) {
+  const active = rec.isRecording;
+  const label = demo ? "Dictée (démo)" : active ? "Arrêter" : rec.isTranscribing ? "Transcription…" : "Enregistrer";
+  const hint = demo
+    ? "La dictée est active dans le vrai flux de génération."
+    : active ? "Parle — l'IA transcrit et range en remarques…"
+    : rec.isTranscribing ? "Transcription en cours…"
+    : `Dicte tes remarques pour « ${posteName} »`;
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: tokens.space[3], minWidth: 0 }}>
+      <button
+        onClick={() => { if (demo) return; active ? rec.stop() : rec.start(); }}
+        disabled={demo || rec.isTranscribing}
+        style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 36, padding: `0 ${tokens.space[4]}`, borderRadius: tokens.radius.md, border: "none", cursor: demo ? "not-allowed" : "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, background: active ? tokens.color.semantic.danger.fg : tokens.color.brand[500], color: "#fff", opacity: demo ? 0.6 : 1, ...(active ? { animation: "pvpulse 1.2s ease-in-out infinite" } : null) }}>
+        {active ? <span style={{ width: 10, height: 10, borderRadius: 2, background: "#fff" }} /> : <I.mic size={15} />}
+        {label}
+        <style>{`@keyframes pvpulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }`}</style>
+      </button>
+      <span style={{ flex: 1, minWidth: 0, fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{hint}</span>
+      {rec.error && <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg, flexShrink: 0 }}>Micro indisponible</span>}
     </div>
   );
 }
@@ -721,10 +805,14 @@ const DIFF_RECIPIENTS = [
   { ini: "MG", name: "Marc Genin", email: "m.genin@genin-sa.be", role: "Entreprise", avBg: "#DCFCE7", avFg: tokens.color.semantic.success.fg },
 ];
 
-function DiffusionStep({ meta, project }) {
-  const [checked, setChecked] = useState({ 0: true, 1: true });
-  const [attachPdf, setAttachPdf] = useState(true);
-  const subject = `PV n°${meta.num} — ${project?.name}${project?.nextMeeting ? ` (${project.nextMeeting})` : ""}`;
+function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subject, isChecked, onToggleRecipient, attachPdf, onToggleAttach, onCreateTask, profile }) {
+  const [tasks, setTasks] = useState(() => demo
+    ? DIFF_TASKS
+    : (suggestedTasks || []).map((t, i) => ({ id: `s${i}`, title: t.title || t.description || "Action", priority: t.severity === "major" ? "high" : "medium", urgent: t.severity === "major", quote: t.description && t.description !== t.title ? t.description : "", raw: t })));
+
+  const accept = (t) => { onCreateTask?.(t.raw || t); setTasks(ts => ts.filter(x => x.id !== t.id)); };
+  const ignore = (t) => setTasks(ts => ts.filter(x => x.id !== t.id));
+  const acceptAll = () => { tasks.forEach(t => onCreateTask?.(t.raw || t)); setTasks([]); };
 
   return (
     <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -734,12 +822,14 @@ function DiffusionStep({ meta, project }) {
           <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.spark size={18} /></span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900] }}>Tâches suggérées</div>
-            <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{DIFF_TASKS.length} actions détectées dans le PV — valide celles à suivre</div>
+            <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{tasks.length > 0 ? `${tasks.length} action${tasks.length > 1 ? "s" : ""} détectée${tasks.length > 1 ? "s" : ""} dans le PV — valide celles à suivre` : "Aucune action à créer."}</div>
           </div>
-          <Button variant="secondary" size="sm">Tout accepter</Button>
+          {tasks.length > 0 && <Button variant="secondary" size="sm" onClick={acceptAll} disabled={demo}>Tout accepter</Button>}
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]} ${tokens.space[5]}`, display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
-          {DIFF_TASKS.map(t => <DiffTaskCard key={t.id} t={t} />)}
+          {tasks.length === 0
+            ? <div style={{ padding: tokens.space[8], textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>L'IA n'a pas détecté de tâche à suivre dans ce PV.</div>
+            : tasks.map(t => <DiffTaskCard key={t.id} t={t} onAccept={() => accept(t)} onIgnore={() => ignore(t)} demo={demo} />)}
         </div>
       </div>
 
@@ -754,13 +844,14 @@ function DiffusionStep({ meta, project }) {
           <div>
             <FieldLabel>Destinataires</FieldLabel>
             <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-              {DIFF_RECIPIENTS.map((r, i) => (
-                <label key={i} onClick={() => setChecked(c => ({ ...c, [i]: !c[i] }))} style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[2]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, cursor: "pointer" }}>
-                  <Check on={checked[i]} />
+              {recipients.length === 0 && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], padding: `${tokens.space[1]} 0` }}>Aucun intervenant avec email — ajoute des destinataires.</div>}
+              {recipients.map((r, i) => (
+                <label key={i} onClick={() => onToggleRecipient?.(i)} style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[2]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, cursor: "pointer" }}>
+                  <Check on={isChecked(i)} />
                   <span style={{ width: 26, height: 26, borderRadius: tokens.radius.full, background: r.avBg, color: r.avFg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: tokens.font.weight.bold }}>{r.ini}</span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], fontWeight: tokens.font.weight.medium }}>{r.name}</div>
-                    <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{r.email} · {r.role}</div>
+                    <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.email}{r.role ? ` · ${r.role}` : ""}</div>
                   </div>
                 </label>
               ))}
@@ -775,11 +866,11 @@ function DiffusionStep({ meta, project }) {
           </div>
 
           {/* Joindre PDF */}
-          <label onClick={() => setAttachPdf(v => !v)} style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[3]} ${tokens.space[3]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[50], cursor: "pointer" }}>
+          <label onClick={onToggleAttach} style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[3]} ${tokens.space[3]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[50], cursor: "pointer" }}>
             <div style={{ width: 30, height: 30, borderRadius: tokens.radius.md, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: tokens.font.weight.bold }}>PDF</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], fontWeight: tokens.font.weight.medium }}>Joindre le PV en PDF</div>
-              <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Avec en-tête de l'agence · sans filigrane</div>
+              <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>En-tête de l'agence</div>
             </div>
             <Toggle on={attachPdf} />
           </label>
@@ -788,7 +879,7 @@ function DiffusionStep({ meta, project }) {
           <div>
             <FieldLabel>Message</FieldLabel>
             <div style={{ border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: `${tokens.space[3]} ${tokens.space[3]}`, fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], lineHeight: 1.55 }}>
-              Bonjour,<br />Veuillez trouver ci-joint le procès-verbal de la réunion de chantier du 30 juin. Les points en attente y sont détaillés par lot.<br /><br />Bien cordialement,<br /><span style={{ color: tokens.color.neutral[900], fontWeight: tokens.font.weight.semibold }}>Gaëlle Dupont</span> <span style={{ color: tokens.color.neutral[500] }}>— Atelier d'architecture</span>
+              Bonjour,<br />Veuillez trouver ci-joint le procès-verbal de la réunion de chantier. Les points en attente y sont détaillés par poste.<br /><br />Bien cordialement,<br /><span style={{ color: tokens.color.neutral[900], fontWeight: tokens.font.weight.semibold }}>{profile?.name || "Gaëlle Dupont"}</span> <span style={{ color: tokens.color.neutral[500] }}>{profile?.agency ? `— ${profile.agency}` : "— Atelier d'architecture"}</span>
             </div>
           </div>
         </div>
@@ -817,22 +908,23 @@ function Toggle({ on }) {
   );
 }
 
-function DiffTaskCard({ t }) {
+function DiffTaskCard({ t, onAccept, onIgnore, demo }) {
+  const isUrgent = t.urgent || t.priority === "urgent";
   return (
-    <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: t.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, padding: tokens.space[4] }}>
+    <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: isUrgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, padding: tokens.space[4] }}>
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[3] }}>
         <span style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{t.title}</span>
-        {t.urgent && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, fontWeight: tokens.font.weight.semibold }}>Urgent</span>}
+        {isUrgent && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, fontWeight: tokens.font.weight.semibold }}>Urgent</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexWrap: "wrap", marginBottom: tokens.space[3] }}>
-        <MetaChip danger={t.priority === "urgent"}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: t.priority === "urgent" ? tokens.color.semantic.danger.fg : "#D97706" }} />{t.priority === "urgent" ? "Urgent" : "Haute"}</MetaChip>
-        <MetaChip><I.cal size={12} />{t.date}</MetaChip>
-        <MetaChip><span style={{ width: 18, height: 18, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{t.assignee.ini}</span>{t.assignee.name}</MetaChip>
+        <MetaChip danger={isUrgent}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: isUrgent ? tokens.color.semantic.danger.fg : "#D97706" }} />{isUrgent ? "Urgent" : "Haute"}</MetaChip>
+        {t.date && <MetaChip><I.cal size={12} />{t.date}</MetaChip>}
+        {t.assignee && <MetaChip><span style={{ width: 18, height: 18, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{t.assignee.ini}</span>{t.assignee.name}</MetaChip>}
       </div>
-      <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], background: tokens.color.neutral[50], borderLeft: `2px solid ${tokens.color.neutral[200]}`, padding: `${tokens.space[1]} ${tokens.space[3]}`, borderRadius: "0 6px 6px 0", marginBottom: tokens.space[3] }}>« {t.quote} »</div>
+      {t.quote && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], background: tokens.color.neutral[50], borderLeft: `2px solid ${tokens.color.neutral[200]}`, padding: `${tokens.space[1]} ${tokens.space[3]}`, borderRadius: "0 6px 6px 0", marginBottom: tokens.space[3] }}>« {t.quote} »</div>}
       <div style={{ display: "flex", gap: tokens.space[2] }}>
-        <Button variant="primary" size="sm">Créer la tâche</Button>
-        <Button variant="secondary" size="sm">Ignorer</Button>
+        <Button variant="primary" size="sm" onClick={onAccept} disabled={demo}>Créer la tâche</Button>
+        <Button variant="secondary" size="sm" onClick={onIgnore}>Ignorer</Button>
       </div>
     </div>
   );
