@@ -71,14 +71,46 @@ const MOCK_PROJECT = {
   client: "Ville de Nivelles",
   contractor: "Entreprise Générale Dupont",
   street: "Grand-Place", number: "1", postalCode: "1400", city: "Nivelles", country: "Belgique",
-  nextMeeting: "", recurrence: "weekly",
+  missionType: "Mission complète", surface: 2400, worksAmount: 4200000,
+  startDate: "12/02/2026", receptionDate: "déc. 2026",
+  nextMeeting: "30/06/2026", recurrence: "weekly",
   participants: [
-    { name: "Ville de Nivelles", role: "MO" },
-    { name: "Maître d'ouvrage", role: "MO" },
-    { name: "Entreprise Générale", role: "ENT" },
+    { name: "Paul Mertens", role: "Maître d'ouvrage", company: "Ville de Nivelles", phone: "+32 67 88 22 00" },
+    { name: "Gaëlle Dupont", role: "Architecte mandataire", company: "Atelier GD", phone: "+32 478 12 34 56" },
+    { name: "Marc Genin", role: "Entreprise · conducteur", company: "Entreprise Genin", phone: "+32 71 45 67 89" },
+    { name: "Bureau Stab+", role: "Ingénieur stabilité", company: "Stab+", phone: "+32 81 22 33 44" },
   ],
-  posts: [], pvHistory: [], reserves: [], gallery: [], planFiles: [],
-  lots: [], customFields: [], actions: [], journalEntries: [], timeSessions: [],
+  pvHistory: [
+    { number: 1, status: "validated", date: "10/05/2026" },
+    { number: 2, status: "validated", date: "20/06/2026" },
+  ],
+  reserves: [
+    { id: 1, status: "levee" },
+    { id: 2, status: "open", severity: "critique" },
+    { id: 3, status: "open" },
+  ],
+  lots: [
+    { id: 1, name: "Gros œuvre", contractor: "Entreprise Genin" },
+    { id: 2, name: "Toiture & étanchéité", contractor: "Toitures Lurquin" },
+    { id: 3, name: "Électricité", contractor: "Elek & Co" },
+    { id: 4, name: "HVAC", contractor: "ClimaTech" },
+    { id: 5, name: "Menuiserie ext.", contractor: "Bois & Cie" },
+    { id: 6, name: "Finitions", contractor: "" },
+  ],
+  tasks: [
+    { id: 11, lotId: 1, title: "Fondations", status: "closed", dueDate: "2026-02-20" },
+    { id: 12, lotId: 1, title: "Élévation", status: "closed", dueDate: "2026-03-25" },
+    { id: 21, lotId: 2, title: "Charpente", status: "closed", dueDate: "2026-04-15" },
+    { id: 22, lotId: 2, title: "Étanchéité", status: "closed", dueDate: "2026-05-05" },
+    { id: 31, lotId: 3, title: "Tirage des câbles", status: "closed", dueDate: "2026-05-20" },
+    { id: 32, lotId: 3, title: "Tableaux & appareillage", status: "in_progress", dueDate: "2026-07-10" },
+    { id: 41, lotId: 4, title: "Réseau de gaines", status: "in_progress", dueDate: "2026-07-20" },
+    { id: 42, lotId: 4, title: "Centrale de traitement", status: "open", dueDate: "2026-08-15" },
+    { id: 51, lotId: 5, title: "Pose des châssis", status: "open", dueDate: "2026-06-20" },
+    { id: 61, lotId: 6, title: "Peinture", status: "open", dueDate: "2026-10-10" },
+    { id: 62, lotId: 6, title: "Sols souples", status: "open", dueDate: "2026-11-05" },
+  ],
+  posts: [], gallery: [], planFiles: [], customFields: [], actions: [], journalEntries: [], timeSessions: [],
 };
 
 // statusId → label + variant Badge sémantique + ordre de phase (1..7).
@@ -491,7 +523,10 @@ export function ProjectDetail({
       {activeTab === "actions" && (
         <ActionsTab project={project} handlerMap={handlerMap} />
       )}
-      {!["summary", "sheet", "actions"].includes(activeTab) && (
+      {activeTab === "planning" && (
+        <PlanningTab project={project} phase={phase} handlerMap={handlerMap} />
+      )}
+      {!["summary", "sheet", "actions", "planning"].includes(activeTab) && (
         <TabPlaceholder label={tabs.find(t => t.id === activeTab)?.label} />
       )}
     </div>
@@ -1472,6 +1507,312 @@ function ActionList({ cols, avatarStyleFor, onOpen }) {
         )
       ))}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Onglet Planning : Gantt Phase → Lot → Tâche + repère "Aujourd'hui"
+// ─────────────────────────────────────────────────────────────
+
+const GANTT_ROW_H = { phase: 30, lot: 50, task: 34 };
+const GANTT_HEADER_H = 38;
+// Couleurs de barres — sémantique pure (décoratif Gantt). Vert/taupe/rouge/gris.
+const GANTT_BAR = {
+  done:    { track: "#EAF6EF", fill: "#16A34A", text: tokens.color.semantic.success.fg },
+  doing:   { track: "#F2EAE3", fill: "#B58A6F", text: "#8A6F5C" },
+  overdue: { track: tokens.color.semantic.danger.bg, border: tokens.color.semantic.danger.border, fill: "#DC2626", text: tokens.color.semantic.danger.fg },
+  planned: { track: tokens.color.neutral[100], border: tokens.color.neutral[300], text: tokens.color.neutral[500] },
+};
+
+function planTaskClosed(t) {
+  const s = String(t.status || "").toLowerCase();
+  return t.done || t.open === false || /clos|done|terminé|validated|closed|résolu|resolu|levée/.test(s);
+}
+function planMs(d) {
+  if (!d) return null;
+  const x = parseDateFR(d) || new Date(d);
+  const t = +x;
+  return isNaN(t) ? null : t;
+}
+
+function buildPlanning(project) {
+  const lots = project?.lots || [];
+  const tasks = project?.tasks || [];
+  const byLot = new Map();
+  tasks.forEach(t => { const k = String(t.lotId ?? t.lot ?? ""); if (!byLot.has(k)) byLot.set(k, []); byLot.get(k).push(t); });
+
+  const today = +new Date(new Date().setHours(0, 0, 0, 0));
+  const dates = [];
+  const push = (d) => { const m = planMs(d); if (m) dates.push(m); };
+  push(project?.startDate); push(project?.endDate);
+  tasks.forEach(t => { push(t.dueDate); push(t.startDate); });
+
+  let start, end;
+  if (dates.length >= 2) { start = Math.min(...dates); end = Math.max(...dates); }
+  else { start = today - 30 * 86400000; end = today + 150 * 86400000; }
+  const sd = new Date(start); start = +new Date(sd.getFullYear(), sd.getMonth(), 1);
+  const ed = new Date(end); end = +new Date(ed.getFullYear(), ed.getMonth() + 1, 0);
+  const span = Math.max(1, end - start);
+  const pct = (ms) => ((ms - start) / span) * 100;
+
+  const months = [];
+  let cur = new Date(start);
+  const now = new Date(today);
+  while (+cur <= end && months.length < 14) {
+    months.push({ label: cur.toLocaleDateString("fr-BE", { month: "short" }), current: cur.getMonth() === now.getMonth() && cur.getFullYear() === now.getFullYear() });
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+  const todayPct = Math.max(0, Math.min(100, pct(today)));
+
+  let doneCount = 0, totalCount = 0;
+  const outLots = lots.map((lot, i) => {
+    const lt = byLot.get(String(lot.id ?? i)) || [];
+    const lotDates = lt.map(t => planMs(t.dueDate)).filter(Boolean);
+    const closed = lt.filter(planTaskClosed).length;
+    totalCount += lt.length; doneCount += closed;
+    const progress = typeof lot.progress === "number" ? lot.progress : (lt.length ? Math.round(closed / lt.length * 100) : 0);
+    const overdue = lt.some(t => !planTaskClosed(t) && planMs(t.dueDate) && planMs(t.dueDate) < today);
+    const status = lt.length === 0 ? "planned" : closed === lt.length ? "done" : overdue ? "overdue" : progress > 0 ? "doing" : "planned";
+    let lStart = lotDates.length ? Math.min(...lotDates) : start;
+    let lEnd = lotDates.length ? Math.max(...lotDates) : lStart + 30 * 86400000;
+    if (lEnd <= lStart) lEnd = lStart + 20 * 86400000;
+    const leftPct = Math.max(0, pct(lStart));
+    const widthPct = Math.max(5, Math.min(100 - leftPct, pct(lEnd) - pct(lStart)));
+    const tasksOut = lt.map((t, j) => {
+      const d = planMs(t.dueDate);
+      const tClosed = planTaskClosed(t);
+      const tOver = !tClosed && d && d < today;
+      const tStart = d ? d - 12 * 86400000 : lStart;
+      const tEnd = d || lEnd;
+      return {
+        id: t.id ?? `${i}-${j}`, code: `${i + 1}.${j + 1}`, title: t.title || t.text || "Tâche",
+        status: tClosed ? "done" : tOver ? "overdue" : "doing",
+        statusLabel: tClosed ? "Terminé" : tOver ? "En retard" : "En cours",
+        progress: tClosed ? 100 : 50,
+        leftPct: Math.max(0, pct(tStart)), widthPct: Math.max(4, Math.min(100 - Math.max(0, pct(tStart)), pct(tEnd) - pct(tStart))),
+      };
+    });
+    return { id: lot.id ?? i, name: lot.name || lot.label || "Lot", contractor: lot.contractor || lot.responsable || "", count: lt.length, progress, status, overdue, leftPct, widthPct, tasks: tasksOut };
+  });
+  const globalProgress = totalCount ? Math.round(doneCount / totalCount * 100) : 0;
+  return { lots: outLots, months, todayPct, globalProgress };
+}
+
+function PlanningTab({ project, phase, handlerMap }) {
+  const [view, setView] = useState("gantt");
+  const [expanded, setExpanded] = useState(() => new Set());
+  const data = useMemo(() => buildPlanning(project), [project]);
+  const onNewLot = handlerMap.onNewLot || handlerMap.onPlanning;
+  const toggle = (id) => setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const toolbar = (
+    <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], marginBottom: tokens.space[4], flexWrap: "wrap" }}>
+      <SegToggle value={view} onChange={setView} options={[{ id: "hierarchy", label: "Hiérarchie" }, { id: "gantt", label: "Gantt" }]} />
+      <Button variant="secondary" size="md" rightIcon={<Svg size={14} sw={2}><polyline points="6 9 12 15 18 9" /></Svg>}>Toutes les phases</Button>
+      <div style={{ marginLeft: "auto" }}>
+        <Button variant="primary" size="md" leftIcon={<Icons.plus size={15} />} onClick={onNewLot || undefined} disabled={!onNewLot}>Nouveau lot</Button>
+      </div>
+    </div>
+  );
+
+  if (data.lots.length === 0) {
+    return (
+      <div>
+        {toolbar}
+        <div style={{ padding: tokens.space[10], background: tokens.color.neutral[50], border: `1px dashed ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, textAlign: "center" }}>
+          <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[700], marginBottom: tokens.space[1] }}>Aucun lot planifié</div>
+          <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>Crée des lots et leurs tâches pour suivre l'avancement du chantier dans le temps.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {toolbar}
+      {view === "gantt"
+        ? <GanttCard data={data} phaseLabel={phase?.label || "Chantier"} expanded={expanded} onToggle={toggle} />
+        : <HierarchyList data={data} expanded={expanded} onToggle={toggle} />}
+    </div>
+  );
+}
+
+// Couleur du % d'avancement d'un lot selon son état.
+function lotProgressColor(status) {
+  return status === "done" ? "#16A34A"
+    : status === "overdue" ? tokens.color.semantic.danger.fg
+    : status === "doing" ? "#8A6F5C"
+    : tokens.color.neutral[500];
+}
+
+// Construit la liste de lignes (phase / lot / task) partagée gauche+droite.
+function ganttRows(data, expanded) {
+  const rows = [{ type: "phase", label: `${data._phaseLabel} · ${data.lots.length} lot${data.lots.length > 1 ? "s" : ""}` }];
+  data.lots.forEach(lot => {
+    rows.push({ type: "lot", lot });
+    if (expanded.has(lot.id)) lot.tasks.forEach(task => rows.push({ type: "task", task }));
+  });
+  return rows;
+}
+
+function GanttCard({ data, phaseLabel, expanded, onToggle }) {
+  data._phaseLabel = phaseLabel;
+  const rows = ganttRows(data, expanded);
+  return (
+    <Card padding={0} style={{ borderRadius: tokens.radius.xl, overflow: "hidden" }}>
+      <div style={{ display: "flex" }}>
+        {/* Colonne gauche — labels Lot · responsable */}
+        <div style={{ width: 300, flexShrink: 0, borderRight: `1px solid ${tokens.color.neutral[200]}` }}>
+          <div style={{ height: GANTT_HEADER_H, display: "flex", alignItems: "center", padding: `0 ${tokens.space[4]}`, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, letterSpacing: "0.05em", textTransform: "uppercase", color: tokens.color.neutral[500], borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
+            Lot · responsable
+          </div>
+          {rows.map((r, i) => <GanttLeftRow key={i} row={r} onToggle={onToggle} expanded={expanded} />)}
+        </div>
+
+        {/* Colonne droite — timeline */}
+        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+          {/* Repère Aujourd'hui */}
+          <div style={{ position: "absolute", top: GANTT_HEADER_H, bottom: 0, left: `${data.todayPct}%`, width: 2, background: tokens.color.brand[500], zIndex: 3 }}>
+            <div style={{ position: "absolute", top: -2, left: -15, background: tokens.color.brand[500], color: "#fff", fontSize: 9, fontWeight: tokens.font.weight.bold, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap" }}>AUJ.</div>
+          </div>
+          {/* En-tête mois */}
+          <div style={{ height: GANTT_HEADER_H, display: "flex", borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
+            {data.months.map((m, i) => (
+              <div key={i} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: tokens.font.size.xs, fontWeight: m.current ? tokens.font.weight.semibold : tokens.font.weight.medium, color: m.current ? tokens.color.brand[600] : tokens.color.neutral[500], borderRight: i < data.months.length - 1 ? `1px solid ${tokens.color.neutral[100]}` : "none" }}>
+                {m.label}
+              </div>
+            ))}
+          </div>
+          {/* Pistes */}
+          <div style={{ backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent calc(${100 / data.months.length}% - 1px), ${tokens.color.neutral[100]} calc(${100 / data.months.length}% - 1px), ${tokens.color.neutral[100]} ${100 / data.months.length}%)` }}>
+            {rows.map((r, i) => <GanttRightRow key={i} row={r} />)}
+          </div>
+        </div>
+      </div>
+
+      {/* Légende */}
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[5], padding: `${tokens.space[3]} ${tokens.space[4]}`, borderTop: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[50], flexWrap: "wrap" }}>
+        <LegendDot color="#16A34A" label="Terminé" />
+        <LegendDot color="#B58A6F" label="En cours" />
+        <LegendDot color="#DC2626" label="En retard" />
+        <LegendDot color={tokens.color.neutral[100]} border={tokens.color.neutral[300]} label="À venir" />
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: tokens.space[1], fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>
+          <span style={{ width: 2, height: 13, background: tokens.color.brand[500] }} /> Aujourd'hui · avancement global
+          <b style={{ color: tokens.color.neutral[900], marginLeft: 2 }}>{data.globalProgress}%</b>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function LegendDot({ color, border, label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: tokens.space[1], fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>
+      <span style={{ width: 12, height: 12, borderRadius: 3, background: color, border: border ? `1px dashed ${border}` : "none" }} />
+      {label}
+    </div>
+  );
+}
+
+function GanttLeftRow({ row, onToggle, expanded }) {
+  if (row.type === "phase") {
+    return <div style={{ height: GANTT_ROW_H.phase, display: "flex", alignItems: "center", padding: `0 ${tokens.space[4]}`, background: tokens.color.brand[50], fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, letterSpacing: "0.05em", textTransform: "uppercase", color: tokens.color.brand[600], borderBottom: `1px solid ${tokens.color.neutral[100]}` }}>{row.label}</div>;
+  }
+  if (row.type === "task") {
+    const t = row.task;
+    const st = GANTT_BAR[t.status];
+    return (
+      <div style={{ height: GANTT_ROW_H.task, display: "flex", alignItems: "center", gap: tokens.space[2], padding: `0 ${tokens.space[4]} 0 38px`, borderBottom: `1px solid ${tokens.color.neutral[100]}`, background: "#FDFBF9" }}>
+        <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[300] }}>{t.code}</span>
+        <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+        <span style={{ marginLeft: "auto", fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: st.track, color: st.text, fontWeight: tokens.font.weight.medium, whiteSpace: "nowrap" }}>{t.statusLabel}</span>
+      </div>
+    );
+  }
+  // lot
+  const lot = row.lot;
+  const isOpen = expanded.has(lot.id);
+  return (
+    <button
+      type="button"
+      onClick={() => lot.tasks.length && onToggle(lot.id)}
+      style={{ width: "100%", height: GANTT_ROW_H.lot, display: "flex", alignItems: "center", gap: tokens.space[2], padding: `0 ${tokens.space[4]}`, borderBottom: `1px solid ${tokens.color.neutral[100]}`, background: isOpen ? "#FDFBF9" : "transparent", border: "none", borderBottomWidth: 1, cursor: lot.tasks.length ? "pointer" : "default", fontFamily: "inherit", textAlign: "left" }}
+    >
+      <span style={{ display: "inline-flex", color: isOpen ? tokens.color.brand[500] : tokens.color.neutral[300], transform: isOpen ? "rotate(90deg)" : "none", transition: tokens.transition.base }}>
+        <Svg size={13} sw={2.2}><polyline points="9 6 15 12 9 18" /></Svg>
+      </span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lot.name}</div>
+        <div style={{ fontSize: tokens.font.size.xs, color: lot.overdue ? tokens.color.semantic.danger.fg : tokens.color.neutral[500], fontWeight: lot.overdue ? tokens.font.weight.medium : tokens.font.weight.regular }}>
+          {lot.contractor || "À planifier"} · {lot.count} tâche{lot.count > 1 ? "s" : ""}
+        </div>
+      </div>
+      <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: lotProgressColor(lot.status) }}>{lot.progress}%</span>
+    </button>
+  );
+}
+
+function GanttRightRow({ row }) {
+  if (row.type === "phase") {
+    return <div style={{ height: GANTT_ROW_H.phase, borderBottom: `1px solid ${tokens.color.neutral[100]}`, background: tokens.color.brand[50] }} />;
+  }
+  if (row.type === "task") {
+    const t = row.task;
+    const st = GANTT_BAR[t.status];
+    return (
+      <div style={{ height: GANTT_ROW_H.task, borderBottom: `1px solid ${tokens.color.neutral[100]}`, position: "relative", background: "#FDFBF9" }}>
+        <div style={{ position: "absolute", top: 9, height: 16, left: `${t.leftPct}%`, width: `${t.widthPct}%`, background: st.track, borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${t.progress}%`, background: st.fill, opacity: t.status === "done" ? 0.7 : 1 }} />
+        </div>
+      </div>
+    );
+  }
+  // lot
+  const lot = row.lot;
+  const st = GANTT_BAR[lot.status];
+  return (
+    <div style={{ height: GANTT_ROW_H.lot, borderBottom: `1px solid ${tokens.color.neutral[100]}`, position: "relative" }}>
+      <div style={{ position: "absolute", top: 13, height: 24, left: `${lot.leftPct}%`, width: `${lot.widthPct}%`, background: st.track, border: st.border ? `1px ${lot.status === "planned" ? "dashed" : "solid"} ${st.border}` : "none", borderRadius: 6, overflow: "hidden", display: "flex", alignItems: "center" }}>
+        {lot.status !== "planned" && (
+          <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${lot.status === "done" ? 100 : lot.progress}%`, background: st.fill, opacity: lot.status === "done" ? 0.85 : 1 }} />
+        )}
+        {lot.status !== "done" && lot.status !== "planned" && (
+          <span style={{ position: "relative", marginLeft: 8, fontSize: 11, fontWeight: tokens.font.weight.semibold, color: lot.status === "overdue" ? tokens.color.semantic.danger.fg : "#fff", zIndex: 1, whiteSpace: "nowrap" }}>
+            {lot.status === "overdue" ? "En retard" : lot.name}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Vue Hiérarchie — alternative repliable au Gantt (Lot → Tâches).
+function HierarchyList({ data, expanded, onToggle }) {
+  return (
+    <Card padding={0} style={{ borderRadius: tokens.radius.xl, overflow: "hidden" }}>
+      {data.lots.map((lot, i) => {
+        const isOpen = expanded.has(lot.id);
+        return (
+          <div key={lot.id} style={{ borderBottom: i < data.lots.length - 1 ? `1px solid ${tokens.color.neutral[100]}` : "none" }}>
+            <button type="button" onClick={() => lot.tasks.length && onToggle(lot.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[3]} ${tokens.space[4]}`, background: "transparent", border: "none", cursor: lot.tasks.length ? "pointer" : "default", fontFamily: "inherit", textAlign: "left" }}>
+              <span style={{ display: "inline-flex", color: isOpen ? tokens.color.brand[500] : tokens.color.neutral[300], transform: isOpen ? "rotate(90deg)" : "none" }}><Svg size={13} sw={2.2}><polyline points="9 6 15 12 9 18" /></Svg></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{lot.name}</div>
+                <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{lot.contractor || "À planifier"} · {lot.count} tâche{lot.count > 1 ? "s" : ""}</div>
+              </div>
+              <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: lotProgressColor(lot.status) }}>{lot.progress}%</span>
+            </button>
+            {isOpen && lot.tasks.map(t => (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[4]} ${tokens.space[2]} 42px`, borderTop: `1px solid ${tokens.color.neutral[100]}` }}>
+                <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[300] }}>{t.code}</span>
+                <span style={{ flex: 1, fontSize: tokens.font.size.sm, color: tokens.color.neutral[700] }}>{t.title}</span>
+                <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: GANTT_BAR[t.status].track, color: GANTT_BAR[t.status].text, fontWeight: tokens.font.weight.medium }}>{t.statusLabel}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </Card>
   );
 }
 

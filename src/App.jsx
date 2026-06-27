@@ -1483,9 +1483,10 @@ export default function App() {
               pas de routing strict pour ce premier jet). */}
           {view !== "profile" && project && view === "overview" && v2ProjectIdFromUrl && (
             <ProjectDetail
-              project={project}
+              project={v2ProjectIdFromUrl === "demo" ? undefined : project}
               profile={profile}
               onStartNotes={tryStartNewPv}
+              onPlanning={() => { if (!hasFeature(profile.plan, "planning")) return setUpgradeFeature("planning"); setView("planning"); }}
               onEditInfo={() => {
                 const addr = project.street
                   ? { street: project.street, number: project.number || "", postalCode: project.postalCode || "", city: project.city || "", country: project.country || "Belgique" }
