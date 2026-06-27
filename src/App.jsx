@@ -1530,6 +1530,16 @@ export default function App() {
                   p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => x.id === a.id ? { ...x, open: x.open === false ? true : false } : x) }
                 ));
               }}
+              onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }}
+              onViewPdf={async (pv) => {
+                if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; }
+                if (!pv.content) { setModalData(pv); setModal("viewpv"); return; }
+                try {
+                  const res = await generatePDF(project, pv.number, pv.date, pv.content, profile, { returnDataUrl: true });
+                  setModalData({ ...pv, pdfDataUrl: res.dataUrl, fileName: res.fileName, _tab: "output" });
+                  setModal("viewpv");
+                } catch (e) { console.error("PDF generation failed:", e); }
+              }}
               activeTimer={activeTimer}
               onStartTimer={startTimer}
               onOpenSessions={(pid) => setShowSessionsModal(pid)}

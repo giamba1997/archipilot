@@ -4,6 +4,7 @@ import { Button } from "../components/ui/v2/Button";
 import { Badge } from "../components/ui/v2/Badge";
 import { Card } from "../components/ui/v2/Card";
 import { Tabs } from "../components/ui/v2/Tabs";
+import { IconButton } from "../components/ui/v2/IconButton";
 import { SectionHeader } from "../components/ui/v2/SectionHeader";
 import { loadInvoices, loadQuotes } from "../db";
 import { formatAddress } from "../utils/address";
@@ -57,6 +58,7 @@ const Icons = {
   edit:     ({ size }) => <Svg size={size}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z" /></Svg>,
   plus:     ({ size }) => <Svg size={size} sw={2}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Svg>,
   check:    ({ size }) => <Svg size={size} sw={2.2}><polyline points="20 6 9 17 4 12" /></Svg>,
+  send:     ({ size }) => <Svg size={size} sw={1.6}><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z" /></Svg>,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -81,8 +83,9 @@ const MOCK_PROJECT = {
     { name: "Bureau Stab+", role: "Ingénieur stabilité", company: "Stab+", phone: "+32 81 22 33 44" },
   ],
   pvHistory: [
-    { number: 1, status: "validated", date: "10/05/2026" },
-    { number: 2, status: "validated", date: "20/06/2026" },
+    { number: 3, status: "sent", date: "26/06/2026", title: "Réunion du 26 juin — avancement lots techniques", posts: Array(8).fill({}), summary: "Électricité 2e étage en cours, étanchéité angle N-E à reprendre" },
+    { number: 2, status: "sent", date: "20/06/2026", title: "Réunion du 20 juin — réception gros œuvre", posts: Array(7).fill({}), summary: "Dalle R+1 réceptionnée, démarrage des cloisons" },
+    { number: 1, status: "validated", date: "10/05/2026", title: "Réunion du 10 mai — coordination lots", posts: Array(6).fill({}), summary: "Validation des réservations techniques planchers" },
   ],
   reserves: [
     { id: 1, status: "levee" },
@@ -380,6 +383,55 @@ function formatDue(due, done) {
   return { text: dd.toLocaleDateString("fr-BE", { day: "numeric", month: "short" }), overdue: false };
 }
 
+// ── PV : focale + historique ──
+const PV_STATUS = {
+  draft:     { variant: "warning", label: "Brouillon" },
+  validated: { variant: "success", label: "Validé" },
+  sent:      { variant: "info",    label: "Envoyé" },
+};
+
+function pvDateShort(date) {
+  if (!date) return "";
+  const d = parseDateFR(date) || new Date(date);
+  return isNaN(+d) ? String(date) : d.toLocaleDateString("fr-BE", { day: "numeric", month: "short" });
+}
+
+function pvExcerpt(pv) {
+  const n = (pv.posts || []).length;
+  const parts = [];
+  if (n) parts.push(`${n} poste${n > 1 ? "s" : ""}`);
+  const raw = (pv.summary || pv.content || "").replace(/[#*_>`\-]/g, "").replace(/\s+/g, " ").trim();
+  if (raw) parts.push(`« ${raw.slice(0, 80)}${raw.length > 80 ? "…" : ""} »`);
+  return parts.join(" · ");
+}
+
+function derivePvFocal(project) {
+  const pvs = project?.pvHistory || [];
+  const draft = pvs.find(p => p.status === "draft");
+  const nextNum = draft ? draft.number : pvs.length + 1;
+  const openReserves = (project?.reserves || []).filter(r => r.status !== "levee").length;
+  const meeting = deriveNextMeeting(project);
+  let subtitle;
+  if (draft) subtitle = "Brouillon en attente — finalise-le et envoie-le aux intervenants.";
+  else if (meeting) subtitle = `Réunion de chantier du ${meeting.label}${openReserves ? ` — ${openReserves} réserve${openReserves > 1 ? "s" : ""} ouverte${openReserves > 1 ? "s" : ""} à reporter` : ""}.`;
+  else subtitle = "L'IA reprend le dernier PV et tes notes de visite pour rédiger un brouillon prêt à valider.";
+  return { title: `${draft ? "Finir" : "Préparer"} le PV n°${nextNum}`, subtitle };
+}
+
+function derivePvList(project) {
+  return (project?.pvHistory || [])
+    .slice()
+    .sort((a, b) => (b.number || 0) - (a.number || 0))
+    .map(pv => ({
+      number: pv.number,
+      title: pv.title || `Réunion${pv.date ? ` du ${pvDateShort(pv.date)}` : ""}`,
+      excerpt: pvExcerpt(pv),
+      date: pvDateShort(pv.date),
+      status: PV_STATUS[pv.status] || { variant: "neutral", label: pv.status || "—" },
+      raw: pv,
+    }));
+}
+
 function deriveUpdatedAt(project) {
   let latest = 0;
   const consider = (v) => {
@@ -418,6 +470,9 @@ export function ProjectDetail({
   onNewAction,
   onAddAction,
   onOpenAction,
+  onViewPV,
+  onViewPdf,
+  onSendPv,
   activeTimer,
   onStartTimer,
   onOpenSessions,
@@ -482,7 +537,7 @@ export function ProjectDetail({
   const planning    = useMemo(() => derivePlanning(project), [project]);
   const journal     = useMemo(() => deriveJournal(project), [project]);
 
-  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onEditMeeting };
+  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onViewPV, onViewPdf, onSendPv, onEditMeeting };
 
   return (
     <div
@@ -526,7 +581,10 @@ export function ProjectDetail({
       {activeTab === "planning" && (
         <PlanningTab project={project} phase={phase} handlerMap={handlerMap} />
       )}
-      {!["summary", "sheet", "actions", "planning"].includes(activeTab) && (
+      {activeTab === "pv" && (
+        <PvTab project={project} handlerMap={handlerMap} />
+      )}
+      {!["summary", "sheet", "actions", "planning", "pv"].includes(activeTab) && (
         <TabPlaceholder label={tabs.find(t => t.id === activeTab)?.label} />
       )}
     </div>
@@ -1813,6 +1871,106 @@ function HierarchyList({ data, expanded, onToggle }) {
         );
       })}
     </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Onglet PV : action focale "Préparer le prochain PV" + historique
+// ─────────────────────────────────────────────────────────────
+
+function PvTab({ project, handlerMap }) {
+  const focal = useMemo(() => derivePvFocal(project), [project]);
+  const list = useMemo(() => derivePvList(project), [project]);
+  const [showAll, setShowAll] = useState(false);
+  const VISIBLE = 6;
+  const shown = showAll ? list : list.slice(0, VISIBLE);
+  const hidden = list.length - shown.length;
+
+  return (
+    <div>
+      {/* Action focale — surface tintée, unique CTA primaire. */}
+      <div style={{ background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.xl, padding: `${tokens.space[4]} ${tokens.space[5]}`, marginBottom: tokens.space[5], display: "flex", alignItems: "center", gap: tokens.space[4], flexWrap: "wrap" }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: tokens.color.brand[500], color: tokens.color.neutral[0], display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: tokens.shadow.priority }}>
+          <Icons.sparkle size={21} />
+        </div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{focal.title}</div>
+          <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], marginTop: 2, lineHeight: tokens.font.leading.normal }}>{focal.subtitle}</div>
+        </div>
+        <Button variant="primary" size="lg" rightIcon={<Icons.chevronR size={16} />} onClick={handlerMap.onStartNotes || undefined} disabled={!handlerMap.onStartNotes}>
+          Démarrer
+        </Button>
+      </div>
+
+      {/* Historique */}
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[3] }}>
+        <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Historique des PV</span>
+        <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{list.length}</span>
+      </div>
+
+      {list.length === 0 ? (
+        <div style={{ padding: tokens.space[8], background: tokens.color.neutral[50], border: `1px dashed ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>
+          Aucun PV émis pour l'instant — démarre le premier ci-dessus.
+        </div>
+      ) : (
+        <>
+          <Card padding={0} style={{ borderRadius: tokens.radius.xl, overflow: "hidden" }}>
+            {shown.map((item, i) => (
+              <PvRow
+                key={item.number}
+                item={item}
+                isLast={i === shown.length - 1}
+                onView={handlerMap.onViewPV}
+                onPdf={handlerMap.onViewPdf}
+                onSend={handlerMap.onSendPv || handlerMap.onViewPV}
+              />
+            ))}
+          </Card>
+          {hidden > 0 && (
+            <div style={{ textAlign: "center", marginTop: tokens.space[3] }}>
+              <Button variant="secondary" size="sm" onClick={() => setShowAll(true)}>Voir les {hidden} PV précédents</Button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PvRow({ item, isLast, onView, onPdf, onSend }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onView ? () => onView(item.raw) : undefined}
+      style={{
+        display: "flex", alignItems: "center", gap: tokens.space[4],
+        padding: `${tokens.space[3]} ${tokens.space[4]}`,
+        borderBottom: isLast ? "none" : `1px solid ${tokens.color.neutral[100]}`,
+        background: hover ? tokens.color.neutral[50] : "transparent",
+        cursor: onView ? "pointer" : "default",
+        transition: tokens.transition.base,
+      }}
+    >
+      <span style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], fontFamily: "ui-monospace, monospace", width: 46, flexShrink: 0 }}>N°{item.number}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[900], marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.title}</div>
+        {item.excerpt && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.excerpt}</div>}
+      </div>
+      <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[700], width: 64, flexShrink: 0, whiteSpace: "nowrap" }}>{item.date}</span>
+      <div style={{ width: 72, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+        <Badge variant={item.status.variant}>{item.status.label}</Badge>
+      </div>
+      <div style={{ display: "flex", gap: tokens.space[1], flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <IconButton variant="ghost" size="sm" label="Voir le PDF" onClick={onPdf ? () => onPdf(item.raw) : undefined} disabled={!onPdf}>
+          <Icons.file size={16} />
+        </IconButton>
+        <IconButton variant="ghost" size="sm" label="Envoyer le PV" onClick={onSend ? () => onSend(item.raw) : undefined} disabled={!onSend}>
+          <Icons.send size={16} />
+        </IconButton>
+      </div>
+    </div>
   );
 }
 
