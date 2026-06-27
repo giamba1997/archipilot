@@ -31,6 +31,9 @@ const I = {
   cloud:   (p) => <Svg {...p} sw={1.7}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></Svg>,
   image:   (p) => <Svg {...p} sw={1.7}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></Svg>,
   plus:    (p) => <Svg {...p} sw={2}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Svg>,
+  chevDown:(p) => <Svg {...p} sw={2}><polyline points="6 9 12 15 18 9" /></Svg>,
+  spark:   (p) => <Svg {...p}><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z" /></Svg>,
+  clipboard:(p) => <Svg {...p} sw={1.7}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></Svg>,
 };
 
 const DEFAULT_PROJECT = {
@@ -103,7 +106,7 @@ export function PvComposer({ project = DEFAULT_PROJECT, onClose, onStartReal }) 
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {step === "choice" && <ChoiceStep meta={meta} onChoose={() => setStep("saisie")} onStartReal={onStartReal} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} />}
-        {step === "redaction" && <StepPlaceholder n={2} label="Rédaction" />}
+        {step === "redaction" && <RedactionStep meta={meta} project={project} />}
         {step === "diffusion" && <StepPlaceholder n={3} label="Diffusion" />}
       </div>
     </div>
@@ -402,7 +405,133 @@ function RemarkCard({ r }) {
   );
 }
 
-// ── Placeholder d'étape (Rédaction / Diffusion) — à porter ──
+// ─────────────────────────────────────────────────────────────
+// Étape 2 — Rédaction (PV éditable + remarques source, traçabilité)
+// ─────────────────────────────────────────────────────────────
+
+const REDACTION_DOC = {
+  meta: "Réunion du 30 juin 2026 · 09:00 · sur site — Présents : G. Dupont (architecte), M. Genin (entreprise). Excusé : P. Mertens (MO). Météo : 12°C, couvert.",
+  sections: [
+    { code: "00", title: "Évolutions depuis le PV précédent", brand: true, paras: [{ text: "La dalle du R+1 a été réceptionnée ; le démarrage des cloisons est confirmé. Trois réserves du précédent procès-verbal ont été levées." }] },
+    { code: "03", title: "Électricité", paras: [
+      { num: "03.1", text: "Le tirage des câbles dans la gaine technique du 2e étage doit être repris : la section constatée est sous-dimensionnée au regard du cahier des charges." },
+      { num: "03.2", text: "Le tableau électrique principal ne comporte pas de dispositif différentiel 30 mA sur le circuit prises du rez-de-chaussée. ", highlight: "Correction requise avant toute mise sous tension." },
+      { num: "03.3", text: "L'appareillage du hall principal a été validé sur site, conforme au plan d'exécution révision C." },
+    ] },
+    { code: "04", title: "HVAC", paras: [
+      { num: "04.1", text: "La centrale de traitement d'air est en cours d'installation ; la mise en service reste conditionnée à l'achèvement du lot électrique.", cursor: true },
+    ] },
+  ],
+};
+const REDACTION_SOURCES = [
+  { poste: "03 · ÉLECTRICITÉ", items: [
+    { text: "Reprendre le tirage des câbles — gaine 2e sous-dimensionnée.", ref: "03.1" },
+    { text: "Tableau principal sans différentiel prises rez.", ref: "03.2", urgent: true },
+    { text: "Appareillage hall conforme plan rév. C.", ref: "03.3" },
+  ] },
+  { poste: "04 · HVAC", items: [
+    { text: "Centrale de traitement d'air en cours d'installation.", ref: "04.1" },
+  ] },
+];
+
+function SegToggle({ value, onChange, options, label }) {
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2] }}>
+      {label && <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{label}</span>}
+      <div style={{ display: "inline-flex", gap: 3, background: tokens.color.neutral[100], borderRadius: tokens.radius.md, padding: 3 }}>
+        {options.map(o => {
+          const a = o.id === value;
+          return <button key={o.id} onClick={() => onChange(o.id)} style={{ padding: "5px 12px", borderRadius: tokens.radius.sm, border: "none", background: a ? tokens.color.neutral[0] : "transparent", boxShadow: a ? tokens.shadow.sm : "none", color: a ? tokens.color.neutral[900] : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: a ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{o.label}</button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DropBtn({ children, icon }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 32, padding: `0 ${tokens.space[3]}`, background: hover ? tokens.color.neutral[50] : tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[700], cursor: "pointer", transition: tokens.transition.base }}>
+      {icon}{children}{!icon && <I.chevDown size={13} />}
+    </button>
+  );
+}
+
+function RedactionStep({ meta, project }) {
+  const [style, setStyle] = useState("standard");
+  return (
+    <>
+      {/* Toolbar options */}
+      <div style={{ height: 50, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `0 ${tokens.space[6]}`, gap: tokens.space[3], overflowX: "auto" }}>
+        <SegToggle label="Style" value={style} onChange={setStyle} options={[{ id: "standard", label: "Standard" }, { id: "detailed", label: "Détaillé" }, { id: "concise", label: "Concis" }]} />
+        <Divider />
+        <DropBtn>Numérotation : par poste <I.chevDown size={13} /></DropBtn>
+        <DropBtn>Destinataire : tous <I.chevDown size={13} /></DropBtn>
+        <div style={{ marginLeft: "auto" }}><DropBtn icon={<I.redo size={13} />}>Régénérer</DropBtn></div>
+      </div>
+
+      {/* Deux panneaux */}
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        {/* Doc PV éditable */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{ margin: `${tokens.space[4]} ${tokens.space[6]} 0`, background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.lg, padding: `${tokens.space[2]} ${tokens.space[4]}`, display: "flex", alignItems: "center", gap: tokens.space[2] }}>
+            <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.spark size={16} /></span>
+            <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.brand[700] }}>Rédigé par l'IA à partir de <b>{meta.totalRemarks || 12} remarques</b>. Le texte est <b>éditable</b> — clique pour ajuster.</span>
+            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: "#16A34A", display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: "#16A34A" }} />Enregistré</span>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: `${tokens.space[4]} ${tokens.space[6]}` }}>
+            <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, padding: `${tokens.space[8]} ${tokens.space[10]}`, maxWidth: 720, margin: "0 auto" }}>
+              <div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, letterSpacing: "0.08em", textTransform: "uppercase", color: tokens.color.neutral[500], marginBottom: tokens.space[1] }}>Procès-verbal de chantier n°{meta.num}</div>
+              <div style={{ fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], letterSpacing: "-0.3px", marginBottom: 3 }}>{project?.name}</div>
+              <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], marginBottom: tokens.space[5], paddingBottom: tokens.space[4], borderBottom: `1px solid ${tokens.color.neutral[200]}`, lineHeight: tokens.font.leading.normal }}>{REDACTION_DOC.meta}</div>
+              {REDACTION_DOC.sections.map((s, i) => (
+                <div key={i}>
+                  <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: s.brand ? tokens.color.brand[600] : tokens.color.neutral[900], marginBottom: tokens.space[2] }}>{s.code}. {s.title}</div>
+                  {s.paras.map((p, j) => (
+                    <p key={j} style={{ margin: `0 0 ${j === s.paras.length - 1 ? tokens.space[5] : tokens.space[2]}`, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700] }}>
+                      {p.num && <b style={{ color: tokens.color.neutral[900] }}>{p.num}</b>} {p.text}
+                      {p.highlight && <span style={{ background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, borderRadius: 3, padding: "0 3px", fontWeight: tokens.font.weight.medium }}>{p.highlight}</span>}
+                      {p.cursor && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Remarques source */}
+        <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column", background: tokens.color.neutral[0], borderLeft: `1px solid ${tokens.color.neutral[200]}` }}>
+          <div style={{ height: 42, display: "flex", alignItems: "center", gap: tokens.space[2], padding: `0 ${tokens.space[4]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
+            <span style={{ color: tokens.color.neutral[500], display: "inline-flex" }}><I.clipboard size={14} /></span>
+            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Remarques source</span>
+            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[300] }}>{meta.totalRemarks || 12}</span>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: tokens.space[3], display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+            {REDACTION_SOURCES.map((grp, gi) => (
+              <div key={gi}>
+                <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[500], margin: `${gi > 0 ? tokens.space[2] : 0} 0 ${tokens.space[2]}` }}>{grp.poste}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+                  {grp.items.map((it, ii) => (
+                    <div key={ii} style={{ background: tokens.color.neutral[50], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: it.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: `${tokens.space[2]} ${tokens.space[3]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[700], lineHeight: 1.45 }}>
+                      {it.text} <span style={{ color: tokens.color.brand[600], fontWeight: tokens.font.weight.medium }}>→ {it.ref}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: `${tokens.space[3]} ${tokens.space[3]}`, borderTop: `1px solid ${tokens.color.neutral[200]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], textAlign: "center", lineHeight: 1.4 }}>
+            Chaque ligne du PV renvoie à sa remarque — la traçabilité reste visible.
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Placeholder d'étape (Diffusion) — à porter ──
 function StepPlaceholder({ n, label }) {
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: tokens.space[10], width: "100%", boxSizing: "border-box" }}>
