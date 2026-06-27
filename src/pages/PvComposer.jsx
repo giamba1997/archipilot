@@ -455,19 +455,27 @@ const AUDIO_DEMO_DETECTED = [
 
 function AudioStep({ project, meta, demo, onApply, onDone, onCancel }) {
   const [elapsed, setElapsed] = useState(demo ? 272 : 0);
-  const [phase, setPhase] = useState("recording");
-  const [transcript, setTranscript] = useState("");
+  const [phase, setPhase] = useState("recording"); // recording | done | error
+  const [finalText, setFinalText] = useState("");
+  const [interim, setInterim] = useState("");
   const [detected, setDetected] = useState([]);
   const [err, setErr] = useState("");
   const timerRef = useRef(null);
+  const recRef = useRef(null);
+  const activeRef = useRef(true);
+  const pendingRef = useRef("");
 
-  const dispatchRemarks = async (text) => {
+  const présents = demo
+    ? [{ ini: "GD", name: "Gaëlle D.", present: true }, { ini: "MG", name: "M. Genin", present: true }]
+    : (project.participants || []).filter(p => p.name && p.name.trim()).slice(0, 5).map(p => ({ ini: initials(p.name), name: p.name, present: true }));
+
+  // Répartition par poste d'un fragment de transcription (live, par phrase).
+  const dispatchChunk = async (chunk) => {
     const posts = (project.posts || []).map(po => ({ id: po.id, label: po.label }));
+    if (!chunk.trim() || !posts.length) return;
     try {
-      if (!text?.trim()) throw new Error("Transcription vide — parle dans le micro avant de terminer.");
-      const { data, error } = await supabase.functions.invoke("dispatch-remarks", { body: { transcript: text, posts } });
-      if (error) throw new Error(error.message || "Erreur serveur");
-      if (data?.error) throw new Error(data.error);
+      const { data, error } = await supabase.functions.invoke("dispatch-remarks", { body: { transcript: chunk, posts } });
+      if (error || data?.error) return;
       const items = Array.isArray(data?.items) ? data.items : [];
       const norm = (id) => String(id).replace(/^0+/, "") || "0";
       const postIds = posts.map(p => p.id);
@@ -480,84 +488,121 @@ function AudioStep({ project, meta, demo, onApply, onDone, onCancel }) {
         const label = (project.posts.find(p => p.id === rid) || {}).label || rid;
         flat.push({ poste: `${rid} · ${String(label).toUpperCase()}`, text: it.text, urgent: !!it.urgent });
       }
-      onApply(grouped);
-      setDetected(flat);
-      setPhase("done");
-    } catch (e) { setErr(e.message || "Erreur"); setPhase("error"); }
+      if (flat.length) { onApply(grouped); setDetected(prev => [...prev, ...flat]); }
+    } catch { /* fragment ignoré */ }
   };
 
-  const recorder = useWhisperRecorder({
-    onResult: (text) => { setTranscript(text); setPhase("transcribing"); dispatchRemarks(text); },
-    onError: (code) => { setErr(code === "micDenied" ? "Micro refusé — autorise le micro." : "Erreur micro."); setPhase("error"); },
-  });
-
+  // Transcription EN DIRECT via la Web Speech API (reconnaissance continue).
   useEffect(() => {
     if (demo) return;
-    recorder.start();
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
-    return () => clearInterval(timerRef.current);
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setErr("La transcription en direct n'est pas supportée par ce navigateur (essaie Chrome)."); return () => clearInterval(timerRef.current); }
+    const rec = new SR();
+    rec.lang = "fr-FR"; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = (e) => {
+      let interimStr = "", finalAdded = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const txt = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalAdded += txt + " "; else interimStr += txt;
+      }
+      setInterim(interimStr);
+      if (finalAdded) {
+        setFinalText(prev => prev + finalAdded);
+        pendingRef.current += finalAdded;
+        if (/[.!?…]/.test(pendingRef.current) || pendingRef.current.length > 110) {
+          const chunk = pendingRef.current; pendingRef.current = "";
+          dispatchChunk(chunk);
+        }
+      }
+    };
+    rec.onerror = (ev) => { if (ev.error === "not-allowed" || ev.error === "service-not-allowed") setErr("Micro refusé — autorise le micro."); };
+    rec.onend = () => { if (activeRef.current) { try { rec.start(); } catch { /* déjà en cours */ } } };
+    recRef.current = rec;
+    try { rec.start(); } catch { /* ignore */ }
+    return () => { activeRef.current = false; clearInterval(timerRef.current); try { rec.onend = null; rec.stop(); } catch { /* ignore */ } };
     // eslint-disable-next-line
-  }, []);
+  }, [demo]);
 
   const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
-  const recording = demo || (recorder.isRecording && phase === "recording");
-  const finishRec = () => { if (demo) { setPhase("done"); setDetected(AUDIO_DEMO_DETECTED); return; } clearInterval(timerRef.current); setPhase("transcribing"); recorder.stop(); };
-
-  const lines = demo ? AUDIO_DEMO_TRANSCRIPT : (transcript ? [{ who: "Visite", t: mmss, text: transcript }] : []);
-  const detectedList = demo ? AUDIO_DEMO_DETECTED : detected;
+  const recording = demo || phase === "recording";
+  const finishRec = () => {
+    if (demo) { setPhase("done"); setDetected(AUDIO_DEMO_DETECTED); return; }
+    activeRef.current = false;
+    clearInterval(timerRef.current);
+    try { if (recRef.current) { recRef.current.onend = null; recRef.current.stop(); } } catch { /* ignore */ }
+    if (pendingRef.current.trim()) { dispatchChunk(pendingRef.current); pendingRef.current = ""; }
+    setPhase("done");
+  };
 
   return (
     <>
       <style>{`@keyframes pvpulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.5)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }`}</style>
+
+      {/* Bandeau d'enregistrement — plus haut */}
       <div style={{ flexShrink: 0, padding: `${tokens.space[4]} ${tokens.space[6]} 0` }}>
-        <div style={{ background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.lg, padding: `${tokens.space[3]} ${tokens.space[4]}`, display: "flex", alignItems: "center", gap: tokens.space[4] }}>
+        <div style={{ background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.xl, padding: `${tokens.space[5]} ${tokens.space[5]}`, display: "flex", alignItems: "center", gap: tokens.space[5], minHeight: 76 }}>
           <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexShrink: 0 }}>
-            <span style={{ width: 9, height: 9, borderRadius: "50%", background: tokens.color.semantic.danger.fg, ...(recording ? { animation: "pvpulse 1.2s ease-in-out infinite" } : null) }} />
-            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.bold, letterSpacing: "0.06em", color: tokens.color.neutral[700], textTransform: "uppercase" }}>{phase === "transcribing" ? "Transcription" : phase === "done" ? "Terminé" : "Enregistrement"}</span>
-            <span style={{ fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], fontVariantNumeric: "tabular-nums", marginLeft: tokens.space[2] }}>{mmss}</span>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: tokens.color.semantic.danger.fg, ...(recording ? { animation: "pvpulse 1.2s ease-in-out infinite" } : null) }} />
+            <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, letterSpacing: "0.06em", color: tokens.color.neutral[700], textTransform: "uppercase" }}>{phase === "done" ? "Terminé" : "Enregistrement"}</span>
+            <span style={{ fontSize: tokens.font.size["2xl"], fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], fontVariantNumeric: "tabular-nums", marginLeft: tokens.space[2], letterSpacing: "-0.5px" }}>{mmss}</span>
           </div>
-          <Waveform stream={recorder.stream} active={recording} />
+          <Waveform stream={null} active={recording} />
           <div style={{ marginLeft: "auto", flexShrink: 0 }}>
-            {phase === "recording" && <Button variant="primary" size="md" onClick={finishRec}>Terminer &amp; transcrire</Button>}
-            {phase === "transcribing" && <Button variant="primary" size="md" disabled>Analyse…</Button>}
-            {phase === "done" && <Button variant="primary" size="md" rightIcon={<I.chevron size={15} />} onClick={onDone}>Réviser la saisie</Button>}
-            {phase === "error" && <Button variant="secondary" size="md" onClick={onCancel}>Retour</Button>}
+            {phase === "recording" && <Button variant="primary" size="lg" onClick={finishRec}>Terminer &amp; transcrire</Button>}
+            {phase === "done" && <Button variant="primary" size="lg" rightIcon={<I.chevron size={15} />} onClick={onDone}>Réviser la saisie</Button>}
+            {phase === "error" && <Button variant="secondary" size="lg" onClick={onCancel}>Retour</Button>}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[1]}` }}>
-          <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>L'audio reste sur l'appareil · la transcription se lance au clic sur « Terminer ».</span>
-          {err && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg }}>{err}</span>}
+
+        {/* Présents + note */}
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[3]} ${tokens.space[1]} ${tokens.space[1]}`, flexWrap: "wrap" }}>
+          <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Présents</span>
+          {présents.map((p, i) => <PresentChip key={i} ini={p.ini} name={p.name} present={p.present} />)}
+          <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: err ? tokens.color.semantic.danger.fg : tokens.color.neutral[400] }}>{err || "L'audio reste sur l'appareil · transcription en direct"}</span>
         </div>
       </div>
 
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        {/* Transcription en direct */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${tokens.color.neutral[200]}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[6]} ${tokens.space[2]}` }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: tokens.color.semantic.danger.fg }} />
-            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Transcription</span>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: tokens.color.semantic.danger.fg, ...(recording ? { animation: "pvpulse 1.2s ease-in-out infinite" } : null) }} />
+            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Transcription en direct</span>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]} ${tokens.space[5]}`, display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
-            {lines.length === 0
-              ? <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], padding: tokens.space[4] }}>{phase === "transcribing" ? "Transcription en cours…" : "Parle — le texte apparaîtra ici après « Terminer »."}</div>
-              : lines.map((l, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], marginBottom: 2 }}>{l.who}{l.t ? ` · ${l.t}` : ""}</div>
-                  <div style={{ fontSize: tokens.font.size.base, color: tokens.color.neutral[700], lineHeight: 1.55 }}>{l.text}{demo && i === lines.length - 1 && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}</div>
-                </div>
-              ))}
+          <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]} ${tokens.space[5]}` }}>
+            {demo ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
+                {AUDIO_DEMO_TRANSCRIPT.map((l, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], marginBottom: 2 }}>{l.who} · {l.t}</div>
+                    <div style={{ fontSize: tokens.font.size.base, color: tokens.color.neutral[700], lineHeight: 1.55 }}>{l.text}{i === AUDIO_DEMO_TRANSCRIPT.length - 1 && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (finalText || interim) ? (
+              <div style={{ fontSize: tokens.font.size.base, lineHeight: 1.6, color: tokens.color.neutral[700] }}>
+                {finalText}
+                <span style={{ color: tokens.color.neutral[400] }}>{interim}</span>
+                {recording && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}
+              </div>
+            ) : (
+              <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], padding: tokens.space[4] }}>{err ? err : "Parle — le texte s'affiche ici en direct…"}</div>
+            )}
           </div>
         </div>
 
+        {/* Remarques détectées (live) */}
         <div style={{ width: 360, flexShrink: 0, display: "flex", flexDirection: "column", background: tokens.color.neutral[0] }}>
           <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[4]} ${tokens.space[2]}` }}>
             <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.spark size={15} /></span>
             <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Remarques détectées</span>
-            {detectedList.length > 0 && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[400] }}>{detectedList.length} · réparties par l'IA</span>}
+            {(demo ? AUDIO_DEMO_DETECTED : detected).length > 0 && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[400] }}>{(demo ? AUDIO_DEMO_DETECTED : detected).length} · réparties par l'IA</span>}
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[4]} ${tokens.space[4]}`, display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-            {detectedList.length === 0
-              ? <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], padding: tokens.space[4] }}>{phase === "transcribing" ? "L'IA analyse et range les remarques…" : "Les remarques détectées s'afficheront ici, rangées par poste."}</div>
-              : detectedList.map((d, i) => (
+            {(demo ? AUDIO_DEMO_DETECTED : detected).length === 0
+              ? <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], padding: tokens.space[4] }}>{recording ? "L'IA détecte et range les remarques au fil de la parole…" : "Aucune remarque détectée."}</div>
+              : (demo ? AUDIO_DEMO_DETECTED : detected).map((d, i) => (
                 <div key={i} style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: d.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: tokens.space[3] }}>
                   <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[1] }}>
                     <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[400] }}>{d.poste}</span>
