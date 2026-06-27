@@ -1212,25 +1212,9 @@ export async function createOrganization(name) {
 }
 
 export async function loadMyOrganizations() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-
-  const { data, error } = await supabase
-    .from("organization_members")
-    .select(`
-      role,
-      joined_at,
-      org:organizations (
-        id, name, plan, seat_limit, status, grace_period_ends_at,
-        owner_user_id, created_at
-      )
-    `)
-    .eq("user_id", user.id);
-
-  if (error) { console.error("loadMyOrganizations:", error); return []; }
-  return (data || [])
-    .filter(row => row.org)
-    .map(row => ({ ...row.org, _myRole: row.role, _joinedAt: row.joined_at }));
+  // POC solo : étage agence CUT (tables organization_* supprimées, migration
+  // 017). On court-circuite l'appel — sinon il renvoie 404 et pollue la console.
+  return [];
 }
 
 export async function loadOrgMembers(orgId) {
@@ -1358,19 +1342,7 @@ export async function loadPendingOrgInvitations(orgId) {
 // fallback when the URL/localStorage token has been lost (cross-device
 // signup, cleared cache, etc.). RLS ensures users only see their own.
 export async function loadPendingInvitationForMe() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return null;
-
-  const { data, error } = await supabase
-    .from("organization_invitations")
-    .select("token, org_id, role, expires_at")
-    .eq("status", "pending")
-    .ilike("email", user.email)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) { console.error("loadPendingInvitationForMe:", error); return null; }
-  return data;
+  // POC solo : invitations d'agence CUT (table organization_invitations
+  // supprimée, migration 017). Court-circuit pour éviter le 404 console.
+  return null;
 }
