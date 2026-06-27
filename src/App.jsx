@@ -69,6 +69,7 @@ import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
 import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { ProjectDetail } from "./pages/ProjectDetail";
+import { PvComposer } from "./pages/PvComposer";
 
 // ── Détection v2 ────────────────────────────────────────────
 // La nouvelle page projet (`src/pages/ProjectDetail.jsx`) cohabite avec
@@ -1610,7 +1611,7 @@ export default function App() {
   const message = messages[intent] || messages.compare_ft;
   askAi({ attachments, message, sourceTag: `cdc_banner_${intent}` });
 }} />}
-          {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <NoteEditor project={project} setProjects={setProjects} profile={profile} onBack={() => { setView("overview"); setPvStartMode(null); }} initialMode={pvStartMode} onGenerate={(recipients, title, fieldData) => { setPvRecipients(recipients || []); setPvTitle(title || ""); setPvFieldData(fieldData || {}); setView("result"); }} activeContext={activeContext} />}
+          {view !== "profile" && project && view === "notes" && !isReadOnly(project) && <PvComposer project={project} setProjects={setProjects} profile={profile} onBack={() => { setView("overview"); setPvStartMode(null); }} onRequireUpgrade={(feature) => setUpgradeFeature(feature || "maxAiPerMonth")} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
           {view !== "profile" && project && view === "notes" && isReadOnly(project) && (() => { setView("overview"); return null; })()}
           {view !== "profile" && project && view === "result" && !isReadOnly(project) && <ResultView project={project} setProjects={setProjects} onBack={() => setView("notes")} onBackHome={() => setView("overview")} onOpenPlans={() => setView("profile")} onRequireUpgrade={(feature) => setUpgradeFeature(feature || "maxAiPerMonth")} profile={profile} pvRecipients={pvRecipients} pvTitle={pvTitle} pvFieldData={pvFieldData} />}
           {view !== "profile" && project && view === "gallery" && <GalleryView

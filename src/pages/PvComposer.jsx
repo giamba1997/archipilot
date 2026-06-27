@@ -1,7 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { tokens } from "../design/tokens";
 import { Button } from "../components/ui/v2/Button";
 import { parseDateFR } from "../utils/dates";
+import { supabase } from "../supabase";
+import { parseFunctionError, track } from "../db";
+import { nextPvNumber, parseNotesToRemarks, stripMarkdown, cleanPvOutput } from "../utils/helpers";
+import { PV_TEMPLATES } from "../constants/templates";
+import { useT } from "../i18n";
 
 // ── PvComposer (v2) — composer plein écran « Direction D » ──────
 //
@@ -34,6 +39,7 @@ const I = {
   chevDown:(p) => <Svg {...p} sw={2}><polyline points="6 9 12 15 18 9" /></Svg>,
   spark:   (p) => <Svg {...p}><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z" /></Svg>,
   clipboard:(p) => <Svg {...p} sw={1.7}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></Svg>,
+  mail:    (p) => <Svg {...p} sw={1.7}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></Svg>,
 };
 
 const DEFAULT_PROJECT = {
@@ -45,32 +51,147 @@ const DEFAULT_PROJECT = {
 
 const STEPS = [{ n: 1, label: "Saisie" }, { n: 2, label: "Rédaction" }, { n: 3, label: "Diffusion" }];
 
-export function PvComposer({ project = DEFAULT_PROJECT, onClose, onStartReal }) {
-  // "choice" est un pré-écran de l'étape 1 (Saisie) — le stepper montre donc
-  // déjà "Saisie" actif pendant le choix.
+export function PvComposer({
+  project: projectProp,
+  setProjects,
+  profile,
+  onClose,
+  onBack,
+  onRequireUpgrade,
+  pvRecipients,
+  pvTitle,
+  pvFieldData,
+}) {
+  // Mode démo (route /pv/demo) : pas de persistance, données mockées.
+  const demo = !setProjects;
+  const project = projectProp || DEFAULT_PROJECT;
+  const t = useT();
+
   const [step, setStep] = useState("choice");
+  const [gen, setGen] = useState({ loading: false, content: "", error: "", suggestedTasks: [], saved: false });
+  const today = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
+  const finish = () => (onBack || onClose)?.();
 
   const meta = useMemo(() => {
     const pvs = project?.pvHistory || [];
-    const num = (pvs.reduce((m, p) => Math.max(m, p.number || 0), 0) || pvs.length) + 1;
-    const openReserves = (project?.reserves || []).filter(r => r.status !== "levee").length;
+    const num = demo
+      ? (pvs.reduce((m, p) => Math.max(m, p.number || 0), 0) || pvs.length) + 1
+      : nextPvNumber(pvs);
+    const allRemarks = (project?.posts || []).flatMap(p => p.remarks || []);
+    const totalRemarks = demo ? 12 : allRemarks.length;
+    const openReserves = demo
+      ? (project?.reserves || []).filter(r => r.status !== "levee").length
+      : allRemarks.filter(r => r.carriedFrom).length;
     const d = project?.nextMeeting ? (parseDateFR(project.nextMeeting) || new Date(project.nextMeeting)) : null;
     const meetingLabel = d && !isNaN(+d) ? d.toLocaleDateString("fr-BE", { weekday: "short", day: "numeric", month: "long" }) : null;
-    return { num, openReserves, meetingLabel };
-  }, [project]);
+    return { num, openReserves, totalRemarks, meetingLabel };
+  }, [project, demo]);
+
+  // ── Moteur de génération (porté de ResultView.run) ──
+  const genPv = async () => {
+    if (demo) return;
+    setGen(g => ({ ...g, loading: true, error: "" }));
+    const allRemarks = (p) => (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
+    const toRemarks = (p) => {
+      const all = allRemarks(p);
+      if (!pvRecipients || pvRecipients.length === 0) return all;
+      return all.filter(r => !(r.recipients || []).length || pvRecipients.some(rec => (r.recipients || []).includes(rec)));
+    };
+    let gIdx = 0;
+    const numMode = project.remarkNumbering || "none";
+    const notes = (project.posts || [])
+      .filter(p => toRemarks(p).length > 0 || (p.photos || []).length > 0)
+      .map(p => {
+        const remarks = toRemarks(p);
+        let pIdx = 0;
+        const byStatus = (id) => remarks.filter(r => r.status === id);
+        const fmtLine = (r) => { gIdx++; pIdx++; const prefix = r.urgent ? "> " : "- "; const num = numMode === "sequential" ? `${pIdx}. ` : numMode === "post-seq" ? `${p.id}.${pIdx} ` : numMode === "global" ? `${gIdx}. ` : ""; return prefix + num + r.text; };
+        const sections = [];
+        if (byStatus("open").length) sections.push(t("result.toProcess") + "\n" + byStatus("open").map(fmtLine).join("\n"));
+        if (byStatus("progress").length) sections.push("En cours :\n" + byStatus("progress").map(fmtLine).join("\n"));
+        if (byStatus("done").length) sections.push(t("result.resolved") + "\n" + byStatus("done").map(fmtLine).join("\n"));
+        const extra = (p.photos || []).length > 0 ? `[${p.photos.length} photo(s) jointe(s)]` : "";
+        return `${p.id}. ${p.label}\n${sections.join("\n")}${extra ? "\n" + extra : ""}`;
+      })
+      .join("\n\n");
+    const pvTpl = PV_TEMPLATES.find(x => x.id === project.pvTemplate);
+    const SYS = pvTpl?.prompt || t("ai.systemPrompt");
+    const ctxLines = [];
+    if (project.client) ctxLines.push(`Maître d'ouvrage : ${project.client}`);
+    if (project.contractor) ctxLines.push(`Entreprise : ${project.contractor}`);
+    (project.customFields || []).forEach(cf => { if (cf.label && cf.value) ctxLines.push(`${cf.label} : ${cf.value}`); });
+    if (pvRecipients?.length > 0) ctxLines.push(`Filtre destinataires : ${pvRecipients.join(", ")} — ne garde que les remarques pertinentes pour ces destinataires.`);
+    const prevPv = (project.pvHistory || [])[0];
+    const prevPvBlock = prevPv && (prevPv.content || prevPv.excerpt)
+      ? ["", `[PV PRÉCÉDENT n°${prevPv.number}${prevPv.date ? ` du ${prevPv.date}` : ""} — pour identifier les évolutions, NE PAS reproduire intégralement]`, String(prevPv.content || prevPv.excerpt || "").slice(0, 6000)].join("\n")
+      : "";
+    const evolutionRule = prevPv
+      ? "\nSi tu repères une évolution notable par rapport au PV précédent (action levée, point qui avance, nouvelle remarque marquante), tu PEUX ajouter en tête une section \"00. Évolutions depuis le dernier PV\" très synthétique (max 4 lignes en bullets). Inclus-la SEULEMENT si l'évolution est concrète et utile à signaler. Sinon n'ajoute rien."
+      : "";
+    const userPrompt = [
+      "[CONTEXTE — pour ta compréhension uniquement, NE PAS reproduire dans la sortie]",
+      ctxLines.join("\n") || "(aucun)",
+      prevPvBlock,
+      "",
+      "[NOTES BRUTES À TRANSFORMER]",
+      notes,
+      "",
+      "[RAPPEL]",
+      "Produis UNIQUEMENT les sections numérotées et leurs remarques. Aucun en-tête, aucune intro, aucune conclusion, aucun markdown. Format strict NN. Titre / NN.X texte." + evolutionRule,
+    ].join("\n");
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-pv", { body: { systemPrompt: SYS, userPrompt, maxTokens: pvTpl?.id === "detailed" ? 3000 : 2000, extractTasks: true } });
+      if (error) {
+        const body = await parseFunctionError(error);
+        if (body.code === "plan_upgrade_required") { onRequireUpgrade?.(body.feature || "maxAiPerMonth"); setGen(g => ({ ...g, loading: false })); return; }
+        throw new Error(body.error || error.message || "Erreur serveur");
+      }
+      if (data?.error) throw new Error(data.error);
+      const cleaned = cleanPvOutput(data?.content);
+      if (!cleaned) throw new Error(t("result.emptyResponse"));
+      setGen(g => ({ ...g, loading: false, content: cleaned, suggestedTasks: Array.isArray(data?.suggestedTasks) ? data.suggestedTasks : [] }));
+    } catch (e) { setGen(g => ({ ...g, loading: false, error: e.message || "Erreur" })); }
+  };
+
+  // ── Sauvegarde du brouillon (porté de ResultView.savePV) ──
+  const saveDraft = () => {
+    if (demo || gen.saved || !gen.content) return;
+    const allRemarks = (p) => (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
+    const filledCount = (project.posts || []).filter(p => allRemarks(p).length > 0 || (p.photos || []).length > 0).length;
+    const inputNotes = (project.posts || []).map(po => ({ id: po.id, label: po.label, remarks: (po.remarks || []).map(r => ({ text: r.text, urgent: r.urgent, status: r.status })), notes: po.notes || "" })).filter(po => po.remarks.length > 0 || po.notes.trim());
+    const suggestedTasksWithIds = (gen.suggestedTasks || []).map((tk, i) => ({ ...tk, id: `sg_${meta.num}_${Date.now()}_${i}`, status: "pending" }));
+    track?.("pv_generated", { pv_number: meta.num, project_name: project.name, _page: "composer", _ai_suggestions: (gen.suggestedTasks || []).length });
+    setProjects(prev => prev.map(p => p.id === project.id ? {
+      ...p,
+      pvHistory: [{ number: meta.num, date: today, author: profile?.name || "Architecte", postsCount: filledCount, excerpt: stripMarkdown(gen.content).slice(0, 140) + "…", content: gen.content, inputNotes, status: "draft", suggestedTasks: suggestedTasksWithIds }, ...(p.pvHistory || [])],
+      posts: (p.posts || []).map(po => ({ ...po, notes: "", remarks: (po.remarks || []).filter(r => r.status !== "done").map(r => ({ ...r, carriedFrom: meta.num })) })),
+    } : p));
+    setGen(g => ({ ...g, saved: true }));
+  };
+
+  // ── Mutations de remarques (Saisie réelle) ──
+  const mutatePost = (postId, fn) => {
+    if (demo) return;
+    setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: (p.posts || []).map(po => po.id === postId ? fn(po) : po) } : p));
+  };
+  const addRemark = (postId, text, status) => {
+    const r = { id: Date.now() + Math.random(), text, status: status === "urgent" ? "open" : (status || "open"), urgent: status === "urgent", recipients: [] };
+    mutatePost(postId, po => ({ ...po, remarks: [...(po.remarks || []), r] }));
+  };
+  const removeRemark = (postId, rid) => mutatePost(postId, po => ({ ...po, remarks: (po.remarks || []).filter(r => r.id !== rid) }));
 
   const stepIndex = step === "redaction" ? 2 : step === "diffusion" ? 3 : 1;
   const stepCta =
-    step === "saisie" ? { label: "Continuer vers la rédaction", onClick: () => setStep("redaction") }
-    : step === "redaction" ? { label: "Continuer vers la diffusion", onClick: () => setStep("diffusion") }
-    : step === "diffusion" ? { label: "Envoyer le PV", onClick: onClose }
+    step === "saisie" ? { label: "Continuer vers la rédaction", onClick: () => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); } }
+    : step === "redaction" ? { label: "Continuer vers la diffusion", onClick: () => { saveDraft(); setStep("diffusion"); }, disabled: !demo && (gen.loading || (!gen.content && !gen.error)) }
+    : step === "diffusion" ? { label: "Valider et envoyer", onClick: () => { saveDraft(); finish(); } }
     : null;
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", background: tokens.color.neutral[50], fontFamily: tokens.font.family, color: tokens.color.neutral[900] }}>
       {/* ── Top bar ── */}
       <div style={{ height: 58, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `0 ${tokens.space[5]}`, gap: tokens.space[4] }}>
-        <NaviButton onClick={step === "choice" ? onClose : () => setStep(step === "diffusion" ? "redaction" : step === "redaction" ? "saisie" : "choice")} icon={<I.back size={18} />} label={step === "choice" ? "Espace projet" : "Retour"} />
+        <NaviButton onClick={step === "choice" ? finish : () => setStep(step === "diffusion" ? "redaction" : step === "redaction" ? "saisie" : "choice")} icon={<I.back size={18} />} label={step === "choice" ? "Espace projet" : "Retour"} />
         <div style={{ width: 1, height: 24, background: tokens.color.neutral[200] }} />
         <div>
           <div style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.bold, letterSpacing: "-0.2px" }}>Nouveau PV n°{meta.num}</div>
@@ -98,16 +219,16 @@ export function PvComposer({ project = DEFAULT_PROJECT, onClose, onStartReal }) 
         </div>
 
         {stepCta
-          ? <Button variant="primary" size="md" rightIcon={<I.chevron size={15} />} onClick={stepCta.onClick}>{stepCta.label}</Button>
-          : <NaviButton onClick={onClose} icon={<I.close size={18} />} square />}
+          ? <Button variant="primary" size="md" rightIcon={<I.chevron size={15} />} onClick={stepCta.onClick} disabled={stepCta.disabled}>{stepCta.label}</Button>
+          : <NaviButton onClick={finish} icon={<I.close size={18} />} square />}
       </div>
 
       {/* ── Contenu ── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {step === "choice" && <ChoiceStep meta={meta} onChoose={() => setStep("saisie")} onStartReal={onStartReal} />}
-        {step === "saisie" && <SaisieStep project={project} meta={meta} />}
-        {step === "redaction" && <RedactionStep meta={meta} project={project} />}
-        {step === "diffusion" && <StepPlaceholder n={3} label="Diffusion" />}
+        {step === "choice" && <ChoiceStep meta={meta} onChoose={() => setStep("saisie")} />}
+        {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
+        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
+        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} />}
       </div>
     </div>
   );
@@ -239,23 +360,48 @@ const REMARK_STATUS = {
   reported:    { label: "↩ Reporté", bg: tokens.color.brand[50], fg: tokens.color.brand[600], border: tokens.color.brand[100] },
   urgent:      { label: "Urgent", bg: tokens.color.semantic.danger.bg, fg: tokens.color.semantic.danger.fg, border: tokens.color.semantic.danger.border },
   observation: { label: "Observation", bg: tokens.color.semantic.info.bg, fg: tokens.color.semantic.info.fg, border: tokens.color.semantic.info.border },
+  done:        { label: "Résolu", bg: tokens.color.semantic.success.bg, fg: tokens.color.semantic.success.fg, border: tokens.color.semantic.success.border },
 };
 
-function SaisieStep({ project, meta }) {
-  const [activePoste, setActivePoste] = useState("03");
-  const [remarksByPoste, setRemarksByPoste] = useState(SAISIE_REMARKS);
+function initials(s) {
+  if (!s) return "?";
+  const parts = String(s).trim().split(/\s+/);
+  return (parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Mappe une remarque réelle {text,status,urgent,recipients,carriedFrom} vers
+// l'affichage de carte (statut visuel + destinataire).
+function toDisplayRemark(r) {
+  const status = r.carriedFrom ? "reported" : r.urgent ? "urgent" : r.status === "done" ? "done" : r.status === "progress" ? "observation" : "observation";
+  const rec = (r.recipients || [])[0];
+  return { id: r.id, text: r.text, status, recipient: rec ? { ini: initials(rec), name: rec } : null };
+}
+
+function SaisieStep({ project, meta, demo, onAddRemark }) {
+  const postes = useMemo(() => demo
+    ? SAISIE_POSTES
+    : (project.posts || []).map(p => ({ code: p.id, name: p.label, count: (p.remarks || []).length, alert: (p.remarks || []).some(r => r.urgent && r.status !== "done") })),
+    [project, demo]);
+  const [activePoste, setActivePoste] = useState(postes[0]?.code);
+  const [mockRemarks, setMockRemarks] = useState(SAISIE_REMARKS);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState("write");
   const [status, setStatus] = useState("observation");
 
-  const postes = SAISIE_POSTES;
-  const poste = postes.find(p => p.code === activePoste) || postes[0];
-  const remarks = remarksByPoste[activePoste] || [];
-  const totalRemarks = postes.reduce((s, p) => s + p.count, 0);
+  useEffect(() => { if (!postes.find(p => p.code === activePoste)) setActivePoste(postes[0]?.code); }, [postes, activePoste]);
+
+  const poste = postes.find(p => p.code === activePoste) || postes[0] || { code: "", name: "—", count: 0 };
+  const realPost = demo ? null : (project.posts || []).find(p => p.id === activePoste);
+  const remarks = demo ? (mockRemarks[activePoste] || []) : (realPost?.remarks || []).map(toDisplayRemark);
+  const totalRemarks = demo ? postes.reduce((s, p) => s + p.count, 0) : meta.totalRemarks;
+  const présents = demo
+    ? [{ ini: "GD", name: "Gaëlle D.", present: true }, { ini: "MG", name: "M. Genin", present: true }, { ini: "PM", name: "P. Mertens", present: false }]
+    : (project.participants || []).filter(p => p.name && p.name.trim()).slice(0, 4).map(p => ({ ini: initials(p.name), name: p.name, present: true }));
 
   const addRemark = () => {
     if (!draft.trim()) return;
-    setRemarksByPoste(prev => ({ ...prev, [activePoste]: [...(prev[activePoste] || []), { id: Date.now(), text: draft.trim(), status }] }));
+    if (demo) setMockRemarks(prev => ({ ...prev, [activePoste]: [...(prev[activePoste] || []), { id: Date.now(), text: draft.trim(), status }] }));
+    else onAddRemark(activePoste, draft.trim(), status);
     setDraft("");
   };
 
@@ -263,14 +409,12 @@ function SaisieStep({ project, meta }) {
     <>
       {/* Bandeau de contexte : date, météo, présents */}
       <div style={{ height: 52, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `0 ${tokens.space[5]}`, gap: tokens.space[3], overflowX: "auto" }}>
-        <CtxItem icon={<I.cal size={15} />}>{meta.meetingLabel || "Réunion"} · 09:00</CtxItem>
+        <CtxItem icon={<I.cal size={15} />}>{meta.meetingLabel || "Réunion"}</CtxItem>
         <Divider />
-        <CtxItem icon={<I.cloud size={15} />} muted>12°C · couvert</CtxItem>
+        <CtxItem icon={<I.cloud size={15} />} muted>Météo auto</CtxItem>
         <Divider />
         <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Présents</span>
-        <PresentChip ini="GD" name="Gaëlle D." present />
-        <PresentChip ini="MG" name="M. Genin" present />
-        <PresentChip ini="PM" name="P. Mertens" />
+        {présents.map((p, i) => <PresentChip key={i} ini={p.ini} name={p.name} present={p.present} />)}
         <button style={{ height: 28, padding: `0 ${tokens.space[2]}`, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.full, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[500], cursor: "pointer", whiteSpace: "nowrap" }}>+ Gérer</button>
       </div>
 
@@ -458,8 +602,20 @@ function DropBtn({ children, icon }) {
   );
 }
 
-function RedactionStep({ meta, project }) {
+function buildRealSources(project) {
+  return (project?.posts || [])
+    .filter(p => (p.remarks || []).length > 0)
+    .map(p => ({
+      poste: `${p.id} · ${String(p.label || "").toUpperCase()}`,
+      items: (p.remarks || []).map((r, i) => ({ text: r.text, ref: `${p.id}.${i + 1}`, urgent: r.urgent })),
+    }));
+}
+
+function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate }) {
   const [style, setStyle] = useState("standard");
+  const sources = demo ? REDACTION_SOURCES : buildRealSources(project);
+  const sourceCount = demo ? (meta.totalRemarks || 12) : sources.reduce((s, g) => s + g.items.length, 0);
+
   return (
     <>
       {/* Toolbar options */}
@@ -468,7 +624,7 @@ function RedactionStep({ meta, project }) {
         <Divider />
         <DropBtn>Numérotation : par poste <I.chevDown size={13} /></DropBtn>
         <DropBtn>Destinataire : tous <I.chevDown size={13} /></DropBtn>
-        <div style={{ marginLeft: "auto" }}><DropBtn icon={<I.redo size={13} />}>Régénérer</DropBtn></div>
+        <div style={{ marginLeft: "auto" }}><button onClick={!demo ? onRegenerate : undefined} disabled={!demo && gen?.loading} style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 32, padding: `0 ${tokens.space[3]}`, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[700], cursor: (!demo && gen?.loading) ? "wait" : "pointer" }}><I.redo size={13} />Régénérer</button></div>
       </div>
 
       {/* Deux panneaux */}
@@ -477,26 +633,47 @@ function RedactionStep({ meta, project }) {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
           <div style={{ margin: `${tokens.space[4]} ${tokens.space[6]} 0`, background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.lg, padding: `${tokens.space[2]} ${tokens.space[4]}`, display: "flex", alignItems: "center", gap: tokens.space[2] }}>
             <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.spark size={16} /></span>
-            <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.brand[700] }}>Rédigé par l'IA à partir de <b>{meta.totalRemarks || 12} remarques</b>. Le texte est <b>éditable</b> — clique pour ajuster.</span>
-            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: "#16A34A", display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: "#16A34A" }} />Enregistré</span>
+            <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.brand[700] }}>Rédigé par l'IA à partir de <b>{sourceCount} remarques</b>. Le texte est <b>éditable</b> — clique pour ajuster.</span>
+            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: tokens.color.semantic.success.fg }} />{demo ? "Enregistré" : gen?.loading ? "Génération…" : gen?.error ? "Erreur" : "Brouillon"}</span>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: `${tokens.space[4]} ${tokens.space[6]}` }}>
-            <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, padding: `${tokens.space[8]} ${tokens.space[10]}`, maxWidth: 720, margin: "0 auto" }}>
+            <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, padding: `${tokens.space[8]} ${tokens.space[10]}`, maxWidth: 720, margin: "0 auto", minHeight: 300, display: "flex", flexDirection: "column" }}>
               <div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, letterSpacing: "0.08em", textTransform: "uppercase", color: tokens.color.neutral[500], marginBottom: tokens.space[1] }}>Procès-verbal de chantier n°{meta.num}</div>
               <div style={{ fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], letterSpacing: "-0.3px", marginBottom: 3 }}>{project?.name}</div>
-              <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], marginBottom: tokens.space[5], paddingBottom: tokens.space[4], borderBottom: `1px solid ${tokens.color.neutral[200]}`, lineHeight: tokens.font.leading.normal }}>{REDACTION_DOC.meta}</div>
-              {REDACTION_DOC.sections.map((s, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: s.brand ? tokens.color.brand[600] : tokens.color.neutral[900], marginBottom: tokens.space[2] }}>{s.code}. {s.title}</div>
-                  {s.paras.map((p, j) => (
-                    <p key={j} style={{ margin: `0 0 ${j === s.paras.length - 1 ? tokens.space[5] : tokens.space[2]}`, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700] }}>
-                      {p.num && <b style={{ color: tokens.color.neutral[900] }}>{p.num}</b>} {p.text}
-                      {p.highlight && <span style={{ background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, borderRadius: 3, padding: "0 3px", fontWeight: tokens.font.weight.medium }}>{p.highlight}</span>}
-                      {p.cursor && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}
-                    </p>
-                  ))}
+              <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], marginBottom: tokens.space[5], paddingBottom: tokens.space[4], borderBottom: `1px solid ${tokens.color.neutral[200]}`, lineHeight: tokens.font.leading.normal }}>{demo ? REDACTION_DOC.meta : `Réunion du ${meta.meetingLabel || "—"} · Présents : ${(project?.participants || []).slice(0, 3).map(p => p.name).join(", ") || "—"}`}</div>
+
+              {demo ? (
+                REDACTION_DOC.sections.map((s, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: s.brand ? tokens.color.brand[600] : tokens.color.neutral[900], marginBottom: tokens.space[2] }}>{s.code}. {s.title}</div>
+                    {s.paras.map((p, j) => (
+                      <p key={j} style={{ margin: `0 0 ${j === s.paras.length - 1 ? tokens.space[5] : tokens.space[2]}`, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700] }}>
+                        {p.num && <b style={{ color: tokens.color.neutral[900] }}>{p.num}</b>} {p.text}
+                        {p.highlight && <span style={{ background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, borderRadius: 3, padding: "0 3px", fontWeight: tokens.font.weight.medium }}>{p.highlight}</span>}
+                        {p.cursor && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}
+                      </p>
+                    ))}
+                  </div>
+                ))
+              ) : gen?.loading ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: tokens.space[3], color: tokens.color.neutral[500] }}>
+                  <div style={{ width: 28, height: 28, border: `3px solid ${tokens.color.neutral[200]}`, borderTopColor: tokens.color.brand[500], borderRadius: "50%", animation: "pvspin 0.8s linear infinite" }} />
+                  <span style={{ fontSize: tokens.font.size.sm }}>L'IA rédige le PV à partir de tes remarques…</span>
+                  <style>{`@keyframes pvspin { to { transform: rotate(360deg) } }`}</style>
                 </div>
-              ))}
+              ) : gen?.error ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: tokens.space[3], textAlign: "center" }}>
+                  <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.semantic.danger.fg }}>{gen.error}</span>
+                  <Button variant="secondary" size="sm" leftIcon={<I.redo size={13} />} onClick={onRegenerate}>Réessayer</Button>
+                </div>
+              ) : (
+                <textarea
+                  value={gen?.content || ""}
+                  onChange={e => onChange(e.target.value)}
+                  spellCheck={false}
+                  style={{ flex: 1, width: "100%", minHeight: 280, border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: tokens.font.family, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700], boxSizing: "border-box" }}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -506,10 +683,10 @@ function RedactionStep({ meta, project }) {
           <div style={{ height: 42, display: "flex", alignItems: "center", gap: tokens.space[2], padding: `0 ${tokens.space[4]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
             <span style={{ color: tokens.color.neutral[500], display: "inline-flex" }}><I.clipboard size={14} /></span>
             <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Remarques source</span>
-            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[300] }}>{meta.totalRemarks || 12}</span>
+            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[300] }}>{sourceCount}</span>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: tokens.space[3], display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-            {REDACTION_SOURCES.map((grp, gi) => (
+            {sources.map((grp, gi) => (
               <div key={gi}>
                 <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[500], margin: `${gi > 0 ? tokens.space[2] : 0} 0 ${tokens.space[2]}` }}>{grp.poste}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
@@ -531,16 +708,139 @@ function RedactionStep({ meta, project }) {
   );
 }
 
-// ── Placeholder d'étape (Diffusion) — à porter ──
-function StepPlaceholder({ n, label }) {
+// ─────────────────────────────────────────────────────────────
+// Étape 3 — Diffusion (tâches suggérées par l'IA + envoi email)
+// ─────────────────────────────────────────────────────────────
+
+const DIFF_TASKS = [
+  { id: 1, title: "Reprendre le tirage des câbles — gaine 2e étage", priority: "high", date: "10 juil.", assignee: { ini: "EG", name: "Entreprise Genin" }, quote: "…reprendre le tirage des câbles dans la gaine technique du 2e…" },
+  { id: 2, title: "Installer le différentiel 30 mA — tableau rez", urgent: true, priority: "urgent", date: "4 juil.", assignee: { ini: "EC", name: "Elek & Co" }, quote: "…correction requise avant toute mise sous tension." },
+];
+const DIFF_RECIPIENTS = [
+  { ini: "PM", name: "Paul Mertens", email: "p.mertens@nivelles.be", role: "MO", avBg: "#DBEAFE", avFg: tokens.color.semantic.info.fg },
+  { ini: "MG", name: "Marc Genin", email: "m.genin@genin-sa.be", role: "Entreprise", avBg: "#DCFCE7", avFg: tokens.color.semantic.success.fg },
+];
+
+function DiffusionStep({ meta, project }) {
+  const [checked, setChecked] = useState({ 0: true, 1: true });
+  const [attachPdf, setAttachPdf] = useState(true);
+  const subject = `PV n°${meta.num} — ${project?.name}${project?.nextMeeting ? ` (${project.nextMeeting})` : ""}`;
+
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: tokens.space[10], width: "100%", boxSizing: "border-box" }}>
-      <div style={{ padding: tokens.space[12], background: tokens.color.neutral[0], border: `1px dashed ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.xl, textAlign: "center" }}>
-        <div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.brand[600], textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: tokens.space[2] }}>Étape {n}</div>
-        <div style={{ fontSize: tokens.font.size.xl, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], marginBottom: tokens.space[2] }}>{label}</div>
-        <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>Cet écran arrive dans la prochaine itération — utilise le bouton en haut à droite pour avancer.</div>
+    <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+      {/* Tâches suggérées */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", borderRight: `1px solid ${tokens.color.neutral[200]}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[5]} ${tokens.space[6]} ${tokens.space[3]}` }}>
+          <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.spark size={18} /></span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900] }}>Tâches suggérées</div>
+            <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{DIFF_TASKS.length} actions détectées dans le PV — valide celles à suivre</div>
+          </div>
+          <Button variant="secondary" size="sm">Tout accepter</Button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]} ${tokens.space[5]}`, display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
+          {DIFF_TASKS.map(t => <DiffTaskCard key={t.id} t={t} />)}
+        </div>
+      </div>
+
+      {/* Envoi */}
+      <div style={{ width: 480, flexShrink: 0, display: "flex", flexDirection: "column", background: tokens.color.neutral[0] }}>
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[5]} ${tokens.space[5]} ${tokens.space[3]}` }}>
+          <span style={{ color: tokens.color.neutral[900], display: "inline-flex" }}><I.mail size={18} /></span>
+          <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900] }}>Envoyer le PV n°{meta.num}</div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[5]} ${tokens.space[5]}`, display: "flex", flexDirection: "column", gap: tokens.space[4] }}>
+          {/* Destinataires */}
+          <div>
+            <FieldLabel>Destinataires</FieldLabel>
+            <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+              {DIFF_RECIPIENTS.map((r, i) => (
+                <label key={i} onClick={() => setChecked(c => ({ ...c, [i]: !c[i] }))} style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[2]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, cursor: "pointer" }}>
+                  <Check on={checked[i]} />
+                  <span style={{ width: 26, height: 26, borderRadius: tokens.radius.full, background: r.avBg, color: r.avFg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: tokens.font.weight.bold }}>{r.ini}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], fontWeight: tokens.font.weight.medium }}>{r.name}</div>
+                    <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{r.email} · {r.role}</div>
+                  </div>
+                </label>
+              ))}
+              <button style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: tokens.space[1], height: 34, padding: `0 ${tokens.space[2]}`, background: "transparent", border: `1px dashed ${tokens.color.brand[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.brand[600], cursor: "pointer" }}><I.plus size={13} /> Ajouter un email externe</button>
+            </div>
+          </div>
+
+          {/* Objet */}
+          <div>
+            <FieldLabel>Objet</FieldLabel>
+            <div style={{ height: 38, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, display: "flex", alignItems: "center", padding: `0 ${tokens.space[3]}`, fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{subject}</div>
+          </div>
+
+          {/* Joindre PDF */}
+          <label onClick={() => setAttachPdf(v => !v)} style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[3]} ${tokens.space[3]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[50], cursor: "pointer" }}>
+            <div style={{ width: 30, height: 30, borderRadius: tokens.radius.md, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: tokens.font.weight.bold }}>PDF</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], fontWeight: tokens.font.weight.medium }}>Joindre le PV en PDF</div>
+              <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Avec en-tête de l'agence · sans filigrane</div>
+            </div>
+            <Toggle on={attachPdf} />
+          </label>
+
+          {/* Message */}
+          <div>
+            <FieldLabel>Message</FieldLabel>
+            <div style={{ border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: `${tokens.space[3]} ${tokens.space[3]}`, fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], lineHeight: 1.55 }}>
+              Bonjour,<br />Veuillez trouver ci-joint le procès-verbal de la réunion de chantier du 30 juin. Les points en attente y sont détaillés par lot.<br /><br />Bien cordialement,<br /><span style={{ color: tokens.color.neutral[900], fontWeight: tokens.font.weight.semibold }}>Gaëlle Dupont</span> <span style={{ color: tokens.color.neutral[500] }}>— Atelier d'architecture</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+function FieldLabel({ children }) {
+  return <div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: tokens.space[2] }}>{children}</div>;
+}
+
+function Check({ on }) {
+  return (
+    <span style={{ width: 18, height: 18, borderRadius: tokens.radius.sm, flexShrink: 0, color: "#fff", background: on ? tokens.color.brand[500] : tokens.color.neutral[0], border: on ? "none" : `1.5px solid ${tokens.color.neutral[300]}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {on && <I.check size={12} />}
+    </span>
+  );
+}
+
+function Toggle({ on }) {
+  return (
+    <div style={{ width: 38, height: 22, borderRadius: tokens.radius.full, background: on ? tokens.color.brand[500] : tokens.color.neutral[300], position: "relative", flexShrink: 0, transition: tokens.transition.base }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 18 : 2, width: 18, height: 18, borderRadius: tokens.radius.full, background: tokens.color.neutral[0], transition: tokens.transition.base }} />
+    </div>
+  );
+}
+
+function DiffTaskCard({ t }) {
+  return (
+    <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: t.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, padding: tokens.space[4] }}>
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[3] }}>
+        <span style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{t.title}</span>
+        {t.urgent && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, fontWeight: tokens.font.weight.semibold }}>Urgent</span>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexWrap: "wrap", marginBottom: tokens.space[3] }}>
+        <MetaChip danger={t.priority === "urgent"}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: t.priority === "urgent" ? tokens.color.semantic.danger.fg : "#D97706" }} />{t.priority === "urgent" ? "Urgent" : "Haute"}</MetaChip>
+        <MetaChip><I.cal size={12} />{t.date}</MetaChip>
+        <MetaChip><span style={{ width: 18, height: 18, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{t.assignee.ini}</span>{t.assignee.name}</MetaChip>
+      </div>
+      <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], background: tokens.color.neutral[50], borderLeft: `2px solid ${tokens.color.neutral[200]}`, padding: `${tokens.space[1]} ${tokens.space[3]}`, borderRadius: "0 6px 6px 0", marginBottom: tokens.space[3] }}>« {t.quote} »</div>
+      <div style={{ display: "flex", gap: tokens.space[2] }}>
+        <Button variant="primary" size="sm">Créer la tâche</Button>
+        <Button variant="secondary" size="sm">Ignorer</Button>
+      </div>
+    </div>
+  );
+}
+
+function MetaChip({ children, danger }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", borderRadius: tokens.radius.md, background: danger ? tokens.color.semantic.danger.bg : tokens.color.neutral[100], border: `1px solid ${danger ? tokens.color.semantic.danger.border : tokens.color.neutral[200]}`, fontSize: tokens.font.size.xs, color: danger ? tokens.color.semantic.danger.fg : tokens.color.neutral[700] }}>{children}</span>
   );
 }
 
