@@ -62,6 +62,7 @@ import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton
 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, MobilePvDictateSheet, Sidebar } from "./components/layout";
+import { AppRail } from "./components/layout/AppRail";
 import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, PhaseManagerModal, PhaseWizardModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
@@ -1157,14 +1158,17 @@ export default function App() {
         @keyframes chatPopIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes chatTyping { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
-      <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
+      {/* Desktop : rail fin « Direction D ». Mobile : ancienne sidebar en drawer (hamburger). */}
+      {!isMobile ? (
+        <AppRail projects={projects} activeId={activeId} view={view} project={project} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewProject={tryOpenNewProject} onOverview={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onProfile={() => setView("profile")} profile={profile} />
+      ) : (
         <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onImportProject={() => setImportWizardOpen(true)} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} />
-      </nav>
+      )}
 
       {/* Sidebar overlay for tablet/mobile */}
       {sidebarOpen && <div className="ap-sidebar-overlay open" onClick={() => setSidebarOpen(false)} />}
 
-      <main id="main-content" className="ap-main" role="main" style={{ marginLeft: sidebarOpen ? 264 : 0, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
+      <main id="main-content" className="ap-main" role="main" style={{ marginLeft: isMobile ? 0 : 62, flex: 1, transition: "margin-left 0.25s", minWidth: 0 }}>
         {/* Banner timer — n'apparaît que quand on N'EST PAS sur le projet en cours
             de suivi (le TimerPill du header projet suffit alors). Très thin (24px). */}
         {activeTimer && (activeTimer.projectId !== activeId || view === "stats" || view === "planningDashboard" || view === "timesheet" || view === "profile") && (

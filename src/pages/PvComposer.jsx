@@ -70,6 +70,7 @@ export function PvComposer({
   const t = useT();
 
   const [step, setStep] = useState("choice");
+  const [saisieMode, setSaisieMode] = useState("write");
   const [gen, setGen] = useState({ loading: false, content: "", error: "", suggestedTasks: [], saved: false });
   const today = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
   const finish = () => (onBack || onClose)?.();
@@ -269,8 +270,8 @@ export function PvComposer({
 
       {/* ── Contenu ── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {step === "choice" && <ChoiceStep meta={meta} onChoose={() => setStep("saisie")} />}
-        {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
+        {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { setSaisieMode(m === "dictate" ? "dictate" : "write"); setStep("saisie"); }} />}
+        {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
@@ -322,7 +323,7 @@ function ChoiceStep({ meta, onChoose, onStartReal }) {
             title="Rédaction manuelle"
             desc="Saisis tes remarques poste par poste, au clavier. Idéal au bureau, au calme, avec le dernier PV sous les yeux."
             cta="Ouvrir la saisie"
-            onClick={onChoose}
+            onClick={() => onChoose("write")}
           />
           <ChoiceCard
             emphasized
@@ -331,14 +332,14 @@ function ChoiceStep({ meta, onChoose, onStartReal }) {
             title="Enregistrement audio"
             desc="Dicte tes observations ou dépose l'enregistrement de la réunion. L'IA transcrit, découpe en remarques atomiques et les répartit par poste."
             cta="Démarrer l'enregistrement"
-            onClick={onChoose}
+            onClick={() => onChoose("dictate")}
           />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: tokens.space[4] }}>
-          <NaviButton onClick={onChoose} icon={<I.upload size={15} />} label="Importer des notes (.txt)" />
+          <NaviButton onClick={() => onChoose("write")} icon={<I.upload size={15} />} label="Importer des notes (.txt)" />
           <div style={{ width: 1, height: 18, background: tokens.color.neutral[200] }} />
-          <NaviButton onClick={onChoose} icon={<I.redo size={15} />} label="Reprendre un brouillon" />
+          <NaviButton onClick={() => onChoose("write")} icon={<I.redo size={15} />} label="Reprendre un brouillon" />
         </div>
       </div>
     </div>
@@ -421,7 +422,7 @@ function toDisplayRemark(r) {
   return { id: r.id, text: r.text, status, recipient: rec ? { ini: initials(rec), name: rec } : null };
 }
 
-function SaisieStep({ project, meta, demo, onAddRemark }) {
+function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
   const postes = useMemo(() => demo
     ? SAISIE_POSTES
     : (project.posts || []).map(p => ({ code: p.id, name: p.label, count: (p.remarks || []).length, alert: (p.remarks || []).some(r => r.urgent && r.status !== "done") })),
@@ -429,7 +430,7 @@ function SaisieStep({ project, meta, demo, onAddRemark }) {
   const [activePoste, setActivePoste] = useState(postes[0]?.code);
   const [mockRemarks, setMockRemarks] = useState(SAISIE_REMARKS);
   const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState("write");
+  const [mode, setMode] = useState(initialMode === "dictate" ? "dictate" : "write");
   const [status, setStatus] = useState("observation");
 
   useEffect(() => { if (!postes.find(p => p.code === activePoste)) setActivePoste(postes[0]?.code); }, [postes, activePoste]);
