@@ -1184,36 +1184,33 @@ export default function App() {
         <div className="ap-header" style={{ padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}`, display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 50 }}>
           {/* Gauche — hamburger + retour + contexte projet */}
           <div style={{ display: "flex", alignItems: "center", gap: SP.sm, flex: "0 0 auto", minWidth: 0 }}>
-            <button className="ap-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"} style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.md }}>
-              <Ico name={sidebarOpen ? "x" : "menu"} color={TX2} />
-            </button>
+            {isMobile && (
+              <button className="ap-hamburger" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"} style={{ background: "none", border: "none", cursor: "pointer", padding: SP.sm, minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.md }}>
+                <Ico name={sidebarOpen ? "x" : "menu"} color={TX2} />
+              </button>
+            )}
             {/* Bouton retour — visible dans les vues profondes */}
             {view !== "overview" && view !== "stats" && view !== "planningDashboard" && view !== "profile" && (
               <button onClick={() => setView("overview")} aria-label="Retour à l'aperçu" className="sb-nav ap-back-btn" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.xs, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
                 <Ico name="back" size={16} color={TX2} />
               </button>
             )}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7, fontSize: 14 }}>
               {view === "profile" ? (
-                <div style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Mon profil</div>
+                <span style={{ fontWeight: 600, color: TX }}>Mon profil</span>
               ) : (view === "stats" || view === "planningDashboard" || view === "timesheet") ? (
+                <span style={{ fontWeight: 600, color: TX }}>Vue d'ensemble</span>
+              ) : !project ? (
+                <span style={{ fontWeight: 600, color: TX }}>Projets</span>
+              ) : (
                 <>
-                <button className="ap-project-switcher" onClick={() => { setPickerTab("dashboard"); setProjectPicker(v => !v); }} style={{ display: "none", background: projectPicker ? SB2 : SB, border: "none", cursor: "pointer", padding: `${SP.sm}px ${SP.md}px`, fontFamily: "inherit", textAlign: "left", minWidth: 0, width: "100%", borderRadius: RAD.lg, transition: "background 0.15s" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: SP.sm }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: TX, lineHeight: LH.tight }}>Vue d'ensemble</span>
-                    </div>
-                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: projectPicker ? ACL : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
-                      <Ico name="chevron-down" size={12} color={projectPicker ? AC : TX3} />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginTop: 3 }}>
-                    <span style={{ fontSize: FS.xs, color: TX3 }}>{projects.filter(p => !p.archived).length} projets actifs</span>
-                  </div>
-                </button>
-                <div className="ap-project-name-desktop" style={{ fontSize: FS.lg, fontWeight: 600, color: TX }}>Vue d'ensemble</div>
+                  <button onClick={() => setView("overview")} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: TX3, padding: 0 }}>Projets</button>
+                  <span style={{ color: SBB }}>/</span>
+                  <span style={{ fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 380 }}>{project.name}</span>
+                  {VIEW_LABELS[view] && (<><span style={{ color: SBB }}>/</span><span style={{ color: TX2, whiteSpace: "nowrap" }}>{VIEW_LABELS[view]}</span></>)}
                 </>
-              ) : (() => {
+              )}
+              {false && (() => {
                 // Project header v2 — Variant A: 2-line compact
                 if (!project) return null;
                 const st = getProjectPhase(project, project.statusId);
