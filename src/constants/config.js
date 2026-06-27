@@ -16,29 +16,30 @@ export const STRUCTURE_TYPES = [
 ];
 
 // ── Plans & Feature Gates ──────────────────────────────────
-// Team includes 3 seats; extra seats billed at +9.99 €/mo each.
+// POC solo-first : plan Team retiré (étage agence CUT). Free + Pro seulement.
 export const PLANS = {
   free: { id: "free", label: "Free", price: 0, priceYear: 0 },
   pro:  { id: "pro",  label: "Pro",  price: 39, priceYear: 390 },
-  team: { id: "team", label: "Team", price: 89, priceYear: 890, seatsIncluded: 3, extraSeatPrice: 9.99 },
 };
+// Gates Pro actifs : maxProjects, maxPvPerMonth, maxAiPerMonth, sendEmail,
+// gallery, pdfNoWatermark, pdfCustomLogo. Gates dormants (features DEFER,
+// jamais atteints car masqués par featureFlags) : opr, planning, lots,
+// checklists, dashboardFull, maxCollabPerProj — conservés pour le fast-follow.
+// Gates Team-only retirés (roles / planningCross / exportCsv) : features CUT/DEFER.
 export const PLAN_FEATURES = {
-  maxProjects:      { free: 1,     pro: Infinity, team: Infinity },
-  maxPvPerMonth:    { free: 3,     pro: Infinity, team: Infinity },
-  maxAiPerMonth:    { free: 3,     pro: Infinity, team: Infinity },
-  maxCollabPerProj: { free: 0,     pro: 3,        team: Infinity },
-  sendEmail:        { free: false, pro: true,     team: true },
-  gallery:          { free: false, pro: true,     team: true },
-  planning:         { free: false, pro: true,     team: true },
-  lots:             { free: false, pro: true,     team: true },
-  checklists:       { free: false, pro: true,     team: true },
-  roles:            { free: false, pro: false,    team: true },
-  dashboardFull:    { free: false, pro: true,     team: true },
-  planningCross:    { free: false, pro: false,    team: true },
-  exportCsv:        { free: false, pro: false,    team: true },
-  pdfNoWatermark:   { free: false, pro: true,     team: true },
-  pdfCustomLogo:    { free: false, pro: true,     team: true },
-  opr:              { free: false, pro: true,     team: true },
+  maxProjects:      { free: 1,     pro: Infinity },
+  maxPvPerMonth:    { free: 3,     pro: Infinity },
+  maxAiPerMonth:    { free: 3,     pro: Infinity },
+  maxCollabPerProj: { free: 0,     pro: 3        },
+  sendEmail:        { free: false, pro: true     },
+  gallery:          { free: false, pro: true     },
+  planning:         { free: false, pro: true     },
+  lots:             { free: false, pro: true     },
+  checklists:       { free: false, pro: true     },
+  dashboardFull:    { free: false, pro: true     },
+  pdfNoWatermark:   { free: false, pro: true     },
+  pdfCustomLogo:    { free: false, pro: true     },
+  opr:              { free: false, pro: true     },
 };
 export const hasFeature = (plan, feature) => {
   const p = plan || "free";
@@ -76,13 +77,10 @@ export const INIT_PROFILE = {
   vatNumber: "",
   invoicePaymentTermsDays: 30,
   invoicePaymentNote: "",
-  // F5 — préférences d'alertes
+  // F5 — préférences d'alertes (POC : seules les règles de features actives
+  // sont conservées — réception/réserves/permis/factures différées).
   alertSettings: {
-    reception_definitive: true,
-    reserve_overdue:      true,
-    permit_deadline:      true,
     task_overdue:         true,
-    invoice_overdue:      true,
     no_pv_30d:            false,
     email_digest:         false,
   },

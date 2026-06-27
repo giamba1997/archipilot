@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { useT } from "../i18n";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, LH, RAD, GRBG, REDBG, REDBRD, BL, BLB, TE, TEB, QT_DOC_BG, QT_DOC_FG, QT_PHOTO_BG, QT_PHOTO_FG, QT_PLAN_BG, QT_PLAN_FG, QT_LIST_BG, QT_LIST_FG, BR, BRB, SG, SGB, AM, AMB, ST } from "../constants/tokens";
 import { getStatus, STATUSES, nextPvStatus, PV_STATUSES, getPvStatus } from "../constants/statuses";
+import { isEnabled } from "../constants/featureFlags";
 import { parseDateFR } from "../utils/dates";
 const updateProjectField = (project, setProjects, field, value) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, [field]: value } : p));
 import { RECURRENCES } from "../constants/templates";
@@ -16,7 +17,6 @@ import { isReadOnly, canEdit, canManageMembers } from "../components/modals/Coll
 import { MeetingCard, MEETING_MODES } from "./MeetingCard";
 import { PvRow, SmallBtn } from "./PvRow";
 import { CollabModalWrapper } from "../components/modals/CollabModalWrapper";
-import { usePresence } from "../hooks/usePresence";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { TimerCard } from "./TimerCard";
 import { CdcBanner } from "./CdcBanner";
@@ -120,17 +120,9 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   const _readOnly = isReadOnly(project);
   const _canEdit = canEdit(project);
   const _canManage = canManageMembers(project);
-  // Live presence — only meaningful when the project is shared via an
-  // organization. Personal projects don't broadcast presence.
-  const presenceKey = activeContext?.startsWith?.("org:")
-    ? `presence:${activeContext}:project:${project.id}`
-    : null;
-  const presenceInfo = useMemo(() => ({
-    name: profile?.name || "",
-    avatar: profile?.picture || null,
-    viewing: "overview",
-  }), [profile?.name, profile?.picture]);
-  const { present, selfId } = usePresence(presenceKey, presenceInfo);
+  // POC solo : présence temps réel retirée (liée à l'agence, CUT).
+  const present = [];
+  const selfId = null;
   const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
   const deletePv = (pvNum) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.filter(pv => pv.number !== pvNum) } : p));
   const setCdc = (cdc) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, cahierDesCharges: cdc } : p));
@@ -193,7 +185,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   const [invoiceSummary, setInvoiceSummary] = useState(null);
   useEffect(() => {
     let cancelled = false;
-    if (!project?.id) return;
+    if (!project?.id || !isEnabled("invoices")) return;
     loadInvoices({ projectId: project.id })
       .then(invs => {
         if (cancelled) return;
@@ -219,7 +211,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   const [quotesCount, setQuotesCount] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    if (!project?.id) return;
+    if (!project?.id || !isEnabled("quotes")) return;
     loadQuotes({ projectId: project.id })
       .then(qs => { if (!cancelled) setQuotesCount((qs || []).length); })
       .catch(() => { /* table absente — count reste à 0 */ });
@@ -332,14 +324,14 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         const allTabs = [
           { id: "resume",     label: "Résumé" },
           { id: "actions",    label: "Actions",   count: openActions.length,                showZero: true },
-          { id: "planning",   label: "Planning",  count: (project.lots || []).length,       showZero: false, desktopOnly: true },
+          { id: "planning",   label: "Planning",  count: (project.lots || []).length,       showZero: false, desktopOnly: true, flag: "planning" },
           { id: "pv",         label: "PV",        count: (project.pvHistory || []).length, showZero: false },
           // Facturation & Devis — embarqués sous forme d'onglets pour un accès
           // direct sans quitter l'Overview. Affichés seulement si compteur > 0
           // pour ne pas alourdir la barre quand le projet est à un stade
           // qui n'a pas encore de facture / devis. Desktop only — admin pure.
-          { id: "invoices",   label: "Facturation", count: invoiceSummary?.total || 0,      showZero: false, desktopOnly: true },
-          { id: "quotes",     label: "Devis",      count: quotesCount,                      showZero: false, desktopOnly: true },
+          { id: "invoices",   label: "Facturation", count: invoiceSummary?.total || 0,      showZero: false, desktopOnly: true, flag: "invoices" },
+          { id: "quotes",     label: "Devis",      count: quotesCount,                      showZero: false, desktopOnly: true, flag: "quotes" },
           { id: "documents",  label: "Documents", count: (project.planFiles || []).filter(f => f.type !== "folder").length, showZero: false },
           { id: "photos",     label: "Photos",    count: (project.gallery || []).length,    showZero: false },
           // Fiche projet — placée en dernier car c'est une vue de référence
@@ -355,10 +347,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           // `external: handler` → onClick appelle le handler (setView dans
           // App.jsx) au lieu de setActiveTab. Marqué visuellement par un
           // séparateur dans le bottom sheet mobile.
-          { id: "opr",        label: "Réserves (OPR)", count: (project.reserves || []).filter(r => r.status !== "levee").length, showZero: false, external: onOpr,     mobileOnly: true },
-          { id: "permits",    label: "Permis",         external: onPermits,                                                                                                          mobileOnly: true },
+          { id: "opr",        label: "Réserves (OPR)", count: (project.reserves || []).filter(r => r.status !== "levee").length, showZero: false, external: onOpr,     mobileOnly: true, flag: "opr" },
+          { id: "permits",    label: "Permis",         external: onPermits,                                                                                                          mobileOnly: true, flag: "permits" },
           { id: "journal",    label: "Journal",        count: (project.journalEntries || []).length, showZero: false, external: onJournal,                                            mobileOnly: true },
-          { id: "reports",    label: "Rapports",       external: onReports,                                                                                                          mobileOnly: true },
+          { id: "reports",    label: "Rapports",       external: onReports,                                                                                                          mobileOnly: true, flag: "progressReports" },
         ];
         // Sur mobile, on cache les onglets desktop-only (Planning/Facturation/
         // Devis) — l'archi en mouvement n'y va jamais, et les UI complexes
@@ -368,9 +360,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
         // Inversement, on cache les onglets mobileOnly sur desktop (OPR /
         // Permis / Journal / Rapports) — ces vues ont déjà leurs propres
         // entrées de navigation desktop, pas besoin de les dupliquer ici.
-        const tabs = isMobile
+        const tabs = (isMobile
           ? allTabs.filter(t => !t.desktopOnly)
-          : allTabs.filter(t => !t.mobileOnly);
+          : allTabs.filter(t => !t.mobileOnly)
+        ).filter(t => !t.flag || isEnabled(t.flag)); // POC : masque les onglets de features différées
         // Si l'onglet courant est masqué (changement de viewport), retombe sur Résumé
         if (isMobile && !tabs.some(t => t.id === activeTab)) {
           setTimeout(() => setActiveTab("resume"), 0);
@@ -781,7 +774,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               desktop seulement. Sur mobile, le tab switcher en haut de
               page expose déjà ces vues. Garder les cards créerait une
               double porte d'entrée + alourdirait le Résumé. */}
-          {!isMobile && ["sketch", "preliminary", "permit"].includes(project.statusId) && (
+          {!isMobile && isEnabled("permits") && ["sketch", "preliminary", "permit"].includes(project.statusId) && (
             <ToolEntry
               icon="file"
               iconColor={ST}
@@ -791,7 +784,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             />
           )}
 
-          {!isMobile && ["execution", "construction", "reception"].includes(project.statusId) && (
+          {!isMobile && isEnabled("progressReports") && ["execution", "construction", "reception"].includes(project.statusId) && (
             <ToolEntry
               icon="sparkle"
               iconColor={AM}
@@ -827,7 +820,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               prend déjà ce rôle (cf. OverviewPhaseHero variant "opr").
               Reste visible dans les autres phases qui ont des réserves
               (ex : réserves créées en Chantier avant la phase Réception). */}
-          {getPhaseHeroVariant(project.statusId) !== "opr" && (project.statusId === "reception" || (project.reserves || []).length > 0) && (() => {
+          {isEnabled("opr") && getPhaseHeroVariant(project.statusId) !== "opr" && (project.statusId === "reception" || (project.reserves || []).length > 0) && (() => {
             const res = project.reserves || [];
             const total = res.length;
             const levees = res.filter(r => r.status === "levee").length;
@@ -893,12 +886,12 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                     <span style={{ fontSize: 8, color: TX3, marginTop: -2 }}>{p.role}</span>
                   </a>
                 ))}
-                <button onClick={onCollab} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                {isEnabled("collaboration") && <button onClick={onCollab} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 56, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px dashed ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="plus" size={14} color={TX3} />
                   </div>
                   <span style={{ fontSize: 9, color: TX3 }}>Inviter</span>
-                </button>
+                </button>}
               </div>
               {project.participants.some(p => p.phone) && (
                 <div style={{ fontSize: FS.xs - 1, color: TX3, marginTop: SP.sm, textAlign: "center", fontStyle: "italic" }}>Appuyez sur un contact pour appeler</div>
@@ -1186,7 +1179,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                   Gérer les participants
                 </button>
               )}
-              {!isMobile && <button onClick={onCollab}
+              {!isMobile && isEnabled("collaboration") && <button onClick={onCollab}
                 style={{ flex: 1, minWidth: 160, padding: "9px 12px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <Ico name="users" size={11} color={WH} />
                 Inviter des collaborateurs
@@ -1200,10 +1193,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             <button onClick={() => setActiveTab("pv")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: TX3, fontFamily: "inherit", fontSize: FS.xs }}>
               <strong style={{ color: TX }}>{(project.pvHistory || []).length}</strong> PV
             </button>
-            <span>·</span>
+            {isEnabled("opr") && <><span>·</span>
             <span>
               <strong style={{ color: TX }}>{(project.reserves || []).filter(r => r.status !== "levee").length}</strong> réserve{(project.reserves || []).filter(r => r.status !== "levee").length > 1 ? "s" : ""} ouverte{(project.reserves || []).filter(r => r.status !== "levee").length > 1 ? "s" : ""}
-            </span>
+            </span></>}
             <span>·</span>
             <button onClick={() => setActiveTab("photos")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: TX3, fontFamily: "inherit", fontSize: FS.xs }}>
               <strong style={{ color: TX }}>{(project.gallery || []).length}</strong> photo{(project.gallery || []).length > 1 ? "s" : ""}
@@ -1340,9 +1333,9 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                     )}
                   </div>
                 ))}
-                <button onClick={() => { setMobileSheet(null); onCollab(); }} style={{ width: "100%", marginTop: SP.md, padding: `${SP.sm + 2}px`, border: `1px dashed ${SBB}`, borderRadius: RAD.md, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.base, color: AC }}>
+                {isEnabled("collaboration") && <button onClick={() => { setMobileSheet(null); onCollab(); }} style={{ width: "100%", marginTop: SP.md, padding: `${SP.sm + 2}px`, border: `1px dashed ${SBB}`, borderRadius: RAD.md, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: SP.sm, fontFamily: "inherit", fontSize: FS.base, color: AC }}>
                   <Ico name="plus" size={14} color={AC} />Inviter
-                </button>
+                </button>}
               </div>
             )}
 

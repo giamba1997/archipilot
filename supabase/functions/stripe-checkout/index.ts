@@ -6,14 +6,11 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
 const APP_URL = Deno.env.get("APP_URL") || "https://archipilot-delta.vercel.app";
 
 /** Stripe price IDs — to be configured in Stripe Dashboard */
+// POC solo : seul le plan Pro est commercialisé (Team retiré avec l'étage agence).
 const PRICE_IDS: Record<string, Record<string, string>> = {
   pro: {
     month: Deno.env.get("STRIPE_PRO_MONTHLY_PRICE_ID") || "price_pro_monthly",
     year: Deno.env.get("STRIPE_PRO_YEARLY_PRICE_ID") || "price_pro_yearly",
-  },
-  team: {
-    month: Deno.env.get("STRIPE_TEAM_MONTHLY_PRICE_ID") || "price_team_monthly",
-    year: Deno.env.get("STRIPE_TEAM_YEARLY_PRICE_ID") || "price_team_yearly",
   },
 };
 
@@ -26,7 +23,7 @@ serve(async (req) => {
     const { plan, period = "month" } = await req.json();
 
     if (!plan || !PRICE_IDS[plan]) {
-      throw new Error("Plan invalide. Choisissez 'pro' ou 'team'.");
+      throw new Error("Plan invalide. Seul le plan 'pro' est disponible.");
     }
 
     const priceId = PRICE_IDS[plan][period];

@@ -6,7 +6,6 @@ export { RemarkEditModal } from "./RemarkEditModal";
 export { PricingSection } from "./PricingSection";
 export { SendPvModal } from "./SendPvModal";
 export { SearchModal } from "./SearchModal";
-export { OrgInviteModal } from "./OrgInviteModal";
 export { CdcStructureModal } from "./CdcStructureModal";
 export { TaskEditModal } from "./TaskEditModal";
 export { PhaseManagerModal } from "./PhaseManagerModal";

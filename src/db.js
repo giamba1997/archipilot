@@ -164,28 +164,23 @@ function dataUrlToBlob(dataUrl) {
 }
 
 export async function uploadPhoto(dataUrl) {
-  console.log("[Storage] uploadPhoto called, dataUrl length:", dataUrl?.length);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { console.log("[Storage] No user, aborting"); return null; }
-  console.log("[Storage] User:", user.id);
+  if (!user) return null;
 
   const ext = dataUrl.startsWith("data:image/png") ? "png" : "jpg";
   const path = `${user.id}/photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const blob = dataUrlToBlob(dataUrl);
-  console.log("[Storage] Uploading to:", path, "size:", blob.size);
 
-  const { data, error } = await supabase.storage
+  const { error } = await supabase.storage
     .from("project-files")
     .upload(path, blob, { contentType: blob.type, upsert: false });
 
   if (error) { console.error("[Storage] Upload error:", error); return null; }
-  console.log("[Storage] Upload success:", data);
 
   const { data: urlData } = supabase.storage
     .from("project-files")
     .getPublicUrl(path);
 
-  console.log("[Storage] Public URL:", urlData.publicUrl);
   return { storagePath: path, url: urlData.publicUrl };
 }
 
@@ -322,7 +317,6 @@ export async function loadMyInvitations() {
 export async function respondToInvitation(memberId, accept) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) { console.error("[Respond] No user"); return false; }
-  console.log("[Respond] User:", user.id, user.email, "memberId:", memberId, "accept:", accept);
 
   const { data, error } = await supabase
     .from("project_members")
@@ -335,7 +329,6 @@ export async function respondToInvitation(memberId, accept) {
     .select()
     .single();
 
-  console.log("[Respond] Update result:", { data, error });
   if (error) { console.error("[Respond] Error:", error); return false; }
 
   // Notify the project owner
@@ -357,8 +350,7 @@ export async function respondToInvitation(memberId, accept) {
 
 export async function loadSharedProjects() {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { console.log("[Shared] No user"); return []; }
-  console.log("[Shared] User:", user.id, user.email);
+  if (!user) return [];
 
   // Get all accepted memberships
   const { data: memberships, error: mErr } = await supabase
@@ -367,43 +359,30 @@ export async function loadSharedProjects() {
     .eq("user_id", user.id)
     .eq("status", "accepted");
 
-  console.log("[Shared] Memberships query:", { memberships, error: mErr });
-
-  // Also check if there are any memberships at all for this email (even pending)
-  const { data: allByEmail } = await supabase
-    .from("project_members")
-    .select("id, project_id, owner_id, role, status, user_id, invited_email")
-    .eq("invited_email", user.email?.toLowerCase());
-  console.log("[Shared] All memberships by email:", allByEmail);
-
-  if (mErr || !memberships?.length) { console.log("[Shared] No accepted memberships found"); return []; }
+  if (mErr || !memberships?.length) return [];
 
   // Group by owner
   const ownerIds = [...new Set(memberships.map(m => m.owner_id))];
   const shared = [];
 
   for (const ownerId of ownerIds) {
-    console.log("[Shared] Loading user_data for owner:", ownerId);
-    const { data: ownerData, error: odErr } = await supabase
+    const { data: ownerData } = await supabase
       .from("user_data")
       .select("projects")
       .eq("user_id", ownerId)
       .single();
 
-    console.log("[Shared] Owner data:", { hasProjects: !!ownerData?.projects, projectCount: ownerData?.projects?.length, error: odErr });
     if (!ownerData?.projects) continue;
 
     const ownerMemberships = memberships.filter(m => m.owner_id === ownerId);
     for (const mem of ownerMemberships) {
       const project = ownerData.projects.find(p => String(p.id) === String(mem.project_id));
-      console.log("[Shared] Matching project_id:", mem.project_id, "found:", !!project);
       if (project) {
         shared.push({ ...project, _shared: true, _ownerId: ownerId, _role: mem.role });
       }
     }
   }
 
-  console.log("[Shared] Final result:", shared.length, "projects");
   return shared;
 }
 

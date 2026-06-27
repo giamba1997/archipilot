@@ -5,6 +5,7 @@ import {
   DIS, DIST, REDBRD,
 } from "../constants/tokens";
 import { getReserveStatus, getReserveSeverity, RESERVE_SEVERITIES } from "../constants/statuses";
+import { isEnabled } from "../constants/featureFlags";
 import { Ico } from "../components/ui";
 import { uploadPhoto } from "../db";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
@@ -127,6 +128,17 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
     },
   });
 
+  // Garde-fou audio (limite POC connue : pas de chunking, le blob audio en
+  // mémoire est perdu si la page est rechargée/fermée pendant l'enregistrement).
+  // On avertit l'utilisateur avant qu'il ne quitte tant que l'audio n'est pas
+  // transcrit. À retirer quand l'enregistrement chunké/persisté sera en place.
+  useEffect(() => {
+    if (!conv.isRecording) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; return ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [conv.isRecording]);
+
   useEffect(() => {
     if (phase === "reunion") {
       if (!conv.isRecording && !conv.error) {
@@ -245,7 +257,12 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
         if (result) {
           setProjects(prev => prev.map(p => p.id !== project.id ? p : {
             ...p,
-            gallery: (p.gallery || []).map(ph => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph),
+            // On retire le dataUrl base64 après upload (pas de persistance JSONB).
+            gallery: (p.gallery || []).map(ph => {
+              if (ph.id !== photoId) return ph;
+              const { dataUrl: _drop, ...rest } = ph;
+              return { ...rest, url: result.url, storagePath: result.storagePath };
+            }),
           }));
         }
       } catch { /* upload échoué — la photo reste en dataUrl local */ }
@@ -412,8 +429,8 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
         <MeetingPhase stats={stats} recorder={conv} errorMsg={recorderErrorMsg} />
       ) : (
       <>
-        {/* ── 3 boutons d'action tactiles ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
+        {/* ── Boutons d'action tactiles ── (POC : Réserve retirée, réserves différées) */}
+        <div style={{ display: "grid", gridTemplateColumns: isEnabled("opr") ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 18 }}>
           <ActionButton
             icon="camera"
             label="Photo"
@@ -426,12 +443,12 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
             count={stats.decisions}
             onClick={() => setActiveSheet("voice")}
           />
-          <ActionButton
+          {isEnabled("opr") && <ActionButton
             icon="alert"
             label="Réserve"
             count={stats.created}
             onClick={() => setActiveSheet("new-reserve")}
-          />
+          />}
         </div>
 
         {/* ── Stats récap ── */}
@@ -479,8 +496,8 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           )}
         </Section>
 
-        {/* ── Réserves ouvertes ── */}
-        <Section title={`Réserves ouvertes (${openReserves.length})`}>
+        {/* ── Réserves ouvertes ── (POC : réserves différées) */}
+        {isEnabled("opr") && <Section title={`Réserves ouvertes (${openReserves.length})`}>
           {openReserves.length === 0 ? (
             <div style={{ fontSize: 12, color: TX3, fontStyle: "italic", padding: "8px 0" }}>
               Aucune réserve ouverte sur ce projet.
@@ -498,10 +515,10 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
               ))}
             </div>
           )}
-        </Section>
+        </Section>}
 
         {/* ── Nouvelles réserves créées pendant la visite ── */}
-        {newReserves.length > 0 && (
+        {isEnabled("opr") && newReserves.length > 0 && (
           <Section title={`Nouvelles réserves (${newReserves.length})`}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {newReserves.map(r => {
@@ -623,7 +640,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       {activeSheet === "voice" && (
         <VoiceSheet onClose={() => setActiveSheet(null)} onSubmit={onAddDecision} showToast={showToast} />
       )}
-      {activeSheet === "new-reserve" && (
+      {isEnabled("opr") && activeSheet === "new-reserve" && (
         <NewReserveSheet
           contractors={[...new Set([
             ...reserves.map(r => r.contractor).filter(Boolean),
@@ -1300,6 +1317,22 @@ function MeetingPhase({ recorder, errorMsg }) {
           Whisper la transcrira et l'ajoutera au brouillon de PV.
         </div>
       </div>
+
+      {/* Garde-fou POC : au-delà d'1h, on prévient (pas de chunking — un
+          enregistrement très long alourdit la mémoire et le blob est perdu
+          si la page est rechargée avant la transcription). */}
+      {recSec >= 3600 && (
+        <div style={{
+          padding: "10px 14px", background: "#FFF7ED", border: `1px solid ${AM}`,
+          borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <Ico name="alert" size={14} color={AM} />
+          <span style={{ fontSize: 12, color: TX2, lineHeight: 1.4 }}>
+            Réunion longue (&gt; 1 h). Pense à terminer la visite pour lancer la transcription —
+            ne recharge pas la page tant que l'audio n'est pas transcrit.
+          </span>
+        </div>
+      )}
 
       {/* Card live : chrono + meter + bouton pause */}
       {recorder?.isRecording && (

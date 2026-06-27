@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useT, useTP } from "../i18n";
 import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BR, BRB, SG, SGB, AM, AMB } from "../constants/tokens";
@@ -9,33 +9,14 @@ import { parseNotesToRemarks, nextPvNumber } from "../utils/helpers";
 import { uploadPhoto, deletePhoto, getPhotoUrl, track } from "../db";
 import { addToOfflineQueue, savePvDraft } from "../utils/offline";
 import { PhotoAnnotationViewer } from "./PhotoAnnotationViewer";
-import { usePresence } from "../hooks/usePresence";
 
 const SAMPLES = { "01": "- peinture démarrée rdc, 1ere couche ok\n- goulottes en cours\n- resserrages coupe-feu TOUJOURS PAS FAITS\n> retard 5 jours ouvrables", "02": "- MO rappelle: gilet fluo + casque obligatoires\n- nettoyage insuffisant", "03": "- réception phase 1 repoussée au 22/04", "45": "- bandes antislip posées, conforme\n- carrelage meeting #6 remplacé", "59": "- film opaque posé ok\n- joints vitrages à reprendre", "70-HVAC": "- flexibles corrigés 6/10\n- radiateur hall commandé", "70-ELEC": "- goulottes 5 locaux ok\n- screens en cours" };
 
 export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, initialMode, activeContext }) {
   // ── Live presence + soft pessimistic lock ─────────────────────
-  // The editor is whoever has the most recent claim_at among users on
-  // the same project who are currently viewing the PV. "Reprendre la
-  // main" updates the local claim_at to now → other clients see they
-  // are no longer the latest claimant and switch to read-only.
-  const [claimAt, setClaimAt] = useState(() => Date.now());
-  const presenceKey = activeContext?.startsWith?.("org:")
-    ? `presence:${activeContext}:project:${project.id}`
-    : null;
-  const presenceInfo = useMemo(() => ({
-    name: profile?.name || "",
-    avatar: profile?.picture || null,
-    viewing: "pv",
-    claim_at: claimAt,
-  }), [profile?.name, profile?.picture, claimAt]);
-  const { present, selfId } = usePresence(presenceKey, presenceInfo);
-  const pvViewers = present.filter(u => u.viewing === "pv");
-  const editor = pvViewers.reduce((a, b) =>
-    !a || (Number(b.claim_at) || 0) > (Number(a.claim_at) || 0) ? b : a,
-  null);
-  const otherEditor = editor && editor.user_id !== selfId ? editor : null;
-  const takeOver = () => setClaimAt(Date.now());
+  // POC solo : présence temps réel / soft-lock retirés (liés à l'agence,
+  // CUT). En solo l'archi est toujours « propriétaire » du PV — édition
+  // directe sans claim.
 
   const [activePost,      setActivePost]      = useState(null);
   const [annotatingPhoto, setAnnotatingPhoto] = useState(null);
@@ -452,47 +433,8 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
     }));
   };
 
-  // Convertit une remarque en réserve OPR — boucle remarque → réception qui
-  // évite la double-saisie. La sévérité par défaut suit l'urgence : urgent →
-  // critique, sinon → majeure (l'utilisateur ajustera dans OprView). On garde
-  // la traçabilité via originPostId / originRemarkId pour back-link.
-  const convertRemarkToReserve = (postId, remarkId) => {
-    const post = project.posts.find(p => p.id === postId);
-    const remark = (post?.remarks || []).find(r => r.id === remarkId);
-    if (!remark || remark.convertedToReserveId) return;
-    const reserves = project.reserves || [];
-    const code = `R-${String(reserves.length + 1).padStart(3, "0")}`;
-    const reserveId = Date.now() + Math.random();
-    const reserve = {
-      id: reserveId,
-      code,
-      description: remark.text || "",
-      severity: remark.urgent ? "critical" : "major",
-      status: "non_levee",
-      contractor: "",
-      location: post?.label || "",
-      deadline: "",
-      photos: [],
-      notes: `Issue de la remarque "${(remark.text || "").slice(0, 60)}" du poste "${post?.label || postId}".`,
-      createdAt: new Date().toISOString(),
-      resolvedAt: null,
-      originPostId: postId,
-      originRemarkId: remarkId,
-    };
-    setProjects(prev => prev.map(p => {
-      if (p.id !== project.id) return p;
-      return {
-        ...p,
-        reserves: [...(p.reserves || []), reserve],
-        posts: p.posts.map(po => po.id !== postId ? po : {
-          ...po,
-          remarks: (po.remarks || []).map(r => r.id !== remarkId ? r : {
-            ...r, convertedToReserveId: reserveId, convertedToReserveCode: code,
-          }),
-        }),
-      };
-    }));
-  };
+  // POC : conversion « remarque → réserve OPR » retirée (réserves différées
+  // avec l'OPR). Le suivi terrain passe par les tâches (« remarque → tâche »).
 
   const addPhotos = (postId, files) => {
     Array.from(files).forEach((file) => {
@@ -506,13 +448,19 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             ...po, photos: [...(po.photos || []), { id: photoId, dataUrl }]
           } : po)
         } : p));
-        // Upload to Storage in background, then replace dataUrl with URL
+        // Upload to Storage in background, then DROP the dataUrl (on ne
+        // persiste pas le base64 dans le JSONB — il sature les rows ; getPhotoUrl
+        // bascule sur l'URL cloud). Le dataUrl ne sert qu'à l'aperçu immédiat.
         if (navigator.onLine) {
           const result = await uploadPhoto(dataUrl);
           if (result) {
             setProjects((prev) => prev.map((p) => p.id === project.id ? {
               ...p, posts: p.posts.map((po) => po.id === postId ? {
-                ...po, photos: (po.photos || []).map((ph) => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph)
+                ...po, photos: (po.photos || []).map((ph) => {
+                  if (ph.id !== photoId) return ph;
+                  const { dataUrl: _drop, ...rest } = ph;
+                  return { ...rest, url: result.url, storagePath: result.storagePath };
+                })
               } : po)
             } : p));
           }
@@ -761,17 +709,8 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                       <Ico name="chevron-down" size={9} color={r.urgent && r.status === "open" ? BR : rs.color} />
                     </button>
                     {r.carriedFrom && <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, color: AC, background: ACL, border: `1px solid ${ACL2}`, padding: "2px 6px", borderRadius: 20, marginTop: 2, whiteSpace: "nowrap" }}>↩ PV{r.carriedFrom}</span>}
-                    {r.convertedToReserveCode && <span title="Cette remarque a été convertie en réserve OPR" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: BR, background: BRB, border: `1px solid ${REDBRD}`, padding: "2px 6px", borderRadius: 20, marginTop: 2, whiteSpace: "nowrap" }}>OPR {r.convertedToReserveCode}</span>}
                     <input value={r.text} onChange={(e) => editRemarkText(post.id, r.id, e.target.value)} style={{ flex: 1, border: "none", outline: "none", fontSize: 13, color: r.status === "done" ? TX3 : TX, background: "transparent", fontFamily: "inherit", textDecoration: r.status === "done" ? "line-through" : "none", padding: 0, minWidth: 0 }} />
-                    {/* Convertir en réserve OPR — boucle PV → réception. Désactivé si déjà converti. */}
-                    {!r.convertedToReserveId && (
-                      <button onClick={() => convertRemarkToReserve(post.id, r.id)}
-                        title="Convertir cette remarque en réserve OPR"
-                        style={{ background: "none", border: `1px solid ${SBB}`, borderRadius: 6, cursor: "pointer", padding: "2px 7px", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontFamily: "inherit" }}>
-                        <Ico name="alert" size={10} color={BR} />
-                        <span style={{ fontSize: 9, fontWeight: 700, color: BR }}>OPR</span>
-                      </button>
-                    )}
+                    {/* Conversion « remarque → réserve OPR » retirée (POC, réserves différées). */}
                     <button onClick={() => removeRemark(post.id, r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                       <Ico name="x" size={13} color={TX3} />
                     </button>
@@ -861,45 +800,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   return (
     <div className="ap-note-container" data-mobile-step={currentStep} style={{ paddingBottom: 32, position: "relative" }}>
 
-      {/* ── Pessimistic lock overlay — shown when another agency member
-            has claimed the PV editor seat. Blocks interaction until the
-            user takes over. ── */}
-      {otherEditor && (
-        <div style={{
-          position: "absolute", inset: -12, zIndex: 50,
-          background: "rgba(255,255,255,0.78)", backdropFilter: "blur(2px)",
-          display: "flex", alignItems: "flex-start", justifyContent: "center",
-          paddingTop: 60,
-        }}>
-          <div style={{
-            maxWidth: 440, background: WH, border: `1px solid ${SBB}`,
-            borderRadius: 14, padding: "18px 20px",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
-            display: "flex", alignItems: "center", gap: 12,
-          }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: "50%",
-              background: otherEditor.avatar ? `url(${otherEditor.avatar}) center/cover` : ACL,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              fontSize: 12, fontWeight: 700, color: AC,
-            }}>
-              {!otherEditor.avatar && (otherEditor.name || "?").trim().split(/\s+/).map(s => s[0] || "").join("").slice(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>
-                {otherEditor.name || "Un coéquipier"} édite ce PV
-              </div>
-              <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
-                Modifier en parallèle écraserait son travail.
-              </div>
-            </div>
-            <button onClick={takeOver}
-              style={{ padding: "9px 14px", border: "none", borderRadius: 9, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-              Reprendre la main
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Soft-lock multi-édition retiré (POC solo, présence/agence CUT). */}
 
       {/* ── Mobile top bar — back + stepper ── */}
       <div className="ap-note-mobile-stepper" style={{ display: "none", padding: "8px 0 10px", flexShrink: 0, borderBottom: `1px solid ${SB2}`, marginBottom: 8 }}>

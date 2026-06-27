@@ -45,6 +45,7 @@ import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, 
 import { STATUSES, getStatus, REMARK_STATUSES, nextStatus, getRemarkStatus, PV_STATUSES, getPvStatus, nextPvStatus, LOT_COLORS, calcLotStatus } from "./constants/statuses";
 import { RECURRENCES, POST_TEMPLATES, PV_TEMPLATES, REMARK_NUMBERING } from "./constants/templates";
 import { STRUCTURE_TYPES, PLANS, PLAN_FEATURES, hasFeature, getLimit, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, DOC_CATEGORIES } from "./constants/config";
+import { isEnabled } from "./constants/featureFlags";
 import { PROJECT_TEMPLATES, getProjectTemplate } from "./constants/projectTemplates";
 import { PARTICIPANT_ROLES } from "./constants/participantRoles";
 import { getProjectPhases, getProjectPhase } from "./utils/phases";
@@ -61,12 +62,12 @@ import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton
 
 // ── Extracted Components ──────────────────────────────────────
 import { MobileBottomBar, CaptureSheet, QuickCaptureSheet, MobilePvDictateSheet, Sidebar } from "./components/layout";
-import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, OrgInviteModal, PhaseManagerModal, PhaseWizardModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
+import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, PhaseManagerModal, PhaseWizardModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
-import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, AgencyView, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { ProjectDetail } from "./pages/ProjectDetail";
 
 // ── Détection v2 ────────────────────────────────────────────
@@ -225,6 +226,23 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile, view]);
+
+  // ── Garde POC : vues différées derrière feature-flag ──
+  // Filet de sécurité : si une feature DEFER est atteinte via état persistant,
+  // deep-link ou point d'entrée oublié, on rabat sur l'overview. Les points
+  // d'entrée (boutons/onglets/CTA) sont par ailleurs masqués individuellement.
+  const DEFERRED_VIEWS = {
+    invoices: "invoices", opr: "opr", permits: "permits", quotes: "quotes",
+    reports: "progressReports", planning: "planning", planningDashboard: "planning",
+    timesheet: "timesheets", mapDashboard: "map",
+  };
+  useEffect(() => {
+    const flag = DEFERRED_VIEWS[view];
+    if (flag && !isEnabled(flag)) {
+      _setView(isMobile ? "mobileHome" : "overview");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [captureSheet, setCaptureSheet] = useState(false);
   const [mobilePvDictateOpen, setMobilePvDictateOpen] = useState(false);
@@ -269,7 +287,6 @@ export default function App() {
   // sinon contient l'id de la phase à afficher.
   const [phaseWizard, setPhaseWizard] = useState(null);
   const { inviteToken, setInviteToken, clearPendingInvite } = useInviteToken();
-  const [agencyModalOpen, setAgencyModalOpen] = useState(false);
 
   // ── Time tracking ──────────────────────────────────────────
   // The active timer lives in localStorage so it survives reloads and stays
@@ -581,7 +598,7 @@ export default function App() {
   // Escape key closes modals
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === "Escape") { setModal(null); setShowSearch(false); setAgencyModalOpen(false); }
+      if (e.key === "Escape") { setModal(null); setShowSearch(false); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -1141,7 +1158,7 @@ export default function App() {
         @keyframes chatTyping { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
       `}</style>
       <nav className="ap-sidebar-desktop" role="navigation" aria-label="Menu principal">
-        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onImportProject={() => setImportWizardOpen(true)} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} activeContext={activeContext} myOrgs={myOrgs} onSwitchContext={switchWorkspace} contextLoading={contextLoading} onCreateAgency={() => setAgencyModalOpen(true)} />
+        <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onImportProject={() => setImportWizardOpen(true)} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} />
       </nav>
 
       {/* Sidebar overlay for tablet/mobile */}
@@ -1458,7 +1475,7 @@ export default function App() {
           {view === "profile" && (
             <div>
               {profileSaved && <div style={{ padding: "10px 16px", background: "#EAF3DE", borderRadius: 8, color: GR, fontSize: 13, marginBottom: 16, fontWeight: 500 }}>Profil enregistré !</div>}
-              <ProfileView profile={profile} onSave={saveProfile} onOpenAgency={() => setAgencyModalOpen(true)} />
+              <ProfileView profile={profile} onSave={saveProfile} />
             </div>
           )}
           {/* v2 — Mode preview : si l'URL est /p/:id, on bascule sur la nouvelle
@@ -1577,17 +1594,17 @@ export default function App() {
             onBack={() => { setView("overview"); setPlanAutoAction(null); }}
             autoAction={planAutoAction}
           />}
-          {view !== "profile" && project && view === "planning" && <PlanningView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "planning" && isEnabled("planning") && <PlanningView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "tasks" && <TasksView project={project} setProjects={setProjects} profile={profile} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "opr" && <OprView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "opr" && isEnabled("opr") && <OprView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "journal" && <JournalView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "invoices" && <InvoicesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "permits" && <PermitsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "quotes" && <QuotesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "reports" && <ProgressReportsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "invoices" && isEnabled("invoices") && <InvoicesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "permits" && isEnabled("permits") && <PermitsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "quotes" && isEnabled("quotes") && <QuotesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "reports" && isEnabled("progressReports") && <ProgressReportsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "chantier" && <ChantierModeView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
-          {view === "planningDashboard" && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
-          {view === "mapDashboard" && <MapDashboardView projects={projects} setProjects={setProjects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
+          {view === "planningDashboard" && isEnabled("planning") && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
+          {view === "mapDashboard" && isEnabled("map") && <MapDashboardView projects={projects} setProjects={setProjects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
           {view === "mobileHome" && (
             <MobileHome
               projects={projects}
@@ -1651,7 +1668,7 @@ export default function App() {
               onBack={() => setView(isMobile ? "mobileHome" : "overview")}
             />
           )}
-          {view === "timesheet" && (() => {
+          {view === "timesheet" && isEnabled("timesheets") && (() => {
             const orgId = activeContext?.startsWith?.("org:") ? activeContext.slice(4) : null;
             const myOrg = orgId ? (myOrgs || []).find(o => o.id === orgId) : null;
             const isOrgAdmin = !!(myOrg && (myOrg._myRole === "owner" || myOrg._myRole === "admin"));
@@ -1669,7 +1686,7 @@ export default function App() {
       </main>
 
       {/* Collaboration modal */}
-      {modal === "collab" && project && (
+      {modal === "collab" && project && isEnabled("collaboration") && (
         <CollabModalWrapper project={project} onClose={() => setModal(null)} showToast={showToast} profile={profile} onUpgrade={(feature) => { setModal(null); setUpgradeFeature(feature || "maxCollabPerProj"); }} activeContext={activeContext} />
       )}
 
@@ -2608,7 +2625,7 @@ Règles :
             {/* Segmented control */}
             <div style={{ padding: `0 ${SP.lg}px ${SP.md}px` }}>
               <div style={{ display: "flex", background: SB, borderRadius: 10, padding: 3, gap: 3 }}>
-                {["projects", "dashboard"].map(tab => {
+                {(isEnabled("planning") || isEnabled("map") ? ["projects", "dashboard"] : ["projects"]).map(tab => {
                   const isActive = pickerTab === tab;
                   const label = tab === "projects" ? "Projets" : "Pilotage";
                   const icon = tab === "projects" ? "building" : "chart";
@@ -2665,22 +2682,22 @@ Règles :
             )}
 
             {/* Tab: Pilotage */}
-            {pickerTab === "dashboard" && (
+            {pickerTab === "dashboard" && (isEnabled("planning") || isEnabled("map")) && (
               <div style={{ padding: `0 ${SP.lg}px ${SP.lg}px`, display: "flex", gap: 8 }}>
-                <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                {isEnabled("planning") && <button onClick={() => { setProjectPicker(false); if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: BLB, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="calendar" size={18} color={BL} />
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Planning</div>
                   <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Coordination</div>
-                </button>
-                <button onClick={() => { setProjectPicker(false); setView("mapDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+                </button>}
+                {isEnabled("map") && <button onClick={() => { setProjectPicker(false); setView("mapDashboard"); }} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: "#D5E4C5", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Ico name="mappin" size={18} color="#4D8030" />
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Carte</div>
                   <div style={{ fontSize: 10, color: TX3, textAlign: "center", lineHeight: 1.3 }}>Chantiers géolocalisés</div>
-                </button>
+                </button>}
               </div>
             )}
           </div>
@@ -2783,31 +2800,7 @@ Règles :
         <GuidedTour onComplete={() => { setShowGuidedTour(false); try { localStorage.setItem("archipilot_tour_done", "1"); } catch { /* ignore */ } }} />
       )}
 
-      {/* Org invitation acceptance — shown when ?invite=<token> is in the URL
-          OR when a pending token persisted across the login redirect. */}
-      {inviteToken && (
-        <OrgInviteModal
-          token={inviteToken}
-          profile={profile}
-          onClose={clearPendingInvite}
-          onAccepted={() => { clearPendingInvite(); refreshMyOrgs(); setAgencyModalOpen(true); }}
-        />
-      )}
-
-      {/* Agency management modal — shown over the current page */}
-      {agencyModalOpen && (
-        <div onClick={(e) => { if (e.target === e.currentTarget) setAgencyModalOpen(false); }}
-          style={{ position: "fixed", inset: 0, zIndex: 10003, background: "rgba(31,41,55,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, overflowY: "auto" }}>
-          <div style={{ width: "100%", maxWidth: 720, maxHeight: "90vh", background: BG, borderRadius: 18, boxShadow: "0 20px 60px rgba(0,0,0,0.25)", overflowY: "auto", padding: "20px 24px", position: "relative", animation: "modalIn 0.18s ease-out" }}>
-            <button onClick={() => setAgencyModalOpen(false)}
-              aria-label="Fermer"
-              style={{ position: "absolute", top: 14, right: 14, width: 30, height: 30, borderRadius: 8, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
-              <Ico name="x" size={13} color={TX2} />
-            </button>
-            <AgencyView profile={profile} onBack={() => setAgencyModalOpen(false)} onAgencyChanged={refreshMyOrgs} />
-          </div>
-        </div>
-      )}
+      {/* Org invitation & agency management — retirés (POC solo, étage agence CUT). */}
 
       {/* Chatbot — bouton flottant + modal. Read-only v1, ouvert à tous, persisté localStorage. */}
       <ImportProjectWizard

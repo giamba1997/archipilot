@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, BR, BRB, AM, AMB, SG, SGB } from "../constants/tokens";
 import { getReserveStatus, getReserveSeverity } from "../constants/statuses";
+import { isEnabled } from "../constants/featureFlags";
 import { Ico, MobileConsultationBanner } from "../components/ui";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto, deletePhoto, getPhotoUrl } from "../db";
@@ -67,7 +68,12 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
         if (navigator.onLine) {
           const result = await uploadPhoto(dataUrl);
           if (result) {
-            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, gallery: (p.gallery || []).map(ph => ph.id === photoId ? { ...ph, url: result.url, storagePath: result.storagePath } : ph) } : p));
+            // Retire le dataUrl base64 après upload (pas de persistance JSONB).
+            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, gallery: (p.gallery || []).map(ph => {
+              if (ph.id !== photoId) return ph;
+              const { dataUrl: _drop, ...rest } = ph;
+              return { ...rest, url: result.url, storagePath: result.storagePath };
+            }) } : p));
           }
         }
       };
@@ -214,7 +220,7 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                 )}
                 {/* Réserve(s) liée(s) — badge en bas-gauche pour éviter chevauchement
                     avec le badge "Annoté" en haut-droite */}
-                {(ph.linkedReserves || []).length > 0 && (
+                {isEnabled("opr") && (ph.linkedReserves || []).length > 0 && (
                   <div style={{ position: "absolute", top: 6, left: 6, padding: "2px 6px", borderRadius: 4, background: BR, display: "flex", alignItems: "center", gap: 3 }}>
                     <Ico name="alert" size={9} color="#fff" />
                     <span style={{ fontSize: 9, fontWeight: 600, color: "#fff" }}>
@@ -257,7 +263,7 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
               {/* Lier à une réserve — disponible quand le projet a au moins
                   une réserve. Affichage simple sur mobile (badge non-cliquable),
                   édition bureau seulement. */}
-              {!isMobile && reserves.length > 0 && (
+              {isEnabled("opr") && !isMobile && reserves.length > 0 && (
                 <button onClick={() => setLinkingPhoto(lbPhoto.id)} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
                   <Ico name="alert" size={13} color="#fff" />
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>
@@ -316,8 +322,8 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
         </div>
       )}
 
-      {/* F/S6 — Modale "Lier à une réserve" */}
-      {linkingPhoto && (() => {
+      {/* F/S6 — Modale "Lier à une réserve" (POC : réserves différées) */}
+      {isEnabled("opr") && linkingPhoto && (() => {
         const photo = photos.find(ph => ph.id === linkingPhoto);
         if (!photo) return null;
         const linked = new Set(photo.linkedReserves || []);

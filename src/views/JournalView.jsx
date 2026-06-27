@@ -10,6 +10,7 @@ import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto } from "../db";
 import { generateChantierJournalPdf } from "../utils/pdf";
 import { MAX_UPLOAD_PHOTO_BYTES } from "../constants/config";
+import { isEnabled } from "../constants/featureFlags";
 
 // ── F2 — Journal de chantier ────────────────────────────────
 // Timeline chronologique unique qui agrège tout ce qui s'est passé
@@ -94,39 +95,43 @@ function buildTimeline(project, { typeFilter, search, periodDays }) {
     });
   }
 
-  // OPR — oprHistory[]
-  for (const opr of (project.oprHistory || [])) {
-    const d = parseDate(opr.date);
-    if (!d) continue;
-    const typeLbl = opr.type === "definitive" ? "définitive" : "provisoire";
-    entries.push({
-      id: `opr-${opr.id || opr.number}`,
-      type: "opr",
-      date: d,
-      title: `OPR n°${opr.number} — Réception ${typeLbl}`,
-      subtitle: `${(opr.reserves || []).length} réserve${(opr.reserves || []).length > 1 ? "s" : ""} constatée${(opr.reserves || []).length > 1 ? "s" : ""}`,
-      body: "",
-      photos: [],
-      raw: opr,
-    });
-  }
+  // OPR + Réserves — sources différées au POC (réserves rabattues sur les
+  // tâches). On ne les agrège pas pour ne pas injecter d'entrées mortes.
+  if (isEnabled("opr")) {
+    // OPR — oprHistory[]
+    for (const opr of (project.oprHistory || [])) {
+      const d = parseDate(opr.date);
+      if (!d) continue;
+      const typeLbl = opr.type === "definitive" ? "définitive" : "provisoire";
+      entries.push({
+        id: `opr-${opr.id || opr.number}`,
+        type: "opr",
+        date: d,
+        title: `OPR n°${opr.number} — Réception ${typeLbl}`,
+        subtitle: `${(opr.reserves || []).length} réserve${(opr.reserves || []).length > 1 ? "s" : ""} constatée${(opr.reserves || []).length > 1 ? "s" : ""}`,
+        body: "",
+        photos: [],
+        raw: opr,
+      });
+    }
 
-  // Réserves créées — reserves[] (createdAt ISO)
-  for (const r of (project.reserves || [])) {
-    const d = parseDate(r.createdAt);
-    if (!d) continue;
-    const sev = getReserveSeverity(r.severity);
-    const st = getReserveStatus(r.status);
-    entries.push({
-      id: `reserve-${r.id}`,
-      type: "reserve",
-      date: d,
-      title: `${r.code || "Réserve"} — ${sev.label}`,
-      subtitle: [r.contractor, r.location, st.label].filter(Boolean).join(" · "),
-      body: r.description || "",
-      photos: r.photos || [],
-      raw: r,
-    });
+    // Réserves créées — reserves[] (createdAt ISO)
+    for (const r of (project.reserves || [])) {
+      const d = parseDate(r.createdAt);
+      if (!d) continue;
+      const sev = getReserveSeverity(r.severity);
+      const st = getReserveStatus(r.status);
+      entries.push({
+        id: `reserve-${r.id}`,
+        type: "reserve",
+        date: d,
+        title: `${r.code || "Réserve"} — ${sev.label}`,
+        subtitle: [r.contractor, r.location, st.label].filter(Boolean).join(" · "),
+        body: r.description || "",
+        photos: r.photos || [],
+        raw: r,
+      });
+    }
   }
 
   // Actions — actions[] (depuis "since" pas idéal — on prend tasks si dispo)

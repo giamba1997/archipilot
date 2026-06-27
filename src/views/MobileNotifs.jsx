@@ -6,6 +6,7 @@ import {
 import { Ico } from "../components/ui";
 import { loadPermits } from "../db";
 import { parseDateFR } from "../utils/dates";
+import { isEnabled } from "../constants/featureFlags";
 
 // ── MobileNotifs — page Notifs consolidée (mobile) ────────
 //
@@ -86,6 +87,7 @@ export function MobileNotifs({
   const [readExpanded, setReadExpanded] = useState(false);
 
   useEffect(() => {
+    if (!isEnabled("permits")) return; // POC : permis différés
     let cancelled = false;
     (async () => {
       const pe = await loadPermits().catch(() => []);
@@ -95,6 +97,7 @@ export function MobileNotifs({
   }, []);
 
   const permitsSoon = useMemo(() => {
+    if (!isEnabled("permits")) return [];
     return (permits || [])
       .map(pe => {
         if (!pe.deadline_date) return null;
@@ -110,6 +113,7 @@ export function MobileNotifs({
   }, [permits, projects]);
 
   const reservesOverdue = useMemo(() => {
+    if (!isEnabled("opr")) return []; // POC : réserves différées
     const out = [];
     (projects || []).forEach(p => {
       if (p.archived) return;
@@ -169,8 +173,8 @@ export function MobileNotifs({
       </div>
 
       <div style={{ padding: `${SP.md}px ${SP.md}px 0` }}>
-        {/* ── Invitations en attente ── */}
-        {invitations.length > 0 && (
+        {/* ── Invitations en attente ── (collaboration différée au POC) */}
+        {isEnabled("collaboration") && invitations.length > 0 && (
           <Section title="Invitations" iconName="users" color={ST}>
             {invitations.map(inv => (
               <div key={inv.id} style={{ padding: 14, background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.md, marginBottom: 8 }}>

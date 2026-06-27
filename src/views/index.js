@@ -16,7 +16,6 @@ export { MfaSection } from "./MfaSection";
 export { ProfileView } from "./ProfileView";
 export { LegalPage, CookieBanner, LegalLinks } from "./LegalPages";
 export { OprView } from "./OprView";
-export { AgencyView } from "./AgencyView";
 export { TimerCard } from "./TimerCard";
 export { TimerBanner } from "./TimerBanner";
 export { SessionsModal } from "./SessionsModal";

@@ -8,6 +8,7 @@ import { getProjectPhase } from "../utils/phases";
 import { getReserveStatus, getReserveSeverity } from "../constants/statuses";
 import { Ico } from "../components/ui";
 import { loadPermits } from "../db";
+import { isEnabled } from "../constants/featureFlags";
 
 // ── OverviewPhaseHero — hero adaptatif par phase du projet ──
 //
@@ -52,8 +53,14 @@ export function OverviewPhaseHero({
   onEditInfo,
   onChantierVisit,
 }) {
-  const variant = PHASE_HERO_VARIANT[project.statusId];
+  let variant = PHASE_HERO_VARIANT[project.statusId];
   if (!variant) return null;
+
+  // POC : les heroes liés à des features différées (permit/planning/opr)
+  // retombent sur le TasksHero générique (CTA PV + visite, toujours actifs).
+  if (variant === "permit" && !isEnabled("permits")) variant = "tasks";
+  if (variant === "planning" && !isEnabled("planning")) variant = "tasks";
+  if (variant === "opr" && !isEnabled("opr")) variant = "tasks";
 
   switch (variant) {
     case "program":  return <ProgramHero project={project} onAskAiAboutCdc={onAskAiAboutCdc} onEditParticipants={onEditParticipants} onEditInfo={onEditInfo} />;

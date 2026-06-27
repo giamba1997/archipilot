@@ -12,6 +12,8 @@
 //   "medium"   → ≤ 30 jours
 //   "low"      → > 30 jours (informational)
 
+import { isEnabled } from "../constants/featureFlags";
+
 const DEFAULT_SETTINGS = {
   reception_definitive: true,
   reserve_overdue:      true,
@@ -57,7 +59,7 @@ export function computeAlerts({ projects = [], permits = [], invoices = [], sett
   // ── R1 : Réception définitive J-365 ──
   // Si un OPR provisoire date d'il y a 11-13 mois, l'archi devrait
   // planifier la réception définitive. On regarde oprHistory.
-  if (s.reception_definitive) {
+  if (s.reception_definitive && isEnabled("opr")) {
     for (const p of projects) {
       if (p.archived) continue;
       const provs = (p.oprHistory || []).filter(o => o.type === "provisoire" || !o.type);
@@ -84,8 +86,8 @@ export function computeAlerts({ projects = [], permits = [], invoices = [], sett
     }
   }
 
-  // ── R2 : Réserves overdue ──
-  if (s.reserve_overdue) {
+  // ── R2 : Réserves overdue ── (POC : réserves différées)
+  if (s.reserve_overdue && isEnabled("opr")) {
     for (const p of projects) {
       if (p.archived) continue;
       for (const r of (p.reserves || [])) {
@@ -107,8 +109,8 @@ export function computeAlerts({ projects = [], permits = [], invoices = [], sett
     }
   }
 
-  // ── R3 : Permis silence vaut quoi ──
-  if (s.permit_deadline) {
+  // ── R3 : Permis silence vaut quoi ── (POC : permis différés)
+  if (s.permit_deadline && isEnabled("permits")) {
     for (const perm of permits) {
       if (!["deposited", "complete_request", "in_review"].includes(perm.status)) continue;
       if (!perm.deadline_date) continue;
@@ -151,8 +153,8 @@ export function computeAlerts({ projects = [], permits = [], invoices = [], sett
     }
   }
 
-  // ── R5 : Factures impayées ──
-  if (s.invoice_overdue) {
+  // ── R5 : Factures impayées ── (POC : facturation différée)
+  if (s.invoice_overdue && isEnabled("invoices")) {
     for (const inv of invoices) {
       if (!["sent", "overdue"].includes(inv.status)) continue;
       if (!inv.due_date) continue;

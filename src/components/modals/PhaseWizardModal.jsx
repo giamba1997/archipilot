@@ -3,6 +3,11 @@ import { AC, SB, SBB, TX, TX2, WH } from "../../constants/tokens";
 import { STATUSES } from "../../constants/statuses";
 import { Ico } from "../ui";
 import { PHASE_WIZARDS, markWizardSeen } from "../../constants/phaseWizards";
+import { isEnabled } from "../../constants/featureFlags";
+
+// POC : un CTA pointant vers une feature différée est neutralisé (le
+// wizard reste affiché pour son contenu éducatif, mais sans bouton mort).
+const CTA_FLAG = { permits: "permits", quotes: "quotes", planning: "planning", opr: "opr", reports: "progressReports" };
 
 // ── PhaseWizardModal ───────────────────────────────────────
 //
@@ -50,9 +55,13 @@ export function PhaseWizardModal({ phaseId, onClose, onAction }) {
 
   if (!wizard) return null;
 
+  // CTA effectif : null si l'action cible une feature différée.
+  const ctaFlag = wizard.cta?.action ? CTA_FLAG[wizard.cta.action] : null;
+  const cta = (wizard.cta && (!ctaFlag || isEnabled(ctaFlag))) ? wizard.cta : null;
+
   const handleCta = () => {
     markWizardSeen(phaseId);
-    if (wizard.cta?.action) onAction?.(wizard.cta.action);
+    if (cta?.action) onAction?.(cta.action);
     onClose?.();
   };
 
@@ -236,9 +245,9 @@ export function PhaseWizardModal({ phaseId, onClose, onAction }) {
                 fontFamily: "inherit",
               }}
             >
-              {wizard.cta ? "Plus tard" : "OK, c'est noté"}
+              {cta ? "Plus tard" : "OK, c'est noté"}
             </button>
-            {wizard.cta && (
+            {cta && (
               <button
                 onClick={handleCta}
                 style={{
@@ -256,7 +265,7 @@ export function PhaseWizardModal({ phaseId, onClose, onAction }) {
                   gap: 6,
                 }}
               >
-                {wizard.cta.label}
+                {cta.label}
                 <Ico name="arrowr" size={12} color="#fff" />
               </button>
             )}

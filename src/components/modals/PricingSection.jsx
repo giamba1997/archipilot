@@ -17,8 +17,7 @@ export function PricingSection({ currentPlan, onSelectPlan }) {
 
   const plans = [
     { ...PLANS.free, desc: t("plan.freeDesc"), features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec watermark"] },
-    { ...PLANS.pro, desc: t("plan.proDesc"), popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email PV", "Galerie photos", "Planning & Lots", "3 collaborateurs / projet", "PDF sans watermark", "Logo PDF personnalisé"] },
-    { ...PLANS.team, desc: t("plan.teamDesc"), seatsNote: `${PLANS.team.seatsIncluded} sièges inclus · +${PLANS.team.extraSeatPrice} €/siège supplémentaire`, features: ["Tout le Pro", "Espace partagé multi-archi", "Rôles & permissions", "Dashboard cross-projets", "Planning cross-projets", "Export CSV", "Support prioritaire"] },
+    { ...PLANS.pro, desc: t("plan.proDesc"), popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email PV", "Galerie photos", "PDF sans watermark", "Logo PDF personnalisé"] },
   ];
 
   const handleSelectPlan = async (planId) => {

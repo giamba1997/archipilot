@@ -82,8 +82,7 @@ function Step2({ data, set }) {
 // ── Step 3: Plan selection (informational, non-blocking) ──
 const ONB_PLANS = [
   { id: "free", label: PLANS.free.label, price: PLANS.free.price, tagline: "Pour découvrir", features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec filigrane"] },
-  { id: "pro",  label: PLANS.pro.label,  price: PLANS.pro.price,  tagline: "Pour les indépendants", popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi PV par email", "Logo PDF perso.", "Planning & lots"] },
-  { id: "team", label: PLANS.team.label, price: PLANS.team.price, tagline: "Pour les agences", seatsNote: `${PLANS.team.seatsIncluded} sièges inclus · +${PLANS.team.extraSeatPrice} €/siège`, features: ["Tout le Pro", "Espace partagé", "Rôles & permissions", "Dashboard cross-projets", "Export CSV", "Support prioritaire"] },
+  { id: "pro",  label: PLANS.pro.label,  price: PLANS.pro.price,  tagline: "Pour les indépendants", popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi PV par email", "Logo PDF perso.", "Galerie photos"] },
 ];
 
 function StepPlan({ data, onPick }) {
@@ -94,7 +93,7 @@ function StepPlan({ data, onPick }) {
         <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Choisissez comment démarrer.</div>
         <div style={{ fontSize: 13, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Vous pouvez changer de plan à tout moment depuis votre profil.</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
         {ONB_PLANS.map(p => {
           const isSel = data.plan === p.id;
           const isFree = p.id === "free";

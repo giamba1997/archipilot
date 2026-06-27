@@ -5,6 +5,7 @@ import {
 } from "../constants/tokens";
 import { Ico } from "../components/ui";
 import { getStatus } from "../constants/statuses";
+import { isEnabled } from "../constants/featureFlags";
 import { loadPermits } from "../db";
 import { parseDateFR, relativeDate } from "../utils/dates";
 import { buildMapsUrl } from "../utils/address";
@@ -119,6 +120,7 @@ export function MobileHome({
   // Charge les permis globaux (RLS-filtered) — 1 fois au mount, pour
   // détecter les échéances proches dans le bloc Aujourd'hui.
   useEffect(() => {
+    if (!isEnabled("permits")) { setLoadingExtras(false); return; } // POC : permis différés
     let cancelled = false;
     (async () => {
       try {
@@ -144,6 +146,7 @@ export function MobileHome({
   );
 
   const permitsSoon = useMemo(() => {
+    if (!isEnabled("permits")) return []; // POC : permis différés
     return (permits || []).filter(pe => {
       if (!pe.deadline_date) return false;
       const d = new Date(pe.deadline_date);
@@ -420,8 +423,8 @@ export function MobileHome({
         })}
       </Section>
 
-      {/* ── Chantiers proches ── */}
-      <Section title="Chantiers proches" iconName="mappin">
+      {/* ── Chantiers proches ── (POC : dépend de la carte, différée) */}
+      {isEnabled("map") && <Section title="Chantiers proches" iconName="mappin">
         {geo.status === "idle" && (
           <GeoPrompt onClick={geo.request} />
         )}
@@ -471,7 +474,7 @@ export function MobileHome({
             </button>
           </>
         )}
-      </Section>
+      </Section>}
 
       {/* ── Stats hebdo (1 ligne) ── */}
       {hasAnyStat && (

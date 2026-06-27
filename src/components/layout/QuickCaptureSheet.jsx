@@ -4,6 +4,7 @@ import {
   BR, BRB, ST, STB, AM, AMB, SG, SGB,
 } from "../../constants/tokens";
 import { Ico } from "../ui";
+import { isEnabled } from "../../constants/featureFlags";
 import { useWhisperRecorder } from "../../hooks/useWhisperRecorder";
 
 // ── QuickCaptureSheet — 4 actions capture rapides ──────────────
@@ -108,14 +109,14 @@ export function QuickCaptureSheet({
             bg={STB}
             onClick={() => setActiveAction("voice")}
           />
-          <CaptureButton
+          {isEnabled("opr") && <CaptureButton
             icon="alert"
             label="Réserve"
             description="OPR nouvelle"
             color={BR}
             bg={BRB}
             onClick={() => { onClose(); onNewReserve?.(); }}
-          />
+          />}
           <CaptureButton
             icon="file"
             label="PV dicté"

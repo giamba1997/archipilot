@@ -12,26 +12,9 @@ verify_jwt = false
 [functions.send-pv-email]
 verify_jwt = false
 
-[functions.create-org]
-verify_jwt = false
-
-[functions.invite-org-member]
-verify_jwt = false
-
-[functions.accept-org-invite]
-verify_jwt = false
-
-[functions.revoke-org-invite]
-verify_jwt = false
-
-[functions.remove-org-member]
-verify_jwt = false
-
-[functions.transfer-org-ownership]
-verify_jwt = false
-
-[functions.leave-org]
-verify_jwt = false
+# Edge Functions org (create-org, invite-org-member, accept-org-invite,
+# revoke-org-invite, remove-org-member, transfer-org-ownership, leave-org)
+# retirées — POC solo, étage agence CUT (cf. migration 017).
 
 [functions.ask-archipilot]
 verify_jwt = false

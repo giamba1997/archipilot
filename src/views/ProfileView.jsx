@@ -5,11 +5,12 @@ import { supabase } from "../supabase";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, BL, BLB, DIS, DIST, LH, BR, BRB, REDBRD, SG, SGB, AM } from "../constants/tokens";
 import { PLANS, hasFeature, INIT_PROFILE, COLOR_PRESETS, FONT_OPTIONS, STRUCTURE_TYPES } from "../constants/config";
 import { Ico, Field } from "../components/ui";
-import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, loadMyOrganizations, deleteOrganization } from "../db";
+import { uploadPhoto, getPhotoUrl, track, exportUserData, deleteAccount, deleteOrganization } from "../db";
 import { PricingSection } from "../components/modals/PricingSection";
 import { MfaSection } from "./MfaSection";
 import { PDFPreview } from "./PDFPreview";
 import { ReserveLibrarySection } from "./ReserveLibrarySection";
+import { isEnabled } from "../constants/featureFlags";
 import { sanitizeEmailHtml } from "../utils/sanitize";
 import { useWebPushSubscription } from "../hooks/useWebPushSubscription";
 
@@ -17,21 +18,20 @@ import { useWebPushSubscription } from "../hooks/useWebPushSubscription";
 const PROFILE_SECTIONS = [
   { id: "avatar", icon: "users", label: "Profil" },
   { id: "plan", icon: "chart", label: "Abonnement" },
-  { id: "agency", icon: "users", label: "Mon agence" },
   { id: "account", icon: "mail", label: "Compte" },
   { id: "security", icon: "lock", label: "Sécurité" },
   { id: "info", icon: "file", label: "Informations" },
-  { id: "billing", icon: "file", label: "Facturation" },
+  // billing (facturation) + library (réserves OPR) : features différées au POC.
+  ...(isEnabled("invoices") ? [{ id: "billing", icon: "file", label: "Facturation" }] : []),
   { id: "alerts", icon: "clock", label: "Alertes" },
   { id: "push", icon: "bell", label: "Notifications push" },
   { id: "lang", icon: "building", label: "Langue" },
   { id: "appearance", icon: "chart", label: "Apparence PV" },
   { id: "preview", icon: "eye", label: "Aperçu" },
-  { id: "library", icon: "checksq", label: "Bibliothèque" },
+  ...(isEnabled("opr") ? [{ id: "library", icon: "checksq", label: "Bibliothèque" }] : []),
   { id: "data", icon: "file", label: "Données" },
 ];
 
-const ROLE_LABEL = { owner: "Propriétaire", admin: "Administrateur", member: "Membre", viewer: "Lecteur" };
 
 export function ProfileView({ profile, onSave, onOpenAgency }) {
   const [form, setForm] = useState({ ...profile });
@@ -54,12 +54,6 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       setNewAuthEmail(em);
     });
   }, []);
-
-  const [myOrgs, setMyOrgs] = useState(null);
-  useEffect(() => {
-    loadMyOrganizations().then(setMyOrgs).catch(() => setMyOrgs([]));
-  }, []);
-  const primaryOrg = myOrgs && myOrgs.length > 0 ? myOrgs[0] : null;
 
   // Track active section on scroll
   useEffect(() => {
@@ -144,7 +138,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       { id: "signature", icon: "edit", label: "Signature email", desc: form.emailSignature ? "Configurée" : "Non configurée" },
       { id: "lang", icon: "building", label: "Langue", desc: form.lang === "fr" ? "Français" : "English" },
       { id: "appearance", icon: "chart", label: "Apparence du PV", desc: `${(form.pdfColor || "#C95A1B").toUpperCase()} · ${form.pdfFont || "helvetica"}` },
-      { id: "library", icon: "checksq", label: "Bibliothèque de réserves", desc: "Modèles réutilisables pour les OPR" },
+      ...(isEnabled("opr") ? [{ id: "library", icon: "checksq", label: "Bibliothèque de réserves", desc: "Modèles réutilisables pour les OPR" }] : []),
     ];
     const doSave = () => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); };
     return (
@@ -208,8 +202,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
                 const curPlan = form.plan || "free";
                 const planList = [
                   { ...PLANS.free, features: ["1 projet", "3 PV / mois", "3 IA / mois"] },
-                  { ...PLANS.pro, popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email", "Galerie photos", "Planning & Lots", "3 collabs / projet"] },
-                  { ...PLANS.team, features: ["Tout le Pro", "Collabs illimités", "Rôles & permissions", "Dashboard complet", "Export CSV", "PDF logo"] },
+                  { ...PLANS.pro, popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi email", "Galerie photos", "PDF logo personnalisé"] },
                 ];
                 return (
                 <div style={{ padding: "0 4px" }}>
@@ -351,7 +344,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
                 </>
               )}
 
-              {mobileSection === "library" && (
+              {isEnabled("opr") && mobileSection === "library" && (
                 <ReserveLibrarySection />
               )}
 
@@ -433,7 +426,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
           {form.picture && !hasFeature(form.plan, "pdfCustomLogo") && (
             <div style={{ marginTop: 10, fontSize: 11, color: TX3, display: "flex", alignItems: "center", gap: 6 }}>
               <Ico name="lock" size={11} color={TX3} />
-              Logo sur PDF réservé au plan Team
+              Logo sur PDF réservé au plan Pro
             </div>
           )}
         </div>
@@ -444,50 +437,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         <PricingSection currentPlan={form.plan || "free"} onSelectPlan={(p) => { set("plan")(p); onSave({ ...form, plan: p }); setSaved(true); setTimeout(() => setSaved(false), 2500); }} />
       </div>
 
-      {/* Mon agence */}
-      <div ref={refFor("agency")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>Mon agence</div>
-        <div style={{ fontSize: 12, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
-          Espace partagé multi-archi, rôles, dashboard cross-projets — réservé au plan Team.
-        </div>
-        {myOrgs === null ? (
-          <div style={{ fontSize: 12, color: TX3 }}>Chargement…</div>
-        ) : !primaryOrg ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", background: SB, border: `1px dashed ${SBB}`, borderRadius: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Ico name="users" size={16} color={AC} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: TX }}>Pas encore d'agence</div>
-              <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>
-                Crée une agence pour partager tes projets avec d'autres architectes.
-              </div>
-            </div>
-            <button onClick={onOpenAgency}
-              style={{ padding: "9px 14px", border: "none", borderRadius: 9, background: AC, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0 }}>
-              <Ico name="plus" size={11} color="#fff" />
-              Créer
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", background: SB, border: `1px solid ${SBB}`, borderRadius: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Ico name="users" size={16} color={AC} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{primaryOrg.name}</div>
-              <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>
-                Ton rôle : <strong style={{ color: TX2 }}>{ROLE_LABEL[primaryOrg._myRole] || primaryOrg._myRole}</strong>
-                {primaryOrg.seat_limit ? <> · Cap {primaryOrg.seat_limit} sièges</> : null}
-              </div>
-            </div>
-            <button onClick={onOpenAgency}
-              style={{ padding: "9px 14px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: AC, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", flexShrink: 0 }}>
-              Gérer <Ico name="arrowr" size={10} color={AC} />
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Mon agence — retiré (POC solo, étage agence CUT) */}
 
       {/* Compte — Email de connexion */}
       <div ref={refFor("account")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
@@ -531,8 +481,8 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         </div>
       </div>
 
-      {/* Facturation — IBAN, n° TVA, conditions par défaut (F1) */}
-      <div ref={refFor("billing")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      {/* Facturation — IBAN, n° TVA, conditions par défaut (F1) — différée au POC */}
+      {isEnabled("invoices") && <div ref={refFor("billing")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Facturation</div>
         <div style={{ fontSize: 11, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
           Infos utilisées dans le PDF de tes factures (IBAN, n° de TVA, conditions par défaut). Le n° de TVA est obligatoire pour une facture conforme en Belgique.
@@ -545,7 +495,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
           <Field half label="Délai paiement par défaut (jours)" value={String(form.invoicePaymentTermsDays ?? 30)} onChange={(v) => set("invoicePaymentTermsDays")(Number(v) || 0)} type="number" placeholder="30" />
           <Field half label="Mention conditions" value={form.invoicePaymentNote || ""} onChange={set("invoicePaymentNote")} placeholder="ex : Paiement à 30 jours, intérêts de retard 8%" />
         </div>
-      </div>
+      </div>}
 
       {/* F5 — Alertes : toggles par type d'échéance */}
       <div ref={refFor("alerts")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
@@ -554,13 +504,13 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
           Active les catégories que tu veux voir dans le panneau « Prochaines échéances » (icône horloge en haut). 100% local — aucune notification push, aucun email auto.
         </div>
         {[
-          { id: "reception_definitive", label: "Réception définitive J-365", desc: "Anniversaire de l'OPR provisoire pour planifier la définitive." },
-          { id: "reserve_overdue",      label: "Réserves en retard",          desc: "Réserves OPR dont l'échéance approche ou est dépassée." },
-          { id: "permit_deadline",      label: "Échéance permis",             desc: "Décision communale approchant (silence vaut acceptation/refus)." },
+          { id: "reception_definitive", label: "Réception définitive J-365", desc: "Anniversaire de l'OPR provisoire pour planifier la définitive.", flag: "opr" },
+          { id: "reserve_overdue",      label: "Réserves en retard",          desc: "Réserves OPR dont l'échéance approche ou est dépassée.", flag: "opr" },
+          { id: "permit_deadline",      label: "Échéance permis",             desc: "Décision communale approchant (silence vaut acceptation/refus).", flag: "permits" },
           { id: "task_overdue",         label: "Tâches en retard",            desc: "Tâches avec échéance passée et non clôturées." },
-          { id: "invoice_overdue",      label: "Factures impayées",           desc: "Factures émises dont la date d'échéance est dépassée." },
+          { id: "invoice_overdue",      label: "Factures impayées",           desc: "Factures émises dont la date d'échéance est dépassée.", flag: "invoices" },
           { id: "no_pv_30d",            label: "Pas de PV depuis 30 jours",   desc: "Chantier actif sans nouveau PV depuis un mois." },
-        ].map(opt => {
+        ].filter(opt => !opt.flag || isEnabled(opt.flag)).map(opt => {
           const v = !!(form.alertSettings?.[opt.id] ?? true);
           return (
             <button
@@ -732,8 +682,8 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
         <PDFPreview form={form} />
       </div>
 
-      {/* Bibliothèque de réserves (F8) */}
-      <ReserveLibrarySection sectionRef={refFor("library")} />
+      {/* Bibliothèque de réserves (F8) — différée au POC (réserves/OPR) */}
+      {isEnabled("opr") && <ReserveLibrarySection sectionRef={refFor("library")} />}
 
       {/* Données & Compte */}
       <DataSection refFor={refFor} />
@@ -1062,13 +1012,13 @@ function PushPreferencesSection({ form, set, refFor }) {
           configurer ses préfs avant d'activer l'abonnement) */}
       {[
         { id: "enabled",   label: "Notifications push activées",        desc: "Kill-switch global. Si désactivé, aucune push n'est envoyée." },
-        { id: "opr",       label: "OPR : signature / refus / complet",  desc: "Quand un signataire signe ou refuse, et quand toutes les signatures sont reçues." },
-        { id: "permits",   label: "Permis : échéance proche",           desc: "J-7, J-1 et J+0 avant la décision communale." },
-        { id: "reserves",  label: "Réserves critiques",                 desc: "Réserves urgentes non levées depuis 30 jours." },
-        { id: "invoices",  label: "Factures en retard",                 desc: "À partir de J+30 après la date d'échéance." },
-        { id: "collab",    label: "Collaboration",                      desc: "Invitations acceptées, modifs coéquipiers." },
-        { id: "reception", label: "Réception définitive",               desc: "J-30 avant l'anniversaire de l'OPR provisoire." },
-      ].map(opt => {
+        { id: "opr",       label: "OPR : signature / refus / complet",  desc: "Quand un signataire signe ou refuse, et quand toutes les signatures sont reçues.", flag: "opr" },
+        { id: "permits",   label: "Permis : échéance proche",           desc: "J-7, J-1 et J+0 avant la décision communale.", flag: "permits" },
+        { id: "reserves",  label: "Réserves critiques",                 desc: "Réserves urgentes non levées depuis 30 jours.", flag: "opr" },
+        { id: "invoices",  label: "Factures en retard",                 desc: "À partir de J+30 après la date d'échéance.", flag: "invoices" },
+        { id: "collab",    label: "Collaboration",                      desc: "Invitations acceptées, modifs coéquipiers.", flag: "collaboration" },
+        { id: "reception", label: "Réception définitive",               desc: "J-30 avant l'anniversaire de l'OPR provisoire.", flag: "opr" },
+      ].filter(opt => !opt.flag || isEnabled(opt.flag)).map(opt => {
         const v = pushSettings[opt.id] !== false;
         const isGlobalKill = opt.id === "enabled";
         const greyed = !isGlobalKill && pushSettings.enabled === false;

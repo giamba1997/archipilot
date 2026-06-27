@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { hasFeature, getLimit, PLANS, PLAN_FEATURES } from "../../constants/config";
+import { hasFeature, getLimit, PLANS } from "../../constants/config";
 
 describe("hasFeature", () => {
   it("free plan has limited features", () => {
     expect(hasFeature("free", "sendEmail")).toBe(false);
     expect(hasFeature("free", "gallery")).toBe(false);
     expect(hasFeature("free", "planning")).toBe(false);
-    expect(hasFeature("free", "roles")).toBe(false);
-    expect(hasFeature("free", "exportCsv")).toBe(false);
+    expect(hasFeature("free", "pdfNoWatermark")).toBe(false);
   });
 
   it("pro plan has most features", () => {
@@ -15,22 +14,14 @@ describe("hasFeature", () => {
     expect(hasFeature("pro", "gallery")).toBe(true);
     expect(hasFeature("pro", "planning")).toBe(true);
     expect(hasFeature("pro", "pdfNoWatermark")).toBe(true);
-  });
-
-  it("pro plan does not have team-only features", () => {
-    expect(hasFeature("pro", "roles")).toBe(false);
-    expect(hasFeature("pro", "exportCsv")).toBe(false);
-    expect(hasFeature("pro", "planningCross")).toBe(false);
-    // pdfCustomLogo intentionally moved to Pro+Team — productivity feature
-    // that solo architects need too. See commit "Lock new pricing".
+    // pdfCustomLogo : feature Pro (l'archi solo en a besoin aussi).
     expect(hasFeature("pro", "pdfCustomLogo")).toBe(true);
   });
 
-  it("team plan has all features", () => {
-    expect(hasFeature("team", "sendEmail")).toBe(true);
-    expect(hasFeature("team", "roles")).toBe(true);
-    expect(hasFeature("team", "exportCsv")).toBe(true);
-    expect(hasFeature("team", "pdfCustomLogo")).toBe(true);
+  it("unknown feature keys default to granted (no gate)", () => {
+    // POC : les gates Team-only (roles/exportCsv/planningCross) ont été retirés ;
+    // une clé absente n'est plus un gate → hasFeature renvoie true.
+    expect(hasFeature("pro", "roles")).toBe(true);
   });
 });
 
@@ -51,29 +42,19 @@ describe("getLimit", () => {
   it("pro plan has limited collaborators", () => {
     expect(getLimit("pro", "maxCollabPerProj")).toBe(3);
   });
-
-  it("team plan has unlimited everything", () => {
-    expect(getLimit("team", "maxProjects")).toBe(Infinity);
-    expect(getLimit("team", "maxCollabPerProj")).toBe(Infinity);
-  });
 });
 
 describe("PLANS", () => {
-  it("has three plans defined", () => {
-    expect(Object.keys(PLANS)).toEqual(["free", "pro", "team"]);
+  it("has two plans defined (POC solo : Free + Pro)", () => {
+    expect(Object.keys(PLANS)).toEqual(["free", "pro"]);
   });
 
   it("free plan is free", () => {
     expect(PLANS.free.price).toBe(0);
   });
 
-  it("pro plan costs 39/month", () => {
+  it("pro plan costs 39/month (390/year)", () => {
     expect(PLANS.pro.price).toBe(39);
-  });
-
-  it("team plan costs 89/month with 3 included seats", () => {
-    expect(PLANS.team.price).toBe(89);
-    expect(PLANS.team.seatsIncluded).toBe(3);
-    expect(PLANS.team.extraSeatPrice).toBe(9.99);
+    expect(PLANS.pro.priceYear).toBe(390);
   });
 });

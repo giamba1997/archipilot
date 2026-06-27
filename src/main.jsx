@@ -4,6 +4,7 @@ import { initSentry, Sentry } from './sentry'
 import { AuthProvider, useAuth, AuthPage, ResetPasswordPage, MfaVerifyPage } from './Auth.jsx'
 import App from './App.jsx'
 import { PublicSignPage } from './views/PublicSignPage'
+import { isEnabled } from './constants/featureFlags'
 
 // Initialize Sentry before anything else
 initSentry();
@@ -74,7 +75,9 @@ function publicSignToken() {
   } catch { return null; }
 }
 
-const signToken = publicSignToken();
+// POC : route publique de signature OPR désactivée tant que la feature `opr`
+// est différée (la page de signature à distance fait partie de l'OPR).
+const signToken = isEnabled("opr") ? publicSignToken() : null;
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

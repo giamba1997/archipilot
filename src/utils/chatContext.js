@@ -12,6 +12,7 @@
 // Cap volumes pour éviter de dépasser le budget tokens du modèle :
 import { totalSecondsFor, formatDuration } from "./timer";
 import { stripMarkdown } from "./helpers";
+import { isEnabled } from "../constants/featureFlags";
 
 const PV_FULL_CDC_CHARS = 30000;   // texte du CdC pour projet actif
 const PV_FULL_PV_CHARS  = 8000;    // contenu du dernier PV (pleine longueur)
@@ -116,9 +117,9 @@ const projectSummary = (p, { detailed = false } = {}) => {
     }
   }
 
-  // Réserves (OPR) — détaillées si projet actif, juste comptées sinon
+  // Réserves (OPR) — différées au POC : on n'injecte pas ce contexte mort.
   const reserves = p.reserves || [];
-  if (reserves.length) {
+  if (isEnabled("opr") && reserves.length) {
     const open = reserves.filter(r => r.status !== "levee");
     lines.push(`\n### Réserves (OPR)`);
     lines.push(`${reserves.length} au total, ${open.length} non levées.`);
@@ -134,9 +135,9 @@ const projectSummary = (p, { detailed = false } = {}) => {
 
   // Module checklists supprimé — bloc retiré du contexte chat.
 
-  // Lots / phases techniques
+  // Lots / phases techniques — différés (planning) au POC.
   const lots = p.lots || [];
-  if (lots.length) {
+  if (isEnabled("planning") && lots.length) {
     lines.push(`\n### Lots`);
     for (const lot of lots.slice(0, 12)) {
       const dates = lot.startDate || lot.endDate
@@ -156,9 +157,9 @@ const projectSummary = (p, { detailed = false } = {}) => {
     lines.push(`${totalRemarks} remarques (${openRemarks} ouvertes) sur ${posts.length} poste${posts.length > 1 ? "s" : ""}.`);
   }
 
-  // Time tracking — agrégé par périodes
+  // Time tracking — agrégé par périodes (timesheets différés au POC).
   const sessions = p.timeSessions || [];
-  if (sessions.length) {
+  if (isEnabled("timesheets") && sessions.length) {
     const now = new Date();
     const weekStart = startOfWeek(now);
     const monthStart = startOfMonth(now);
@@ -207,7 +208,10 @@ export const buildChatContext = ({ projects = [], profile = null, activeContext 
     const totalPvs = active.reduce((s, p) => s + ((p.pvHistory || []).length), 0);
     const totalSessions = active.reduce((s, p) => s + ((p.timeSessions || []).length), 0);
     const totalSecondsAll = active.reduce((s, p) => s + totalSecondsFor(p.timeSessions || []), 0);
-    blocks.push(`# Synthèse globale\n${active.length} projet${active.length > 1 ? "s actifs" : " actif"}${archived.length ? `, ${archived.length} archivé${archived.length > 1 ? "s" : ""}` : ""}.\n${totalActions} actions ouvertes (dont ${totalUrgent} urgentes), ${totalPvs} PV au total.\n${totalSessions} sessions de temps enregistrées · ${formatDuration(totalSecondsAll) || "0min"} cumulées.`);
+    const sessionsLine = isEnabled("timesheets")
+      ? `\n${totalSessions} sessions de temps enregistrées · ${formatDuration(totalSecondsAll) || "0min"} cumulées.`
+      : "";
+    blocks.push(`# Synthèse globale\n${active.length} projet${active.length > 1 ? "s actifs" : " actif"}${archived.length ? `, ${archived.length} archivé${archived.length > 1 ? "s" : ""}` : ""}.\n${totalActions} actions ouvertes (dont ${totalUrgent} urgentes), ${totalPvs} PV au total.${sessionsLine}`);
   }
 
   // Projet actif d'abord (en détail), puis les autres en synthèse.

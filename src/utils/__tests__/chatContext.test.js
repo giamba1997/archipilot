@@ -55,7 +55,7 @@ describe("buildChatContext", () => {
     expect(synthese?.[0]).toContain("1 projet");
   });
 
-  it("aggregates time sessions per project", () => {
+  it("omits time sessions when timesheets feature is deferred (POC)", () => {
     const now = new Date();
     const projects = [{
       id: 1,
@@ -66,8 +66,9 @@ describe("buildChatContext", () => {
       ],
     }];
     const ctx = buildChatContext({ projects });
-    expect(ctx).toContain("Temps passé");
-    expect(ctx).toContain("2 sessions");
+    // POC : feature `timesheets` désactivée → pas de section "Temps passé".
+    expect(ctx).not.toContain("Temps passé");
+    expect(ctx).not.toContain("2 sessions");
   });
 
   it("strips markdown from PV excerpts", () => {
@@ -157,7 +158,7 @@ describe("buildChatContext", () => {
     expect(ctx).toContain("ancien");
   });
 
-  it("lists reserves with severity for active project only", () => {
+  it("omits reserves (OPR) context when feature is deferred (POC)", () => {
     const projects = [{
       id: 1, name: "Active",
       reserves: [
@@ -165,12 +166,12 @@ describe("buildChatContext", () => {
         { id: 2, text: "Joint silicone", severity: "minor", status: "levee" },
       ],
     }];
+    // POC : feature `opr` désactivée → aucune section Réserves injectée,
+    // ni en détaillé ni en compteur (pas de données mortes dans le contexte).
     const ctxDetailed = buildChatContext({ projects, activeProjectId: 1 });
-    expect(ctxDetailed).toContain("Fissure mur nord");
-    expect(ctxDetailed).toContain("[major/non_levee]");
-    // Sans activeProjectId, juste les compteurs
+    expect(ctxDetailed).not.toContain("Fissure mur nord");
+    expect(ctxDetailed).not.toContain("Réserves (OPR)");
     const ctxSummary = buildChatContext({ projects });
-    expect(ctxSummary).toContain("2 au total, 1 non levées");
-    expect(ctxSummary).not.toContain("Fissure mur nord");
+    expect(ctxSummary).not.toContain("non levées");
   });
 });
