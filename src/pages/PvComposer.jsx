@@ -460,6 +460,16 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
     onError: () => {},
   });
 
+  // Si on est arrivé par « Enregistrement audio », on lance l'enregistrement
+  // directement (le micro démarre ; à l'arrêt, l'IA transcrit → remarques).
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!demo && initialMode === "dictate" && !autoStarted.current) {
+      autoStarted.current = true;
+      try { recorder.start(); } catch { /* mic refusé → l'utilisateur peut relancer */ }
+    }
+  }, [demo, initialMode, recorder]);
+
   return (
     <>
       {/* Bandeau de contexte : date, météo, présents */}
