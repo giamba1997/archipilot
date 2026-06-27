@@ -570,6 +570,10 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
             const openTasks = sortTasks(tasks.filter(t => !isClosed(t.status) && t.status !== "created"));
             const top = openTasks.slice(0, 6);
             const remaining = openTasks.length - top.length;
+            // POC densité : pas de carte "À faire" vide en phase amont (ni
+            // guidance PV, ni tâche ouverte) — on évite une surface morte.
+            const showGuidance = ["execution", "construction", "reception", "closed"].includes(project.statusId);
+            if (!showGuidance && openTasks.length === 0) return null;
             return (
               <div className="ap-section-actions"><Card>
                 <CardHeader
@@ -579,8 +583,12 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                     : null}
                 />
 
-                {/* Sous-section "À faire maintenant" — guidance contextuelle. */}
-                {_canEdit && (() => {
+                {/* Sous-section "À faire maintenant" — guidance contextuelle.
+                    POC densité : la guidance "Préparer le PV" n'apparaît que
+                    dans les phases où un PV de chantier a du sens (exécution →
+                    clôture). En amont (esquisse/AVP/permis), le hero porte
+                    seul l'action primaire — pas de CTA prématuré concurrent. */}
+                {_canEdit && ["execution", "construction", "reception", "closed"].includes(project.statusId) && (() => {
                   const nextPvN = nextPvNumber(project.pvHistory);
                   const hasMeeting = !!project.nextMeeting;
                   return (
@@ -614,7 +622,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
                           </button>
                         )}
                         <button onClick={() => onStartNotes()}
-                          style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 1px 3px rgba(192,90,44,0.2)" }}>
+                          style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <Ico name="edit" size={11} color={WH} />
                           Préparer le PV n°{nextPvN}
                         </button>
@@ -674,23 +682,16 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
               bureau (lire chaque suggestion, accepter/rejeter, attribuer). */}
           {pendingAiSuggestions.count > 0 && !isMobile && (
             <div style={{
-              background: WH, border: `1px solid ${ACL2}`, borderRadius: 12,
-              padding: "12px 14px", display: "flex", alignItems: "center", gap: 12,
+              background: SB, border: `1px solid ${SBB}`, borderRadius: 10,
+              padding: "9px 12px", display: "flex", alignItems: "center", gap: 10,
             }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ico name="sparkle" size={14} color={AC} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: FS.sm, fontWeight: 700, color: TX }}>
-                  {pendingAiSuggestions.count} tâche{pendingAiSuggestions.count > 1 ? "s" : ""} potentielle{pendingAiSuggestions.count > 1 ? "s" : ""} détectée{pendingAiSuggestions.count > 1 ? "s" : ""} dans le{pendingAiSuggestions.lastPvNumber ? ` PV n°${pendingAiSuggestions.lastPvNumber}` : "s PV récents"}
-                </div>
-                <div style={{ fontSize: FS.xs, color: TX3, marginTop: 2 }}>
-                  Vérifie et accepte celles qui méritent d'être suivies — tu décides.
-                </div>
+              <Ico name="sparkle" size={14} color={TX3} />
+              <div style={{ flex: 1, minWidth: 0, fontSize: FS.sm, color: TX2 }}>
+                <strong style={{ color: TX, fontWeight: 600 }}>{pendingAiSuggestions.count} tâche{pendingAiSuggestions.count > 1 ? "s" : ""}</strong> potentielle{pendingAiSuggestions.count > 1 ? "s" : ""} détectée{pendingAiSuggestions.count > 1 ? "s" : ""} dans le{pendingAiSuggestions.lastPvNumber ? ` PV n°${pendingAiSuggestions.lastPvNumber}` : "s PV récents"}
               </div>
               <button onClick={() => setSuggestionsModalOpen(true)}
-                style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: AC, color: WH, fontSize: FS.sm, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                Voir les suggestions
+                style={{ padding: 0, border: "none", background: "none", color: AC, fontSize: FS.sm, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, textDecoration: "underline", textUnderlineOffset: 2 }}>
+                Voir
               </button>
             </div>
           )}

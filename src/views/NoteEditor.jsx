@@ -22,7 +22,10 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const [annotatingPhoto, setAnnotatingPhoto] = useState(null);
   const [addText,    setAddText]    = useState("");
   const [addUrgent,  setAddUrgent]  = useState(false);
-  const [recipientFilters, setRecipientFilters] = useState(null); // null = not chosen yet, [] = tous explicitly
+  // POC : « Tous » présélectionné par défaut ([] = tous) — la plupart des PV
+  // partent à tous les participants, on évite un clic forcé. L'archi peut
+  // restreindre les destinataires depuis l'écran de génération.
+  const [recipientFilters, setRecipientFilters] = useState([]);
   const hasExistingRemarks = project.posts.some(p => (p.remarks || []).length > 0 || p.notes?.trim());
   // Le chooser (3 méthodes) s'affiche par défaut sur un nouveau PV. Si initialMode
   // est passé explicitement (depuis bottom bar mobile par ex), on saute le chooser.
@@ -789,11 +792,11 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
   const totalPhotos  = project.posts.reduce((acc, p) => acc + (p.photos || []).length, 0);
   const readyToGenerate = filledCount > 0 && recipientFilters !== null;
 
-  // Steps data (shared between desktop and mobile)
+  // Steps data — flux POC en 2 étapes (les destinataires sont un sous-écran
+  // optionnel de la génération). `target` = valeur de currentStep visée.
   const stepsData = [
-    { step: 1, label: "Saisie", sub: `${filledCount}/${project.posts.length} postes`, icon: "listcheck", done: filledCount > 0 },
-    { step: 2, label: "Destinataires", sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? "Tous" : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
-    { step: 3, label: "Génération", sub: readyToGenerate ? "Prêt" : "En attente", icon: "send", done: false },
+    { num: 1, target: 0, label: "Saisie", sub: `${filledCount}/${project.posts.length} postes`, icon: "listcheck", done: filledCount > 0 },
+    { num: 2, target: 2, label: "Génération", sub: readyToGenerate ? "Prêt" : "En attente", icon: "send", done: false },
   ];
   // currentStep is now managed by useState above — no auto-calculation needed
 
@@ -807,15 +810,15 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
             {stepsData.map((s, i) => {
               const isDone = s.done;
-              const isActive = i === currentStep;
+              const isActive = s.target === 0 ? currentStep === 0 : currentStep >= 1;
               return (
-                <div key={s.step} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
+                <div key={s.target} style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
                   <div
-                    onClick={() => setCurrentStep(i)}
+                    onClick={() => setCurrentStep(s.target)}
                     style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", flex: 1, minWidth: 0, padding: "3px 4px", borderRadius: 6, background: isActive ? ACL : "transparent", transition: "all 0.15s" }}
                   >
                     <div style={{ width: 22, height: 22, borderRadius: "50%", background: isDone ? AC : isActive ? AC : SB2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s" }}>
-                      {isDone ? <Ico name="check" size={9} color="#fff" /> : <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "#fff" : TX3 }}>{s.step}</span>}
+                      {isDone ? <Ico name="check" size={9} color="#fff" /> : <span style={{ fontSize: 9, fontWeight: 700, color: isActive ? "#fff" : TX3 }}>{s.num}</span>}
                     </div>
                     <span style={{ fontSize: 11, fontWeight: isActive ? 700 : 500, color: isActive ? TX : isDone ? AC : TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.label}</span>
                   </div>
@@ -855,26 +858,36 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
 
         {/* Barre de progression — cliquable, basée sur currentStep */}
         {(() => {
+          // POC : flux en 2 étapes (Saisie → Génération). Le choix des
+          // destinataires est devenu un sous-écran optionnel de la génération
+          // (« Tous » par défaut), plus une étape forcée.
           const steps = [
             { step: 0, label: t("notes.stepPosts"), sub: `${filledCount}/${project.posts.length}`, icon: "listcheck", done: filledCount > 0 },
-            { step: 1, label: t("notes.stepRecipients"), sub: recipientFilters === null ? "À définir" : recipientFilters.length === 0 ? t("notes.allRecipients") : `${recipientFilters.length} filtrés`, icon: "users", done: recipientFilters !== null },
             { step: 2, label: t("notes.stepGeneration"), sub: readyToGenerate ? t("notes.stepReady") : t("notes.stepWaiting"), icon: "send", done: false },
           ];
           return (
             <div style={{ marginTop: 14, background: SB, borderRadius: 10, padding: "4px 4px", display: "flex", alignItems: "stretch", gap: 3 }}>
               {steps.map((s, i) => {
                 const isDone = s.done;
-                const isActive = i === currentStep;
+                // Génération reste active quand on est sur le sous-écran destinataires (currentStep 1).
+                const isActive = s.step === 0 ? currentStep === 0 : currentStep >= 1;
                 return (
                   <div key={s.step} style={{ flex: 1, display: "flex", alignItems: "center", gap: 0, minWidth: 0 }}>
                     <div
-                      onClick={() => setCurrentStep(i)}
+                      onClick={() => setCurrentStep(s.step)}
+                      role="button"
+                      tabIndex={0}
+                      aria-current={isActive ? "step" : undefined}
+                      aria-label={`Étape ${i + 1} sur ${steps.length} : ${s.label}${isDone ? " (terminé)" : ""}`}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCurrentStep(s.step); } }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = SB2; }}
+                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                       style={{
                         flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
                         background: isActive ? WH : "transparent",
                         borderRadius: 8, cursor: "pointer",
                         boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                        transition: "all 0.25s",
+                        transition: "background 0.18s, box-shadow 0.25s",
                       }}>
                       <div style={{
                         width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
@@ -893,7 +906,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                         <div style={{ fontSize: 11, fontWeight: isDone || isActive ? 700 : 500, color: isDone ? TX : isActive ? TX : TX3, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {s.label}
                         </div>
-                        <div style={{ fontSize: 9.5, color: isDone ? GR : isActive ? AC : DIST, fontWeight: 500, marginTop: 0, whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: 10.5, color: isDone ? GR : isActive ? AC : TX3, fontWeight: 500, marginTop: 1, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                           {isDone ? t("notes.stepCompleted") : s.sub}
                         </div>
                       </div>
@@ -956,24 +969,24 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
             {/* Inline stat chips */}
             {(totalRemarks > 0 || totalPhotos > 0) && (
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px" }}>
+                <div title={`${totalRemarks} remarque${totalRemarks > 1 ? "s" : ""} au total`} aria-label={`${totalRemarks} remarques au total`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px" }}>
                   <Ico name="edit" size={10} color={TX3} />
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: TX2 }}>{totalRemarks}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, color: TX2, fontVariantNumeric: "tabular-nums" }}>{totalRemarks}</span>
                 </div>
                 {urgentCount > 0 && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: REDBG, border: `1px solid ${REDBRD}`, borderRadius: 6, padding: "3px 8px" }}>
+                  <div title={`${urgentCount} remarque${urgentCount > 1 ? "s" : ""} urgente${urgentCount > 1 ? "s" : ""}`} aria-label={`${urgentCount} remarques urgentes`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: REDBG, border: `1px solid ${REDBRD}`, borderRadius: 6, padding: "3px 8px" }}>
                     <span style={{ width: 5, height: 5, borderRadius: "50%", background: RD, flexShrink: 0 }} />
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: RD }}>{urgentCount}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: RD, fontVariantNumeric: "tabular-nums" }}>{urgentCount}</span>
                   </div>
                 )}
                 {carriedCount > 0 && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: ACL, border: `1px solid ${ACL2}`, borderRadius: 6, padding: "3px 8px" }}>
+                  <div title={`${carriedCount} remarque${carriedCount > 1 ? "s" : ""} reportée${carriedCount > 1 ? "s" : ""} du PV précédent`} aria-label={`${carriedCount} remarques reportées du PV précédent`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: ACL, border: `1px solid ${ACL2}`, borderRadius: 6, padding: "3px 8px" }}>
                     <Ico name="repeat" size={9} color={AC} />
-                    <span style={{ fontSize: 10.5, fontWeight: 600, color: AC }}>{carriedCount}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 600, color: AC, fontVariantNumeric: "tabular-nums" }}>{carriedCount}</span>
                   </div>
                 )}
                 {totalPhotos > 0 && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px" }}>
+                  <div title={`${totalPhotos} photo${totalPhotos > 1 ? "s" : ""}`} aria-label={`${totalPhotos} photos`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: WH, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px" }}>
                     <Ico name="camera" size={10} color={TX3} />
                     <span style={{ fontSize: 10.5, fontWeight: 600, color: TX2 }}>{totalPhotos}</span>
                   </div>
@@ -1513,11 +1526,11 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
           <Ico name="back" size={14} color={TX2} /> Retour
         </button>
         <button
-          onClick={() => setCurrentStep(project.participants.length > 0 ? 1 : 2)}
+          onClick={() => setCurrentStep(2)}
           disabled={filledCount === 0}
           style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", border: "none", borderRadius: 10, background: filledCount > 0 ? AC : SBB, color: filledCount > 0 ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: filledCount > 0 ? "pointer" : "not-allowed", fontFamily: "inherit" }}
         >
-          Destinataires <Ico name="arrowr" size={13} color={filledCount > 0 ? "#fff" : TX3} />
+          Générer le PV <Ico name="arrowr" size={13} color={filledCount > 0 ? "#fff" : TX3} />
         </button>
       </div>
 
@@ -1596,17 +1609,16 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
 
       </div>{/* end ap-note-step-content step 1 */}
 
-      {/* Step 1 navigation */}
+      {/* Step 1 navigation — sous-écran destinataires : on revient à la génération */}
       <div style={{ padding: "12px 16px", borderTop: `1px solid ${SBB}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-        <button onClick={() => setCurrentStep(0)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-          <Ico name="back" size={14} color={TX2} /> Saisie
+        <button onClick={() => setCurrentStep(2)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="back" size={14} color={TX2} /> Retour
         </button>
         <button
           onClick={() => setCurrentStep(2)}
-          disabled={recipientFilters === null}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", border: "none", borderRadius: 10, background: recipientFilters !== null ? AC : SBB, color: recipientFilters !== null ? "#fff" : TX3, fontSize: 13, fontWeight: 700, cursor: recipientFilters !== null ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
         >
-          Génération <Ico name="arrowr" size={13} color={recipientFilters !== null ? "#fff" : TX3} />
+          Valider les destinataires <Ico name="check" size={13} color="#fff" />
         </button>
       </div>
 
@@ -1683,6 +1695,18 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 {visitEnd || "Marquer la fin"}
               </button>
             </div>
+          </div>
+
+          {/* Destinataires — résumé + accès optionnel à l'affinage */}
+          <div className="ap-gen-recipients" style={{ padding: "0 20px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+            <Ico name="users" size={12} color={TX3} />
+            <span style={{ fontSize: 11, color: TX3 }}>Destinataires :</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: TX2, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {(recipientFilters || []).length === 0 ? "Tous les participants" : recipientFilters.join(", ")}
+            </span>
+            <button onClick={() => setCurrentStep(1)} style={{ padding: "4px 10px", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit", color: AC, flexShrink: 0 }}>
+              Modifier
+            </button>
           </div>
 
           {/* CTA area */}

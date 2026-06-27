@@ -7,7 +7,7 @@ import {
 import { getReserveStatus, getReserveSeverity, RESERVE_SEVERITIES } from "../constants/statuses";
 import { isEnabled } from "../constants/featureFlags";
 import { Ico } from "../components/ui";
-import { uploadPhoto } from "../db";
+import { uploadPhoto, getPhotoUrl } from "../db";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
 import { useConversationRecorder, transcribeAudioBlob } from "../hooks/useConversationRecorder";
 import { fetchWeatherAt, getCurrentPositionSafe, formatWeatherShort } from "../utils/weather";
@@ -344,73 +344,48 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
   // Données dérivées
   const reserves = project.reserves || [];
-  const openReserves = reserves.filter(r => r.status !== "levee");
-  // Pour chaque réserve ouverte, son statut dans cette visite (action loggée)
-  const actionByReserve = new Map(visit.reserveActions.map(a => [String(a.reserveId), a.action]));
-  const newReserveIds = new Set(visit.newReserveIds);
-  // Les "nouvelles réserves" sont celles créées pendant la visite
-  const newReserves = reserves.filter(r => newReserveIds.has(r.id));
   const stats = getVisitStats(visit);
+  // Fil de la visite — photos + observations fusionnées, ordre chronologique
+  // inverse (le plus récent en haut). Donne à l'archi un retour immédiat sur
+  // ce qu'il a capturé.
+  const galleryById = new Map((project.gallery || []).map(g => [g.id, g]));
+  const feed = [
+    ...visit.photoIds.map(id => { const ph = galleryById.get(id); return ph ? { kind: "photo", at: ph.date, ph, id } : null; }).filter(Boolean),
+    ...visit.decisions.map(d => ({ kind: "note", at: d.timestamp, text: d.text, source: d.source, id: d.id })),
+  ].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", animation: "fadeIn 0.2s ease", paddingBottom: 100 }}>
-      {/* ── Header sticky — change d'allure selon la phase ──
-          Inspection : fond blanc, chip ambre/pulse AC, sobre.
-          Réunion    : fond rouge profond, chip ENR pulse blanche,
-                       chrono de réunion mis en avant. */}
+      {/* ── Header sticky — visite continue, sobre ──
+          Chrono qui tourne + météo. Une seule visite (plus de bascule
+          inspection/réunion : on capture en continu). */}
       <div style={{
         position: "sticky", top: 0, zIndex: 10,
-        background: phase === "reunion" ? RD : WH,
-        borderBottom: phase === "reunion" ? "none" : `1px solid ${SBB}`,
+        background: WH, borderBottom: `1px solid ${SBB}`,
         padding: "10px 14px",
         display: "flex", alignItems: "center", gap: 10,
-        color: phase === "reunion" ? "#fff" : TX,
       }}>
         <button onClick={onCancelVisit} title="Annuler la visite"
           style={{
-            background: phase === "reunion" ? "rgba(255,255,255,0.16)" : SB,
-            border: phase === "reunion" ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${SBB}`,
+            background: SB, border: `1px solid ${SBB}`,
             cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36,
             display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8,
           }}>
-          <Ico name="x" color={phase === "reunion" ? "#fff" : TX2} size={14} />
+          <Ico name="x" color={TX2} size={14} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 1 }}>
-            <span style={{
-              width: 8, height: 8, borderRadius: "50%",
-              background: phase === "reunion" ? "#fff" : AC,
-              animation: "pulseDot 1.6s ease-in-out infinite",
-            }} />
-            <span style={{
-              fontSize: 10, fontWeight: 700,
-              color: phase === "reunion" ? "#fff" : AC,
-              textTransform: "uppercase", letterSpacing: "0.06em",
-            }}>
-              {phase === "reunion"
-                ? `● Enr · Réunion · ${stats.meetingDuration < 60 ? `${stats.meetingDuration} min` : `${Math.floor(stats.meetingDuration / 60)}h${String(stats.meetingDuration % 60).padStart(2, "0")}`}`
-                : `Visite en cours · ${stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}`}
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: AC, animation: "pulseDot 1.6s ease-in-out infinite" }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.06em", fontVariantNumeric: "tabular-nums" }}>
+              Visite · {stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}
             </span>
-            {/* Chip météo (Tier 1) — visible dès que le fetch Open-Meteo
-                a abouti. Discret pour ne pas alourdir le header. */}
             {visit.weather && (
-              <span title={`${visit.weather.label} · ${visit.weather.temperature}°C`} style={{
-                fontSize: 10, fontWeight: 700,
-                padding: "2px 6px", borderRadius: 999,
-                background: phase === "reunion" ? "rgba(255,255,255,0.15)" : SB,
-                color: phase === "reunion" ? "#fff" : TX2,
-                whiteSpace: "nowrap",
-                marginLeft: 2,
-              }}>
+              <span title={`${visit.weather.label} · ${visit.weather.temperature}°C`} style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 999, background: SB, color: TX2, whiteSpace: "nowrap", marginLeft: 2 }}>
                 {formatWeatherShort(visit.weather)}
               </span>
             )}
           </div>
-          <div style={{
-            fontSize: 15, fontWeight: 700,
-            color: phase === "reunion" ? "#fff" : TX,
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {project.name}
           </div>
         </div>
@@ -425,212 +400,97 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
       <div style={{ padding: "14px" }}>
 
-      {phase === "reunion" ? (
-        <MeetingPhase stats={stats} recorder={conv} errorMsg={recorderErrorMsg} />
-      ) : (
-      <>
-        {/* ── Boutons d'action tactiles ── (POC : Réserve retirée, réserves différées) */}
-        <div style={{ display: "grid", gridTemplateColumns: isEnabled("opr") ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 18 }}>
-          <ActionButton
-            icon="camera"
-            label="Photo"
-            count={stats.photos}
-            onClick={() => setActiveSheet("photo")}
-          />
-          <ActionButton
-            icon="mic"
-            label="Note vocale"
-            count={stats.decisions}
-            onClick={() => setActiveSheet("voice")}
-          />
-          {isEnabled("opr") && <ActionButton
-            icon="alert"
-            label="Réserve"
-            count={stats.created}
-            onClick={() => setActiveSheet("new-reserve")}
-          />}
-        </div>
+      {/* ── Barre de capture — gros boutons tactiles (mains sur le chantier) ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+        <ActionButton icon="camera" label="Photo" count={stats.photos} onClick={() => setActiveSheet("photo")} />
+        <ActionButton icon="mic" label="Note vocale" onClick={() => setActiveSheet("voice")} />
+        <ActionButton icon="pen2" label="Note écrite" onClick={() => setActiveSheet("text")} />
+      </div>
 
-        {/* ── Stats récap ── */}
-        {(stats.lifted > 0 || stats.still > 0 || stats.created > 0 || stats.decisions > 0) && (
-          <div style={{
-            background: SB, border: `1px solid ${SBB}`, borderRadius: 10,
-            padding: "10px 12px", marginBottom: 18,
-            display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: TX3,
-          }}>
-            <StatPill value={stats.lifted} label="levées" color={SG} />
-            <StatPill value={stats.still} label="toujours présentes" color={AM} />
-            <StatPill value={stats.created} label="nouvelles" color={BR} />
-            <StatPill value={stats.decisions} label="décisions" color={ST} />
-            <StatPill value={stats.photos} label="photos" color={TX2} />
+      {/* ── Présents (compact) ── */}
+      {visit.presents.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+            Présents · {visit.presents.filter(p => p.present).length}/{visit.presents.length}
           </div>
-        )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {visit.presents.map((p, i) => (
+              <button key={i} onClick={() => onTogglePresent(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", border: `1px solid ${p.present ? SG : SBB}`, background: p.present ? SGB : WH, color: p.present ? SG : TX3, borderRadius: 999, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600 }}>
+                <Ico name={p.present ? "check" : "x"} size={9} color={p.present ? SG : TX3} />
+                {p.role ? `${p.role}: ${p.name}` : p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-        {/* ── Présents ── */}
-        <Section title={`Présents (${visit.presents.filter(p => p.present).length}/${visit.presents.length})`}>
-          {visit.presents.length === 0 ? (
-            <div style={{ fontSize: 12, color: TX3, fontStyle: "italic", padding: "8px 0" }}>
-              Aucun participant — ajoute-les via la modale participants du projet.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {visit.presents.map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => onTogglePresent(p.name)}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "5px 10px",
-                    border: `1px solid ${p.present ? SG : SBB}`,
-                    background: p.present ? SGB : WH,
-                    color: p.present ? SG : TX3,
-                    borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
-                    fontSize: 11, fontWeight: 600,
-                  }}
-                >
-                  <Ico name={p.present ? "check" : "x"} size={9} color={p.present ? SG : TX3} />
-                  {p.role ? `${p.role}: ${p.name}` : p.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </Section>
-
-        {/* ── Réserves ouvertes ── (POC : réserves différées) */}
-        {isEnabled("opr") && <Section title={`Réserves ouvertes (${openReserves.length})`}>
-          {openReserves.length === 0 ? (
-            <div style={{ fontSize: 12, color: TX3, fontStyle: "italic", padding: "8px 0" }}>
-              Aucune réserve ouverte sur ce projet.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {openReserves.map(r => (
-                <ReserveRow
-                  key={r.id}
-                  reserve={r}
-                  action={actionByReserve.get(String(r.id))}
-                  onLifted={() => onChangeReserveStatus(r.id, "lifted")}
-                  onStill={() => onChangeReserveStatus(r.id, "still_present")}
-                />
-              ))}
-            </div>
-          )}
-        </Section>}
-
-        {/* ── Nouvelles réserves créées pendant la visite ── */}
-        {isEnabled("opr") && newReserves.length > 0 && (
-          <Section title={`Nouvelles réserves (${newReserves.length})`}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {newReserves.map(r => {
-                const sev = getReserveSeverity(r.severity);
-                return (
-                  <div key={r.id} style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "10px 12px", background: WH, border: `1px solid ${SBB}`, borderRadius: 10,
-                  }}>
-                    <div style={{ width: 4, height: 28, borderRadius: 2, background: sev.color, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: TX, fontFamily: "ui-monospace, monospace" }}>{r.code}</span>
-                        <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 999, background: sev.bg, color: sev.color, fontWeight: 700 }}>{sev.label}</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: TX, lineHeight: 1.4 }}>{r.description}</div>
-                    </div>
+      {/* ── Fil de la visite — photos + observations, chronologique ──
+          Le cœur de l'écran : tout ce que l'archi capture s'empile ici
+          dans l'ordre, pour qu'il voie en un coup d'œil ce qu'il a relevé. */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+        Fil de la visite{feed.length > 0 ? ` · ${feed.length}` : ""}
+      </div>
+      {feed.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "30px 20px", color: TX3, background: SB, border: `1px dashed ${SBB}`, borderRadius: 12 }}>
+          <Ico name="camera" size={24} color={TX3} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: TX2, marginTop: 10 }}>Capture ta visite au fil de l'eau</div>
+          <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>Photos et observations s'ajoutent ici. À la fin, l'IA en fait un brouillon de PV.</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {feed.map(item => {
+            const time = item.at ? new Date(item.at).toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }) : "";
+            if (item.kind === "photo") {
+              return (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 8, background: WH, border: `1px solid ${SBB}`, borderRadius: 12 }}>
+                  <img src={getPhotoUrl(item.ph)} alt="" style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: `1px solid ${SBB}` }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Photo</div>
+                    {item.ph.caption && <div style={{ fontSize: 12.5, color: TX, lineHeight: 1.4, marginTop: 1 }}>{item.ph.caption}</div>}
                   </div>
-                );
-              })}
-            </div>
-          </Section>
-        )}
-
-        {/* ── Décisions ── */}
-        {visit.decisions.length > 0 && (
-          <Section title={`Décisions notées (${visit.decisions.length})`}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {visit.decisions.map(d => (
-                <div key={d.id} style={{
-                  display: "flex", alignItems: "flex-start", gap: 10,
-                  padding: "10px 12px", background: WH, border: `1px solid ${SBB}`, borderRadius: 10,
-                }}>
-                  <Ico name={d.source === "voice" ? "mic" : "pen2"} size={12} color={ST} />
-                  <div style={{ flex: 1, fontSize: 12, color: TX, lineHeight: 1.5 }}>{d.text}</div>
-                  <button onClick={() => onRemoveDecision(d.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                  <span style={{ fontSize: 11, color: TX3, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{time}</span>
+                </div>
+              );
+            }
+            return (
+              <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: WH, border: `1px solid ${SBB}`, borderRadius: 12 }}>
+                <Ico name={item.source === "voice" ? "mic" : "pen2"} size={13} color={TX3} />
+                <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: TX, lineHeight: 1.5 }}>{item.text}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, color: TX3, fontVariantNumeric: "tabular-nums" }}>{time}</span>
+                  <button onClick={() => onRemoveDecision(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
                     <Ico name="x" size={11} color={TX3} />
                   </button>
                 </div>
-              ))}
-            </div>
-          </Section>
-        )}
-      </>
+              </div>
+            );
+          })}
+        </div>
       )}
       </div>
 
-      {/* ── Sticky footer — 2 boutons selon la phase ──
-          Inspection : "Terminer sans réunion" (secondaire) + "Passer
-          à la réunion" (primaire, déclenche le modal RGPD).
-          Réunion : "Reprendre l'inspection" (secondaire) + "Terminer
-          la visite" (primaire, ouvre EndVisitSheet pour confirmer). */}
+      {/* ── Sticky footer — une seule action : terminer → brouillon de PV ── */}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0,
         background: WH, borderTop: `1px solid ${SBB}`,
         padding: "12px 16px",
+        paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))",
         display: "flex", gap: 8,
         boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.05)",
         zIndex: 20,
       }}>
-        {phase === "inspection" ? (
-          <>
-            <button
-              onClick={() => setActiveSheet("end")}
-              style={{
-                flex: 1, padding: "13px 12px", border: `1px solid ${SBB}`, borderRadius: 10,
-                background: WH, color: TX2, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              Terminer sans réunion
-            </button>
-            <button
-              onClick={onRequestMeeting}
-              style={{
-                flex: 1.4, padding: "13px 16px", border: "none", borderRadius: 10,
-                background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}
-            >
-              <Ico name="users" size={14} color="#fff" />
-              Passer à la réunion
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={onResumeInspection}
-              style={{
-                flex: 1, padding: "13px 12px", border: `1px solid ${SBB}`, borderRadius: 10,
-                background: WH, color: TX2, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              Reprendre l'inspection
-            </button>
-            <button
-              onClick={() => setActiveSheet("end")}
-              style={{
-                flex: 1.4, padding: "13px 16px", border: "none", borderRadius: 10,
-                background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}
-            >
-              <Ico name="check" size={14} color="#fff" />
-              Terminer la visite
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => setActiveSheet("end")}
+          style={{
+            flex: 1, padding: "14px 16px", border: "none", borderRadius: 10,
+            background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <Ico name="check" size={14} color="#fff" />
+          Terminer la visite
+        </button>
       </div>
 
       {/* ── Sheets / Modals ── */}
@@ -639,6 +499,9 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       )}
       {activeSheet === "voice" && (
         <VoiceSheet onClose={() => setActiveSheet(null)} onSubmit={onAddDecision} showToast={showToast} />
+      )}
+      {activeSheet === "text" && (
+        <TextNoteSheet onClose={() => setActiveSheet(null)} onSubmit={onAddDecision} />
       )}
       {isEnabled("opr") && activeSheet === "new-reserve" && (
         <NewReserveSheet
@@ -1062,6 +925,34 @@ function VoiceSheet({ onClose, onSubmit, showToast }) {
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button onClick={onClose} style={btnSecondary}>Annuler</button>
         <button onClick={submit} disabled={!transcript.trim()} style={{ ...btnPrimary, flex: 2, background: transcript.trim() ? AC : DIS, color: transcript.trim() ? "#fff" : DIST, cursor: transcript.trim() ? "pointer" : "not-allowed" }}>
+          Ajouter la note
+        </button>
+      </div>
+    </SheetWrapper>
+  );
+}
+
+// ── Sheet : Note écrite ──
+function TextNoteSheet({ onClose, onSubmit }) {
+  const [text, setText] = useState("");
+  const submit = () => {
+    if (!text.trim()) return;
+    onSubmit(text, "text");
+    onClose();
+  };
+  return (
+    <SheetWrapper title="Note écrite" onClose={onClose}>
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        rows={5}
+        autoFocus
+        placeholder="Note une observation, une décision prise sur place…"
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button onClick={onClose} style={btnSecondary}>Annuler</button>
+        <button onClick={submit} disabled={!text.trim()} style={{ ...btnPrimary, flex: 2, background: text.trim() ? AC : DIS, color: text.trim() ? "#fff" : DIST, cursor: text.trim() ? "pointer" : "not-allowed" }}>
           Ajouter la note
         </button>
       </div>

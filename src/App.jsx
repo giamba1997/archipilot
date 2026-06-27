@@ -61,7 +61,7 @@ import { downloadCSV, exportProjectsCSV, exportActionsCSV, exportRemarksCSV, exp
 import { Ico, PB, Modal, Field, StatusBadge, PvStatusBadge, KpiCard, AskAiButton, SyncBadge } from "./components/ui";
 
 // ── Extracted Components ──────────────────────────────────────
-import { MobileBottomBar, CaptureSheet, QuickCaptureSheet, MobilePvDictateSheet, Sidebar } from "./components/layout";
+import { MobileBottomBar, MobilePvDictateSheet, Sidebar } from "./components/layout";
 import { CollabModalWrapper, UpgradeGate, UpgradeRequiredModal, PricingSection, SendPvModal, SearchModal, PhaseManagerModal, PhaseWizardModal, isReadOnly, canEdit, canManageMembers, canManageSettings, getProjectRole } from "./components/modals";
 import { hasSeenWizard, PHASE_WIZARDS } from "./constants/phaseWizards";
 import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
@@ -244,7 +244,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [captureSheet, setCaptureSheet] = useState(false);
   const [mobilePvDictateOpen, setMobilePvDictateOpen] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);
   const [projectPicker, setProjectPicker] = useState(false);
@@ -2484,7 +2483,9 @@ Règles :
           Le FAB central lance directement le Mode Chantier (différenciateur
           PWA mobile) au lieu d'ouvrir QuickCaptureSheet — la capture passe
           désormais par les phases de la visite. */}
-      <MobileBottomBar
+      {/* Masquée sur les vues plein écran focalisées (capture/rédaction) :
+          sinon elle recouvre leurs footers d'action (Terminer / Générer). */}
+      {!["chantier", "notes", "result"].includes(view) && <MobileBottomBar
         view={view}
         notifsOpen={showNotifications}
         unreadCount={(notifications || []).filter(n => !n.read).length}
@@ -2539,65 +2540,11 @@ Règles :
             setShowNotifications(v => !v);
           }
         }}
-      />
+      />}
 
-      {/* ── Mobile Quick Capture Sheet — 4 actions (Mobile Étape 2) ──
-          Remplace l'ancien CaptureSheet limité à Photo. Ouvre photo,
-          note vocale, nouvelle réserve ou PV dicté en 2 taps depuis
-          n'importe où dans l'app mobile. */}
-      <QuickCaptureSheet
-        open={captureSheet}
-        onClose={() => setCaptureSheet(false)}
-        project={project}
-        onPhoto={() => {
-          // Réutilise le file input mobile monté en permanence dans App.
-          // Délai court pour laisser le sheet se fermer avant d'ouvrir
-          // la caméra (sinon iOS Safari bloque le file picker).
-          setTimeout(() => mobilePhotoRef.current?.click(), 150);
-        }}
-        onStartPvDictation={() => {
-          // Sur mobile, on ouvre le sheet vocal one-shot (dicte → IA → envoie
-          // en 2-3 taps). Sur desktop, on garde le flow NoteEditor classique.
-          if (isMobile && project) {
-            setCaptureSheet(false);
-            setTimeout(() => setMobilePvDictateOpen(true), 100);
-            return;
-          }
-          setPvStartMode("dictate");
-          tryStartNewPv();
-        }}
-        onNewReserve={() => {
-          if (!hasFeature(profile.plan, "opr")) { setUpgradeFeature("opr"); return; }
-          setView("opr");
-          // L'OprView ouvre directement en mode "add" si le projet n'a
-          // pas encore de réserves — sinon l'archi tap "Nouvelle" depuis
-          // la liste. Pour forcer add à coup sûr, on pourrait passer un
-          // autoAction — feature à ajouter si besoin.
-        }}
-        onSaveVoiceMemo={(text) => {
-          // v1 : la note vocale devient une tâche du projet. L'archi
-          // pourra la convertir/déplacer depuis TasksView. Simple, sans
-          // nouveau schéma. Le titre est tronqué à 200 chars (limite
-          // affichage), le texte complet va en notes.
-          const trimmed = (text || "").trim();
-          if (!trimmed || !project) return;
-          const title = trimmed.length > 200 ? trimmed.slice(0, 200) + "…" : trimmed;
-          const newTask = {
-            id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            number: ((project.tasks || []).length || 0) + 1,
-            title,
-            notes: trimmed.length > 200 ? trimmed : "",
-            status: "open",
-            priority: "medium",
-            createdAt: new Date().toISOString(),
-            source: "voice_memo",
-          };
-          setProjects(prev => prev.map(p => p.id !== project.id ? p : {
-            ...p, tasks: [...(p.tasks || []), newTask],
-          }));
-          showToast("Note vocale enregistrée comme tâche");
-        }}
-      />
+      {/* QuickCaptureSheet retirée : code mort — le FAB central de la bottom
+          bar v3 entre directement en Mode Chantier (cf. MobileBottomBar),
+          `setCaptureSheet(true)` n'était plus appelé nulle part. */}
 
       {/* ── Mobile PV vocal one-shot — sheet ──
           Dicter → IA structure → revoir → envoyer en 2-3 taps. Réutilise
@@ -2809,7 +2756,9 @@ Règles :
         profile={profile}
         onImport={importProjectFromFolder}
       />
-      <ChatLauncher open={chatOpen} onToggle={toggleChat} isMobile={isMobile} />
+      {/* FAB IA masqué sur les vues plein écran focalisées (composition PV +
+          Mode Chantier) : il chevauchait les footers et l'IA est ailleurs. */}
+      {!["notes", "result", "chantier"].includes(view) && <ChatLauncher open={chatOpen} onToggle={toggleChat} isMobile={isMobile} />}
       <ChatModal
         open={chatOpen}
         onClose={closeChat}

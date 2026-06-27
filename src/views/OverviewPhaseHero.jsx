@@ -141,7 +141,7 @@ function ProgramHero({ project, onAskAiAboutCdc, onEditParticipants, onEditInfo 
         Définir le programme
       </div>
       <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, marginBottom: 14 }}>
-        À cette phase, ArchiPilot t'aide à cadrer les besoins du MO. Importe le cahier des charges pour activer l'analyse IA, et renseigne les participants pour préparer les futurs PV.
+        À cette phase, ArchiPilot t'aide à cadrer les besoins du MO. Importe le cahier des charges pour que le copilote IA puisse le consulter, et renseigne les participants pour préparer les futurs PV.
       </div>
 
       {/* Checklist de complétion rapide */}
@@ -178,7 +178,7 @@ function ChecklistRow({ done, label }) {
       }}>
         {done && <Ico name="check" size={9} color="#fff" />}
       </div>
-      <span style={{ textDecoration: done ? "line-through" : "none", color: done ? GR : TX2 }}>{label}</span>
+      <span style={{ color: done ? TX3 : TX2 }}>{label}</span>
     </div>
   );
 }

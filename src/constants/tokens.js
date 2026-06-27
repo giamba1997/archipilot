@@ -50,38 +50,40 @@ export const LH = { tight: "1.2", normal: "1.5", relaxed: "1.65" };
 // ── Radius ──
 export const RAD = { sm: 6, md: 8, lg: 10, xl: 12, xxl: 14, full: "50%" };
 
-// ── Lifecycle palette (variante vivid) ─────────────────────
-// Each phase has its own jewel-tone, all rooted in materials of architecture
-// (lin, blueprint, brick, moss, oak, slate). Still cohesive, but each step
-// has a distinct identity instead of being earth-cousin twins.
-export const E_LIN_BG       = "#EBE2F0";  // Esquisse — soft lavender (early concept)
-export const E_PRELIM_BG    = "#F0E8D5";  // Avant-projet — paper cream
-export const E_PERMIT_BG    = "#D6E1EB";  // Permis — blueprint blue (admin/legal)
-export const E_PEACH_BG     = "#F5DCC4";  // Chantier / Exécution — terracotta accent zone
-export const E_BOIS_BG      = "#D8E3CC";  // Réception — moss green (handover/quality)
-export const E_GRAPHITE_BG  = "#D8D5CE";  // Clôturé — slate (archived)
-export const E_TX_TAUPE     = "#6B4F86";  // text lavender for sketch
-export const E_TX_TAUPE2    = "#2E5680";  // text blueprint blue for permit
-export const E_TX_BOIS      = "#4D8030";  // text moss for reception
-export const E_TX_DARK      = "#4A4644";  // text slate for closed
+// ── Lifecycle palette (minimaliste) ────────────────────────
+// Discipline couleur : les 7 phases sont en NEUTRE chaud — la distinction est
+// portée par le label + les step-dots (position), pas par la teinte. SEULE la
+// phase active (exécution/chantier) reçoit l'accent terracotta pour signaler
+// « c'est là que ça se passe ». Évite l'arc-en-ciel lavande/bleu/pêche/moss.
+export const E_LIN_BG       = "#EFEDE9";  // Esquisse — neutre chaud
+export const E_PRELIM_BG    = "#EFEDE9";  // Avant-projet — neutre chaud
+export const E_PERMIT_BG    = "#EFEDE9";  // Permis — neutre chaud
+export const E_PEACH_BG     = "#FAF0EA";  // Exécution / Chantier — accent terracotta doux
+export const E_BOIS_BG      = "#EFEDE9";  // Réception — neutre chaud
+export const E_GRAPHITE_BG  = "#E7E5E0";  // Clôturé — neutre un peu plus gris (archivé)
+export const E_TX_TAUPE     = "#2C2926";  // texte phase — neutre foncé (= TX)
+export const E_TX_TAUPE2    = "#2C2926";  // texte phase — neutre foncé
+export const E_TX_BOIS      = "#2C2926";  // texte phase — neutre foncé
+export const E_TX_DARK      = "#6B6862";  // texte discret (clôturé / brouillon = TX2)
 
-// ── Quick-tools tints (4 quadrants jewel-tones) ─────────────
-// Blueprint / Coral / Moss / Ochre — 4 materials of the architect's world.
-// Saturation pushed ~50% vs first pass; cards are now distinguishable across
-// the room while keeping the warm earth feeling.
-export const QT_DOC_BG     = "#D1DBE5";  // blueprint blue
-export const QT_DOC_FG     = "#2E5680";
-export const QT_PHOTO_BG   = "#FBD3B6";  // warm coral / brick
-export const QT_PHOTO_FG   = "#D4561E";
-export const QT_PLAN_BG    = "#D5E4C5";  // fresh moss
-export const QT_PLAN_FG    = "#4D8030";
-export const QT_LIST_BG    = "#F2DDB0";  // rich amber / ochre
-export const QT_LIST_FG    = "#8B5A1A";
+// ── Quick-tools tints (minimaliste : tuiles neutres) ────────
+// Discipline couleur : on retire les 4 jewel-tones (bleu/coral/moss/ocre) au
+// profit de tuiles neutres + icône neutre. La reconnaissance passe par la
+// forme de l'icône, pas par la teinte — moins de bruit, plus de cohérence.
+export const QT_DOC_BG     = "#F0EFEB";
+export const QT_DOC_FG     = "#6B6862";
+export const QT_PHOTO_BG   = "#F0EFEB";
+export const QT_PHOTO_FG   = "#6B6862";
+export const QT_PLAN_BG    = "#F0EFEB";
+export const QT_PLAN_FG    = "#6B6862";
+export const QT_LIST_BG    = "#F0EFEB";
+export const QT_LIST_FG    = "#6B6862";
 
 // ── Semantic colors (vivid — must function as traffic lights) ─────
 export const SG     = "#5A8C3F";  // grass green — résolu / levée
 export const SGB    = "#E2EDD3";  // grass bg
-export const BR     = "#C04525";  // brick red — urgent / danger / non-levée
+export const BR     = "#D2362A";  // rouge urgent — distinct de l'accent terracotta (AC)
+                                  // pour ne pas confondre statut urgent et bouton d'action
 export const BRB    = "#F8DCCF";  // brick bg
 export const AM     = "#C0791A";  // amber — en cours / partielle / à relire
 export const AMB    = "#F8E5BD";  // amber bg

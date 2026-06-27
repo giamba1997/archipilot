@@ -44,6 +44,9 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
   const [emailErr, setEmailErr] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
   const [activeSection, setActiveSection] = useState("avatar");
+  // Desktop : sous-onglets groupés (fini le scroll-fleuve). Chaque section
+  // n'apparaît que sous son onglet.
+  const [activeTab, setActiveTab] = useState("profil");
   const sectionRefs = useRef({});
   const scrollRef = useRef(null);
 
@@ -359,7 +362,24 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
     );
   }
 
-  // Desktop layout
+  // Desktop layout — sous-onglets groupés
+  const PROFILE_TABS = [
+    { id: "profil",     icon: "users", label: "Profil" },
+    { id: "abonnement", icon: "chart", label: "Abonnement" },
+    { id: "pv",         icon: "file",  label: "PV & marque" },
+    { id: "notifs",     icon: "bell",  label: "Notifications" },
+    { id: "compte",     icon: "lock",  label: "Compte & données" },
+  ];
+  // Quel onglet héberge chaque section.
+  const TAB_OF = {
+    avatar: "profil", info: "profil", lang: "profil", signature: "profil",
+    plan: "abonnement",
+    appearance: "pv", preview: "pv", billing: "pv", library: "pv",
+    alerts: "notifs", push: "notifs",
+    account: "compte", security: "compte", data: "compte",
+  };
+  const inTab = (id) => TAB_OF[id] === activeTab;
+
   return (
     <div style={{ display: "flex", maxWidth: 1100, margin: "0 auto", padding: 0, gap: 0 }}>
       {/* ── Navigation ── */}
@@ -372,24 +392,24 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 12, paddingLeft: 10 }}>
             {t("profile.title")}
           </div>
-          {PROFILE_SECTIONS.map((s) => (
+          {PROFILE_TABS.map((tab) => (
             <button
-              key={s.id}
-              onClick={() => scrollTo(s.id)}
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); scrollRef.current?.scrollTo?.({ top: 0 }); window.scrollTo?.({ top: 0, behavior: "smooth" }); }}
               className="profile-nav-item"
               style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 8,
                 padding: "8px 10px", border: "none", borderRadius: 8,
-                background: activeSection === s.id ? ACL : "transparent",
+                background: activeTab === tab.id ? ACL : "transparent",
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
                 transition: "all 0.15s", marginBottom: 2,
               }}
             >
-              <Ico name={s.icon} size={14} color={activeSection === s.id ? AC : TX3} />
+              <Ico name={tab.icon} size={14} color={activeTab === tab.id ? AC : TX3} />
               <span style={{
-                fontSize: 12, fontWeight: activeSection === s.id ? 600 : 500,
-                color: activeSection === s.id ? AC : TX2,
-              }}>{s.label}</span>
+                fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500,
+                color: activeTab === tab.id ? AC : TX2,
+              }}>{tab.label}</span>
             </button>
           ))}
         </nav>
@@ -403,7 +423,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Avatar */}
-      <div ref={refFor("avatar")} style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 28, padding: 20, background: WH, border: `1px solid ${SBB}`, borderRadius: 14 }}>
+      <div ref={refFor("avatar")} style={{ display: inTab("avatar") ? "flex" : "none", alignItems: "center", gap: 20, marginBottom: 28, padding: 20, background: WH, border: `1px solid ${SBB}`, borderRadius: 14 }}>
         <div style={{ position: "relative", flexShrink: 0 }}>
           {form.picture ? (
             <img src={form.picture} alt="profil" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: `2px solid ${SBB}` }} />
@@ -433,14 +453,14 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Abonnement */}
-      <div ref={refFor("plan")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("plan")} style={{ display: inTab("plan") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <PricingSection currentPlan={form.plan || "free"} onSelectPlan={(p) => { set("plan")(p); onSave({ ...form, plan: p }); setSaved(true); setTimeout(() => setSaved(false), 2500); }} />
       </div>
 
       {/* Mon agence — retiré (POC solo, étage agence CUT) */}
 
       {/* Compte — Email de connexion */}
-      <div ref={refFor("account")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("account")} style={{ display: inTab("account") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>{t("profile.account")}</div>
         <div style={{ fontSize: 12, color: TX3, marginBottom: 12, lineHeight: 1.5 }}>{t("profile.accountDesc")}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -464,10 +484,10 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Sécurité — MFA */}
-      <div ref={refFor("security")}><MfaSection /></div>
+      <div ref={refFor("security")} style={{ display: inTab("security") ? undefined : "none" }}><MfaSection /></div>
 
       {/* Form — Informations */}
-      <div ref={refFor("info")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
+      <div ref={refFor("info")} style={{ display: inTab("info") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 8px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>{t("profile.personalInfo")}</div>
         <Field label={t("profile.fullName")} value={form.name} onChange={set("name")} placeholder="ex: Gaëlle CNOP" required />
         <div style={{ display: "flex", gap: 10 }}>
@@ -482,7 +502,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Facturation — IBAN, n° TVA, conditions par défaut (F1) — différée au POC */}
-      {isEnabled("invoices") && <div ref={refFor("billing")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      {isEnabled("invoices") && <div ref={refFor("billing")} style={{ display: inTab("billing") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Facturation</div>
         <div style={{ fontSize: 11, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
           Infos utilisées dans le PDF de tes factures (IBAN, n° de TVA, conditions par défaut). Le n° de TVA est obligatoire pour une facture conforme en Belgique.
@@ -498,7 +518,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>}
 
       {/* F5 — Alertes : toggles par type d'échéance */}
-      <div ref={refFor("alerts")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("alerts")} style={{ display: inTab("alerts") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Alertes & rappels</div>
         <div style={{ fontSize: 11, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>
           Active les catégories que tu veux voir dans le panneau « Prochaines échéances » (icône horloge en haut). 100% local — aucune notification push, aucun email auto.
@@ -547,14 +567,14 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Notifications push (Mobile Étape 4) */}
-      <PushPreferencesSection
+      {inTab("push") && <PushPreferencesSection
         form={form}
         set={set}
         refFor={refFor}
-      />
+      />}
 
       {/* Signature email */}
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div style={{ display: inTab("signature") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 6 }}>Signature email</div>
         <div style={{ fontSize: 11, color: TX3, marginBottom: 12 }}>Ajoutée automatiquement à la fin de vos emails. Vous pouvez coller une image (logo) directement dans l'éditeur.</div>
         <div
@@ -614,7 +634,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Langue */}
-      <div ref={refFor("lang")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("lang")} style={{ display: inTab("lang") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 14 }}>Langue / Language</div>
         <div style={{ display: "flex", gap: 8 }}>
           {[
@@ -633,7 +653,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
 
       {/* Templates */}
       {/* Apparence du PV */}
-      <div ref={refFor("appearance")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("appearance")} style={{ display: inTab("appearance") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 16 }}>{t("profile.pdfAppearance")}</div>
 
         {/* Couleur principale */}
@@ -677,7 +697,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       </div>
 
       {/* Aperçu */}
-      <div ref={refFor("preview")} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
+      <div ref={refFor("preview")} style={{ display: inTab("preview") ? undefined : "none", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "20px 20px 16px", marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("profile.templatePreview")}</div>
         <PDFPreview form={form} />
       </div>
@@ -686,7 +706,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
       {isEnabled("opr") && <ReserveLibrarySection sectionRef={refFor("library")} />}
 
       {/* Données & Compte */}
-      <DataSection refFor={refFor} />
+      {inTab("data") && <DataSection refFor={refFor} />}
 
       <button
         onClick={() => { onSave(form); setSaved(true); setTimeout(() => setSaved(false), 2500); }}

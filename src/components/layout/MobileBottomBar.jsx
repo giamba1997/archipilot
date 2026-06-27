@@ -1,7 +1,9 @@
 import { AC, WH, SBB, BR } from "../../constants/tokens";
 import { Ico } from "../ui";
 
-const TAB_MUTED = "#B5B5B0";
+// Gris des tabs inactives : assombri vs l'ancien #B5B5B0 (sous le seuil AA
+// sur fond blanc) pour rester lisible à 10px.
+const TAB_MUTED = "#6F6F69";
 
 // Tab — un bouton de nav avec badge optionnel sur l'icône.
 // `badge` : nombre à afficher (ne s'affiche pas si <= 0).

@@ -86,13 +86,13 @@ export const INIT_PROFILE = {
   },
 };
 
+// Teintes PDF — palette resserrée et sobre (4 max). On retire les couleurs
+// criardes (violet/rouge/bleu vif) qui cassaient la cohérence des PV.
 export const COLOR_PRESETS = [
   { value: "#C95A1B", label: "Terracotta" },
-  { value: "#3B82F6", label: "Bleu" },
-  { value: "#16A34A", label: "Vert" },
-  { value: "#7C3AED", label: "Violet" },
-  { value: "#DC2626", label: "Rouge" },
   { value: "#1F2937", label: "Anthracite" },
+  { value: "#5A7A8F", label: "Bleu ardoise" },
+  { value: "#4D7C4A", label: "Vert sauge" },
 ];
 
 export const FONT_OPTIONS = [
