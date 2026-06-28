@@ -213,7 +213,10 @@ export function PvComposer({
     return [...set];
   }, [project, demo]);
   const subject = `PV n°${meta.num} — ${project?.name || ""}${project?.nextMeeting ? ` (${project.nextMeeting})` : ""}`;
-  const customMessage = `<p>Bonjour,</p><p>Veuillez trouver ci-joint le procès-verbal de la réunion de chantier. Les points en attente y sont détaillés par poste.</p><p>Bien cordialement,<br>${profile?.name || "L'architecte"}${profile?.agency ? ` — ${profile.agency}` : ""}</p>`;
+  // Signature de l'utilisateur (créée dans son profil) — sinon repli simple.
+  const signatureHtml = profile?.emailSignature?.trim()
+    || `Cordialement,<br>${profile?.name || "L'architecte"}${profile?.structure ? `<br>${profile.structure}` : (profile?.agency ? `<br>${profile.agency}` : "")}`;
+  const customMessage = `<p>Bonjour,</p><p>Veuillez trouver ci-joint le procès-verbal de la réunion de chantier. Les points en attente y sont détaillés par poste.</p><p>${signatureHtml}</p>`;
 
   const sendPv = async () => {
     saveDraft();
@@ -253,7 +256,7 @@ export function PvComposer({
     setProjects(prev => prev.map(p => {
       if (p.id !== project.id) return p;
       const id = Math.max(0, ...(p.actions || []).map(a => a.id || 0)) + 1;
-      const newA = { id, text: task.title || task.description || "Action", who: "", urgent: task.severity === "major" || task.priority === "urgent", open: true, since: `PV n°${meta.num}`, createdAt: new Date().toISOString(), createdBy: profile?.name || "—" };
+      const newA = { id, text: task.title || task.description || "Action", who: task.who || "", due: task.due || "", urgent: task.priority === "urgent" || task.severity === "major", priority: task.priority || (task.severity === "major" ? "urgent" : "medium"), open: true, since: `PV n°${meta.num}`, createdAt: new Date().toISOString(), createdBy: profile?.name || "—" };
       return { ...p, actions: [...(p.actions || []), newA] };
     }));
   };
@@ -307,7 +310,7 @@ export function PvComposer({
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} onAssignRemark={assignRemark} onAddRemarkPhotos={addRemarkPhotos} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv()} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv({ style: id }); }} recipFilter={recipFilter} recipOptions={recipOptions} onRecipChange={(name) => { setRecipFilter(name); if (!demo) genPv({ recip: name }); }} numMode={numMode} onNumChange={(m) => { setNumMode(m); if (!demo) genPv({ num: m }); }} />}
-        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
+        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} messageHtml={customMessage} />}
       </div>
 
       {importOpen && (
@@ -1424,14 +1427,19 @@ const DIFF_RECIPIENTS = [
   { ini: "MG", name: "Marc Genin", email: "m.genin@genin-sa.be", role: "Entreprise", avBg: "#DCFCE7", avFg: tokens.color.semantic.success.fg },
 ];
 
-function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subject, isChecked, onToggleRecipient, attachPdf, onToggleAttach, onCreateTask, profile }) {
+function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subject, isChecked, onToggleRecipient, attachPdf, onToggleAttach, onCreateTask, profile, messageHtml }) {
   const [tasks, setTasks] = useState(() => demo
-    ? DIFF_TASKS
-    : (suggestedTasks || []).map((t, i) => ({ id: `s${i}`, title: t.title || t.description || "Action", priority: t.severity === "major" ? "high" : "medium", urgent: t.severity === "major", quote: t.description && t.description !== t.title ? t.description : "", raw: t })));
+    ? DIFF_TASKS.map(t => ({ id: t.id, title: t.title, priority: t.priority, who: t.assignee?.name || "", due: "", quote: t.quote }))
+    : (suggestedTasks || []).map((t, i) => ({ id: `s${i}`, title: t.title || t.description || "Action", priority: t.severity === "major" ? "urgent" : "medium", who: "", due: "", quote: t.description && t.description !== t.title ? t.description : "", raw: t })));
+  const people = demo
+    ? [{ ini: "GD", name: "Gaëlle D." }, { ini: "MG", name: "M. Genin" }, { ini: "PM", name: "P. Mertens" }]
+    : (project?.participants || []).filter(p => p.name && p.name.trim()).map(p => ({ ini: initials(p.name), name: p.name }));
 
-  const accept = (t) => { onCreateTask?.(t.raw || t); setTasks(ts => ts.filter(x => x.id !== t.id)); };
+  const updateTask = (id, patch) => setTasks(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t));
+  const toTask = (t) => ({ title: t.title, who: t.who, due: t.due, priority: t.priority, raw: t.raw });
+  const accept = (t) => { onCreateTask?.(toTask(t)); setTasks(ts => ts.filter(x => x.id !== t.id)); };
   const ignore = (t) => setTasks(ts => ts.filter(x => x.id !== t.id));
-  const acceptAll = () => { tasks.forEach(t => onCreateTask?.(t.raw || t)); setTasks([]); };
+  const acceptAll = () => { tasks.forEach(t => onCreateTask?.(toTask(t))); setTasks([]); };
 
   return (
     <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -1448,7 +1456,7 @@ function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subjec
         <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]} ${tokens.space[5]}`, display: "flex", flexDirection: "column", gap: tokens.space[3] }}>
           {tasks.length === 0
             ? <div style={{ padding: tokens.space[8], textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>L'IA n'a pas détecté de tâche à suivre dans ce PV.</div>
-            : tasks.map(t => <DiffTaskCard key={t.id} t={t} onAccept={() => accept(t)} onIgnore={() => ignore(t)} demo={demo} />)}
+            : tasks.map(t => <DiffTaskCard key={t.id} t={t} people={people} onUpdate={(patch) => updateTask(t.id, patch)} onAccept={() => accept(t)} onIgnore={() => ignore(t)} demo={demo} />)}
         </div>
       </div>
 
@@ -1494,12 +1502,12 @@ function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subjec
             <Toggle on={attachPdf} />
           </label>
 
-          {/* Message */}
+          {/* Message — inclut la signature du profil */}
           <div>
             <FieldLabel>Message</FieldLabel>
-            <div style={{ border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: `${tokens.space[3]} ${tokens.space[3]}`, fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], lineHeight: 1.55 }}>
-              Bonjour,<br />Veuillez trouver ci-joint le procès-verbal de la réunion de chantier. Les points en attente y sont détaillés par poste.<br /><br />Bien cordialement,<br /><span style={{ color: tokens.color.neutral[900], fontWeight: tokens.font.weight.semibold }}>{profile?.name || "Gaëlle Dupont"}</span> <span style={{ color: tokens.color.neutral[500] }}>{profile?.agency ? `— ${profile.agency}` : "— Atelier d'architecture"}</span>
-            </div>
+            <div className="pv-msg" style={{ border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: tokens.space[3], fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], lineHeight: 1.55 }}
+              dangerouslySetInnerHTML={{ __html: messageHtml || `<p>Bonjour,</p><p>Veuillez trouver ci-joint le procès-verbal.</p><p>Cordialement,<br>${profile?.name || "L'architecte"}</p>` }} />
+            <style>{`.pv-msg p{margin:0 0 8px}.pv-msg p:last-child{margin-bottom:0}.pv-msg img{max-width:100%}`}</style>
           </div>
         </div>
       </div>
@@ -1527,19 +1535,30 @@ function Toggle({ on }) {
   );
 }
 
-function DiffTaskCard({ t, onAccept, onIgnore, demo }) {
-  const isUrgent = t.urgent || t.priority === "urgent";
+const TASK_PRIOS = [{ id: "urgent", label: "Urgent" }, { id: "high", label: "Haute" }, { id: "medium", label: "Normale" }];
+function DiffTaskCard({ t, people, onUpdate, onAccept, onIgnore, demo }) {
+  const prio = t.priority || "medium";
+  const isUrgent = prio === "urgent";
   return (
     <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: isUrgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, padding: tokens.space[4] }}>
-      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[3] }}>
-        <span style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{t.title}</span>
-        {isUrgent && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, fontWeight: tokens.font.weight.semibold }}>Urgent</span>}
-      </div>
+      <div style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], marginBottom: tokens.space[3] }}>{t.title}</div>
+
+      {/* Contrôles éditables : importance · échéance · assigné */}
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexWrap: "wrap", marginBottom: tokens.space[3] }}>
-        <MetaChip danger={isUrgent}><span style={{ width: 6, height: 6, borderRadius: tokens.radius.full, background: isUrgent ? tokens.color.semantic.danger.fg : "#D97706" }} />{isUrgent ? "Urgent" : "Haute"}</MetaChip>
-        {t.date && <MetaChip><I.cal size={12} />{t.date}</MetaChip>}
-        {t.assignee && <MetaChip><span style={{ width: 18, height: 18, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{t.assignee.ini}</span>{t.assignee.name}</MetaChip>}
+        <div style={{ display: "inline-flex", gap: 3, background: tokens.color.neutral[100], borderRadius: tokens.radius.md, padding: 3 }}>
+          {TASK_PRIOS.map(o => {
+            const a = prio === o.id;
+            const fg = o.id === "urgent" ? tokens.color.semantic.danger.fg : o.id === "high" ? "#B45309" : tokens.color.neutral[900];
+            return <button key={o.id} onClick={() => onUpdate?.({ priority: o.id })} style={{ padding: "4px 10px", borderRadius: tokens.radius.sm, border: "none", background: a ? tokens.color.neutral[0] : "transparent", boxShadow: a ? tokens.shadow.sm : "none", color: a ? fg : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: a ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{o.label}</button>;
+          })}
+        </div>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: tokens.radius.md, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, cursor: "pointer", color: t.due ? tokens.color.neutral[700] : tokens.color.neutral[500] }}>
+          <I.cal size={12} />
+          <input type="date" value={t.due || ""} onChange={e => onUpdate?.({ due: e.target.value })} style={{ border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: tokens.font.size.xs, color: "inherit", cursor: "pointer", width: t.due ? 104 : 88 }} />
+        </label>
+        <AssigneeControl variant="pill" people={people} current={t.who || null} onAssign={(name) => onUpdate?.({ who: name })} />
       </div>
+
       {t.quote && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], background: tokens.color.neutral[50], borderLeft: `2px solid ${tokens.color.neutral[200]}`, padding: `${tokens.space[1]} ${tokens.space[3]}`, borderRadius: "0 6px 6px 0", marginBottom: tokens.space[3] }}>« {t.quote} »</div>}
       <div style={{ display: "flex", gap: tokens.space[2] }}>
         <Button variant="primary" size="sm" onClick={onAccept} disabled={demo}>Créer la tâche</Button>
