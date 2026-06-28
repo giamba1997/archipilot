@@ -7,7 +7,7 @@ export const FEATURES = {
   opr:             false, // OprView + signatures + réserves formelles (collapse réserves)
   permits:         true,  // PermitsView (suivi permis) — refonte v2 activée
   quotes:          false, // QuotesView (comparaison devis), parse-quote
-  progressReports: false, // ProgressReportsView (rapports MO), generate-progress-report
+  progressReports: true,  // ProgressReportsView (états d'avancement MO) — refonte v2 activée
   cdcParsing:      false, // CdcStructureModal / CdcBanner / parse-cdc (extraction structurée)
   planning:        false, // PlanningView / PlanningDashboard / Gantt / lots
   timesheets:      false, // TimesheetView (vue d'agrégation ; le timer de visite reste actif)

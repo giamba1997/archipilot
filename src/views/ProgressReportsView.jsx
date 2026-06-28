@@ -17,10 +17,10 @@ import { loadProgressReports, saveProgressReport, deleteProgressReport, generate
 // Pour v2 : ajouter cron périodique 7/15/30j + envoi auto au MO.
 
 const PERIOD_PRESETS = [
-  { id: 7,   label: "Dernière semaine" },
-  { id: 15,  label: "Dernières 2 semaines" },
-  { id: 30,  label: "Dernier mois" },
-  { id: 90,  label: "Dernier trimestre" },
+  { id: 7,   label: "Dernière semaine",      short: "7 j" },
+  { id: 15,  label: "Dernières 2 semaines",  short: "2 sem." },
+  { id: 30,  label: "Dernier mois",          short: "1 mois" },
+  { id: 90,  label: "Dernier trimestre",     short: "Trimestre" },
 ];
 
 const STATUS_META = {
@@ -34,6 +34,12 @@ const fmtDate = (iso) => {
   const d = new Date(iso);
   if (isNaN(d)) return iso;
   return d.toLocaleDateString("fr-BE", { day: "2-digit", month: "2-digit", year: "numeric" });
+};
+// "juin 2026" depuis la fin de période (titre du rapport).
+const monthLabel = (iso) => {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleDateString("fr-BE", { month: "long", year: "numeric" });
 };
 
 const dateToISO = (d) => d.toISOString().slice(0, 10);
@@ -57,6 +63,7 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
   const [generating, setGenerating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [periodDays, setPeriodDays] = useState(30);
+  const [selectedId, setSelectedId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,107 +154,75 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
     }
   };
 
+  const sel = reports.find(r => r.id === selectedId) || reports[0] || null;
+
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
-            <Ico name="back" color={TX2} size={16} />
-          </button>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Rapports d'avancement</div>
-            <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Synthèse IA pour le MO</div>
-          </div>
+      {/* En-tête éditorial */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 18 }}>
+        <button onClick={onBack} aria-label="Retour" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, marginTop: 2 }}>
+          <Ico name="back" color={TX2} size={16} />
+        </button>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: AC, marginBottom: 6 }}>Rapports client · générés par l'IA</div>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", color: TX }}>États d'avancement</h1>
         </div>
       </div>
 
       {isMobile && <MobileConsultationBanner hint="génération de rapports IA depuis l'ordinateur." />}
 
-      {/* Carte génération — desktop seulement (la synthèse IA est une action bureau) */}
-      {!isMobile && (
-      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>Générer un nouveau rapport</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-          {PERIOD_PRESETS.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setPeriodDays(p.id)}
-              style={{
-                padding: "6px 12px",
-                border: `1px solid ${periodDays === p.id ? ACL2 : SBB}`,
-                borderRadius: 999,
-                background: periodDays === p.id ? ACL : WH,
-                color: periodDays === p.id ? AC : TX2,
-                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Aperçu du contenu */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px,1fr))", gap: 8, marginBottom: 12 }}>
-          <KpiSmall label="PV de la période" value={preview.pvs.length} />
-          <KpiSmall label="Photos prises" value={preview.photos.length} />
-          <KpiSmall label="Réserves ouvertes" value={preview.reservesOpen.length} />
-          <KpiSmall label="Tâches ouvertes" value={preview.tasksOpen.length} />
-        </div>
-
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          style={{
-            width: "100%", padding: "11px 16px", border: "none", borderRadius: 10,
-            background: generating ? DIS : AC,
-            color: generating ? DIST : "#fff",
-            fontSize: 13, fontWeight: 700,
-            cursor: generating ? "not-allowed" : "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          <Ico name="sparkle" size={13} color={generating ? DIST : "#fff"} />
-          {generating ? "Synthèse IA en cours…" : "Générer le rapport"}
-        </button>
-      </div>
-      )}
-
-      {/* Historique */}
-      {loading ? (
-        <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>
-      ) : reports.length === 0 ? (
-        <div style={{ padding: "20px", textAlign: "center", color: TX3, fontSize: 12 }}>
-          Aucun rapport encore. Clique « Générer » pour produire le premier.
-        </div>
+      {isMobile ? (
+        <ReportsList reports={reports} loading={loading} selectedId={sel?.id} onSelect={(r) => setEditing(r)} onDelete={handleDelete} />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>Historique ({reports.length})</div>
-          {reports.map(r => {
-            const s = STATUS_META[r.status] || STATUS_META.draft;
-            return (
-              <div key={r.id} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>Période {fmtDate(r.period_start)} → {fmtDate(r.period_end)}</span>
-                    <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      {s.label}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: TX3 }}>
-                    Généré {fmtDate(r.generated_at)}
-                    {r.sent_at && ` · Envoyé ${fmtDate(r.sent_at)}`}
-                  </div>
+        <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
+          {/* Colonne gauche : générateur + liste */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ background: ACL, border: `1px solid ${ACL2}`, borderRadius: 14, padding: "16px 18px", marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+                <Ico name="sparkle" size={17} color={AC} />
+                <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Générer un rapport</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, color: TX2 }}>Période :</span>
+                <div style={{ display: "inline-flex", gap: 3, background: WH, border: `1px solid ${ACL2}`, borderRadius: 9, padding: 3 }}>
+                  {PERIOD_PRESETS.map(p => {
+                    const a = periodDays === p.id;
+                    return <button key={p.id} onClick={() => setPeriodDays(p.id)} title={p.label} style={{ padding: "5px 11px", borderRadius: 6, border: "none", background: a ? AC : "transparent", color: a ? "#fff" : TX2, fontSize: 12, fontWeight: a ? 600 : 500, cursor: "pointer", fontFamily: "inherit" }}>{p.short}</button>;
+                  })}
                 </div>
-                <button onClick={() => setEditing(r)} style={iconBtnStyle} title="Voir / éditer">
-                  <Ico name="edit" size={14} color={TX2} />
-                </button>
-                <button onClick={() => handleDelete(r)} style={iconBtnStyle} title="Supprimer">
-                  <Ico name="trash" size={14} color={RD} />
+                <button onClick={handleGenerate} disabled={generating} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 15px", background: generating ? DIS : AC, color: generating ? DIST : "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: generating ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+                  <Ico name="sparkle" size={14} color={generating ? DIST : "#fff"} />{generating ? "Synthèse IA…" : "Générer"}
                 </button>
               </div>
-            );
-          })}
+              <div style={{ fontSize: 12, color: "#8B5A3C", marginTop: 10, lineHeight: 1.5 }}>
+                L'IA synthétise PV, photos et réserves de la période en un rapport prêt à relire puis envoyer au MO. Sur cette période : {preview.pvs.length} PV · {preview.photos.length} photos · {preview.reservesOpen.length} réserves · {preview.tasksOpen.length} tâches.
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>Rapports générés</div>
+            <ReportsList reports={reports} loading={loading} selectedId={sel?.id} onSelect={(r) => setSelectedId(r.id)} onDelete={handleDelete} />
+          </div>
+
+          {/* Colonne droite : aperçu */}
+          <div style={{ width: 340, flexShrink: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>{sel ? `Aperçu · ${monthLabel(sel.period_end)}` : "Aperçu"}</div>
+            {sel ? (
+              <>
+                <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: "22px 24px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: TX3, marginBottom: 4 }}>État d'avancement</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: TX, letterSpacing: "-0.3px", marginBottom: 3, textTransform: "capitalize" }}>{project.name} — {monthLabel(sel.period_end)}</div>
+                  <div style={{ fontSize: 12, color: TX3, marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${SBB}` }}>{project.client ? `Pour : ${project.client} · ` : ""}période du {fmtDate(sel.period_start)} au {fmtDate(sel.period_end)}</div>
+                  <ReportBody md={sel.content_md} />
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button onClick={() => setEditing(sel)} style={{ flex: 1, height: 38, background: WH, border: `1px solid ${SBB}`, borderRadius: 9, fontSize: 13, fontWeight: 500, color: TX2, cursor: "pointer", fontFamily: "inherit" }}>Modifier</button>
+                  <button onClick={() => setEditing(sel)} style={{ flex: 1, height: 38, background: AC, border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>Envoyer au MO</button>
+                </div>
+              </>
+            ) : (
+              <div style={{ background: SB, border: `1px dashed ${SBB}`, borderRadius: 14, padding: "32px 20px", textAlign: "center", color: TX3, fontSize: 13, lineHeight: 1.5 }}>Génère un rapport pour voir son aperçu ici.</div>
+            )}
+          </div>
         </div>
       )}
 
@@ -277,6 +252,46 @@ function KpiSmall({ label, value }) {
       <div style={{ fontSize: 16, fontWeight: 800, color: TX, marginTop: 2 }}>{value}</div>
     </div>
   );
+}
+
+// Liste des rapports générés (ligne = fichier + titre + statut, cliquable).
+function ReportsList({ reports, loading, selectedId, onSelect, onDelete }) {
+  if (loading) return <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>;
+  if (!reports.length) return <div style={{ padding: "28px 20px", textAlign: "center", background: WH, border: `1px dashed ${SBB}`, borderRadius: 14, color: TX3, fontSize: 13 }}>Aucun rapport encore. Choisis une période et clique « Générer ».</div>;
+  return (
+    <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, overflow: "hidden" }}>
+      {reports.map((r, i) => {
+        const s = STATUS_META[r.status] || STATUS_META.draft;
+        const active = r.id === selectedId;
+        return (
+          <div key={r.id} onClick={() => onSelect(r)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderBottom: i < reports.length - 1 ? `1px solid ${SB2}` : "none", cursor: "pointer", background: active ? ACL : WH, transition: "background 0.15s" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: ACL, color: AC, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="file" size={17} color={AC} /></div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: TX, textTransform: "capitalize" }}>Avancement — {monthLabel(r.period_end)}</div>
+              <div style={{ fontSize: 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{fmtDate(r.period_start)} au {fmtDate(r.period_end)} · {r.sent_at ? `envoyé le ${fmtDate(r.sent_at)}` : `généré le ${fmtDate(r.generated_at)}`}</div>
+            </div>
+            <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 500, flexShrink: 0 }}>{s.label}</span>
+            {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(r); }} title="Supprimer" aria-label="Supprimer" style={{ background: "transparent", border: "none", cursor: "pointer", color: TX3, padding: 4, display: "flex", flexShrink: 0 }}><Ico name="trash" size={14} color={TX3} /></button>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Rendu léger du markdown du rapport (titres de section en brand, paragraphes).
+function ReportBody({ md }) {
+  const out = [];
+  (md || "").split("\n").forEach((ln, i) => {
+    const t = ln.trim();
+    if (!t) return;
+    const head = t.match(/^#{1,3}\s+(.*)$/) || (/^\*\*(.+?)\*\*:?$/.test(t) ? [null, t.replace(/\*\*/g, "").replace(/:$/, "")] : null);
+    if (head) { out.push(<div key={i} style={{ fontSize: 12, fontWeight: 700, color: AC, margin: out.length ? "12px 0 6px" : "0 0 6px" }}>{head[1]}</div>); return; }
+    if (/^[-*]\s/.test(t)) { out.push(<div key={i} style={{ fontSize: 13, color: TX2, lineHeight: 1.6, paddingLeft: 4 }}>• {t.replace(/^[-*]\s/, "").replace(/\*\*/g, "")}</div>); return; }
+    out.push(<p key={i} style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.6, color: TX2 }}>{t.replace(/\*\*/g, "")}</p>);
+  });
+  if (!out.length) out.push(<div key="e" style={{ fontSize: 13, color: TX3, fontStyle: "italic" }}>Rapport vide — ouvre « Modifier » pour rédiger.</div>);
+  return <div>{out}</div>;
 }
 
 // ── Modal éditeur — édition du markdown + statut ──

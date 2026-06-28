@@ -891,6 +891,7 @@ function SummaryTab({ todo, reserves, billing, meeting, planning, journal, quote
         {isEnabled("planning") && <PlanningCard planning={planning} onClick={handlerMap.onPlanning} />}
         <JournalCard journal={journal} onClick={handlerMap.onJournal} />
         {isEnabled("permits") && <PermitsCard onClick={handlerMap.onPermits} />}
+        {isEnabled("progressReports") && <ReportsCard onClick={handlerMap.onReports} />}
         {isEnabled("quotes") && <QuotesCard count={quotesCount} onClick={handlerMap.onQuotes} />}
       </div>
     </div>
@@ -1167,6 +1168,16 @@ function PermitsCard({ onClick }) {
     <Bento onClick={onClick} ariaLabel="Suivi des permis — ouvrir">
       <BentoHead icon={Icons.file} title="Suivi des permis" />
       <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], lineHeight: 1.5 }}>Dépôt, AR et échéances légales calculées automatiquement.</div>
+    </Bento>
+  );
+}
+
+// Accès « États d'avancement » — lanceur (synthèse IA pour le MO).
+function ReportsCard({ onClick }) {
+  return (
+    <Bento onClick={onClick} ariaLabel="États d'avancement — ouvrir">
+      <BentoHead icon={Icons.sparkle || Icons.file} title="États d'avancement" />
+      <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], lineHeight: 1.5 }}>Rapports client générés par l'IA depuis PV, photos et réserves.</div>
     </Bento>
   );
 }
