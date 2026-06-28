@@ -7,7 +7,7 @@ import { Card } from "../components/ui/v2/Card";
 import { Tabs } from "../components/ui/v2/Tabs";
 import { IconButton } from "../components/ui/v2/IconButton";
 import { SectionHeader } from "../components/ui/v2/SectionHeader";
-import { loadInvoices, loadQuotes } from "../db";
+import { loadInvoices, loadQuotes, getPhotoUrl, uploadPhoto } from "../db";
 import { formatAddress } from "../utils/address";
 import { parseDateFR } from "../utils/dates";
 
@@ -396,6 +396,7 @@ function deriveActions(project) {
       source: a.source || a.since || (a.pvNumber ? `PV n°${a.pvNumber}` : ""),
       description: a.description || a.notes || "",
       created: a.createdAt || "",
+      attachments: a.attachments || [],
     });
   });
   return cols;
@@ -1563,6 +1564,7 @@ function ActionsTab({ project, handlerMap, profile }) {
       {openAction && (
         <ActionDrawer
           action={openAction}
+          project={project}
           participants={participants}
           avatarStyleFor={avatarStyleFor}
           onClose={() => setOpenId(null)}
@@ -1577,12 +1579,15 @@ function ActionsTab({ project, handlerMap, profile }) {
 
 // ── Drawer de détail d'une action (clic sur une carte) ────────
 const DRAWER_PRIOS = [{ id: "urgent", label: "Urgent" }, { id: "high", label: "Haute" }, { id: "medium", label: "Normale" }, { id: "low", label: "Basse" }];
-function ActionDrawer({ action, participants, avatarStyleFor, onClose, onUpdate, onMove, onDelete }) {
+function ActionDrawer({ action, project, participants, avatarStyleFor, onClose, onUpdate, onMove, onDelete }) {
   const a = action;
   const prio = a.urgent ? "urgent" : normActionPriority(a.priority);
   const curCol = normActionColumn(a);
+  const attachments = a.attachments || [];
+  const [pickerOpen, setPickerOpen] = useState(false);
   const upd = (patch) => onUpdate?.(a.id, patch);
   return (
+    <>
     <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(28,25,23,0.28)", display: "flex", justifyContent: "flex-end" }}>
       <div onMouseDown={e => e.stopPropagation()} style={{ width: 440, maxWidth: "100%", height: "100%", background: tokens.color.neutral[0], boxShadow: "-12px 0 40px rgba(28,25,23,0.18)", display: "flex", flexDirection: "column", fontFamily: tokens.font.family }}>
         {/* Header */}
@@ -1622,6 +1627,14 @@ function ActionDrawer({ action, participants, avatarStyleFor, onClose, onUpdate,
             <textarea defaultValue={a.description || a.notes || ""} onBlur={e => upd({ description: e.target.value })} placeholder="Ajoute des détails, un contexte, des étapes…" rows={5}
               style={{ width: "100%", boxSizing: "border-box", padding: tokens.space[3], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[900], outline: "none", resize: "vertical" }} />
           </Field>
+
+          {/* Pièces jointes */}
+          <Field label="Pièces jointes">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: tokens.space[2] }}>
+              {attachments.map((att, i) => <AttachmentChip key={i} att={att} onRemove={() => upd({ attachments: attachments.filter((_, j) => j !== i) })} />)}
+              <button onClick={() => setPickerOpen(true)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: `0 ${tokens.space[3]}`, border: `1px dashed ${tokens.color.brand[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[0], color: tokens.color.brand[600], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium }}><Svg size={14} sw={2}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Svg>Ajouter</button>
+            </div>
+          </Field>
         </div>
 
         {/* Footer */}
@@ -1632,7 +1645,102 @@ function ActionDrawer({ action, participants, avatarStyleFor, onClose, onUpdate,
         )}
       </div>
     </div>
+    {pickerOpen && <AttachmentPicker project={project} onClose={() => setPickerOpen(false)} onPick={(att) => { upd({ attachments: [...attachments, att] }); setPickerOpen(false); }} />}
+    </>
   );
+}
+
+// Chip d'une pièce jointe (photo = vignette, doc = icône + nom).
+function AttachmentChip({ att, onRemove }) {
+  const src = att.url || att.dataUrl;
+  return (
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: att.type === "image" ? "3px 8px 3px 3px" : `0 ${tokens.space[2]} 0 ${tokens.space[3]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[0], maxWidth: 200 }}>
+      {att.type === "image" && src
+        ? <img src={src} alt="" style={{ width: 28, height: 28, borderRadius: 5, objectFit: "cover" }} />
+        : <span style={{ color: tokens.color.neutral[500], display: "inline-flex" }}><Svg size={15}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></Svg></span>}
+      <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[700], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{att.name || "Fichier"}</span>
+      {onRemove && <button onClick={onRemove} aria-label="Retirer" style={{ width: 18, height: 18, borderRadius: tokens.radius.full, border: "none", background: "transparent", color: tokens.color.neutral[400], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Svg size={11} sw={2}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Svg></button>}
+    </div>
+  );
+}
+
+// Sélecteur de pièce jointe : galerie projet · documents projet · appareil.
+function AttachmentPicker({ project, onClose, onPick }) {
+  const [tab, setTab] = useState("gallery");
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
+  const gallery = project?.gallery || [];
+  const docs = ((project?.planFiles && project.planFiles.length ? project.planFiles : project?.documents) || []).filter(f => f.type !== "folder");
+  const onLocal = (file) => {
+    if (!file) return;
+    const isImg = file.type?.startsWith("image/");
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = String(e.target.result || "");
+      if (isImg) {
+        setUploading(true);
+        try { const res = await uploadPhoto(dataUrl); onPick({ type: "image", name: file.name, url: res?.url || dataUrl, from: "local" }); }
+        catch { onPick({ type: "image", name: file.name, dataUrl, from: "local" }); }
+        finally { setUploading(false); }
+      } else {
+        onPick({ type: "file", name: file.name, dataUrl, from: "local" });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  const TABS = [{ id: "gallery", label: `Galerie · ${gallery.length}` }, { id: "docs", label: `Documents · ${docs.length}` }, { id: "local", label: "Appareil" }];
+  return (
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(28,25,23,0.32)", display: "flex", alignItems: "center", justifyContent: "center", padding: tokens.space[5], fontFamily: tokens.font.family }}>
+      <div onMouseDown={e => e.stopPropagation()} style={{ width: 560, maxWidth: "100%", maxHeight: "80vh", background: tokens.color.neutral[0], borderRadius: tokens.radius.xl, boxShadow: "0 24px 60px rgba(28,25,23,0.28)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[4]} ${tokens.space[5]} ${tokens.space[3]}` }}>
+          <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], flex: 1 }}>Joindre une pièce</div>
+          <button onClick={onClose} aria-label="Fermer" style={{ width: 30, height: 30, borderRadius: tokens.radius.md, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Svg size={17} sw={1.8}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Svg></button>
+        </div>
+        <div style={{ padding: `0 ${tokens.space[5]} ${tokens.space[3]}` }}>
+          <div style={{ display: "inline-flex", gap: 3, background: tokens.color.neutral[100], borderRadius: tokens.radius.md, padding: 3 }}>
+            {TABS.map(t => { const act = t.id === tab; return <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "6px 12px", borderRadius: tokens.radius.sm, border: "none", background: act ? tokens.color.neutral[0] : "transparent", boxShadow: act ? tokens.shadow.sm : "none", color: act ? tokens.color.neutral[900] : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: act ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{t.label}</button>; })}
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[5]} ${tokens.space[5]}` }}>
+          {tab === "gallery" && (
+            gallery.length === 0 ? <Empty text="Aucune photo dans la galerie." /> : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: tokens.space[2] }}>
+                {gallery.map((ph, i) => { const src = getPhotoUrl(ph); return (
+                  <button key={ph.id ?? i} onClick={() => onPick({ type: "image", name: ph.caption || "Photo", url: src, id: ph.id, from: "gallery" })} style={{ aspectRatio: "1/1", borderRadius: tokens.radius.md, overflow: "hidden", border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[100], cursor: "pointer", padding: 0 }}>
+                    {src ? <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <span style={{ fontSize: 10, color: tokens.color.neutral[400] }}>photo</span>}
+                  </button>); })}
+              </div>
+            )
+          )}
+          {tab === "docs" && (
+            docs.length === 0 ? <Empty text="Aucun document dans le projet." /> : (
+              <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+                {docs.map((f, i) => (
+                  <button key={i} onClick={() => onPick({ type: "file", name: f.name || "Document", url: f.url || f.dataUrl || f.src || "", from: "doc" })} style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: tokens.space[3], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[0], cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                    <span style={{ color: tokens.color.neutral[500], display: "inline-flex" }}><Svg size={18}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></Svg></span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.name || "Document"}</span>
+                  </button>
+                ))}
+              </div>
+            )
+          )}
+          {tab === "local" && (
+            <div style={{ padding: `${tokens.space[4]} 0` }}>
+              <button onClick={() => inputRef.current?.click()} disabled={uploading} style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[8]} ${tokens.space[5]}`, border: `1.5px dashed ${tokens.color.brand[200]}`, borderRadius: tokens.radius.lg, background: tokens.color.brand[50], color: tokens.color.brand[600], cursor: uploading ? "wait" : "pointer", fontFamily: "inherit" }}>
+                <Svg size={24} sw={1.5}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></Svg>
+                <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold }}>{uploading ? "Envoi…" : "Choisir un fichier (photo, PDF…)"}</span>
+                <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Image, PDF ou document</span>
+              </button>
+              <input ref={inputRef} type="file" accept="image/*,.pdf,.doc,.docx,.txt" style={{ display: "none" }} onChange={e => onLocal(e.target.files?.[0])} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+function Empty({ text }) {
+  return <div style={{ padding: tokens.space[8], textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>{text}</div>;
 }
 function Field({ label, children }) {
   return <div><div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: tokens.space[2] }}>{label}</div>{children}</div>;
@@ -1834,6 +1942,11 @@ function ActionCard({ a, done, participants, avatarStyleFor, avatarStyle, onOpen
         {onAssign
           ? <AssignMenu participants={participants} value={a.assignee} onChange={(name) => onAssign(a.id, name)} avatarStyleFor={styleFor} />
           : a.assignee && <span style={{ width: 24, height: 24, borderRadius: tokens.radius.full, background: styleFor(a.assignee).avBg, color: styleFor(a.assignee).avFg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: tokens.font.weight.semibold, fontSize: 10 }}>{initials(a.assignee)}</span>}
+        {a.attachments && a.attachments.length > 0 && (
+          <span title={`${a.attachments.length} pièce(s) jointe(s)`} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, color: tokens.color.neutral[500] }}>
+            <Svg size={12}><path d="M21.4 11.05 12.25 20.2a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.49-8.49" /></Svg>{a.attachments.length}
+          </span>
+        )}
         <span style={{ marginLeft: "auto" }}>
           {onDue
             ? <MiniDatePicker value={a.due} onChange={(v) => onDue(a.id, v)} />
