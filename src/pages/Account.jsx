@@ -108,7 +108,9 @@ export function Account({ profile: profileProp, onSave, demo: demoProp }) {
   const profile = demo ? MOCK_PROFILE : (profileProp || {});
   const [section, setSection] = useState("profil");
   const [toast, setToast] = useState("");
+  const saveRef = useRef(null);
   const save = (patch) => { if (demo) { setToast("Enregistré (démo)"); setTimeout(() => setToast(""), 1800); return; } onSave?.({ ...profile, ...patch }); setToast("Enregistré"); setTimeout(() => setToast(""), 1800); };
+  const hasTopSave = section === "structure" || section === "signature";
 
   return (
     <div style={{ display: "flex", height: "100%", minHeight: "calc(100dvh - 58px)", fontFamily: tokens.font.family, color: tokens.color.neutral[900], background: tokens.color.neutral[50] }}>
@@ -129,13 +131,16 @@ export function Account({ profile: profileProp, onSave, demo: demoProp }) {
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "#FCFBFA" }}>
         <div style={{ height: 54, flexShrink: 0, display: "flex", alignItems: "center", gap: tokens.space[3], padding: `0 ${tokens.space[6]}`, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
           <span style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500] }}>Compte <span style={{ color: tokens.color.neutral[300] }}>/</span> <span style={{ color: tokens.color.neutral[900], fontWeight: tokens.font.weight.semibold }}>{NAV.find(n => n.id === section)?.label}</span></span>
-          {toast && <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: tokens.font.size.xs, color: tokens.color.semantic.success.fg }}><Svg d={ICONS.check} size={13} sw={3} />{toast}</span>}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: tokens.space[3] }}>
+            {toast && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: tokens.font.size.xs, color: tokens.color.semantic.success.fg }}><Svg d={ICONS.check} size={13} sw={3} />{toast}</span>}
+            {hasTopSave && <Btn variant="primary" size="sm" onClick={() => saveRef.current?.()}>Enregistrer</Btn>}
+          </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: `${tokens.space[6]} ${tokens.space[8]}` }}>
           <div style={{ maxWidth: 980, margin: "0 auto" }}>
             {section === "profil" && <ProfilSection profile={profile} go={setSection} save={save} />}
-            {section === "structure" && <StructureSection profile={profile} save={save} />}
-            {section === "signature" && <SignatureSection profile={profile} save={save} />}
+            {section === "structure" && <StructureSection profile={profile} save={save} saveRef={saveRef} />}
+            {section === "signature" && <SignatureSection profile={profile} save={save} saveRef={saveRef} />}
             {section === "abonnement" && <AbonnementSection profile={profile} save={save} demo={demo} />}
             {section === "securite" && <SecuriteSection profile={profile} demo={demo} setToast={setToast} />}
             {section === "notifications" && <NotificationsSection profile={profile} save={save} />}
@@ -270,50 +275,65 @@ function Row({ icon, label, right, onClick }) {
 }
 
 // ── Structure & facturation ───────────────────────────────────
-function StructureSection({ profile, save }) {
+const LEGAL_FORMS = ["Indépendant / personne physique", "SRL", "SA", "SC", "SNC", "ASBL", "Autre"].map(x => ({ id: x, label: x }));
+function StructureSection({ profile, save, saveRef }) {
   const [f, setF] = useState(profile);
+  const [err, setErr] = useState("");
   const set = (k) => (v) => setF(s => ({ ...s, [k]: v }));
-  const typeOpts = (STRUCTURE_TYPES || []).map(t => typeof t === "string" ? { id: t, label: t } : { id: t.id, label: t.label });
+  if (saveRef) saveRef.current = () => save(f);
+  const onLogo = (file) => {
+    setErr("");
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setErr("Logo trop lourd (max 2 Mo)."); return; }
+    const r = new FileReader();
+    r.onload = e => setF(s => ({ ...s, logo: String(e.target.result || "") }));
+    r.readAsDataURL(file);
+  };
   return (
-    <>
-      <SaveHeader onSave={() => save(f)} />
-      <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[4] }}>
-        <Card>
-          <CardTitle>Identité de l'agence</CardTitle>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${tokens.space[4]} ${tokens.space[6]}` }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[4] }}>
+      <Card>
+        <CardTitle>Identité de l'agence</CardTitle>
+        <div style={{ display: "flex", gap: tokens.space[5], alignItems: "flex-start" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: tokens.space[2], flexShrink: 0 }}>
+            <label style={{ width: 96, height: 96, borderRadius: tokens.radius.lg, border: `1px dashed ${tokens.color.brand[200]}`, background: f.logo ? tokens.color.neutral[0] : "repeating-linear-gradient(45deg, #F3E9E1, #F3E9E1 8px, #EDE0D5 8px, #EDE0D5 16px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: tokens.color.brand[400], gap: 5, cursor: "pointer", overflow: "hidden" }}>
+              {f.logo
+                ? <img src={f.logo} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                : <><Svg d="M3 5h18v14H3z|M8.5 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3|m21 16-5-5L5 21" size={20} sw={1.5} /><span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9 }}>logo</span></>}
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => onLogo(e.target.files?.[0])} />
+            </label>
+            {f.logo && <button onClick={() => setF(s => ({ ...s, logo: "" }))} style={{ background: "none", border: "none", color: tokens.color.neutral[500], fontSize: tokens.font.size.xs, cursor: "pointer", fontFamily: "inherit" }}>Retirer</button>}
+          </div>
+          <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${tokens.space[4]} ${tokens.space[6]}` }}>
             <Field label="Nom de l'agence" value={f.structure} onChange={set("structure")} />
-            <Field label="Type de structure" value={f.structureType} onChange={set("structureType")} options={typeOpts.length ? typeOpts : [{ id: "architecte", label: "Architecte" }, { id: "bureau", label: "Bureau" }, { id: "ingénieur", label: "Ingénieur" }]} />
+            <Field label="Forme juridique" value={f.legalForm} onChange={set("legalForm")} options={LEGAL_FORMS} />
             <Field label="N° d'ordre (Ordre des Architectes)" value={f.ordreNumber} onChange={set("ordreNumber")} placeholder="A-00000" />
-            <Field label="Email professionnel" value={f.email} onChange={set("email")} type="email" />
-            <Field label="Téléphone" value={f.phone} onChange={set("phone")} />
-            <Field label="Siège" value={f.address} onChange={set("address")} />
+            <Field label="Email de facturation" value={f.billingEmail} onChange={set("billingEmail")} type="email" placeholder="compta@…" />
+            <div style={{ gridColumn: "1 / -1" }}><Field label="Siège (adresse de facturation)" value={f.address} onChange={set("address")} placeholder="Rue, n°, code postal, ville" /></div>
           </div>
-        </Card>
-        <Card>
-          <CardTitle right={okBadge("Factures conformes SEPA")}>Coordonnées bancaires & TVA</CardTitle>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: `${tokens.space[4]} ${tokens.space[6]}` }}>
-            <Field label="N° de TVA" value={f.vatNumber} onChange={set("vatNumber")} placeholder="BE 0000.000.000" />
-            <Field label="IBAN" value={f.iban} onChange={set("iban")} mono placeholder="BE00 0000 0000 0000" />
-            <Field label="BIC" value={f.bic} onChange={set("bic")} mono />
-            <Field label="Taux de TVA par défaut (%)" value={f.vatRate} onChange={set("vatRate")} />
-            <Field label="Délai de paiement (jours)" value={f.invoicePaymentTermsDays} onChange={v => set("invoicePaymentTermsDays")(Number(v) || "")} type="number" />
-            <Field label="Préfixe de numérotation" value={f.invoicePrefix} onChange={set("invoicePrefix")} placeholder="2026-" />
-          </div>
-        </Card>
-        <Card>
-          <CardTitle>Mentions en pied de facture</CardTitle>
-          <Field label="" value={f.invoicePaymentNote} onChange={set("invoicePaymentNote")} textarea placeholder="Conditions de paiement, intérêts de retard, assurance RC…" />
-        </Card>
-      </div>
-    </>
+        </div>
+        {err && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg, marginTop: tokens.space[3] }}>{err}</div>}
+      </Card>
+      <Card>
+        <CardTitle right={okBadge("Factures conformes SEPA")}>Coordonnées bancaires & TVA</CardTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: `${tokens.space[4]} ${tokens.space[6]}` }}>
+          <Field label="N° de TVA" value={f.vatNumber} onChange={set("vatNumber")} placeholder="BE 0000.000.000" />
+          <Field label="IBAN" value={f.iban} onChange={set("iban")} mono placeholder="BE00 0000 0000 0000" />
+          <Field label="BIC" value={f.bic} onChange={set("bic")} mono />
+          <Field label="Taux de TVA par défaut (%)" value={f.vatRate} onChange={set("vatRate")} />
+          <Field label="Délai de paiement (jours)" value={f.invoicePaymentTermsDays} onChange={v => set("invoicePaymentTermsDays")(Number(v) || "")} type="number" />
+          <Field label="Préfixe de numérotation" value={f.invoicePrefix} onChange={set("invoicePrefix")} placeholder="2026-" />
+        </div>
+      </Card>
+      <Card>
+        <CardTitle>Mentions en pied de facture</CardTitle>
+        <Field label="" value={f.invoicePaymentNote} onChange={set("invoicePaymentNote")} textarea placeholder="Conditions de paiement, intérêts de retard, assurance RC…" />
+      </Card>
+    </div>
   );
-}
-function SaveHeader({ onSave }) {
-  return <div style={{ display: "flex", marginBottom: tokens.space[4] }}><div style={{ marginLeft: "auto" }}><Btn variant="primary" onClick={onSave}>Enregistrer</Btn></div></div>;
 }
 
 // ── Signature email ───────────────────────────────────────────
-function SignatureSection({ profile, save }) {
+function SignatureSection({ profile, save, saveRef }) {
   const ref = useRef(null);
   const fileRef = useRef(null);
   const initial = profile.emailSignature || `Bien cordialement,<br><br><b>${profile.name || ""}</b><br>${profile.structureType || "Architecte"}${profile.structure ? " · " + profile.structure : ""}<br>${[profile.phone, profile.email].filter(Boolean).join(" · ")}`;
@@ -332,10 +352,10 @@ function SignatureSection({ profile, save }) {
     r.readAsDataURL(file);
   };
   const tbtn = { width: 30, height: 30, borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, display: "inline-flex", alignItems: "center", justifyContent: "center" };
+  if (saveRef) saveRef.current = () => save({ emailSignature: html });
   return (
     <>
       <style>{`.sig-edit img,.sig-prev img{max-width:200px;max-height:90px;border-radius:6px;vertical-align:middle}`}</style>
-      <div style={{ display: "flex", marginBottom: tokens.space[4] }}><div style={{ marginLeft: "auto" }}><Btn variant="primary" onClick={() => save({ emailSignature: html })}>Enregistrer</Btn></div></div>
       <Hint>Cette signature est ajoutée automatiquement aux PV, OPR et factures envoyés par email. Tu peux insérer une image (logo).</Hint>
       <Card style={{ padding: 0, overflow: "hidden", marginBottom: tokens.space[4] }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: `${tokens.space[2]} ${tokens.space[3]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: "#FCFBFA" }}>
