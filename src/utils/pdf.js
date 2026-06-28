@@ -92,6 +92,92 @@ export const compositePlanImage = (project) => new Promise((resolve) => {
   img.src = project.planImage;
 });
 
+// ── Rendu de texte riche (gras / italique / souligné inline) ───
+// Le contenu du PV peut être du HTML (édité dans l'éditeur WYSIWYG)
+// ou du texte structuré markdown-ish (sortie IA). On normalise tout
+// vers un texte à marqueurs **gras** *italique* __souligné__, puis on
+// rend chaque ligne en gérant les styles inline avec retour à la ligne.
+function pdfStripInline(t) {
+  return String(t).replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1").replace(/(^|[^*])\*([^*]+)\*/g, "$1$2");
+}
+function pdfParseRuns(text) {
+  const runs = []; const re = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*)/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) runs.push({ text: text.slice(last, m.index) });
+    if (m[2] != null) runs.push({ text: m[2], b: true });
+    else if (m[3] != null) runs.push({ text: m[3], u: true });
+    else if (m[4] != null) runs.push({ text: m[4], i: true });
+    last = re.lastIndex;
+  }
+  if (last < text.length) runs.push({ text: text.slice(last) });
+  return runs;
+}
+function pdfStyle(doc, font, b, i) {
+  const s = b && i ? "bolditalic" : b ? "bold" : i ? "italic" : "normal";
+  try { doc.setFont(font, s); } catch { try { doc.setFont(font, b ? "bold" : "normal"); } catch { doc.setFont(font, "normal"); } }
+}
+function pdfRichLayout(doc, font, text, maxWidth, size, baseBold) {
+  doc.setFontSize(size);
+  const toks = [];
+  for (const r of pdfParseRuns(text)) for (const w of r.text.split(/(\s+)/)) { if (w === "") continue; toks.push({ word: w, sp: /^\s+$/.test(w), b: !!r.b || !!baseBold, i: !!r.i, u: !!r.u }); }
+  const lines = [[]]; let x = 0;
+  for (const tk of toks) {
+    pdfStyle(doc, font, tk.b, tk.i); tk.w = doc.getTextWidth(tk.word);
+    let ln = lines[lines.length - 1];
+    if (tk.sp) { if (ln.length === 0) continue; tk.x = x; x += tk.w; ln.push(tk); continue; }
+    if (x + tk.w > maxWidth && ln.length > 0) { while (ln.length && ln[ln.length - 1].sp) { x -= ln[ln.length - 1].w; ln.pop(); } lines.push([]); ln = lines[lines.length - 1]; x = 0; }
+    tk.x = x; x += tk.w; ln.push(tk);
+  }
+  return lines;
+}
+function pdfDrawRich(doc, font, lines, x0, y, size, color, lineH) {
+  doc.setFontSize(size); doc.setTextColor(...color); doc.setDrawColor(...color); doc.setLineWidth(0.3);
+  lines.forEach((ln, li) => { const ly = y + li * lineH; for (const tk of ln) { if (tk.sp) continue; pdfStyle(doc, font, tk.b, tk.i); doc.text(tk.word, x0 + tk.x, ly); if (tk.u) doc.line(x0 + tk.x, ly + 0.7, x0 + tk.x + tk.w, ly + 0.7); } });
+}
+function pdfLooksHtml(s) { return /<\/?(div|p|ul|ol|li|strong|b|em|i|u|h[1-6]|br|span)\b/i.test(String(s)); }
+function pdfInline(node) {
+  let out = "";
+  node.childNodes.forEach(n => {
+    if (n.nodeType === 3) { out += n.textContent; return; }
+    if (n.nodeType !== 1) return;
+    const tag = n.tagName.toLowerCase();
+    const inner = pdfInline(n);
+    const st = (n.getAttribute && n.getAttribute("style")) || "";
+    if (tag === "strong" || tag === "b" || /font-weight:\s*(bold|[6-9]00)/i.test(st)) out += `**${inner}**`;
+    else if (tag === "em" || tag === "i" || /font-style:\s*italic/i.test(st)) out += `*${inner}*`;
+    else if (tag === "u" || /text-decoration:[^;]*underline/i.test(st)) out += `__${inner}__`;
+    else if (tag === "br") out += "\n";
+    else out += inner;
+  });
+  return out;
+}
+function pdfHtmlToText(html) {
+  const dom = new DOMParser().parseFromString(String(html), "text/html");
+  const lines = [];
+  const block = (n) => {
+    const tag = n.tagName.toLowerCase();
+    if (tag === "ul" || tag === "ol") { n.querySelectorAll(":scope > li").forEach(li => lines.push("- " + pdfInline(li).trim())); return; }
+    if (tag === "li") { lines.push("- " + pdfInline(n).trim()); return; }
+    if (/^h[1-6]$/.test(tag)) { lines.push(pdfInline(n).trim()); return; }
+    if (tag === "div" || tag === "p") {
+      if (n.querySelector("ul,ol,li,div,p,h1,h2,h3,h4,h5,h6")) { walk(n); return; }
+      const pre = n.getAttribute("data-u") === "1" ? "> " : "";
+      lines.push(pre + pdfInline(n).trim());
+      return;
+    }
+    const t = pdfInline(n).trim(); if (t) lines.push(t);
+  };
+  const walk = (parent) => {
+    parent.childNodes.forEach(n => {
+      if (n.nodeType === 3) { const t = n.textContent.trim(); if (t) lines.push(t); return; }
+      if (n.nodeType === 1) block(n);
+    });
+  };
+  walk(dom.body);
+  return lines.join("\n");
+}
+
 export async function generatePDF(project, pvNum, date, result, profile, options) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = 210, H = 297;
@@ -220,8 +306,12 @@ export async function generatePDF(project, pvNum, date, result, profile, options
   doc.rect(ML, y, CW, 0.8, "F");
   y += 9;
 
-  // ── CONTENU (résultat Claude) ──────────────────────────────
-  const lines = result.split("\n");
+  // ── CONTENU (résultat Claude ou HTML édité) ────────────────
+  // Si l'utilisateur a édité dans l'éditeur riche, `result` est du HTML →
+  // on le normalise en texte structuré à marqueurs inline.
+  let body = result || "";
+  if (pdfLooksHtml(body)) body = pdfHtmlToText(body);
+  const lines = body.split("\n");
   for (const line of lines) {
     const t = line.trim();
     if (!t) { y += 2; continue; }
@@ -239,40 +329,29 @@ export async function generatePDF(project, pvNum, date, result, profile, options
       doc.setFont(font, "bold");
       doc.setFontSize(10.5);
       doc.setTextColor(...DARK);
-      doc.text(t, ML + 6, y);
+      doc.text(pdfStripInline(t), ML + 6, y);
       y += 9;
     } else if (isUrgent) {
-      const content = t.slice(1).trim();
-      const wrapped = doc.splitTextToSize("! " + content, CW - 12);
-      checkY(wrapped.length * 5 + 5);
+      const lns = pdfRichLayout(doc, font, "! " + t.slice(1).trim(), CW - 12, 9.5, true);
+      checkY(lns.length * 5 + 5);
       doc.setFillColor(...REDBG);
-      doc.rect(ML, y - 3.5, CW, wrapped.length * 5 + 3, "F");
+      doc.rect(ML, y - 3.5, CW, lns.length * 5 + 3, "F");
       doc.setFillColor(...RED);
-      doc.rect(ML, y - 3.5, 2, wrapped.length * 5 + 3, "F");
-      doc.setFont(font, "bold");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...RED);
-      wrapped.forEach((wl, wi) => doc.text(wl, ML + 6, y + wi * 5));
-      y += wrapped.length * 5 + 5;
+      doc.rect(ML, y - 3.5, 2, lns.length * 5 + 3, "F");
+      pdfDrawRich(doc, font, lns, ML + 6, y, 9.5, RED, 5);
+      y += lns.length * 5 + 5;
     } else if (isPoint) {
-      const content = t.slice(1).trim();
-      const wrapped = doc.splitTextToSize(content, CW - 10);
-      checkY(wrapped.length * 5 + 2);
+      const lns = pdfRichLayout(doc, font, t.slice(1).trim(), CW - 10, 9.5, false);
+      checkY(lns.length * 5 + 2);
       doc.setFillColor(...GRAY);
       doc.circle(ML + 3, y - 1.5, 0.8, "F");
-      doc.setFont(font, "normal");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...DARK);
-      wrapped.forEach((wl, wi) => doc.text(wl, ML + 8, y + wi * 5));
-      y += wrapped.length * 5 + 2;
+      pdfDrawRich(doc, font, lns, ML + 8, y, 9.5, DARK, 5);
+      y += lns.length * 5 + 2;
     } else {
-      const wrapped = doc.splitTextToSize(t, CW);
-      checkY(wrapped.length * 5 + 2);
-      doc.setFont(font, "normal");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...DARK);
-      wrapped.forEach((wl, wi) => doc.text(wl, ML, y + wi * 5));
-      y += wrapped.length * 5 + 2;
+      const lns = pdfRichLayout(doc, font, t, CW, 9.5, false);
+      checkY(lns.length * 5 + 2);
+      pdfDrawRich(doc, font, lns, ML, y, 9.5, DARK, 5);
+      y += lns.length * 5 + 2;
     }
   }
 

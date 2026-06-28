@@ -1018,6 +1018,16 @@ const REDACTION_DOC = {
     ] },
   ],
 };
+const REDACTION_DEMO_TEXT = `00. Évolutions depuis le PV précédent
+La dalle du R+1 a été réceptionnée ; le démarrage des cloisons est confirmé. Trois réserves du précédent procès-verbal ont été levées.
+
+03. Électricité
+- Le tirage des câbles dans la gaine technique du 2e étage doit être repris : la section constatée est **sous-dimensionnée** au regard du cahier des charges.
+- Le tableau électrique principal ne comporte pas de dispositif différentiel 30 mA sur le circuit prises du rez-de-chaussée. __Correction requise avant toute mise sous tension.__
+- L'appareillage du hall principal a été validé sur site, conforme au plan d'exécution révision C.
+
+04. HVAC
+La centrale de traitement d'air est en cours d'installation ; la mise en service reste conditionnée à l'achèvement du lot électrique.`;
 const REDACTION_SOURCES = [
   { poste: "03 · ÉLECTRICITÉ", items: [
     { text: "Reprendre le tirage des câbles — gaine 2e sous-dimensionnée.", ref: "03.1" },
@@ -1060,6 +1070,70 @@ function buildRealSources(project) {
       poste: `${p.id} · ${String(p.label || "").toUpperCase()}`,
       items: (p.remarks || []).map((r, i) => ({ text: r.text, ref: `${p.id}.${i + 1}`, urgent: r.urgent })),
     }));
+}
+
+// ── Éditeur riche (WYSIWYG) — gras / italique / souligné / titres / listes
+function escapeHtml(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function inlineToHtml(s) {
+  return escapeHtml(s)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<u>$1</u>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+}
+function plainToHtml(text) {
+  if (!text) return "";
+  if (/<\/?(div|p|ul|ol|li|strong|b|em|i|u|h[1-6]|br|span)\b/i.test(text)) return text; // déjà du HTML
+  const lines = String(text).split("\n"); let html = ""; let inList = false;
+  const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  for (const raw of lines) {
+    const t = raw.trim();
+    const isSec = /^\d{1,2}[.-]\s/.test(t) && t.length < 90;
+    if (t.startsWith("-")) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${inlineToHtml(t.slice(1).trim())}</li>`; continue; }
+    closeList();
+    if (!t) { html += "<div><br></div>"; continue; }
+    if (isSec) { html += `<h3>${inlineToHtml(t)}</h3>`; continue; }
+    if (t.startsWith(">")) { html += `<div data-u="1">${inlineToHtml(t.slice(1).trim())}</div>`; continue; }
+    html += `<div>${inlineToHtml(t)}</div>`;
+  }
+  closeList();
+  return html;
+}
+
+function RichDocEditor({ value, onChange }) {
+  const ref = useRef(null);
+  const lastHtml = useRef(null);
+  useEffect(() => {
+    const html = plainToHtml(value || "");
+    if (ref.current && html !== lastHtml.current) { ref.current.innerHTML = html; lastHtml.current = html; }
+  }, [value]);
+  const emit = () => { const html = ref.current?.innerHTML || ""; lastHtml.current = html; onChange(html); };
+  const exec = (cmd, arg) => { ref.current?.focus(); document.execCommand(cmd, false, arg); emit(); };
+  const TBtn = ({ onClick, label, title, active }) => (
+    <button type="button" title={title} onMouseDown={e => e.preventDefault()} onClick={onClick}
+      style={{ minWidth: 30, height: 28, padding: "0 8px", borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{label}</button>
+  );
+  return (
+    <>
+      <style>{`.pv-rich:empty:before{content:"Le PV rédigé apparaît ici — édite librement.";color:${tokens.color.neutral[400]}}
+.pv-rich h3{font-size:14px;font-weight:700;color:${tokens.color.neutral[900]};margin:14px 0 6px}
+.pv-rich ul{margin:6px 0 10px;padding-left:20px}.pv-rich li{margin:2px 0;line-height:1.6}
+.pv-rich p,.pv-rich div{margin:0 0 6px;line-height:1.65}
+.pv-rich [data-u="1"]{color:${tokens.color.semantic.danger.fg}}
+.pv-rich u{text-decoration:underline}.pv-rich strong{font-weight:700}`}</style>
+      <div style={{ position: "sticky", top: 0, zIndex: 2, display: "flex", alignItems: "center", gap: tokens.space[1], padding: `${tokens.space[2]} 0`, marginBottom: tokens.space[2], borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], flexWrap: "wrap" }}>
+        <TBtn onClick={() => exec("bold")} title="Gras (Ctrl+B)" label={<b>B</b>} />
+        <TBtn onClick={() => exec("italic")} title="Italique (Ctrl+I)" label={<i style={{ fontFamily: "Georgia, serif" }}>I</i>} />
+        <TBtn onClick={() => exec("underline")} title="Souligné (Ctrl+U)" label={<u>U</u>} />
+        <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: `0 ${tokens.space[1]}` }} />
+        <TBtn onClick={() => exec("formatBlock", "<h3>")} title="Titre de section" label="Titre" />
+        <TBtn onClick={() => exec("insertUnorderedList")} title="Liste à puces" label="• Liste" />
+        <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: `0 ${tokens.space[1]}` }} />
+        <TBtn onClick={() => exec("removeFormat")} title="Effacer le formatage" label="Effacer" />
+      </div>
+      <div ref={ref} className="pv-rich" contentEditable suppressContentEditableWarning onInput={emit} spellCheck={false}
+        style={{ flex: 1, minHeight: 280, outline: "none", fontFamily: tokens.font.family, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700] }} />
+    </>
+  );
 }
 
 function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today }) {
@@ -1112,18 +1186,7 @@ function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profi
               <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], marginBottom: tokens.space[5], paddingBottom: tokens.space[4], borderBottom: `1px solid ${tokens.color.neutral[200]}`, lineHeight: tokens.font.leading.normal }}>{demo ? REDACTION_DOC.meta : `Réunion du ${meta.meetingLabel || "—"} · Présents : ${(project?.participants || []).slice(0, 3).map(p => p.name).join(", ") || "—"}`}</div>
 
               {demo ? (
-                REDACTION_DOC.sections.map((s, i) => (
-                  <div key={i}>
-                    <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.bold, color: s.brand ? tokens.color.brand[600] : tokens.color.neutral[900], marginBottom: tokens.space[2] }}>{s.code}. {s.title}</div>
-                    {s.paras.map((p, j) => (
-                      <p key={j} style={{ margin: `0 0 ${j === s.paras.length - 1 ? tokens.space[5] : tokens.space[2]}`, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700] }}>
-                        {p.num && <b style={{ color: tokens.color.neutral[900] }}>{p.num}</b>} {p.text}
-                        {p.highlight && <span style={{ background: tokens.color.semantic.danger.bg, color: tokens.color.semantic.danger.fg, borderRadius: 3, padding: "0 3px", fontWeight: tokens.font.weight.medium }}>{p.highlight}</span>}
-                        {p.cursor && <span style={{ display: "inline-block", width: 2, height: 15, background: tokens.color.brand[500], verticalAlign: "text-bottom", marginLeft: 1 }} />}
-                      </p>
-                    ))}
-                  </div>
-                ))
+                <RichDocEditor value={REDACTION_DEMO_TEXT} onChange={() => {}} />
               ) : gen?.loading ? (
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: tokens.space[3], color: tokens.color.neutral[500] }}>
                   <div style={{ width: 28, height: 28, border: `3px solid ${tokens.color.neutral[200]}`, borderTopColor: tokens.color.brand[500], borderRadius: "50%", animation: "pvspin 0.8s linear infinite" }} />
@@ -1136,12 +1199,7 @@ function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profi
                   <Button variant="secondary" size="sm" leftIcon={<I.redo size={13} />} onClick={onRegenerate}>Réessayer</Button>
                 </div>
               ) : (
-                <textarea
-                  value={gen?.content || ""}
-                  onChange={e => onChange(e.target.value)}
-                  spellCheck={false}
-                  style={{ flex: 1, width: "100%", minHeight: 280, border: "none", outline: "none", resize: "none", background: "transparent", fontFamily: tokens.font.family, fontSize: tokens.font.size.base, lineHeight: 1.65, color: tokens.color.neutral[700], boxSizing: "border-box" }}
-                />
+                <RichDocEditor value={gen?.content || ""} onChange={onChange} />
               )}
             </div>
           </div>
