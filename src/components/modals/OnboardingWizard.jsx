@@ -1,60 +1,61 @@
 import { useState } from "react";
-import { AC, ACL, TX, TX2, TX3, SB, SBB, WH, BG, GR, RD } from "../../constants/tokens";
-import { STRUCTURE_TYPES, PLANS } from "../../constants/config";
+import { AC, ACL, ACL2, TX, TX2, TX3, SB, SBB, WH, GR, RD } from "../../constants/tokens";
 import { Ico } from "../ui";
 
-// ── Roles ──
+// ── Wizard de première connexion (Direction D) — 5 étapes, jamais bloquant :
+//   Rôle → Structure → Formule (aucun paiement) → 1er projet → Bienvenue.
+//   `compact` : flux court pour les membres invités d'une agence (rôle → nom →
+//   bienvenue) — la structure/formule/projet existent déjà côté org.
+
 const ROLES = [
-  { id: "architecte", label: "Architecte", desc: "Je conçois et coordonne des projets", icon: "building" },
-  { id: "conducteur", label: "Conducteur de travaux", desc: "Je pilote l'exécution sur chantier", icon: "edit" },
-  { id: "maitre_ouvrage", label: "Maître d'ouvrage", desc: "Je suis le projet en tant que client", icon: "user" },
-  { id: "entrepreneur", label: "Entrepreneur", desc: "Je réalise les travaux", icon: "users" },
+  { id: "architecte", label: "Architecte", icon: "building" },
+  { id: "conducteur", label: "Conducteur", icon: "edit" },
+  { id: "maitre_ouvrage", label: "Maître d'ouvrage", icon: "user" },
+  { id: "entrepreneur", label: "Entrepreneur", icon: "users" },
 ];
 
-// ── Field ──
-function OField({ label, value, onChange, placeholder, type = "text", half, required, iconName }) {
+const ONB_PLANS = [
+  { id: "free", label: "Free", price: "0 €", feats: ["1 projet", "3 PV / mois", "3 requêtes IA / mois"] },
+  { id: "pro", label: "Pro", price: "39 €", per: "/mois", popular: true, feats: ["Projets & PV illimités", "OPR · planning · galerie", "3 collaborateurs"] },
+  { id: "team", label: "Team", price: "89 €", per: "/mois", soon: true, feats: ["Tout Pro, +", "Collab. illimités", "Cross-projets · CSV"] },
+];
+
+function Overline({ children }) {
+  return <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: AC, marginBottom: 8 }}>{children}</div>;
+}
+function Title({ children }) {
+  return <h1 style={{ margin: "0 0 6px", fontSize: 25, fontWeight: 700, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>{children}</h1>;
+}
+function Sub({ children }) {
+  return <div style={{ fontSize: 14, color: TX2, marginBottom: 24, lineHeight: 1.5 }}>{children}</div>;
+}
+function OField({ label, value, onChange, placeholder, type = "text", half, required }) {
   return (
-    <div style={{ flex: half ? 1 : undefined, marginBottom: 14 }}>
-      {label && (
-        <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 6 }}>
-          {label}{required && <span style={{ color: RD, marginLeft: 3 }}>*</span>}
-        </div>
-      )}
-      <div style={{ position: "relative" }}>
-        {iconName && <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}><Ico name={iconName} size={14} color={TX3} /></div>}
-        <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          style={{ width: "100%", padding: `11px 14px 11px ${iconName ? 36 : 14}px`, border: `1px solid ${SBB}`, borderRadius: 9, fontSize: 13.5, background: WH, color: TX, outline: "none", transition: "all .15s", boxSizing: "border-box", fontFamily: "inherit" }}
-          onFocus={e => { e.target.style.borderColor = AC; e.target.style.boxShadow = `0 0 0 3px ${ACL}`; }}
-          onBlur={e => { e.target.style.borderColor = SBB; e.target.style.boxShadow = "none"; }}
-        />
-      </div>
+    <div style={{ flex: half ? 1 : undefined }}>
+      {label && <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>{label}{required && <span style={{ color: RD, marginLeft: 3 }}>*</span>}</div>}
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: "100%", height: 46, padding: "0 14px", border: `1px solid ${SBB}`, borderRadius: 11, fontSize: 14, background: WH, color: TX, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "all .15s" }}
+        onFocus={e => { e.target.style.borderColor = AC; e.target.style.boxShadow = `0 0 0 3px ${ACL}`; }}
+        onBlur={e => { e.target.style.borderColor = SBB; e.target.style.boxShadow = "none"; }} />
     </div>
   );
 }
 
-// ── Step 1: Welcome + Role ──
-function Step1({ data, set }) {
+function StepRole({ data, set }) {
   return (
     <>
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Bienvenue</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Votre chantier, sous contrôle.</div>
-        <div style={{ fontSize: 14, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Prenons 2 minutes pour personnaliser votre espace.<br />On commence par votre métier.</div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <Overline>Étape 1 sur 5</Overline>
+      <Title>Bienvenue ! Tu es… ?</Title>
+      <Sub>On adapte ArchiPilot à ton métier.</Sub>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {ROLES.map(r => {
           const sel = data.role === r.id;
           return (
             <button key={r.id} onClick={() => set({ ...data, role: r.id, structureType: r.id })}
-              style={{ textAlign: "left", padding: 16, border: `1.5px solid ${sel ? AC : SBB}`, background: sel ? `${ACL}` : WH, borderRadius: 12, cursor: "pointer", transition: "all .15s", display: "flex", gap: 12, alignItems: "flex-start", fontFamily: "inherit" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 9, background: sel ? AC : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .15s" }}>
-                <Ico name={r.icon} size={18} color={sel ? WH : TX2} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: sel ? AC : TX }}>{r.label}</div>
-                <div style={{ fontSize: 11, color: TX2, marginTop: 2, lineHeight: 1.35 }}>{r.desc}</div>
-              </div>
-              {sel && <div style={{ width: 20, height: 20, borderRadius: "50%", background: AC, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="check" size={12} color={WH} /></div>}
+              style={{ display: "flex", alignItems: "center", gap: 13, padding: 16, border: `1.5px solid ${sel ? AC : SBB}`, background: sel ? ACL : WH, borderRadius: 14, cursor: "pointer", transition: "all .15s", fontFamily: "inherit", textAlign: "left" }}>
+              <span style={{ width: 40, height: 40, borderRadius: 11, background: sel ? AC : SB, color: sel ? WH : TX2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name={r.icon} size={20} color={sel ? WH : TX2} /></span>
+              <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: TX }}>{r.label}</span>
+              {sel && <Ico name="check" size={18} color={AC} />}
             </button>
           );
         })}
@@ -63,147 +64,115 @@ function Step1({ data, set }) {
   );
 }
 
-// ── Step 2: Structure ──
-function Step2({ data, set }) {
+function StepStructure({ data, set }) {
   return (
     <>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 2 · Votre structure</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Parlez-nous de votre agence.</div>
-        <div style={{ fontSize: 14, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Ces infos apparaîtront sur vos PV et documents.</div>
+      <Overline>Étape 2 sur 5</Overline>
+      <Title>Ta structure</Title>
+      <Sub>Ces infos apparaîtront sur tes PV et factures. Modifiables à tout moment.</Sub>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <OField label="Ton nom" value={data.name || ""} onChange={v => set({ ...data, name: v })} placeholder="Gaëlle Dupont" required />
+        <OField label="Nom de l'agence" value={data.agency || ""} onChange={v => set({ ...data, agency: v })} placeholder="Atelier d'architecture GD" required />
+        <OField label="Adresse du siège" value={data.address || ""} onChange={v => set({ ...data, address: v })} placeholder="Rue, n°, code postal, ville" />
       </div>
-      <OField label="Votre nom" value={data.name || ""} onChange={v => set({ ...data, name: v })} placeholder="Jean Dupont" iconName="user" required />
-      <OField label="Nom du bureau / entreprise" value={data.agency || ""} onChange={v => set({ ...data, agency: v })} placeholder="Atelier Moreau Architecture" iconName="building" required />
-      <OField label="Adresse du siège" value={data.address || ""} onChange={v => set({ ...data, address: v })} placeholder="Rue de la Régence 42, 1000 Bruxelles" />
     </>
   );
 }
 
-// ── Step 3: Plan selection (informational, non-blocking) ──
-const ONB_PLANS = [
-  { id: "free", label: PLANS.free.label, price: PLANS.free.price, tagline: "Pour découvrir", features: ["1 projet", "3 PV / mois", "3 IA / mois", "PDF avec filigrane"] },
-  { id: "pro",  label: PLANS.pro.label,  price: PLANS.pro.price,  tagline: "Pour les indépendants", popular: true, features: ["Projets illimités", "PV illimités", "IA illimitée", "Envoi PV par email", "Logo PDF perso.", "Galerie photos"] },
-];
-
-function StepPlan({ data, onPick }) {
+function StepPlan({ data, set }) {
   return (
     <>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 3 · Votre plan</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Choisissez comment démarrer.</div>
-        <div style={{ fontSize: 13, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Vous pouvez changer de plan à tout moment depuis votre profil.</div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+      <Overline>Étape 3 sur 5</Overline>
+      <Title>Choisis ta formule</Title>
+      <Sub>Tu peux démarrer gratuitement et changer plus tard. Aucun paiement maintenant.</Sub>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
         {ONB_PLANS.map(p => {
-          const isSel = data.plan === p.id;
-          const isFree = p.id === "free";
+          const sel = data.plan === p.id;
+          const selectable = !p.soon;
           return (
-            <div key={p.id} style={{ position: "relative", border: `${p.popular ? 2 : 1.5}px solid ${isSel ? AC : (p.popular ? AC : SBB)}`, borderRadius: 12, padding: "14px 12px", background: isSel ? ACL : WH, display: "flex", flexDirection: "column", transition: "all .15s" }}>
-              {p.popular && <div style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#fff", background: AC, padding: "2px 8px", borderRadius: 8 }}>Populaire</div>}
-              <div style={{ fontSize: 14, fontWeight: 700, color: TX }}>{p.label}</div>
-              <div style={{ fontSize: 10, color: TX3, marginBottom: 6 }}>{p.tagline}</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: p.seatsNote ? 2 : 10 }}>
-                <span style={{ fontSize: 22, fontWeight: 800, color: TX }}>{p.price}€</span>
-                <span style={{ fontSize: 10, color: TX3 }}>{p.price === 0 ? "" : "/mois"}</span>
+            <div key={p.id} onClick={() => selectable && set({ ...data, plan: p.id })}
+              style={{ position: "relative", border: `${sel ? 1.5 : 1}px solid ${sel ? AC : SBB}`, background: sel ? ACL : WH, borderRadius: 14, padding: 18, cursor: selectable ? "pointer" : "default", opacity: p.soon ? 0.85 : 1, transition: "all .15s" }}>
+              {p.popular && <div style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", fontSize: 10, fontWeight: 700, color: "#fff", background: AC, borderRadius: 999, padding: "2px 10px", whiteSpace: "nowrap" }}>RECOMMANDÉ</div>}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>{p.label}</span>
+                {p.soon && <span style={{ fontSize: 9, fontWeight: 600, color: TX3, background: SB, border: `1px solid ${SBB}`, borderRadius: 999, padding: "1px 7px" }}>Bientôt</span>}
               </div>
-              {p.seatsNote && (
-                <div style={{ fontSize: 9, color: TX3, marginBottom: 10, lineHeight: 1.3 }}>{p.seatsNote}</div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, marginBottom: 12 }}>
-                {p.features.map((f, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, color: TX2, lineHeight: 1.3 }}>
-                    <Ico name="check" size={9} color={GR} />{f}
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => onPick(p.id)}
-                style={{ width: "100%", padding: "8px 10px", border: "none", borderRadius: 8, background: isFree ? AC : (p.popular ? AC : SB), color: (isFree || p.popular) ? "#fff" : TX, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}>
-                {isFree ? "Démarrer en Free" : `Essayer ${p.label}`}
-              </button>
+              <div style={{ fontSize: 22, fontWeight: 700, color: sel ? AC : TX, letterSpacing: "-0.5px", marginBottom: 12 }}>{p.price}{p.per && <span style={{ fontSize: 11, fontWeight: 500, color: TX3 }}>{p.per}</span>}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, color: TX2 }}>{p.feats.map((f, i) => <div key={i}>{f}</div>)}</div>
             </div>
           );
         })}
       </div>
-      <div style={{ marginTop: 14, padding: "8px 12px", background: SB, border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 11, color: TX3, display: "flex", alignItems: "center", gap: 6 }}>
-        <Ico name="info" size={11} color={TX3} />
-        Pas de paiement requis pour le moment — vous testez le plan choisi.
-      </div>
     </>
   );
 }
 
-// ── Step 4: First Project ──
-function Step3({ data, set }) {
+function StepProject({ data, set }) {
   return (
     <>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 4 · Premier projet</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Créons votre premier chantier.</div>
-        <div style={{ fontSize: 14, color: TX2, marginTop: 8, lineHeight: 1.5 }}>Vous pourrez ajuster ces informations à tout moment.</div>
-      </div>
-      <OField label="Nom du projet" value={data.pName || ""} onChange={v => set({ ...data, pName: v })} placeholder="Résidence Les Cèdres" iconName="building" required />
-      <div style={{ display: "flex", gap: 12 }}>
-        <OField half label="Maître d'ouvrage (client)" value={data.pClient || ""} onChange={v => set({ ...data, pClient: v })} placeholder="SCI Belvédère" iconName="user" />
-        <OField half label="Entreprise générale" value={data.pContractor || ""} onChange={v => set({ ...data, pContractor: v })} placeholder="Entr. Lemaire SA" iconName="users" />
-      </div>
-      <OField label="Ville / Localisation" value={data.pCity || ""} onChange={v => set({ ...data, pCity: v })} placeholder="Uccle, Bruxelles" />
-      <div style={{ display: "flex", gap: 12 }}>
-        <OField half type="date" label="Date de début" value={data.pStart || ""} onChange={v => set({ ...data, pStart: v })} />
-        <OField half type="date" label="Livraison prévue" value={data.pEnd || ""} onChange={v => set({ ...data, pEnd: v })} />
+      <Overline>Étape 4 sur 5</Overline>
+      <Title>Ton premier projet</Title>
+      <Sub>Juste le nom suffit pour démarrer — tu compléteras le reste plus tard.</Sub>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <OField label="Nom du projet" value={data.pName || ""} onChange={v => set({ ...data, pName: v })} placeholder="Rénovation de l'Hôtel de Ville" required />
+        <div style={{ display: "flex", gap: 14 }}>
+          <OField half label="Client" value={data.pClient || ""} onChange={v => set({ ...data, pClient: v })} placeholder="Ville de Nivelles" />
+          <OField half label="Ville" value={data.pCity || ""} onChange={v => set({ ...data, pCity: v })} placeholder="Nivelles" />
+        </div>
+        <div style={{ display: "flex", gap: 14 }}>
+          <OField half type="date" label="Date de début" value={data.pStart || ""} onChange={v => set({ ...data, pStart: v })} />
+          <OField half type="date" label="Réception prévue" value={data.pEnd || ""} onChange={v => set({ ...data, pEnd: v })} />
+        </div>
       </div>
     </>
   );
 }
 
-// ── Step 4: Done ──
-function Step4({ data, joinedOrgName }) {
+function StepNameLight({ data, set, joinedOrgName }) {
   return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ width: 64, height: 64, borderRadius: 16, background: `${GR}18`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-        <Ico name="check" size={32} color={GR} />
+    <>
+      <Overline>Étape 2 · Ton profil</Overline>
+      <Title>Comment tu t'appelles ?</Title>
+      <Sub>C'est le nom qui apparaîtra sur les PV que tu rédiges{joinedOrgName ? ` au sein de ${joinedOrgName}` : ""}.</Sub>
+      <OField label="Ton nom" value={data.name || ""} onChange={v => set({ ...data, name: v })} placeholder="Marie Dupont" required />
+    </>
+  );
+}
+
+// Écran final — Bienvenue (checklist + visite guidée). CTAs propres (pas de footer).
+function StepDone({ data, joinedOrgName, onComplete }) {
+  const firstName = data.name ? data.name.split(" ")[0] : "";
+  return (
+    <div style={{ textAlign: "center", padding: "8px 4px 4px" }}>
+      <div style={{ width: 78, height: 78, borderRadius: 999, background: `linear-gradient(135deg, #D17A47, ${AC})`, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 22px", boxShadow: `0 10px 30px ${AC}55` }}><Ico name="check" size={36} color="#fff" /></div>
+      <h1 style={{ margin: "0 0 10px", fontSize: 27, fontWeight: 700, color: TX, letterSpacing: "-0.6px" }}>Bienvenue{firstName ? `, ${firstName}` : ""} 🎉</h1>
+      <div style={{ fontSize: 15, color: TX2, lineHeight: 1.6, marginBottom: 24 }}>
+        {joinedOrgName
+          ? <>Tu as rejoint <b style={{ color: TX }}>{joinedOrgName}</b>. Tu peux maintenant accéder aux projets partagés.</>
+          : <>Ton espace est prêt{data.pName ? <> et ton projet <b style={{ color: TX }}>{data.pName}</b> est créé</> : ""}. On t'a préparé une courte visite pour démarrer.</>}
       </div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: GR, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>Tout est prêt</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px" }}>
-        Bienvenue{data.name ? `, ${data.name.split(" ")[0]}` : ""}.
-      </div>
-      <div style={{ fontSize: 14, color: TX2, marginTop: 10, lineHeight: 1.6 }}>
-        {joinedOrgName ? (
-          <>Tu as rejoint <strong style={{ color: TX, fontWeight: 600 }}>{joinedOrgName}</strong>. Tu peux maintenant accéder aux projets partagés.</>
-        ) : (
-          <>Votre espace est configuré{data.pName ? <> et <strong style={{ color: TX, fontWeight: 600 }}>{data.pName}</strong> a été créé</> : ""}.<br />Vous allez être redirigé vers votre projet.</>
-        )}
-      </div>
+      {!joinedOrgName && (
+        <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 14, padding: 16, marginBottom: 24, textAlign: "left" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Pour bien démarrer</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {["Importer ton cahier des charges", "Ajouter les intervenants", "Préparer ton premier PV"].map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: TX2 }}><Ico name="check" size={15} color={AC} />{t}</div>
+            ))}
+          </div>
+        </div>
+      )}
+      <button onClick={onComplete} style={{ width: "100%", height: 50, background: AC, color: "#fff", border: "none", borderRadius: 12, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 12, boxShadow: `0 8px 24px ${AC}40` }}>{joinedOrgName ? "Accéder à l'agence" : "Commencer la visite guidée"}</button>
+      {!joinedOrgName && <div onClick={onComplete} style={{ fontSize: 14, color: TX3, cursor: "pointer" }}>Explorer par moi-même</div>}
     </div>
   );
 }
 
-// ── Step (light) — invited members only need to share their personal name. ──
-function StepNameLight({ data, set, joinedOrgName }) {
-  return (
-    <>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Étape 2 · Ton profil</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: TX, letterSpacing: "-0.5px", lineHeight: 1.15 }}>Comment tu t'appelles ?</div>
-        <div style={{ fontSize: 14, color: TX2, marginTop: 8, lineHeight: 1.5 }}>
-          C'est le nom qui apparaîtra sur les PV que tu rédiges{joinedOrgName ? <> au sein de <strong style={{ color: TX, fontWeight: 600 }}>{joinedOrgName}</strong></> : ""}.
-        </div>
-      </div>
-      <OField label="Ton nom" value={data.name || ""} onChange={v => set({ ...data, name: v })} placeholder="Marie Dupont" iconName="user" required />
-    </>
-  );
-}
-
-// ── Main Onboarding Wizard ──
-// `compact` collapses the flow for users joining an existing agency:
-// they don't pick a structure name, plan, or first project — those
-// already exist in the org. We just need their role + their personal name.
 const FULL_STEPS = ["role", "structure", "plan", "project", "done"];
 const LIGHT_STEPS = ["role", "name", "done"];
 
-export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreateProject, compact, joinedOrgName }) {
-  // Lock the step list at mount — switching mid-flow would jump the user.
+export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreateProject, compact, joinedOrgName, initialStep = 0 }) {
   const [stepNames] = useState(compact ? LIGHT_STEPS : FULL_STEPS);
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(Math.min(initialStep, (compact ? LIGHT_STEPS : FULL_STEPS).length - 1));
   const [data, setData] = useState({
     role: profile.structureType || "",
     name: profile.name || "",
@@ -211,120 +180,72 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
     address: profile.address || "",
     structureType: profile.structureType || "architecte",
     plan: profile.plan || "free",
-    pName: "", pClient: "", pContractor: "", pCity: "", pStart: "", pEnd: "",
+    pName: "", pClient: "", pCity: "", pStart: "", pEnd: "",
   });
 
   const total = stepNames.length;
   const currentStep = stepNames[step];
+  const isDone = currentStep === "done";
 
   const canNext = (() => {
     if (currentStep === "role") return !!data.role;
     if (currentStep === "structure") return !!(data.agency?.trim() && data.name?.trim());
     if (currentStep === "name") return !!data.name?.trim();
-    if (currentStep === "plan") return true;
     if (currentStep === "project") return !!data.pName?.trim();
     return true;
   })();
 
-  const nextLabel = (() => {
-    if (step === total - 1) return compact ? "Accéder à l'agence" : "Accéder à mon projet";
-    if (currentStep === "project") return "Créer le projet";
-    return "Continuer";
-  })();
-
   const handleNext = () => {
-    if (currentStep === "structure") {
-      onUpdateProfile({
-        ...profile,
-        name: data.name,
-        structure: data.agency,
-        structureType: data.structureType || data.role,
-        address: data.address,
-      });
-    }
-    if (currentStep === "name") {
-      onUpdateProfile({
-        ...profile,
-        name: data.name,
-        structureType: data.structureType || data.role,
-      });
-    }
-    if (currentStep === "plan") {
-      onUpdateProfile({ ...profile, plan: data.plan });
-    }
-    if (currentStep === "project" && data.pName && onCreateProject) {
-      onCreateProject({
-        name: data.pName, client: data.pClient, contractor: data.pContractor,
-        city: data.pCity, startDate: data.pStart, endDate: data.pEnd,
-      });
-    }
-    if (step === total - 1) {
-      onComplete();
-      return;
-    }
+    if (currentStep === "structure") onUpdateProfile({ ...profile, name: data.name, structure: data.agency, structureType: data.structureType || data.role, address: data.address });
+    if (currentStep === "name") onUpdateProfile({ ...profile, name: data.name, structureType: data.structureType || data.role });
+    if (currentStep === "plan") onUpdateProfile({ ...profile, plan: data.plan });
+    if (currentStep === "project" && data.pName && onCreateProject) onCreateProject({ name: data.pName, client: data.pClient, city: data.pCity, startDate: data.pStart, endDate: data.pEnd });
     setStep(s => s + 1);
   };
+  const skipPlan = () => { setStep(s => s + 1); };
 
-  const pickPlan = (planId) => {
-    setData(d => ({ ...d, plan: planId }));
-    onUpdateProfile({ ...profile, plan: planId });
-    setStep(s => s + 1);
-  };
+  const cardWidth = currentStep === "plan" ? 720 : currentStep === "project" ? 620 : 560;
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 10002, background: "rgba(31,41,55,0.60)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <style>{`
-        @keyframes onbFadeUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
-        .onb-card { animation: onbFadeUp .35s ease both; }
-      `}</style>
-
-      <div className="onb-card" style={{ width: "100%", maxWidth: currentStep === "plan" ? 720 : currentStep === "project" ? 600 : 520, background: WH, borderRadius: 20, boxShadow: "0 20px 60px rgba(0,0,0,0.2)", overflow: "hidden" }}>
-        {/* Header with logo + progress */}
-        <div style={{ padding: "20px 28px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 32, height: 32 }} />
-            <span style={{ fontSize: 14, fontWeight: 800, color: "#1C1917", letterSpacing: "0.5px", fontFamily: "'Manrope', 'Inter', sans-serif", textTransform: "uppercase" }}>ArchiPilot</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 10002, background: "rgba(28,25,23,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`@keyframes onbUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}.onb-card{animation:onbUp .3s ease both}`}</style>
+      <div className="onb-card" style={{ width: "100%", maxWidth: cardWidth, background: WH, borderRadius: 22, boxShadow: "0 24px 60px rgba(28,25,23,0.22)", overflow: "hidden" }}>
+        {/* Header : logo A + dots */}
+        <div style={{ padding: "22px 32px 0", display: "flex", alignItems: "center" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: AC, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, fontFamily: "'Manrope','Inter',sans-serif" }}>A</div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
             {Array.from({ length: total }).map((_, i) => (
-              <div key={i} style={{ width: i === step ? 24 : 8, height: 8, borderRadius: 999, background: i <= step ? AC : SBB, transition: "all .3s" }} />
+              <span key={i} style={{ width: i === step ? 22 : 6, height: 6, borderRadius: 999, background: i <= step ? AC : SBB, transition: "all .3s" }} />
             ))}
-            <span style={{ fontSize: 11, fontWeight: 600, color: TX3, marginLeft: 4 }}>{step + 1}/{total}</span>
           </div>
         </div>
 
-        {/* Content */}
-        <div key={step} className="onb-card" style={{ padding: "24px 28px 28px" }}>
-          {currentStep === "role" && <Step1 data={data} set={setData} />}
-          {currentStep === "structure" && <Step2 data={data} set={setData} />}
-          {currentStep === "plan" && <StepPlan data={data} onPick={pickPlan} />}
-          {currentStep === "project" && <Step3 data={data} set={setData} />}
+        {/* Contenu */}
+        <div key={step} className="onb-card" style={{ padding: "24px 32px 28px" }}>
+          {currentStep === "role" && <StepRole data={data} set={setData} />}
+          {currentStep === "structure" && <StepStructure data={data} set={setData} />}
+          {currentStep === "plan" && <StepPlan data={data} set={setData} />}
+          {currentStep === "project" && <StepProject data={data} set={setData} />}
           {currentStep === "name" && <StepNameLight data={data} set={setData} joinedOrgName={joinedOrgName} />}
-          {currentStep === "done" && <Step4 data={data} joinedOrgName={joinedOrgName} />}
+          {currentStep === "done" && <StepDone data={data} joinedOrgName={joinedOrgName} onComplete={onComplete} />}
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: "0 28px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            {step > 0 && step < total - 1 && (
-              <button onClick={() => setStep(s => s - 1)}
-                style={{ padding: "10px 16px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
-                <Ico name="back" size={14} color={TX2} /> Retour
-              </button>
+        {/* Footer (sauf écran final) */}
+        {!isDone && (
+          <div style={{ padding: "0 32px 26px", display: "flex", alignItems: "center", gap: 12 }}>
+            {step > 0 && (
+              <button onClick={() => setStep(s => s - 1)} style={{ height: 48, padding: "0 18px", border: `1px solid ${SBB}`, borderRadius: 12, background: WH, color: TX2, fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}><Ico name="back" size={14} color={TX2} />Retour</button>
             )}
             {step === 0 && (
-              <button onClick={onComplete}
-                style={{ padding: "10px 16px", border: "none", borderRadius: 9, background: "transparent", color: TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                Passer l'introduction
-              </button>
+              <button onClick={onComplete} style={{ height: 48, padding: "0 14px", border: "none", borderRadius: 12, background: "transparent", color: TX3, fontFamily: "inherit", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Passer l'introduction</button>
             )}
+            {currentStep === "plan" && <button onClick={skipPlan} style={{ border: "none", background: "transparent", color: TX3, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}>Décider plus tard</button>}
+            <button onClick={handleNext} disabled={!canNext} style={{ marginLeft: "auto", height: 48, padding: "0 22px", border: "none", borderRadius: 12, background: canNext ? AC : SBB, color: canNext ? "#fff" : TX3, fontFamily: "inherit", fontSize: 15, fontWeight: 700, cursor: canNext ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 8, boxShadow: canNext ? `0 6px 18px ${AC}38` : "none", transition: "all .2s" }}>
+              {currentStep === "project" ? "Créer le projet" : "Continuer"}
+              <Ico name="chevron-right" size={15} color={canNext ? "#fff" : TX3} />
+            </button>
           </div>
-          <button onClick={handleNext} disabled={!canNext}
-            style={{ padding: "10px 22px", border: "none", borderRadius: 9, background: canNext ? AC : SBB, color: canNext ? "#fff" : TX3, fontSize: 13, fontWeight: 600, cursor: canNext ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, boxShadow: canNext ? "0 4px 12px rgba(184,92,44,0.25)" : "none", transition: "all .2s" }}>
-            {nextLabel}
-            {step < total - 1 && <Ico name="send" size={13} color="#fff" />}
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );
