@@ -125,6 +125,15 @@ export function Account({ profile: profileProp, onSave, demo: demoProp }) {
             </button>
           );
         })}
+        {/* Déconnexion — toujours visible en bas de la sous-nav */}
+        <button
+          onClick={() => { if (demo) { setToast("Déconnexion (démo)"); setTimeout(() => setToast(""), 1800); return; } supabase.auth.signOut(); }}
+          style={{ marginTop: "auto", display: "flex", alignItems: "center", gap: tokens.space[3], padding: "10px 11px", borderRadius: tokens.radius.md, border: "none", borderLeft: "3px solid transparent", background: "transparent", color: tokens.color.semantic.danger.fg, cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium, textAlign: "left" }}
+          onMouseEnter={e => { e.currentTarget.style.background = tokens.color.semantic.danger.bg; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+        >
+          <span style={{ display: "inline-flex" }}><Svg d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" size={17} /></span>Se déconnecter
+        </button>
       </div>
 
       {/* Contenu */}

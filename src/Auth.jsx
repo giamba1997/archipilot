@@ -75,6 +75,67 @@ const benefits = [
 ];
 
 // ── Auth Page (Login / Register / Forgot) ──────────────────
+// ── Split-screen shell (v2 Direction D) : panneau marque + formulaire ──
+const AUTH_BRANDS = {
+  login: { title: "Pilote tes chantiers, du permis à la réception.", sub: "Le copilote IA de gestion de chantier pour les architectes. PV en un clic, réserves, planning, honoraires — au même endroit.", feats: ["PV de chantier rédigés par l'IA", "Réserves & signatures à distance", "Facturation conforme TVA belge"] },
+  register: { title: "Ton premier PV en moins de 3 minutes.", sub: "Rejoins les architectes qui gèrent leurs chantiers sans tableur ni paperasse. Gratuit pour démarrer, sans carte bancaire.", social: true },
+  forgot: { title: "Ça arrive aux meilleurs.", sub: "On t'envoie un lien sécurisé pour reprendre la main sur ton compte en quelques secondes." },
+  "check-email": { title: "Lien en route.", sub: "Le lien t'attend dans ta boîte mail. Tu peux fermer cette page après avoir cliqué." },
+};
+function BrandCheck() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>;
+}
+function AuthShell({ mode = "login", children }) {
+  const [legalPage, setLegalPage] = useState(null);
+  if (legalPage) return <LegalPage page={legalPage} onBack={() => setLegalPage(null)} />;
+  const b = AUTH_BRANDS[mode] || AUTH_BRANDS.login;
+  return (
+    <div className="auth-split" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: BG, fontFamily: "'Plus Jakarta Sans','Inter',system-ui,sans-serif", padding: 24 }}>
+      <style>{`@keyframes sp{to{transform:rotate(360deg)}}@keyframes fadeSlide{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.auth-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top:2px solid #fff;border-radius:50%;animation:sp .6s linear infinite;flex-shrink:0}
+.auth-input:focus{border-color:${AC}!important;box-shadow:0 0 0 3px rgba(184,92,44,0.12)!important;outline:none!important}
+.auth-input::placeholder{color:#A8A8A3}
+@media(max-width:880px){.auth-brand{display:none!important}}`}</style>
+      <div style={{ width: "100%", maxWidth: 1060, display: "flex", background: WH, borderRadius: 16, boxShadow: "0 8px 30px rgba(28,25,23,.10)", overflow: "hidden", border: `1px solid ${SBB}`, minHeight: 580, maxHeight: "calc(100dvh - 48px)" }}>
+        {/* Panneau marque */}
+        <div className="auth-brand" style={{ width: 440, flexShrink: 0, background: "linear-gradient(155deg,#B85C2C,#8B3A14)", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", padding: "40px 38px", color: "#fff" }}>
+          <div style={{ position: "absolute", right: -80, top: -60, width: 280, height: 280, borderRadius: "50%", background: "rgba(255,255,255,.06)" }} />
+          <div style={{ position: "absolute", left: -100, bottom: -80, width: 300, height: 300, borderRadius: "50%", background: "rgba(255,255,255,.05)" }} />
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 11 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 11, background: "#fff", color: AC, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20, fontFamily: "'Manrope','Inter',sans-serif" }}>A</div>
+            <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-.3px" }}>ArchiPilot</span>
+          </div>
+          <div style={{ position: "relative", marginTop: "auto" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.15, letterSpacing: "-.6px", marginBottom: 14 }}>{b.title}</div>
+            <div style={{ fontSize: 14, opacity: 0.85, lineHeight: 1.6, marginBottom: 24 }}>{b.sub}</div>
+            {b.feats && <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>{b.feats.map((f, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}><BrandCheck />{f}</div>)}</div>}
+            {b.social && (
+              <div style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.18)", borderRadius: 14, padding: "14px 16px" }}>
+                <div style={{ display: "flex" }}>
+                  {[["PL", "#F5DCC9", "#8B3A14"], ["SM", "#DBEAFE", "#1E40AF"], ["AC", "#DCFCE7", "#166534"]].map((a, i) => (
+                    <div key={i} style={{ width: 30, height: 30, borderRadius: "50%", background: a[1], color: a[2], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, border: "2px solid #B85C2C", marginLeft: i ? -8 : 0 }}>{a[0]}</div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 13, lineHeight: 1.4 }}><b>+1 200 architectes</b><br /><span style={{ opacity: 0.8 }}>font confiance à ArchiPilot</span></div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Panneau formulaire */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", background: "#FCFBFA", overflowY: "auto" }}>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 40px 16px" }}>
+            <div style={{ width: "100%", maxWidth: 360, animation: "fadeSlide 0.3s ease-out" }}>{children}</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "0 0 18px" }}>
+            <div style={{ fontSize: 10, color: TX3, opacity: 0.6, marginBottom: 6 }}>© {new Date().getFullYear()} ArchiPilot</div>
+            <LegalLinks onNavigate={setLegalPage} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AuthPage() {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
@@ -201,7 +262,7 @@ export function AuthPage() {
   // ── Check Email confirmation screen ──
   if (mode === "check-email") {
     return (
-      <PageShell>
+      <AuthShell mode="check-email">
         <div style={{ textAlign: "center", padding: "20px 0" }}>
           <div style={{ width: 56, height: 56, borderRadius: 14, background: ACL, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={AC} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -224,25 +285,25 @@ export function AuthPage() {
             Retour à la connexion
           </button>
         </div>
-      </PageShell>
+      </AuthShell>
     );
   }
 
   return (
-    <PageShell>
-      {/* Mode title — compact, only for register/forgot */}
-      {mode !== "login" && (
-        <div style={{ textAlign: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: TX }}>
-            {mode === "register" && "Créer un compte"}
-            {mode === "forgot" && "Mot de passe oublié"}
-          </div>
-          <div style={{ fontSize: 12, color: TX3, marginTop: 3 }}>
-            {mode === "register" && "Commencez à gérer vos chantiers"}
-            {mode === "forgot" && "Recevez un lien de réinitialisation par email"}
-          </div>
+    <AuthShell mode={mode}>
+      {/* Titre par mode (gauche, gros) */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>
+          {mode === "login" && "Bon retour 👋"}
+          {mode === "register" && "Créer un compte"}
+          {mode === "forgot" && "Mot de passe oublié ?"}
+        </h1>
+        <div style={{ fontSize: 14, color: TX2, lineHeight: 1.5 }}>
+          {mode === "login" && "Connecte-toi pour retrouver tes chantiers."}
+          {mode === "register" && "Gratuit · sans carte bancaire."}
+          {mode === "forgot" && "On t'envoie un lien pour définir un nouveau mot de passe."}
         </div>
-      )}
+      </div>
 
       {/* OAuth buttons */}
       {mode !== "forgot" && (
@@ -474,7 +535,7 @@ export function AuthPage() {
           </button>
         )}
       </div>
-    </PageShell>
+    </AuthShell>
   );
 }
 
