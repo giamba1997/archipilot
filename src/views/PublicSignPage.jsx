@@ -18,15 +18,25 @@ import { supabase } from "../supabase";
 //   done          — signature enregistrée
 
 const AC = "#B85C2C";
+const ACD = "#A04C20";
+const ACL = "#FDF6F1";
 const TX = "#1D1D1B";
 const TX2 = "#3D3A36";
 const TX3 = "#807D77";
+const TX4 = "#A8A29E";
 const SBB = "#E2E1DD";
 const SB = "#F4F3EF";
 const WH = "#FFFFFF";
 const BG = "#FAFAF8";
-const RD = "#C4392A";
-const GR = "#4E8E5A";
+const RD = "#991B1B";
+const REDBG = "#FEF2F2";
+const REDBD = "#FECACA";
+const AM = "#92400E";
+const AMBG = "#FFFBEB";
+const AMBD = "#FDE68A";
+const GR = "#166534";
+const GRBG = "#F0FDF4";
+const GRBD = "#BBF7D0";
 
 export function PublicSignPage({ token }) {
   const [state, setState] = useState("loading");
@@ -98,13 +108,15 @@ export function PublicSignPage({ token }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif", padding: "24px 16px" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        {/* Brand header */}
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src="/icon-512.png" alt="ArchiPilot" style={{ width: 40, height: 40, borderRadius: 10 }} />
-          <div style={{ fontFamily: "'Manrope', sans-serif", fontSize: 14, fontWeight: 800, color: "#1C1917", marginTop: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>ArchiPilot</div>
-        </div>
+    <div style={{ minHeight: "100vh", background: BG, fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
+      {/* Header de marque pleine largeur — rassure le signataire externe */}
+      <div style={{ height: 60, flexShrink: 0, background: WH, borderBottom: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: AC, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 15, fontFamily: "'Manrope','Inter',sans-serif" }}>A</div>
+        <span style={{ fontSize: 16, fontWeight: 700, color: TX, letterSpacing: "-0.2px" }}>ArchiPilot</span>
+        <span style={{ marginLeft: 8, fontSize: 12, color: TX4, borderLeft: `1px solid ${SBB}`, paddingLeft: 10 }}>Signature électronique sécurisée</span>
+      </div>
+      <div style={{ flex: 1, padding: "32px 16px" }}>
+        <div style={{ maxWidth: 560, margin: "0 auto" }}>
 
         {state === "loading" && <CardCenter><Spinner /><div style={{ color: TX3, fontSize: 13, marginTop: 12 }}>Chargement du document...</div></CardCenter>}
 
@@ -156,6 +168,7 @@ export function PublicSignPage({ token }) {
         {(state === "ready" || state === "submitting") && request && (
           <SignReadyView request={request} submitting={state === "submitting"} error={error} onSubmit={submit} onDecline={decline} />
         )}
+        </div>
       </div>
     </div>
   );
@@ -184,229 +197,128 @@ function Spinner() {
   );
 }
 
-// ── Vue prête à signer ──────────────────────────────────────
+// ── Vue prête à signer (page unique, Direction D) ─────────────
 function SignReadyView({ request, submitting, error, onSubmit, onDecline }) {
-  const [showCanvas, setShowCanvas] = useState(false);
-  const [showDeclineForm, setShowDeclineForm] = useState(false);
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const lastPt = useRef({ x: 0, y: 0 });
+  const [hasInk, setHasInk] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
 
-  const reserves = request.reserves || [];
-  const docTypeLabel = request.opr_type === "definitive" ? "définitive" : "provisoire";
-
-  return (
-    <div style={{ background: WH, borderRadius: 16, border: `1px solid ${SBB}`, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-      {/* Header */}
-      <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${SBB}`, background: BG }}>
-        <Badge color={AC}>Signature requise</Badge>
-        <div style={{ fontSize: 22, fontWeight: 700, color: TX, marginTop: 10 }}>OPR n°{request.opr_number}</div>
-        <div style={{ fontSize: 13, color: TX3, marginTop: 4 }}>
-          Réception {docTypeLabel} · {request.project_name} · {request.opr_date}
-        </div>
-      </div>
-
-      {/* Signataire */}
-      <div style={{ padding: "16px 24px", background: SB, borderBottom: `1px solid ${SBB}` }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 4 }}>Signataire</div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{request.signatory_name}</div>
-        {request.signatory_role && <div style={{ fontSize: 12, color: TX3 }}>{request.signatory_role}</div>}
-      </div>
-
-      {/* Réserves */}
-      <div style={{ padding: "20px 24px" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: TX, marginBottom: 10 }}>
-          Réserves consignées ({reserves.length})
-        </div>
-        {reserves.length === 0 ? (
-          <div style={{ padding: 16, background: "#EAF3DE", borderRadius: 10, fontSize: 13, color: GR, fontWeight: 600, textAlign: "center" }}>
-            Aucune réserve constatée — réception sans réserve.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflow: "auto" }}>
-            {reserves.map((r, i) => (
-              <ReserveRow key={r.id || i} reserve={r} />
-            ))}
-          </div>
-        )}
-
-        <div style={{ marginTop: 16, padding: 12, background: BG, borderRadius: 10, fontSize: 12, color: TX2, lineHeight: 1.6 }}>
-          En signant ci-dessous, vous certifiez avoir pris connaissance des réserves listées.
-          Votre signature sera horodatée et transmise à l'architecte.
-        </div>
-      </div>
-
-      {/* Erreur */}
-      {error && (
-        <div style={{ margin: "0 24px 14px", padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 12, color: RD }}>
-          {error}
-        </div>
-      )}
-
-      {/* Actions */}
-      {!showCanvas && !showDeclineForm && (
-        <div style={{ padding: "0 24px 24px", display: "flex", gap: 10 }}>
-          <button onClick={() => setShowDeclineForm(true)} disabled={submitting}
-            style={{ flex: 1, padding: "12px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-            Refuser
-          </button>
-          <button onClick={() => setShowCanvas(true)} disabled={submitting}
-            style={{ flex: 2, padding: "12px 18px", border: "none", borderRadius: 10, background: AC, color: WH, fontSize: 14, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-            Signer le document
-          </button>
-        </div>
-      )}
-
-      {/* Decline form */}
-      {showDeclineForm && (
-        <div style={{ padding: "0 24px 24px" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>Motif (facultatif)</div>
-          <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)} rows={3}
-            placeholder="Pourquoi refusez-vous de signer ?"
-            style={{ width: "100%", padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", resize: "vertical" }} />
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button onClick={() => setShowDeclineForm(false)} disabled={submitting}
-              style={{ flex: 1, padding: "11px 14px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              Annuler
-            </button>
-            <button onClick={() => onDecline(declineReason)} disabled={submitting}
-              style={{ flex: 1, padding: "11px 14px", border: "none", borderRadius: 10, background: RD, color: WH, fontSize: 13, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-              Confirmer le refus
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Canvas pad inline */}
-      {showCanvas && (
-        <div style={{ padding: "0 24px 24px" }}>
-          <SignaturePad onCancel={() => setShowCanvas(false)} onSubmit={onSubmit} submitting={submitting} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Réserve row read-only ───────────────────────────────────
-function ReserveRow({ reserve }) {
-  const sevColor = reserve.severity === "critical" ? RD
-    : reserve.severity === "major" ? "#D97706"
-    : TX3;
-  const sevLabel = reserve.severity === "critical" ? "Critique"
-    : reserve.severity === "major" ? "Majeure"
-    : reserve.severity === "minor" ? "Mineure"
-    : "Esthétique";
-  const statColor = reserve.status === "levee" ? GR
-    : reserve.status === "partiellement_levee" ? "#D97706"
-    : RD;
-  const statLabel = reserve.status === "levee" ? "Levée"
-    : reserve.status === "partiellement_levee" ? "En cours"
-    : "Non levée";
-
-  return (
-    <div style={{ background: WH, border: `1px solid ${reserve.severity === "critical" && reserve.status !== "levee" ? "#FECACA" : SBB}`, borderRadius: 8, padding: "10px 12px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: TX, fontFamily: "monospace" }}>{reserve.code || "—"}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: sevColor, background: sevColor + "1A", padding: "2px 6px", borderRadius: 4 }}>{sevLabel.toUpperCase()}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: statColor, background: statColor + "1A", padding: "2px 6px", borderRadius: 4 }}>{statLabel.toUpperCase()}</span>
-        {reserve.contractor && <span style={{ marginLeft: "auto", fontSize: 11, color: TX3 }}>{reserve.contractor}</span>}
-      </div>
-      <div style={{ fontSize: 13, color: TX, lineHeight: 1.5 }}>{reserve.description}</div>
-      {(reserve.location || reserve.deadline) && (
-        <div style={{ fontSize: 11, color: TX3, marginTop: 4 }}>
-          {reserve.location && <span>📍 {reserve.location}</span>}
-          {reserve.location && reserve.deadline && <span> · </span>}
-          {reserve.deadline && <span>Échéance {reserve.deadline}</span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Canvas signature inline ─────────────────────────────────
-function SignaturePad({ onCancel, onSubmit, submitting }) {
-  const canvasRef = useRef(null);
-  const [drawing, setDrawing] = useState(false);
-  const [hasInk, setHasInk] = useState(false);
-  const lastPt = useRef({ x: 0, y: 0 });
-
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvas = canvasRef.current; if (!canvas) return;
     const ratio = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
+    canvas.width = rect.width * ratio; canvas.height = rect.height * ratio;
     const ctx = canvas.getContext("2d");
     ctx.scale(ratio, ratio);
-    ctx.fillStyle = WH;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = TX;
+    ctx.fillStyle = "#FCFBFA"; ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 2.5; ctx.strokeStyle = TX;
   }, []);
 
-  const getPoint = (e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    if (e.touches && e.touches.length > 0) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-  const start = (e) => { e.preventDefault(); setDrawing(true); lastPt.current = getPoint(e); };
-  const move = (e) => {
-    if (!drawing) return;
-    e.preventDefault();
-    const ctx = canvasRef.current.getContext("2d");
-    const pt = getPoint(e);
-    ctx.beginPath();
-    ctx.moveTo(lastPt.current.x, lastPt.current.y);
-    ctx.lineTo(pt.x, pt.y);
-    ctx.stroke();
-    lastPt.current = pt;
-    if (!hasInk) setHasInk(true);
-  };
-  const end = () => setDrawing(false);
+  const pt = (e) => { const r = canvasRef.current.getBoundingClientRect(); const t = e.touches?.[0]; return { x: (t ? t.clientX : e.clientX) - r.left, y: (t ? t.clientY : e.clientY) - r.top }; };
+  const down = (e) => { e.preventDefault(); drawing.current = true; lastPt.current = pt(e); };
+  const moveE = (e) => { if (!drawing.current) return; e.preventDefault(); const ctx = canvasRef.current.getContext("2d"); const p = pt(e); ctx.beginPath(); ctx.moveTo(lastPt.current.x, lastPt.current.y); ctx.lineTo(p.x, p.y); ctx.stroke(); lastPt.current = p; if (!hasInk) setHasInk(true); };
+  const up = () => { drawing.current = false; };
+  const clear = () => { const c = canvasRef.current; const ctx = c.getContext("2d"); const r = c.getBoundingClientRect(); ctx.fillStyle = "#FCFBFA"; ctx.fillRect(0, 0, r.width, r.height); setHasInk(false); };
+  const sign = () => { if (!hasInk || !consent || submitting) return; onSubmit(canvasRef.current.toDataURL("image/png")); };
 
-  const clear = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const rect = canvas.getBoundingClientRect();
-    ctx.fillStyle = WH;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    setHasInk(false);
-  };
-
-  const validate = () => {
-    if (!hasInk || submitting) return;
-    onSubmit(canvasRef.current.toDataURL("image/png"));
-  };
+  const reserves = request.reserves || [];
+  const crit = reserves.filter(r => r.severity === "critical").length;
+  const minor = reserves.length - crit;
+  const expiry = request.expires_at ? new Date(request.expires_at) : null;
+  const sender = request.sender_name || request.architect_name || null;
+  const canSign = hasInk && consent && !submitting;
 
   return (
     <>
-      <div style={{ fontSize: 12, color: TX3, marginBottom: 8 }}>
-        Signez dans la zone ci-dessous (souris ou doigt sur écran tactile).
+      {/* Intro */}
+      <div style={{ textAlign: "center", marginBottom: 22 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", color: ACD, marginBottom: 8 }}>Demande de signature · OPR</div>
+        <h1 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>Procès-verbal de réception</h1>
+        <div style={{ fontSize: 14, color: TX3, lineHeight: 1.55 }}>{request.project_name}{sender ? <> · transmis par <b style={{ color: TX2 }}>{sender}</b></> : ""}.<br />Merci de vérifier les réserves puis de signer ci-dessous.</div>
       </div>
-      <canvas
-        ref={canvasRef}
-        onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-        onTouchStart={start} onTouchMove={move} onTouchEnd={end}
-        style={{ width: "100%", height: 200, border: `2px dashed ${SBB}`, borderRadius: 10, background: WH, touchAction: "none", cursor: "crosshair", display: "block" }}
-      />
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button onClick={onCancel} disabled={submitting}
-          style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: submitting ? "not-allowed" : "pointer", fontSize: 13, fontFamily: "inherit", color: TX2 }}>
-          Annuler
-        </button>
-        <button onClick={clear} disabled={!hasInk || submitting}
-          style={{ flex: 1, padding: 11, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: hasInk && !submitting ? "pointer" : "not-allowed", fontSize: 13, fontFamily: "inherit", color: hasInk ? TX2 : "#A09D96" }}>
-          Effacer
-        </button>
-        <button onClick={validate} disabled={!hasInk || submitting}
-          style={{ flex: 2, padding: 11, border: "none", borderRadius: 8, background: hasInk && !submitting ? AC : "#E0DDD6", color: hasInk && !submitting ? WH : "#9E9B96", fontSize: 13, fontWeight: 700, cursor: hasInk && !submitting ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-          {submitting ? "Envoi..." : "Valider la signature"}
-        </button>
+
+      {/* Bandeau expiration */}
+      {expiry && !isNaN(+expiry) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 9, background: AMBG, border: `1px solid ${AMBD}`, borderRadius: 11, padding: "11px 14px", marginBottom: 18 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={AM} strokeWidth="1.8"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></svg>
+          <span style={{ fontSize: 13, color: AM }}>Ce lien expire le <b>{expiry.toLocaleDateString("fr-BE", { day: "numeric", month: "long", year: "numeric" })}</b>. Aucun compte n'est requis.</span>
+        </div>
+      )}
+
+      {/* Récap réserves */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, overflow: "hidden", marginBottom: 18 }}>
+        <div style={{ padding: "13px 16px", borderBottom: "1px solid #EFEDEB", display: "flex", alignItems: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{reserves.length} réserve{reserves.length > 1 ? "s" : ""}{reserves.length ? " à lever" : ""}</span>
+          {reserves.length > 0 && <span style={{ marginLeft: "auto", fontSize: 12, color: TX4 }}>{crit} critique{crit > 1 ? "s" : ""} · {minor} mineure{minor > 1 ? "s" : ""}</span>}
+        </div>
+        {reserves.length === 0 ? (
+          <div style={{ padding: 16, textAlign: "center", fontSize: 13, color: GR, fontWeight: 600, background: GRBG }}>Aucune réserve constatée — réception sans réserve.</div>
+        ) : reserves.map((r, i) => <ReserveRow key={r.id || i} reserve={r} last={i === reserves.length - 1} />)}
+      </div>
+
+      {/* Signature */}
+      <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 18, marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>Votre signature</span>
+          <button onClick={clear} disabled={!hasInk} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 12, color: hasInk ? ACD : TX4, cursor: hasInk ? "pointer" : "default", fontFamily: "inherit" }}>Effacer</button>
+        </div>
+        <div style={{ position: "relative" }}>
+          <canvas ref={canvasRef} onMouseDown={down} onMouseMove={moveE} onMouseUp={up} onMouseLeave={up} onTouchStart={down} onTouchMove={moveE} onTouchEnd={up}
+            style={{ width: "100%", height: 150, border: "1.5px dashed #D6D3D1", borderRadius: 11, background: "#FCFBFA", touchAction: "none", cursor: "crosshair", display: "block" }} />
+          {!hasInk && <span style={{ position: "absolute", bottom: 8, left: 0, right: 0, textAlign: "center", fontSize: 11, color: "#C7C2BD", pointerEvents: "none" }}>Signez avec la souris ou le doigt</span>}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 6 }}>Nom &amp; qualité</div>
+          <div style={{ height: 42, border: `1px solid ${SBB}`, borderRadius: 10, background: WH, display: "flex", alignItems: "center", padding: "0 13px", fontSize: 14, color: TX }}>{request.signatory_name}{request.signatory_role ? ` · ${request.signatory_role}` : ""}</div>
+        </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 14, cursor: "pointer" }} onClick={() => setConsent(c => !c)}>
+          <span style={{ width: 18, height: 18, borderRadius: 5, background: consent ? AC : WH, border: consent ? "none" : `1.5px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>{consent && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}</span>
+          <span style={{ fontSize: 12, color: TX3, lineHeight: 1.5 }}>Je reconnais avoir pris connaissance des réserves listées et j'accepte de les signer électroniquement (valeur légale).</span>
+        </label>
+      </div>
+
+      {error && <div style={{ marginBottom: 14, padding: "10px 14px", background: REDBG, border: `1px solid ${REDBD}`, borderRadius: 8, fontSize: 12, color: RD }}>{error}</div>}
+
+      {/* Refus inline ou actions */}
+      {declineOpen ? (
+        <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 11, padding: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>Motif du refus (facultatif)</div>
+          <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)} rows={3} placeholder="Pourquoi refusez-vous de signer ?" style={{ width: "100%", padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box", resize: "vertical" }} />
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={() => setDeclineOpen(false)} disabled={submitting} style={{ flex: 1, height: 44, border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Annuler</button>
+            <button onClick={() => onDecline(declineReason)} disabled={submitting} style={{ flex: 1, height: 44, border: "none", borderRadius: 10, background: RD, color: "#fff", fontSize: 13, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>Confirmer le refus</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setDeclineOpen(true)} disabled={submitting} style={{ height: 48, padding: "0 18px", background: WH, border: `1px solid ${SBB}`, borderRadius: 11, fontSize: 14, fontWeight: 600, color: RD, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>Refuser</button>
+          <button onClick={sign} disabled={!canSign} style={{ flex: 1, height: 48, background: canSign ? AC : "#E0DDD6", color: canSign ? "#fff" : "#9E9B96", border: "none", borderRadius: 11, fontSize: 15, fontWeight: 700, cursor: canSign ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6 9 17l-5-5" /></svg>{submitting ? "Envoi…" : "Signer le procès-verbal"}
+          </button>
+        </div>
+      )}
+
+      {/* Footer confiance */}
+      <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: TX4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>Connexion chiffrée · horodatage certifié · conforme eIDAS
       </div>
     </>
+  );
+}
+
+// ── Ligne de réserve (récap compact) ─────────────────────────
+function ReserveRow({ reserve, last }) {
+  const strong = reserve.severity === "critical" || reserve.severity === "major";
+  const sevLabel = reserve.severity === "critical" ? "Critique" : reserve.severity === "major" ? "Majeure" : reserve.severity === "minor" ? "Mineure" : "Esthétique";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: last ? "none" : "1px solid #F5F2EF" }}>
+      <span style={{ fontSize: 12, fontFamily: "ui-monospace, monospace", color: TX4, width: 46, flexShrink: 0 }}>{reserve.code || "—"}</span>
+      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: strong ? REDBG : "#F5F5F4", color: strong ? RD : TX3, fontWeight: 600, width: 60, textAlign: "center", flexShrink: 0 }}>{sevLabel}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: TX, lineHeight: 1.4 }}>{reserve.description}</span>
+    </div>
   );
 }
