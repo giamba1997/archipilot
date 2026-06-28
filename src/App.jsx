@@ -71,6 +71,7 @@ import { GuidedTour } from "./components/modals/GuidedTour";
 import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { PvComposer } from "./pages/PvComposer";
+import { Account } from "./pages/Account";
 
 // ── Détection v2 ────────────────────────────────────────────
 // La nouvelle page projet (`src/pages/ProjectDetail.jsx`) cohabite avec
@@ -1472,12 +1473,16 @@ export default function App() {
           </div>
           </div>{/* end right section */}
         </div>
-        <div className="ap-content" style={{ padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
+        <div className="ap-content" style={view === "profile" && !isMobile ? { padding: 0, maxWidth: "none", margin: 0 } : { padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
           {view === "profile" && (
-            <div>
-              {profileSaved && <div style={{ padding: "10px 16px", background: "#EAF3DE", borderRadius: 8, color: GR, fontSize: 13, marginBottom: 16, fontWeight: 500 }}>Profil enregistré !</div>}
-              <ProfileView profile={profile} onSave={saveProfile} />
-            </div>
+            isMobile ? (
+              <div style={{ padding: "20px 28px" }}>
+                {profileSaved && <div style={{ padding: "10px 16px", background: "#EAF3DE", borderRadius: 8, color: GR, fontSize: 13, marginBottom: 16, fontWeight: 500 }}>Profil enregistré !</div>}
+                <ProfileView profile={profile} onSave={saveProfile} />
+              </div>
+            ) : (
+              <Account profile={profile} onSave={saveProfile} />
+            )
           )}
           {/* v2 — Mode preview : si l'URL est /p/:id, on bascule sur la nouvelle
               ProjectDetail. Le projet rendu = le projet actuellement sélectionné

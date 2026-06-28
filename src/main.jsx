@@ -5,11 +5,16 @@ import { AuthProvider, useAuth, AuthPage, ResetPasswordPage, MfaVerifyPage } fro
 import App from './App.jsx'
 import { PublicSignPage } from './views/PublicSignPage'
 import { PvComposer } from './pages/PvComposer'
+import { Account } from './pages/Account'
 import { isEnabled } from './constants/featureFlags'
 
 // Route preview du composer de PV v2 (design Direction D) : /pv/demo
 const pvComposerDemo = (() => {
   try { return window.location.pathname === "/pv/demo"; } catch { return false; }
+})();
+// Route preview de la page Compte v2 : /compte/demo
+const accountDemo = (() => {
+  try { return window.location.pathname === "/compte/demo"; } catch { return false; }
 })();
 
 // Initialize Sentry before anything else
@@ -70,6 +75,8 @@ function Root() {
   if (mfaRequired) return <MfaVerifyPage />;
 
   if (pvComposerDemo) return <ErrorBoundary><PvComposer onClose={() => { window.location.href = "/"; }} /></ErrorBoundary>;
+
+  if (accountDemo) return <ErrorBoundary><div style={{ height: "100vh" }}><Account demo /></div></ErrorBoundary>;
 
   return <ErrorBoundary><App /></ErrorBoundary>;
 }
