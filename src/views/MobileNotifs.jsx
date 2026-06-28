@@ -70,6 +70,17 @@ function fmtDate(iso) {
   } catch { return ""; }
 }
 
+// Temps relatif court : "il y a 12 min" / "il y a 2 h" / "hier · 14:05" / "lun. · 11:20".
+function relTime(iso) {
+  try {
+    const d = new Date(iso); const s = (Date.now() - d.getTime()) / 1000;
+    if (s < 3600) return `il y a ${Math.max(1, Math.floor(s / 60))} min`;
+    if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
+    if (s < 172800) return `hier · ${d.toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" })}`;
+    return d.toLocaleDateString("fr-BE", { weekday: "short" }) + " · " + d.toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" });
+  } catch { return ""; }
+}
+
 export function MobileNotifs({
   projects = [],
   notifications = [],
@@ -148,28 +159,14 @@ export function MobileNotifs({
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", paddingBottom: SP.xl * 4 }}>
-      {/* Sticky header */}
-      <div style={{ position: "sticky", top: 0, background: WH, zIndex: 10, padding: `${SP.md}px ${SP.md}px ${SP.sm}px`, borderBottom: `1px solid ${SBB}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {onBack && (
-            <button onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", padding: 4, cursor: "pointer", marginLeft: -4 }}>
-              <Ico name="back" size={20} color={TX} />
-            </button>
-          )}
-          <h1 style={{ flex: 1, fontSize: 18, fontWeight: 800, color: TX, margin: 0, letterSpacing: -0.2 }}>
-            Notifs
-            {unread.length > 0 && (
-              <span style={{ fontSize: 12, fontWeight: 700, color: AC, marginLeft: 8, padding: "2px 8px", borderRadius: 999, background: ACL }}>
-                {unread.length} non lue{unread.length > 1 ? "s" : ""}
-              </span>
-            )}
-          </h1>
-          {unread.length > 0 && (
-            <button onClick={onMarkAllRead} aria-label="Tout marquer lu" style={{ background: "none", border: "none", padding: 6, cursor: "pointer", fontSize: 12, color: AC, fontWeight: 600, fontFamily: "inherit" }}>
-              Tout lu
-            </button>
-          )}
-        </div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 20px 14px" }}>
+        <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>Notifications</h1>
+        {unread.length > 0 && (
+          <button onClick={onMarkAllRead} aria-label="Tout marquer lu" style={{ background: "none", border: "none", padding: 6, cursor: "pointer", fontSize: 13, color: "#A04C20", fontWeight: 600, fontFamily: "inherit" }}>
+            Tout lire
+          </button>
+        )}
       </div>
 
       <div style={{ padding: `${SP.md}px ${SP.md}px 0` }}>
@@ -224,7 +221,7 @@ export function MobileNotifs({
 
         {/* ── Notifications non lues ── */}
         {unread.length > 0 && (
-          <Section title={`Notifications (${unread.length})`} iconName="bell" color={AC}>
+          <Section title="Nouveau" iconName="bell" color={AC}>
             {unread.map(n => (
               <NotifCard
                 key={n.id}
@@ -247,7 +244,7 @@ export function MobileNotifs({
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Ico name="history" size={14} color={TX3} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: 0.6 }}>
-                  Historique ({read.length})
+                  Plus tôt ({read.length})
                 </span>
               </span>
               <Ico name={readExpanded ? "chevron-up" : "chevron-down"} size={14} color={TX3} />
@@ -339,28 +336,31 @@ function NotifCard({ notification: n, onClick, onDelete, dim }) {
     <div
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "flex-start", gap: 10,
-        padding: "12px 14px",
-        border: `1px solid ${SBB}`,
-        background: dim ? SB : WH,
-        borderRadius: RAD.md,
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "14px",
+        paddingLeft: dim ? 14 : 18,
+        border: "1px solid #EFEDEB",
+        background: WH,
+        borderRadius: 14,
         cursor: "pointer",
-        opacity: dim ? 0.85 : 1,
+        opacity: dim ? 0.78 : 1,
+        position: "relative",
       }}
     >
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: ico.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Ico name={ico.name} size={16} color={ico.color} />
+      {!dim && <div style={{ position: "absolute", left: 6, top: "50%", transform: "translateY(-50%)", width: 7, height: 7, borderRadius: 999, background: AC }} />}
+      <div style={{ width: 40, height: 40, borderRadius: 11, background: ico.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Ico name={ico.name} size={19} color={ico.color} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, color: TX, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 14, color: TX, lineHeight: 1.45 }}>
           {notifMessage(n)}
         </div>
-        <div style={{ fontSize: 10, color: TX3, marginTop: 3 }}>{fmtDate(n.created_at)}</div>
+        <div style={{ fontSize: 12, color: TX3, marginTop: 3 }}>{relTime(n.created_at)}</div>
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
         aria-label="Supprimer"
-        style={{ background: "none", border: "none", cursor: "pointer", padding: 6, flexShrink: 0, marginTop: -2 }}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 6, flexShrink: 0 }}
       >
         <Ico name="x" size={13} color={TX3} />
       </button>
