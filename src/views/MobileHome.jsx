@@ -96,6 +96,7 @@ export function MobileHome({
   onOpenNewProject,
   onResumeChantier,
   onStartVisit,
+  onProfile,
 }) {
   const [permits, setPermits] = useState([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
@@ -229,7 +230,7 @@ export function MobileHome({
           <div style={{ fontSize: 13, color: TX3, fontWeight: 500 }}>{dateLabel}</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>{greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}</div>
         </div>
-        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#F5DCC9", color: "#8B3A14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{initials}</div>
+        <button onClick={() => onProfile?.()} aria-label="Mon profil" style={{ width: 40, height: 40, borderRadius: "50%", background: "#F5DCC9", color: "#8B3A14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0, border: "none", cursor: "pointer", fontFamily: "inherit" }}>{initials}</button>
       </header>
 
       {/* CTA héros : démarrer / reprendre une visite (mains libres) */}

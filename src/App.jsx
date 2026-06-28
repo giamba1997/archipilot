@@ -1712,6 +1712,7 @@ export default function App() {
               onOpenNewProject={() => setModal("new")}
               onResumeChantier={(id) => { setActiveId(id); setView("chantier"); }}
               onStartVisit={() => { setPendingVisit(true); setView("chantiersList"); }}
+              onProfile={() => setView("profile")}
             />
           )}
           {view === "chantiersList" && (

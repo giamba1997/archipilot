@@ -54,54 +54,21 @@ function Tab({ id, icon, label, active, onNavigate, badge }) {
 // le FAB Visite affiche un ring pulsé pour rappeler à l'archi qu'il peut
 // reprendre. Visible sur toutes les pages — réutilise le FAB comme
 // indicateur global plutôt que d'ajouter une banner dupliquée.
-export function MobileBottomBar({ view, onNavigate, onStartChantier, onNotifs, notifsOpen, unreadCount = 0, visitActive = false }) {
+// v4 — Tab bar = destinations uniquement (handoff_mobile) :
+// [Accueil] [Chantiers] [Notifs]. La visite est devenue le CTA héros de
+// l'accueil ; le profil passe par l'avatar ; l'assistant a son FAB ✦ dédié.
+export function MobileBottomBar({ view, onNavigate, onNotifs, notifsOpen, unreadCount = 0 }) {
   const isActive = (id) =>
     view === id
     || (id === "overview"  && (view === "overview" || view === "mobileHome"))
     || (id === "chantiers" && view === "chantiersList")
-    || (id === "notifs"    && notifsOpen)
-    || (id === "chantier"  && view === "chantier");
+    || (id === "notifs"    && notifsOpen);
   return (
-    <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      {/* Background shape — full width, deep bump hugging the 56px circle */}
-      <svg style={{ position: "absolute", top: -36, left: 0, width: "100%", height: "calc(100% + 36px)", pointerEvents: "none", filter: "drop-shadow(0 -1px 3px rgba(0,0,0,0.06))" }} viewBox="0 0 400 98" preserveAspectRatio="none">
-        <path d="M0,36 L140,36 C150,36 155,35 160,30 C168,20 177,2 200,2 C223,2 232,20 240,30 C245,35 250,36 260,36 L400,36 L400,98 L0,98 Z" fill={WH} />
-        <path d="M0,36 L140,36 C150,36 155,35 160,30 C168,20 177,2 200,2 C223,2 232,20 240,30 C245,35 250,36 260,36 L400,36" fill="none" stroke={SBB} strokeWidth="0.7" />
-      </svg>
-      <div style={{ position: "relative", display: "flex", alignItems: "flex-end", height: 60, padding: "0 4px" }}>
-        {/* Left tabs */}
-        <Tab id="overview"  icon="home"   label="Accueil"   active={isActive("overview")}  onNavigate={onNavigate} />
-        <Tab id="chantiers" icon="folder" label="Chantiers" active={isActive("chantiers")} onNavigate={onNavigate} />
-        {/* Center FAB — démarre une visite Mode Chantier. L'icône `building`
-            évoque le chantier ; le libellé "Visite" lève l'ambiguïté.
-            Si une visite est en cours, un ring pulsé entoure le FAB pour
-            rappeler à l'archi qu'il peut reprendre (indicateur global,
-            visible sur toutes les pages). */}
-        <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <button onClick={onStartChantier} aria-label={visitActive ? "Reprendre la visite en cours" : "Démarrer une visite chantier"} style={{ width: 62, height: 62, borderRadius: "50%", background: `linear-gradient(145deg, ${AC} 0%, #A04C20 100%)`, border: "none", boxShadow: `0 0 20px rgba(184,92,44,0.4), 0 0 40px rgba(184,92,44,0.15)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, cursor: "pointer", padding: 0, fontFamily: "inherit", position: "absolute", bottom: 14 }}>
-            {visitActive && (
-              <>
-                <span style={{ position: "absolute", inset: -4, borderRadius: "50%", border: `2.5px solid ${WH}`, boxShadow: `0 0 0 2px ${AC}`, animation: "fabVisitePulse 1.8s ease-in-out infinite", pointerEvents: "none" }} />
-                <span style={{ position: "absolute", top: 4, right: 4, width: 9, height: 9, borderRadius: "50%", background: "#fff", border: `2px solid ${AC}`, animation: "fabVisiteDot 1.8s ease-in-out infinite", pointerEvents: "none" }} />
-              </>
-            )}
-            <Ico name="building" size={28} color="#fff" />
-            <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", width: "100%" }}>{visitActive ? "Reprendre" : "Visite"}</span>
-          </button>
-        </div>
-        <style>{`
-          @keyframes fabVisitePulse {
-            0%, 100% { transform: scale(1); opacity: 0.85; }
-            50% { transform: scale(1.08); opacity: 0.4; }
-          }
-          @keyframes fabVisiteDot {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.25); }
-          }
-        `}</style>
-        {/* Right tabs */}
-        <Tab id="notifs"  icon="bell" label="Notifs" active={isActive("notifs")}  onNavigate={onNotifs}  badge={unreadCount} />
-        <Tab id="profile" icon="user" label="Moi"    active={isActive("profile")} onNavigate={onNavigate} />
+    <nav className="ap-mobile-bar" style={{ display: "none", position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, height: 84, paddingTop: 10, paddingBottom: "env(safe-area-inset-bottom, 0px)", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(12px)", borderTop: "1px solid #EFEDEB" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", height: 60 }}>
+        <Tab id="overview"  icon="home"     label="Accueil"   active={isActive("overview")}  onNavigate={onNavigate} />
+        <Tab id="chantiers" icon="building" label="Chantiers" active={isActive("chantiers")} onNavigate={onNavigate} />
+        <Tab id="notifs"    icon="bell"     label="Notifs"    active={isActive("notifs")}    onNavigate={onNotifs} badge={unreadCount} />
       </div>
     </nav>
   );
