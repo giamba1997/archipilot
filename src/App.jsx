@@ -70,6 +70,7 @@ import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
 import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { DashboardHome } from "./views/DashboardHome";
+import { CommandPalette } from "./components/CommandPalette";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { PvComposer } from "./pages/PvComposer";
 import { Account } from "./pages/Account";
@@ -2462,10 +2463,13 @@ Règles :
 
       {/* Bannière offline */}
       {showSearch && (
-        <SearchModal
+        <CommandPalette
           projects={projects}
           onClose={() => setShowSearch(false)}
-          onOpen={(projId, pv) => { setActiveId(projId); setView("overview"); setModalData(pv); setModal("viewpv"); }}
+          onOpenProject={(id) => { setActiveId(id); setView("overview"); }}
+          onOpenPv={(projId, pv) => { setActiveId(projId); setView("overview"); setModalData(pv); setModal("viewpv"); }}
+          onNewPv={() => { setShowSearch(false); tryStartNewPv(); }}
+          onNewProject={() => { setShowSearch(false); tryOpenNewProject(); }}
         />
       )}
 
