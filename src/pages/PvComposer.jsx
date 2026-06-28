@@ -286,7 +286,7 @@ export function PvComposer({
       {/* ── Contenu ── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
-        {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => setStep("saisie")} onCancel={() => setStep("choice")} />}
+        {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
@@ -561,7 +561,7 @@ function AudioStep({ project, meta, demo, onApply, onDone, onCancel }) {
           <Waveform stream={null} active={recording} />
           <div style={{ marginLeft: "auto", flexShrink: 0 }}>
             {phase === "recording" && <Button variant="primary" size="lg" onClick={finishRec}>Terminer &amp; transcrire</Button>}
-            {phase === "done" && <Button variant="primary" size="lg" rightIcon={<I.chevron size={15} />} onClick={onDone}>Réviser la saisie</Button>}
+            {phase === "done" && <Button variant="primary" size="lg" rightIcon={<I.chevron size={15} />} onClick={onDone}>Continuer vers la rédaction</Button>}
             {phase === "error" && <Button variant="secondary" size="lg" onClick={onCancel}>Retour</Button>}
           </div>
         </div>
