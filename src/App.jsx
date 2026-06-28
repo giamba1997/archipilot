@@ -71,6 +71,7 @@ import { GuidedTour } from "./components/modals/GuidedTour";
 import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
 import { DashboardHome } from "./views/DashboardHome";
 import { CommandPalette } from "./components/CommandPalette";
+import { MobilePvDetail } from "./views/MobilePvDetail";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { PvComposer } from "./pages/PvComposer";
 import { Account } from "./pages/Account";
@@ -2361,7 +2362,11 @@ Règles :
         })()}
       </Modal>
 
-      <Modal open={modal === "viewpv"} onClose={() => { setModal(null); setModalData(d => d ? { ...d, _showSend: false } : d); }} title={modalData ? `PV n°${modalData.number} — ${modalData.date}` : ""} wide>
+      {/* Mobile : détail PV plein écran (lecture). Desktop : modal ci-dessous. */}
+      {isMobile && modal === "viewpv" && modalData && (
+        <MobilePvDetail pv={modalData} project={project} profile={profile} onClose={() => { setModal(null); setModalData(null); }} />
+      )}
+      <Modal open={!isMobile && modal === "viewpv"} onClose={() => { setModal(null); setModalData(d => d ? { ...d, _showSend: false } : d); }} title={modalData ? `PV n°${modalData.number} — ${modalData.date}` : ""} wide>
         {modalData && (() => {
           const hasInput = modalData.inputNotes && modalData.inputNotes.length > 0;
           const pvTab = modalData._tab || "output";
