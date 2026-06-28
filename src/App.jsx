@@ -1519,12 +1519,12 @@ export default function App() {
               }}
               onPermits={() => setView("permits")}
               onReports={() => setView("reports")}
-              onAddAction={({ text, who, urgent }) => {
+              onAddAction={({ text, who, urgent, due }) => {
                 setProjects(prev => prev.map(p => {
                   if (p.id !== activeId) return p;
                   const id = Math.max(0, ...(p.actions || []).map(a => a.id || 0)) + 1;
                   const newAction = {
-                    id, text, who: who || "", urgent: !!urgent, open: true, since: "",
+                    id, text, who: who || "", urgent: !!urgent, due: due || "", open: true, status: "todo", since: "",
                     createdAt: new Date().toISOString(), createdBy: profile?.name || "—",
                   };
                   return { ...p, actions: [...(p.actions || []), newAction] };
@@ -1535,6 +1535,25 @@ export default function App() {
                 // Bascule rapide résolu / à traiter depuis le board v2.
                 setProjects(prev => prev.map(p =>
                   p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => x.id === a.id ? { ...x, open: x.open === false ? true : false } : x) }
+                ));
+              }}
+              onMoveAction={(id, col) => {
+                // Drag & drop entre colonnes : todo / doing / done.
+                const patch = col === "done" ? { open: false, inProgress: false, status: "done" }
+                  : col === "doing" ? { open: true, inProgress: true, status: "doing" }
+                  : { open: true, inProgress: false, status: "todo" };
+                setProjects(prev => prev.map(p =>
+                  p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => String(x.id) === String(id) ? { ...x, ...patch } : x) }
+                ));
+              }}
+              onAssignAction={(id, who) => {
+                setProjects(prev => prev.map(p =>
+                  p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => String(x.id) === String(id) ? { ...x, who: who || "" } : x) }
+                ));
+              }}
+              onSetActionDue={(id, due) => {
+                setProjects(prev => prev.map(p =>
+                  p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => String(x.id) === String(id) ? { ...x, due: due || "" } : x) }
                 ));
               }}
               onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }}

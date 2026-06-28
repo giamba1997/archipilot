@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { tokens } from "../design/tokens";
 import { isEnabled } from "../constants/featureFlags";
 import { Button } from "../components/ui/v2/Button";
@@ -561,6 +561,9 @@ export function ProjectDetail({
   onNewAction,
   onAddAction,
   onOpenAction,
+  onMoveAction,
+  onAssignAction,
+  onSetActionDue,
   onViewPV,
   onViewPdf,
   onSendPv,
@@ -632,7 +635,7 @@ export function ProjectDetail({
   const planning    = useMemo(() => derivePlanning(project), [project]);
   const journal     = useMemo(() => deriveJournal(project), [project]);
 
-  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onGallery, onImportPhoto, onEditMeeting };
+  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onMoveAction, onAssignAction, onSetActionDue, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onGallery, onImportPhoto, onEditMeeting };
 
   return (
     <div
@@ -1379,6 +1382,94 @@ const ACTION_COLS = [
   { key: "done",  label: "Résolu",    dot: tokens.color.semantic.success.fg, done: true },
 ];
 
+// ── Sélecteurs réutilisables (assigné · échéance) ─────────────
+const ACT_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const ACT_DOW = ["L", "M", "M", "J", "V", "S", "D"];
+const isoCell = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+const dueShort = (due) => {
+  if (!due) return "";
+  const d = parseDateFR(due) || new Date(due);
+  if (isNaN(+d)) return String(due);
+  return d.toLocaleDateString("fr-BE", { day: "numeric", month: "short" });
+};
+function MiniDatePicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const base = value ? (parseDateFR(value) || new Date(value)) : new Date();
+  const safe = isNaN(+base) ? new Date() : base;
+  const [view, setView] = useState({ y: safe.getFullYear(), m: safe.getMonth() });
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const t = new Date(); const todayIso = isoCell(t.getFullYear(), t.getMonth(), t.getDate());
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7;
+  const nDays = new Date(view.y, view.m + 1, 0).getDate();
+  const cells = [...Array(firstDow).fill(null), ...Array.from({ length: nDays }, (_, i) => i + 1)];
+  const shift = (n) => setView(v => { const d = new Date(v.y, v.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const curIso = value ? (() => { const d = parseDateFR(value) || new Date(value); return isNaN(+d) ? "" : isoCell(d.getFullYear(), d.getMonth(), d.getDate()); })() : "";
+  return (
+    <div ref={ref} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button onClick={() => setOpen(o => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 24, padding: "0 8px", borderRadius: tokens.radius.full, border: `1px ${value ? "solid" : "dashed"} ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: value ? tokens.color.neutral[700] : tokens.color.neutral[500], cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: tokens.font.weight.medium }}>
+        <Svg size={11}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></Svg>{value ? dueShort(value) : "Échéance"}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 70, width: 230, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: tokens.space[3] }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tokens.space[2] }}>
+            <button onClick={() => shift(-1)} style={{ width: 24, height: 24, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer" }}><Svg size={14} sw={2}><polyline points="15 18 9 12 15 6" /></Svg></button>
+            <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, textTransform: "capitalize" }}>{ACT_MONTHS[view.m]} {view.y}</span>
+            <button onClick={() => shift(1)} style={{ width: 24, height: 24, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer" }}><Svg size={14} sw={2}><polyline points="9 6 15 12 9 18" /></Svg></button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>{ACT_DOW.map((d, i) => <span key={i} style={{ textAlign: "center", fontSize: 10, color: tokens.color.neutral[400] }}>{d}</span>)}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {cells.map((d, i) => {
+              if (d === null) return <span key={i} />;
+              const iso = isoCell(view.y, view.m, d), sel = iso === curIso, isToday = iso === todayIso;
+              return <button key={i} onClick={() => { onChange(iso); setOpen(false); }} style={{ height: 26, borderRadius: tokens.radius.full, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: sel ? tokens.font.weight.bold : tokens.font.weight.medium, background: sel ? tokens.color.brand[500] : isToday ? tokens.color.brand[50] : "transparent", color: sel ? "#fff" : tokens.color.neutral[900] }}>{d}</button>;
+            })}
+          </div>
+          {value && <button onClick={() => { onChange(""); setOpen(false); }} style={{ marginTop: tokens.space[2], width: "100%", height: 26, borderRadius: tokens.radius.md, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[500], cursor: "pointer", fontFamily: "inherit", fontSize: 11 }}>Effacer</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+function AssignMenu({ participants, value, onChange, avatarStyleFor }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const st = avatarStyleFor(value);
+  return (
+    <div ref={ref} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button onClick={() => setOpen(o => !o)} title={value || "Assigner"} style={value
+        ? { display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 8px 0 3px", borderRadius: tokens.radius.full, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: tokens.color.neutral[700] }
+        : { display: "inline-flex", alignItems: "center", gap: 4, height: 24, padding: "0 8px", borderRadius: tokens.radius.full, border: `1px dashed ${tokens.color.neutral[300]}`, background: tokens.color.neutral[0], cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: tokens.color.neutral[500] }}>
+        {value ? <><span style={{ width: 18, height: 18, borderRadius: tokens.radius.full, background: st.avBg, color: st.avFg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: tokens.font.weight.bold, fontSize: 9 }}>{initials(value)}</span>{value.split(" ")[0]}</> : <><Svg size={11}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></Svg>Assigner</>}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 70, minWidth: 180, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: 4, maxHeight: 240, overflowY: "auto" }}>
+          {(participants || []).filter(p => p.name).map((p, i) => {
+            const sel = p.name === value, ps = avatarStyleFor(p.name);
+            return <button key={i} onClick={() => { onChange(sel ? "" : p.name); setOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]}`, border: "none", borderRadius: tokens.radius.md, background: sel ? tokens.color.brand[50] : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+              <span style={{ width: 22, height: 22, borderRadius: tokens.radius.full, background: ps.avBg, color: ps.avFg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold, flexShrink: 0 }}>{initials(p.name)}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+              {sel && <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><Icons.check size={13} /></span>}
+            </button>;
+          })}
+          {value && <button onClick={() => { onChange(""); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: tokens.space[2], border: "none", borderTop: `1px solid ${tokens.color.neutral[100]}`, marginTop: 2, background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: tokens.color.neutral[500] }}>Retirer</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ActionsTab({ project, handlerMap }) {
   const [view, setView] = useState("board");
   const [adding, setAdding] = useState(false);
@@ -1421,11 +1512,11 @@ function ActionsTab({ project, handlerMap }) {
       {view === "board" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: tokens.space[4], alignItems: "start" }}>
           {ACTION_COLS.map(col => (
-            <ActionColumn key={col.key} col={col} cards={cols[col.key]} avatarStyleFor={avatarStyleFor} onOpen={handlerMap.onOpenAction} />
+            <ActionColumn key={col.key} col={col} cards={cols[col.key]} participants={project?.participants || []} avatarStyleFor={avatarStyleFor} onOpen={handlerMap.onOpenAction} onMove={handlerMap.onMoveAction} onAssign={handlerMap.onAssignAction} onDue={handlerMap.onSetActionDue} />
           ))}
         </div>
       ) : (
-        <ActionList cols={cols} avatarStyleFor={avatarStyleFor} onOpen={handlerMap.onOpenAction} />
+        <ActionList cols={cols} participants={project?.participants || []} avatarStyleFor={avatarStyleFor} onOpen={handlerMap.onOpenAction} onAssign={handlerMap.onAssignAction} onDue={handlerMap.onSetActionDue} />
       )}
     </div>
   );
@@ -1467,12 +1558,13 @@ function SegToggle({ value, onChange, options }) {
 function ActionComposer({ participants, onAdd, onCancel }) {
   const [text, setText] = useState("");
   const [who, setWho] = useState("");
+  const [due, setDue] = useState("");
   const [urgent, setUrgent] = useState(false);
   const [focused, setFocused] = useState(false);
 
   const submit = () => {
     if (!text.trim()) return;
-    onAdd({ text: text.trim(), who, urgent });
+    onAdd({ text: text.trim(), who, urgent, due });
   };
 
   return (
@@ -1522,6 +1614,9 @@ function ActionComposer({ participants, onAdd, onCancel }) {
             ))}
           </select>
 
+          {/* Échéance (date limite). */}
+          <MiniDatePicker value={due} onChange={setDue} />
+
           {/* Toggle Urgent. */}
           <button
             type="button"
@@ -1551,20 +1646,27 @@ function ActionComposer({ participants, onAdd, onCancel }) {
   );
 }
 
-function ActionColumn({ col, cards, avatarStyleFor, onOpen }) {
+function ActionColumn({ col, cards, participants, avatarStyleFor, onOpen, onMove, onAssign, onDue }) {
+  const [over, setOver] = useState(false);
+  const canDrop = !!onMove;
   return (
-    <div style={{ background: tokens.color.neutral[100], borderRadius: tokens.radius.lg, padding: tokens.space[3] }}>
+    <div
+      onDragOver={canDrop ? (e) => { e.preventDefault(); if (!over) setOver(true); } : undefined}
+      onDragLeave={canDrop ? (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(false); } : undefined}
+      onDrop={canDrop ? (e) => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData("text/plain"); if (id) onMove(id, col.key); } : undefined}
+      style={{ background: over ? tokens.color.brand[50] : tokens.color.neutral[100], borderRadius: tokens.radius.lg, padding: tokens.space[3], outline: over ? `2px dashed ${tokens.color.brand[400]}` : "2px solid transparent", outlineOffset: -2, transition: tokens.transition.base, minHeight: 90 }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `2px ${tokens.space[1]} ${tokens.space[3]}` }}>
         <span style={{ width: 8, height: 8, borderRadius: tokens.radius.full, background: col.dot }} />
         <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900] }}>{col.label}</span>
         <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{cards.length}</span>
       </div>
       {cards.length === 0 ? (
-        <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], padding: `${tokens.space[2]} ${tokens.space[1]}` }}>Aucune action</div>
+        <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[400], padding: `${tokens.space[3]} ${tokens.space[1]}`, textAlign: "center" }}>{canDrop ? "Glisse une action ici" : "Aucune action"}</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-          {cards.map((a, i) => (
-            <ActionCard key={i} a={a} done={col.done} avatarStyle={avatarStyleFor(a.assignee)} onOpen={onOpen} />
+          {cards.map((a) => (
+            <ActionCard key={a.id} a={a} col={col.key} done={col.done} participants={participants} avatarStyleFor={avatarStyleFor} onOpen={onOpen} onAssign={onAssign} onDue={onDue} draggable={canDrop} />
           ))}
         </div>
       )}
@@ -1572,21 +1674,23 @@ function ActionColumn({ col, cards, avatarStyleFor, onOpen }) {
   );
 }
 
-function ActionCard({ a, done, avatarStyle, onOpen }) {
+function ActionCard({ a, done, participants, avatarStyleFor, avatarStyle, onOpen, onAssign, onDue, draggable }) {
   const isUrgent = a.priority === "urgent" && !done;
-  const due = formatDue(a.due, done);
+  const styleFor = avatarStyleFor || (() => avatarStyle || ROLE_STYLE.neutral);
   return (
     <Card
+      draggable={draggable || undefined}
+      onDragStart={draggable ? (e) => { e.dataTransfer.setData("text/plain", String(a.id)); e.dataTransfer.effectAllowed = "move"; } : undefined}
       onClick={onOpen ? () => onOpen(a) : undefined}
       ariaLabel={`Action ${a.code} — ${a.title}`}
       padding={3}
       style={{
         borderRadius: tokens.radius.lg,
-        opacity: done ? 0.72 : 1,
+        opacity: done ? 0.78 : 1,
+        cursor: draggable ? "grab" : (onOpen ? "pointer" : "default"),
         ...(isUrgent ? { borderLeft: `3px solid ${tokens.color.semantic.danger.fg}` } : null),
       }}
     >
-      {/* Ligne haute : code + priorité (ou check si résolu) + source */}
       <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[2] }}>
         <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[300] }}>{a.code}</span>
         {done ? (
@@ -1594,37 +1698,32 @@ function ActionCard({ a, done, avatarStyle, onOpen }) {
         ) : (
           <PriorityTag priority={a.priority} />
         )}
-        {!done && a.source && (
+        {a.source && (
           <span style={{ marginLeft: "auto", fontSize: 10, padding: "1px 7px", borderRadius: tokens.radius.full, background: tokens.color.neutral[100], color: tokens.color.neutral[500] }}>{a.source}</span>
         )}
       </div>
 
-      {/* Titre */}
       <div style={{
         fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium, lineHeight: 1.4,
         color: done ? tokens.color.neutral[700] : tokens.color.neutral[900],
         textDecoration: done ? "line-through" : "none",
         textDecorationColor: done ? tokens.color.neutral[300] : undefined,
-        marginBottom: done ? 0 : tokens.space[2],
+        marginBottom: tokens.space[2],
       }}>
         {a.title}
       </div>
 
-      {/* Pied : assigné + échéance */}
-      {!done && (
-        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2] }}>
-          {a.assignee && (
-            <div title={a.assignee} style={{ width: 24, height: 24, borderRadius: tokens.radius.full, background: avatarStyle.avBg, color: avatarStyle.avFg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: tokens.font.weight.semibold, fontSize: 10, flexShrink: 0 }}>
-              {initials(a.assignee)}
-            </div>
-          )}
-          {due && (
-            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, fontWeight: due.overdue ? tokens.font.weight.semibold : tokens.font.weight.regular, color: due.overdue ? tokens.color.semantic.danger.fg : tokens.color.neutral[500] }}>
-              {due.text}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Pied éditable : assigné + échéance */}
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexWrap: "wrap" }}>
+        {onAssign
+          ? <AssignMenu participants={participants} value={a.assignee} onChange={(name) => onAssign(a.id, name)} avatarStyleFor={styleFor} />
+          : a.assignee && <span style={{ width: 24, height: 24, borderRadius: tokens.radius.full, background: styleFor(a.assignee).avBg, color: styleFor(a.assignee).avFg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: tokens.font.weight.semibold, fontSize: 10 }}>{initials(a.assignee)}</span>}
+        <span style={{ marginLeft: "auto" }}>
+          {onDue
+            ? <MiniDatePicker value={a.due} onChange={(v) => onDue(a.id, v)} />
+            : (() => { const d = formatDue(a.due, done); return d ? <span style={{ fontSize: tokens.font.size.xs, fontWeight: d.overdue ? tokens.font.weight.semibold : tokens.font.weight.regular, color: d.overdue ? tokens.color.semantic.danger.fg : tokens.color.neutral[500] }}>{d.text}</span> : null; })()}
+        </span>
+      </div>
     </Card>
   );
 }
@@ -1648,7 +1747,7 @@ function PriorityTag({ priority }) {
 }
 
 // Vue Liste — alternative compacte au board, regroupée par colonne.
-function ActionList({ cols, avatarStyleFor, onOpen }) {
+function ActionList({ cols, participants, avatarStyleFor, onOpen, onAssign, onDue }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[5] }}>
       {ACTION_COLS.map(col => (
@@ -1660,8 +1759,8 @@ function ActionList({ cols, avatarStyleFor, onOpen }) {
               <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{cols[col.key].length}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-              {cols[col.key].map((a, i) => (
-                <ActionCard key={i} a={a} done={col.done} avatarStyle={avatarStyleFor(a.assignee)} onOpen={onOpen} />
+              {cols[col.key].map((a) => (
+                <ActionCard key={a.id} a={a} col={col.key} done={col.done} participants={participants} avatarStyleFor={avatarStyleFor} onOpen={onOpen} onAssign={onAssign} onDue={onDue} />
               ))}
             </div>
           </div>
