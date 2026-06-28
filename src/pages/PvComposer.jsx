@@ -6,6 +6,7 @@ import { supabase } from "../supabase";
 import { parseFunctionError, track, sendPvByEmail } from "../db";
 import { generatePDF } from "../utils/pdf";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
+import { getCurrentPositionSafe, fetchWeatherAt } from "../utils/weather";
 import { nextPvNumber, parseNotesToRemarks, stripMarkdown, cleanPvOutput } from "../utils/helpers";
 import { PV_TEMPLATES } from "../constants/templates";
 import { useT } from "../i18n";
@@ -671,6 +672,10 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState(initialMode === "dictate" ? "dictate" : "write");
   const [status, setStatus] = useState("observation");
+  const [weather, setWeather] = useState(demo ? { temperature: 12, label: "Couvert" } : null);
+  const [wxState, setWxState] = useState(demo ? "ok" : "loading");
+  const startTime = useMemo(() => new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }), []);
+  const dateLabel = meta.meetingLabel || new Date().toLocaleDateString("fr-BE", { weekday: "short", day: "numeric", month: "long" });
 
   useEffect(() => { if (!postes.find(p => p.code === activePoste)) setActivePoste(postes[0]?.code); }, [postes, activePoste]);
 
@@ -709,13 +714,30 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
     }
   }, [demo, initialMode, recorder]);
 
+  // Météo réelle — chantier (project.geo) sinon position courante. Best effort.
+  useEffect(() => {
+    if (demo) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        let w = null;
+        const geo = project?.geo;
+        if (geo?.lat && geo?.lng) w = await fetchWeatherAt(geo.lat, geo.lng);
+        if (!w) { const pos = await getCurrentPositionSafe(); if (pos && !cancelled) w = await fetchWeatherAt(pos.lat, pos.lng); }
+        if (cancelled) return;
+        if (w) { setWeather(w); setWxState("ok"); } else setWxState("none");
+      } catch { if (!cancelled) setWxState("none"); }
+    })();
+    return () => { cancelled = true; };
+  }, [demo, project]);
+
   return (
     <>
       {/* Bandeau de contexte : date, météo, présents */}
       <div style={{ height: 52, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `0 ${tokens.space[5]}`, gap: tokens.space[3], overflowX: "auto" }}>
-        <CtxItem icon={<I.cal size={15} />}>{meta.meetingLabel || "Réunion"}</CtxItem>
+        <CtxItem icon={<I.cal size={15} />}>{dateLabel} · {startTime}</CtxItem>
         <Divider />
-        <CtxItem icon={<I.cloud size={15} />} muted>Météo auto</CtxItem>
+        <CtxItem icon={<I.cloud size={15} />} muted>{wxState === "loading" ? "Météo…" : weather ? `${weather.temperature}°C · ${weather.label}` : "Météo indisponible"}</CtxItem>
         <Divider />
         <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Présents</span>
         {présents.map((p, i) => <PresentChip key={i} ini={p.ini} name={p.name} present={p.present} />)}
