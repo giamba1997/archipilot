@@ -71,6 +71,7 @@ export function PvComposer({
 
   const [step, setStep] = useState("choice");
   const [saisieMode, setSaisieMode] = useState("write");
+  const [importOpen, setImportOpen] = useState(false);
   const [gen, setGen] = useState({ loading: false, content: "", error: "", suggestedTasks: [], saved: false });
   const today = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
   const finish = () => (onBack || onClose)?.();
@@ -284,12 +285,22 @@ export function PvComposer({
 
       {/* ── Contenu ── */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} />}
+        {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => setStep("saisie")} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
+
+      {importOpen && (
+        <ImportNotesModal
+          demo={demo}
+          project={project}
+          onClose={() => setImportOpen(false)}
+          onApply={applyDispatch}
+          onDone={() => { setImportOpen(false); setStep("saisie"); }}
+        />
+      )}
     </div>
   );
 }
@@ -312,7 +323,7 @@ function NaviButton({ onClick, icon, label, square }) {
 }
 
 // ── Écran Choix de la méthode ──
-function ChoiceStep({ meta, onChoose, onStartReal }) {
+function ChoiceStep({ meta, onChoose, onImport }) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `${tokens.space[10]} ${tokens.space[10]}`, minHeight: "100%", boxSizing: "border-box" }}>
       <div style={{ width: "100%", maxWidth: 760 }}>
@@ -352,7 +363,7 @@ function ChoiceStep({ meta, onChoose, onStartReal }) {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: tokens.space[4] }}>
-          <NaviButton onClick={() => onChoose("write")} icon={<I.upload size={15} />} label="Importer des notes (.txt)" />
+          <NaviButton onClick={onImport} icon={<I.upload size={15} />} label="Importer des notes (.txt)" />
           <div style={{ width: 1, height: 18, background: tokens.color.neutral[200] }} />
           <NaviButton onClick={() => onChoose("write")} icon={<I.redo size={15} />} label="Reprendre un brouillon" />
         </div>
@@ -1172,6 +1183,139 @@ function DiffTaskCard({ t, onAccept, onIgnore, demo }) {
 function MetaChip({ children, danger }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 26, padding: "0 10px", borderRadius: tokens.radius.md, background: danger ? tokens.color.semantic.danger.bg : tokens.color.neutral[100], border: `1px solid ${danger ? tokens.color.semantic.danger.border : tokens.color.neutral[200]}`, fontSize: tokens.font.size.xs, color: danger ? tokens.color.semantic.danger.fg : tokens.color.neutral[700] }}>{children}</span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Widget « Importer des notes » — fichier déposé / texte collé → IA range
+// ─────────────────────────────────────────────────────────────
+
+function fmtBytes(s) {
+  if (!s) return "—";
+  if (s < 1024) return `${s} o`;
+  if (s < 1048576) return `${Math.round(s / 1024)} Ko`;
+  return `${(s / 1048576).toFixed(1)} Mo`;
+}
+
+function ImportNotesModal({ demo, project, onClose, onApply, onDone }) {
+  const [tab, setTab] = useState("file");
+  const [file, setFile] = useState(null); // { name, size, text, lines }
+  const [paste, setPaste] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
+  const [err, setErr] = useState("");
+  const inputRef = useRef(null);
+
+  const readFile = (f) => {
+    setErr("");
+    if (!f) return;
+    if (f.size > 12 * 1024 * 1024) { setErr("Fichier trop volumineux (max 12 Mo)."); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = String(e.target.result || "");
+      setFile({ name: f.name, size: f.size, text, lines: text.split(/\r?\n/).filter(l => l.trim()).length });
+    };
+    reader.onerror = () => setErr("Lecture du fichier impossible.");
+    reader.readAsText(f);
+  };
+
+  const dispatchText = async () => {
+    const text = tab === "file" ? (file?.text || "") : paste;
+    if (!text.trim()) { setErr("Aucun texte à répartir."); return; }
+    if (demo) { onDone(); return; }
+    const posts = (project.posts || []).map(po => ({ id: po.id, label: po.label }));
+    if (!posts.length) { setErr("Aucun poste défini sur ce projet."); return; }
+    setErr(""); setDispatching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("dispatch-remarks", { body: { transcript: text, posts } });
+      if (error) throw new Error(error.message || "Erreur serveur");
+      if (data?.error) throw new Error(data.error);
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const norm = (id) => String(id).replace(/^0+/, "") || "0";
+      const postIds = posts.map(p => p.id);
+      const findPost = (raw) => { const s = String(raw); if (postIds.includes(s)) return s; return postIds.find(pid => norm(pid) === norm(s)) || postIds[0] || null; };
+      const grouped = {};
+      for (const it of items) { const rid = findPost(it.postId); if (!rid) continue; (grouped[rid] = grouped[rid] || []).push({ id: Date.now() + Math.random(), text: it.text, urgent: !!it.urgent, status: "open" }); }
+      onApply(grouped);
+      onDone();
+    } catch (e) { setErr(e.message || "Erreur"); setDispatching(false); }
+  };
+
+  const canSubmit = (tab === "file" ? !!file?.text?.trim() : !!paste.trim()) && !dispatching;
+  const ext = (file?.name || "").split(".").pop()?.toUpperCase().slice(0, 3) || "TXT";
+
+  return (
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(28,25,23,0.32)", display: "flex", alignItems: "center", justifyContent: "center", padding: tokens.space[5] }}>
+      <div onMouseDown={e => e.stopPropagation()} style={{ width: 560, maxWidth: "100%", background: tokens.color.neutral[0], borderRadius: tokens.radius.xl, boxShadow: "0 24px 60px rgba(28,25,23,0.28)", overflow: "hidden", fontFamily: tokens.font.family }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[5]} ${tokens.space[5]} ${tokens.space[4]}` }}>
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: tokens.color.brand[50], color: tokens.color.brand[600], display: "flex", alignItems: "center", justifyContent: "center" }}><I.upload size={20} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900], letterSpacing: "-0.2px" }}>Importer des notes</div>
+            <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>L'IA les répartira en remarques par poste</div>
+          </div>
+          <button onClick={onClose} aria-label="Fermer" style={{ width: 32, height: 32, borderRadius: tokens.radius.md, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><I.close size={17} /></button>
+        </div>
+
+        {/* Toggle fichier / coller */}
+        <div style={{ padding: `0 ${tokens.space[5]} ${tokens.space[3]}` }}>
+          <SegToggle value={tab} onChange={setTab} options={[{ id: "file", label: "Déposer un fichier" }, { id: "paste", label: "Coller du texte" }]} />
+        </div>
+
+        {/* Zone */}
+        <div style={{ padding: `0 ${tokens.space[5]}` }}>
+          {tab === "file" ? (
+            file ? (
+              <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: tokens.space[3] }}>
+                <div style={{ width: 32, height: 32, borderRadius: tokens.radius.md, background: tokens.color.neutral[100], color: tokens.color.neutral[500], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{ext}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{file.name}</div>
+                  <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{fmtBytes(file.size)} · {file.lines} ligne{file.lines > 1 ? "s" : ""} détectée{file.lines > 1 ? "s" : ""}</div>
+                </div>
+                <span style={{ color: tokens.color.semantic.success.fg, display: "inline-flex" }}><I.check size={18} /></span>
+                <button onClick={() => setFile(null)} aria-label="Retirer" style={{ width: 28, height: 28, border: "none", background: "transparent", color: tokens.color.neutral[400], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><I.close size={14} /></button>
+              </div>
+            ) : (
+              <div
+                onClick={() => inputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); readFile(e.dataTransfer.files?.[0]); }}
+                style={{ border: `2px dashed ${dragOver ? tokens.color.brand[400] : tokens.color.brand[200]}`, borderRadius: tokens.radius.lg, background: dragOver ? tokens.color.brand[50] : tokens.color.neutral[50], padding: `${tokens.space[8]} ${tokens.space[5]}`, textAlign: "center", cursor: "pointer", transition: tokens.transition.base }}
+              >
+                <div style={{ width: 48, height: 48, borderRadius: 13, background: tokens.color.brand[100], color: tokens.color.brand[700], display: "flex", alignItems: "center", justifyContent: "center", margin: `0 auto ${tokens.space[3]}` }}><I.upload size={24} /></div>
+                <div style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], marginBottom: 4 }}>Glisse un fichier ici, ou <span style={{ color: tokens.color.brand[600], textDecoration: "underline" }}>parcours</span></div>
+                <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>.txt, .md ou transcription · max 12 Mo</div>
+                <input ref={inputRef} type="file" accept=".txt,.md,text/plain,text/markdown" style={{ display: "none" }} onChange={e => readFile(e.target.files?.[0])} />
+              </div>
+            )
+          ) : (
+            <textarea
+              value={paste}
+              onChange={e => setPaste(e.target.value)}
+              autoFocus
+              placeholder={"Colle tes notes ici…\n- Peinture rdc 1ère couche OK\n- Tableau élec sans différentiel — URGENT\n- Étanchéité angle N-E à reprendre"}
+              style={{ width: "100%", boxSizing: "border-box", minHeight: 150, padding: tokens.space[3], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: tokens.font.family, fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[900], outline: "none", resize: "vertical" }}
+            />
+          )}
+        </div>
+
+        {/* Hint IA */}
+        <div style={{ padding: `${tokens.space[3]} ${tokens.space[5]} 0` }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: tokens.space[2], background: tokens.color.brand[50], border: `1px solid ${tokens.color.brand[100]}`, borderRadius: tokens.radius.md, padding: tokens.space[3] }}>
+            <span style={{ color: tokens.color.brand[600], flexShrink: 0, marginTop: 1, display: "inline-flex" }}><I.spark size={15} /></span>
+            <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.brand[700], lineHeight: 1.5 }}>L'IA détectera les remarques, les rangera par poste et proposera un statut. Tu valides tout sur l'écran de saisie avant génération.</span>
+          </div>
+          {err && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg, marginTop: tokens.space[2] }}>{err}</div>}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: "flex", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[5]} ${tokens.space[5]}`, justifyContent: "flex-end" }}>
+          <Button variant="secondary" size="lg" onClick={onClose}>Annuler</Button>
+          <Button variant="primary" size="lg" leftIcon={<I.spark size={15} />} onClick={dispatchText} disabled={!canSubmit}>{dispatching ? "Répartition…" : "Répartir en remarques"}</Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
