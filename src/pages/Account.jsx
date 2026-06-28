@@ -144,7 +144,7 @@ export function Account({ profile: profileProp, onSave, demo: demoProp }) {
             {section === "abonnement" && <AbonnementSection profile={profile} save={save} demo={demo} />}
             {section === "securite" && <SecuriteSection profile={profile} demo={demo} setToast={setToast} />}
             {section === "notifications" && <NotificationsSection profile={profile} save={save} />}
-            {section === "donnees" && <DonneesSection demo={demo} />}
+            {section === "donnees" && <DonneesSection demo={demo} profile={profile} save={save} />}
           </div>
         </div>
       </div>
@@ -544,10 +544,23 @@ function NotificationsSection({ profile, save }) {
 }
 
 // ── Données & RGPD ────────────────────────────────────────────
-function DonneesSection({ demo }) {
+function ConsentRow({ title, desc, on, onToggle, border }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[3]} 0`, borderBottom: border ? `1px solid ${tokens.color.neutral[100]}` : "none" }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[900] }}>{title}</div>
+        <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[400] }}>{desc}</div>
+      </div>
+      <Toggle on={on} onClick={onToggle} />
+    </div>
+  );
+}
+function DonneesSection({ demo, profile, save }) {
   const [exporting, setExporting] = useState(false);
   const [confirm, setConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [consents, setConsents] = useState(profile?.consents || { analytics: true, productEmails: false });
+  const toggleConsent = (k) => { const n = { ...consents, [k]: !consents[k] }; setConsents(n); save?.({ consents: n }); };
   const doExport = async () => { if (demo) return; setExporting(true); try { await exportUserData(); } catch { /* ignore */ } setExporting(false); };
   const doDelete = async () => { if (demo || confirm !== "SUPPRIMER") return; setDeleting(true); try { await deleteAccount(); } catch { setDeleting(false); } };
   return (
@@ -559,6 +572,11 @@ function DonneesSection({ demo }) {
           <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[400] }}>Tous tes projets, PV, réserves et factures au format JSON (RGPD art. 20).</div>
         </div>
         <Btn onClick={doExport} disabled={exporting}>{exporting ? "Export…" : "Demander l'export"}</Btn>
+      </Card>
+      <Card>
+        <CardTitle>Consentements</CardTitle>
+        <ConsentRow title="Cookies de mesure d'audience" desc="Statistiques anonymes d'utilisation" on={consents.analytics !== false} onToggle={() => toggleConsent("analytics")} border />
+        <ConsentRow title="Emails produit & nouveautés" desc="Au plus une fois par mois" on={!!consents.productEmails} onToggle={() => toggleConsent("productEmails")} />
       </Card>
       <Card style={{ padding: `${tokens.space[2]} ${tokens.space[3]}` }}>
         {[["Conditions générales d'utilisation", "file"], ["Politique de confidentialité", "shield"]].map(([l, ic], i) => (
