@@ -198,12 +198,14 @@ export function PvComposer({
   const [diffChecked, setDiffChecked] = useState({});
   const [diffAttachPdf, setDiffAttachPdf] = useState(true);
   const [sending, setSending] = useState(false);
+  const [extraRecips, setExtraRecips] = useState([]); // emails externes ajoutés
   const isChecked = (i) => diffChecked[i] !== false; // coché par défaut
   const recipients = useMemo(() => {
-    if (demo) return DIFF_RECIPIENTS;
     const palette = [["#DBEAFE", tokens.color.semantic.info.fg], ["#DCFCE7", tokens.color.semantic.success.fg], [tokens.color.brand[100], tokens.color.brand[700]], [tokens.color.neutral[100], tokens.color.neutral[500]]];
-    return (project.participants || []).filter(p => p.email && p.email.trim()).map((p, i) => ({ ini: initials(p.name), name: p.name, email: p.email, role: p.role || "", avBg: palette[i % 4][0], avFg: palette[i % 4][1] }));
-  }, [project, demo]);
+    const base = demo ? DIFF_RECIPIENTS : (project.participants || []).filter(p => p.email && p.email.trim()).map((p, i) => ({ ini: initials(p.name), name: p.name, email: p.email, role: p.role || "", avBg: palette[i % 4][0], avFg: palette[i % 4][1] }));
+    const extra = extraRecips.map(e => ({ ini: initials(e.name || e.email), name: e.name || e.email, email: e.email, role: "Externe", avBg: tokens.color.neutral[100], avFg: tokens.color.neutral[500], external: true }));
+    return [...base, ...extra];
+  }, [project, demo, extraRecips]);
   // Destinataires possibles pour filtrer les remarques du PV (toolbar Rédaction).
   const recipOptions = useMemo(() => {
     if (demo) return ["Gaëlle D.", "M. Genin", "P. Mertens"];
@@ -310,7 +312,7 @@ export function PvComposer({
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} onAssignRemark={assignRemark} onAddRemarkPhotos={addRemarkPhotos} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv()} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv({ style: id }); }} recipFilter={recipFilter} recipOptions={recipOptions} onRecipChange={(name) => { setRecipFilter(name); if (!demo) genPv({ recip: name }); }} numMode={numMode} onNumChange={(m) => { setNumMode(m); if (!demo) genPv({ num: m }); }} />}
-        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} messageHtml={customMessage} />}
+        {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} messageHtml={customMessage} onAddExternal={(email, name) => setExtraRecips(r => [...r, { email, name }])} />}
       </div>
 
       {importOpen && (
@@ -1427,7 +1429,16 @@ const DIFF_RECIPIENTS = [
   { ini: "MG", name: "Marc Genin", email: "m.genin@genin-sa.be", role: "Entreprise", avBg: "#DCFCE7", avFg: tokens.color.semantic.success.fg },
 ];
 
-function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subject, isChecked, onToggleRecipient, attachPdf, onToggleAttach, onCreateTask, profile, messageHtml }) {
+function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subject, isChecked, onToggleRecipient, attachPdf, onToggleAttach, onCreateTask, profile, messageHtml, onAddExternal }) {
+  const [adding, setAdding] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailErr, setEmailErr] = useState("");
+  const submitEmail = () => {
+    const e = newEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { setEmailErr("Adresse email invalide."); return; }
+    onAddExternal?.(e);
+    setNewEmail(""); setAdding(false); setEmailErr("");
+  };
   const [tasks, setTasks] = useState(() => demo
     ? DIFF_TASKS.map(t => ({ id: t.id, title: t.title, priority: t.priority, who: t.assignee?.name || "", due: "", quote: t.quote }))
     : (suggestedTasks || []).map((t, i) => ({ id: `s${i}`, title: t.title || t.description || "Action", priority: t.severity === "major" ? "urgent" : "medium", who: "", due: "", quote: t.description && t.description !== t.title ? t.description : "", raw: t })));
@@ -1482,7 +1493,21 @@ function DiffusionStep({ meta, project, demo, suggestedTasks, recipients, subjec
                   </div>
                 </label>
               ))}
-              <button style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: tokens.space[1], height: 34, padding: `0 ${tokens.space[2]}`, background: "transparent", border: `1px dashed ${tokens.color.brand[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.brand[600], cursor: "pointer" }}><I.plus size={13} /> Ajouter un email externe</button>
+              {adding ? (
+                <div style={{ display: "flex", gap: tokens.space[2] }}>
+                  <input
+                    autoFocus type="email" value={newEmail} onChange={e => { setNewEmail(e.target.value); setEmailErr(""); }}
+                    onKeyDown={e => { if (e.key === "Enter") submitEmail(); if (e.key === "Escape") { setAdding(false); setNewEmail(""); } }}
+                    placeholder="nom@domaine.be"
+                    style={{ flex: 1, height: 34, padding: `0 ${tokens.space[3]}`, border: `1px solid ${emailErr ? tokens.color.semantic.danger.fg : tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], outline: "none" }}
+                  />
+                  <Button variant="primary" size="md" onClick={submitEmail}>Ajouter</Button>
+                  <Button variant="ghost" size="md" onClick={() => { setAdding(false); setNewEmail(""); setEmailErr(""); }}>Annuler</Button>
+                </div>
+              ) : (
+                <button onClick={() => setAdding(true)} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: tokens.space[1], height: 34, padding: `0 ${tokens.space[2]}`, background: "transparent", border: `1px dashed ${tokens.color.brand[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.brand[600], cursor: "pointer" }}><I.plus size={13} /> Ajouter un email externe</button>
+              )}
+              {emailErr && <span style={{ fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg }}>{emailErr}</span>}
             </div>
           </div>
 
@@ -1535,6 +1560,61 @@ function Toggle({ on }) {
   );
 }
 
+// ── Sélecteur de date custom (Direction D) — remplace l'input natif ───
+const MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const DOW_FR = ["L", "M", "M", "J", "V", "S", "D"];
+const fmtDateFR = (iso) => { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+const isoOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+function DatePicker({ value, onChange, placeholder = "Échéance" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const base = value ? new Date(value + "T00:00:00") : new Date();
+  const [view, setView] = useState({ y: base.getFullYear(), m: base.getMonth() });
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const t = new Date();
+  const todayIso = isoOf(t.getFullYear(), t.getMonth(), t.getDate());
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7; // lundi = 0
+  const nDays = new Date(view.y, view.m + 1, 0).getDate();
+  const cells = [...Array(firstDow).fill(null), ...Array.from({ length: nDays }, (_, i) => i + 1)];
+  const shift = (n) => setView(v => { const d = new Date(v.y, v.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const navBtn = (label, onClick) => <button onClick={onClick} style={{ width: 26, height: 26, borderRadius: tokens.radius.md, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{label}</button>;
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(o => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: tokens.radius.md, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs, color: value ? tokens.color.neutral[700] : tokens.color.neutral[500] }}>
+        <I.cal size={12} />{value ? fmtDateFR(value) : placeholder}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 60, width: 244, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: tokens.space[3] }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tokens.space[2] }}>
+            {navBtn(<I.back size={15} />, () => shift(-1))}
+            <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], textTransform: "capitalize" }}>{MONTHS_FR[view.m]} {view.y}</span>
+            {navBtn(<I.chevron size={15} />, () => shift(1))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
+            {DOW_FR.map((d, i) => <span key={i} style={{ textAlign: "center", fontSize: 10, color: tokens.color.neutral[400], padding: "2px 0" }}>{d}</span>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {cells.map((d, i) => {
+              if (d === null) return <span key={i} />;
+              const iso = isoOf(view.y, view.m, d);
+              const sel = iso === value, isToday = iso === todayIso;
+              return (
+                <button key={i} onClick={() => { onChange(iso); setOpen(false); }} style={{ height: 28, borderRadius: tokens.radius.full, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: sel ? tokens.font.weight.bold : tokens.font.weight.medium, background: sel ? tokens.color.brand[500] : isToday ? tokens.color.brand[50] : "transparent", color: sel ? "#fff" : tokens.color.neutral[900] }}>{d}</button>
+              );
+            })}
+          </div>
+          {value && <button onClick={() => { onChange(""); setOpen(false); }} style={{ marginTop: tokens.space[2], width: "100%", height: 28, borderRadius: tokens.radius.md, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[500], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs }}>Effacer la date</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TASK_PRIOS = [{ id: "urgent", label: "Urgent" }, { id: "high", label: "Haute" }, { id: "medium", label: "Normale" }];
 function DiffTaskCard({ t, people, onUpdate, onAccept, onIgnore, demo }) {
   const prio = t.priority || "medium";
@@ -1552,10 +1632,7 @@ function DiffTaskCard({ t, people, onUpdate, onAccept, onIgnore, demo }) {
             return <button key={o.id} onClick={() => onUpdate?.({ priority: o.id })} style={{ padding: "4px 10px", borderRadius: tokens.radius.sm, border: "none", background: a ? tokens.color.neutral[0] : "transparent", boxShadow: a ? tokens.shadow.sm : "none", color: a ? fg : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: a ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{o.label}</button>;
           })}
         </div>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: tokens.radius.md, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, cursor: "pointer", color: t.due ? tokens.color.neutral[700] : tokens.color.neutral[500] }}>
-          <I.cal size={12} />
-          <input type="date" value={t.due || ""} onChange={e => onUpdate?.({ due: e.target.value })} style={{ border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: tokens.font.size.xs, color: "inherit", cursor: "pointer", width: t.due ? 104 : 88 }} />
-        </label>
+        <DatePicker value={t.due || ""} onChange={(v) => onUpdate?.({ due: v })} />
         <AssigneeControl variant="pill" people={people} current={t.who || null} onAssign={(name) => onUpdate?.({ who: name })} />
       </div>
 
