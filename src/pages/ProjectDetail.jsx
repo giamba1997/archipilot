@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { tokens } from "../design/tokens";
+import { isEnabled } from "../constants/featureFlags";
 import { Button } from "../components/ui/v2/Button";
 import { Badge } from "../components/ui/v2/Badge";
 import { Card } from "../components/ui/v2/Card";
@@ -192,11 +193,12 @@ function deriveKpis(project, invoiceSummary, totalMinutes) {
   const overdueTtc = invoiceSummary?.overdueTtc || 0;
   return [
     { value: String(pv), label: "PV émis" },
-    {
+    // KPIs de features deferred masqués (réserves → opr, à relancer → invoices).
+    ...(isEnabled("opr") ? [{
       value: String(open), suffix: total > 0 ? `/${total}` : null, label: "réserves ouvertes",
       tone: open > 0 ? "warning" : "neutral", dot: open > 0,
-    },
-    { value: fmtEur(overdueTtc), label: "à relancer", tone: overdueTtc > 0 ? "danger" : "neutral" },
+    }] : []),
+    ...(isEnabled("invoices") ? [{ value: fmtEur(overdueTtc), label: "à relancer", tone: overdueTtc > 0 ? "danger" : "neutral" }] : []),
     { value: fmtDuration(totalMinutes), label: "temps suivi" },
   ];
 }
@@ -213,7 +215,7 @@ function deriveTodo(project) {
   if (lastPv && lastPv.status === "draft") {
     return { cta: "onStartNotes", title: `Finir le PV n°${lastPv.number}`, subtitle: "Brouillon en attente — finalise et envoie.", buttonLabel: "Reprendre" };
   }
-  if (phase === "reception" && openReserves.length > 0) {
+  if (phase === "reception" && openReserves.length > 0 && isEnabled("opr")) {
     return { cta: "onOpr", title: `Lever ${openReserves.length} réserve${openReserves.length > 1 ? "s" : ""}`, subtitle: "Avancer l'OPR vers la réception définitive.", buttonLabel: "Gérer" };
   }
   if (["execution", "construction", "reception"].includes(phase)) {
@@ -225,7 +227,7 @@ function deriveTodo(project) {
       buttonLabel: "Démarrer le PV",
     };
   }
-  if (phase === "permit") {
+  if (phase === "permit" && isEnabled("permits")) {
     return { cta: "onPermits", title: "Suivre le dossier permis", subtitle: "Tracker dépôt, AR et échéance de décision.", buttonLabel: "Ouvrir" };
   }
   return null;
@@ -237,7 +239,8 @@ function deriveTabs(project) {
     { id: "summary",  label: "Résumé" },
     { id: "sheet",    label: "Fiche" },
     { id: "actions",  label: "Actions",   count: openActions,                                                      showZero: true  },
-    { id: "planning", label: "Planning",  count: (project.lots || []).length,                                     showZero: false },
+    // Onglet Planning masqué tant que la feature est deferred (flag off).
+    ...(isEnabled("planning") ? [{ id: "planning", label: "Planning", count: (project.lots || []).length, showZero: false }] : []),
     { id: "pv",       label: "PV",        count: (project.pvHistory || []).length,                                showZero: false },
     { id: "docs",     label: "Documents", count: (project.planFiles || []).filter(f => f.type !== "folder").length, showZero: false },
     { id: "photos",   label: "Photos",    count: (project.gallery || []).length,                                  showZero: false },
@@ -872,12 +875,14 @@ function SummaryTab({ todo, reserves, billing, meeting, planning, journal, quote
           gap: tokens.space[4],
         }}
       >
-        <ReservesCard reserves={reserves} onClick={handlerMap.onOpr} />
-        <BillingCard billing={billing} onClick={handlerMap.onInvoices} />
+        {/* Cartes métier masquées tant que la feature est deferred (flag off) —
+            évite les boutons « morts » qui mènent à une vue gated/redirigée. */}
+        {isEnabled("opr") && <ReservesCard reserves={reserves} onClick={handlerMap.onOpr} />}
+        {isEnabled("invoices") && <BillingCard billing={billing} onClick={handlerMap.onInvoices} />}
         <MeetingCard meeting={meeting} participants={project.participants} onClick={handlerMap.onEditMeeting} />
-        <PlanningCard planning={planning} onClick={handlerMap.onPlanning} />
+        {isEnabled("planning") && <PlanningCard planning={planning} onClick={handlerMap.onPlanning} />}
         <JournalCard journal={journal} onClick={handlerMap.onJournal} />
-        <QuotesCard count={quotesCount} onClick={handlerMap.onQuotes} />
+        {isEnabled("quotes") && <QuotesCard count={quotesCount} onClick={handlerMap.onQuotes} />}
       </div>
     </div>
   );
