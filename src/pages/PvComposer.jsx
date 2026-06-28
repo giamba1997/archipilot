@@ -76,6 +76,7 @@ export function PvComposer({
   const [importOpen, setImportOpen] = useState(false);
   const [pvStyle, setPvStyle] = useState(projectProp?.pvTemplate || "standard");
   const [recipFilter, setRecipFilter] = useState(() => (Array.isArray(pvRecipients) && pvRecipients.length === 1) ? pvRecipients[0] : null);
+  const [numMode, setNumMode] = useState(projectProp?.remarkNumbering || "post-seq");
   const [gen, setGen] = useState({ loading: false, content: "", error: "", suggestedTasks: [], saved: false });
   const today = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
   const finish = () => (onBack || onClose)?.();
@@ -100,6 +101,7 @@ export function PvComposer({
     if (demo) return;
     const styleId = opts.style != null ? opts.style : pvStyle;
     const recip = opts.recip !== undefined ? opts.recip : recipFilter;
+    const numModeR = opts.num != null ? opts.num : numMode;
     setGen(g => ({ ...g, loading: true, error: "" }));
     const allRemarks = (p) => (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
     const toRemarks = (p) => {
@@ -108,14 +110,13 @@ export function PvComposer({
       return all.filter(r => !(r.recipients || []).length || (r.recipients || []).includes(recip));
     };
     let gIdx = 0;
-    const numMode = project.remarkNumbering || "none";
     const notes = (project.posts || [])
       .filter(p => toRemarks(p).length > 0 || (p.photos || []).length > 0)
       .map(p => {
         const remarks = toRemarks(p);
         let pIdx = 0;
         const byStatus = (id) => remarks.filter(r => r.status === id);
-        const fmtLine = (r) => { gIdx++; pIdx++; const prefix = r.urgent ? "> " : "- "; const num = numMode === "sequential" ? `${pIdx}. ` : numMode === "post-seq" ? `${p.id}.${pIdx} ` : numMode === "global" ? `${gIdx}. ` : ""; return prefix + num + r.text; };
+        const fmtLine = (r) => { gIdx++; pIdx++; const prefix = r.urgent ? "> " : "- "; const num = numModeR === "sequential" ? `${pIdx}. ` : numModeR === "post-seq" ? `${p.id}.${pIdx} ` : numModeR === "global" ? `${gIdx}. ` : ""; return prefix + num + r.text; };
         const sections = [];
         if (byStatus("open").length) sections.push(t("result.toProcess") + "\n" + byStatus("open").map(fmtLine).join("\n"));
         if (byStatus("progress").length) sections.push("En cours :\n" + byStatus("progress").map(fmtLine).join("\n"));
@@ -305,7 +306,7 @@ export function PvComposer({
         {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} onAssignRemark={assignRemark} onAddRemarkPhotos={addRemarkPhotos} />}
-        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv()} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv({ style: id }); }} recipFilter={recipFilter} recipOptions={recipOptions} onRecipChange={(name) => { setRecipFilter(name); if (!demo) genPv({ recip: name }); }} />}
+        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv()} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv({ style: id }); }} recipFilter={recipFilter} recipOptions={recipOptions} onRecipChange={(name) => { setRecipFilter(name); if (!demo) genPv({ recip: name }); }} numMode={numMode} onNumChange={(m) => { setNumMode(m); if (!demo) genPv({ num: m }); }} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
 
@@ -1215,6 +1216,39 @@ function RichDocEditor({ value, onChange }) {
   );
 }
 
+// Menu générique de toolbar (préfixe + options {id,label}).
+function ToolDrop({ prefix, value, options, onChange, loading }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const cur = (options || []).find(o => o.id === value) || options?.[0];
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(o => !o)} disabled={loading} style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 32, padding: `0 ${tokens.space[3]}`, background: open ? tokens.color.neutral[50] : tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[700], cursor: loading ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+        {prefix} : <b style={{ fontWeight: tokens.font.weight.semibold }}>{cur?.short || cur?.label}</b> <I.chevDown size={13} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 60, minWidth: 210, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: 4 }}>
+          {(options || []).map(o => {
+            const sel = o.id === value;
+            return (
+              <button key={o.id} onClick={() => { setOpen(false); if (o.id !== value) onChange?.(o.id); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[2]}`, border: "none", borderRadius: tokens.radius.md, background: sel ? tokens.color.brand[50] : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: tokens.font.size.sm, color: tokens.color.neutral[900] }}>{o.label}</span>
+                {sel && <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.check size={14} /></span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Menu de filtrage par destinataire (toolbar Rédaction) — "Tous" ou une personne.
 function RecipientDrop({ value, options, onChange, loading }) {
   const [open, setOpen] = useState(false);
@@ -1250,7 +1284,13 @@ function RecipientDrop({ value, options, onChange, loading }) {
   );
 }
 
-function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today, styleId, onStyleChange, recipFilter, recipOptions, onRecipChange }) {
+const NUM_OPTS = [
+  { id: "post-seq", label: "Par poste (01.1)", short: "par poste" },
+  { id: "sequential", label: "Séquentielle (1, 2…)", short: "séquentielle" },
+  { id: "global", label: "Globale (continue)", short: "globale" },
+  { id: "none", label: "Aucune", short: "aucune" },
+];
+function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today, styleId, onStyleChange, recipFilter, recipOptions, onRecipChange, numMode, onNumChange }) {
   const [previewTab, setPreviewTab] = useState("pdf");
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -1275,10 +1315,10 @@ function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profi
   return (
     <>
       {/* Toolbar options */}
-      <div style={{ height: 50, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `0 ${tokens.space[6]}`, gap: tokens.space[3], overflowX: "auto" }}>
+      <div style={{ minHeight: 50, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `${tokens.space[2]} ${tokens.space[6]}`, gap: tokens.space[3], flexWrap: "wrap", position: "relative", zIndex: 5 }}>
         <SegToggle label="Style" value={styleId} onChange={onStyleChange} options={[{ id: "standard", label: "Standard" }, { id: "detailed", label: "Détaillé" }, { id: "concise", label: "Concis" }]} />
         <Divider />
-        <DropBtn>Numérotation : par poste <I.chevDown size={13} /></DropBtn>
+        <ToolDrop prefix="Numérotation" value={numMode} options={NUM_OPTS} onChange={onNumChange} loading={!demo && gen?.loading} />
         <RecipientDrop value={recipFilter} options={recipOptions || []} onChange={onRecipChange} loading={!demo && gen?.loading} />
         <div style={{ marginLeft: "auto" }}><button onClick={!demo ? onRegenerate : undefined} disabled={!demo && gen?.loading} style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 32, padding: `0 ${tokens.space[3]}`, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[700], cursor: (!demo && gen?.loading) ? "wait" : "pointer" }}><I.redo size={13} />Régénérer</button></div>
       </div>
