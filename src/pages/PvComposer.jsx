@@ -74,6 +74,7 @@ export function PvComposer({
   const [step, setStep] = useState("choice");
   const [saisieMode, setSaisieMode] = useState("write");
   const [importOpen, setImportOpen] = useState(false);
+  const [pvStyle, setPvStyle] = useState(projectProp?.pvTemplate || "standard");
   const [gen, setGen] = useState({ loading: false, content: "", error: "", suggestedTasks: [], saved: false });
   const today = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
   const finish = () => (onBack || onClose)?.();
@@ -94,7 +95,7 @@ export function PvComposer({
   }, [project, demo]);
 
   // ── Moteur de génération (porté de ResultView.run) ──
-  const genPv = async () => {
+  const genPv = async (styleOverride) => {
     if (demo) return;
     setGen(g => ({ ...g, loading: true, error: "" }));
     const allRemarks = (p) => (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
@@ -120,7 +121,7 @@ export function PvComposer({
         return `${p.id}. ${p.label}\n${sections.join("\n")}${extra ? "\n" + extra : ""}`;
       })
       .join("\n\n");
-    const pvTpl = PV_TEMPLATES.find(x => x.id === project.pvTemplate);
+    const pvTpl = PV_TEMPLATES.find(x => x.id === (styleOverride || pvStyle));
     const SYS = pvTpl?.prompt || t("ai.systemPrompt");
     const ctxLines = [];
     if (project.client) ctxLines.push(`Maître d'ouvrage : ${project.client}`);
@@ -293,7 +294,7 @@ export function PvComposer({
         {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} onAssignRemark={assignRemark} onAddRemarkPhotos={addRemarkPhotos} />}
-        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} profile={profile} today={today} />}
+        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv(pvStyle)} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv(id); }} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
 
@@ -1203,8 +1204,7 @@ function RichDocEditor({ value, onChange }) {
   );
 }
 
-function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today }) {
-  const [style, setStyle] = useState("standard");
+function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today, styleId, onStyleChange }) {
   const [previewTab, setPreviewTab] = useState("pdf");
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -1230,7 +1230,7 @@ function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profi
     <>
       {/* Toolbar options */}
       <div style={{ height: 50, flexShrink: 0, background: tokens.color.neutral[0], borderBottom: `1px solid ${tokens.color.neutral[200]}`, display: "flex", alignItems: "center", padding: `0 ${tokens.space[6]}`, gap: tokens.space[3], overflowX: "auto" }}>
-        <SegToggle label="Style" value={style} onChange={setStyle} options={[{ id: "standard", label: "Standard" }, { id: "detailed", label: "Détaillé" }, { id: "concise", label: "Concis" }]} />
+        <SegToggle label="Style" value={styleId} onChange={onStyleChange} options={[{ id: "standard", label: "Standard" }, { id: "detailed", label: "Détaillé" }, { id: "concise", label: "Concis" }]} />
         <Divider />
         <DropBtn>Numérotation : par poste <I.chevDown size={13} /></DropBtn>
         <DropBtn>Destinataire : tous <I.chevDown size={13} /></DropBtn>
