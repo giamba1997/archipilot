@@ -333,6 +333,31 @@ function StructureSection({ profile, save, saveRef }) {
 }
 
 // ── Signature email ───────────────────────────────────────────
+// Redimensionne une image (logo) à une taille standard côté app, quel que soit
+// le fichier fourni : on garde le ratio, on borne à maxW×maxH, export PNG.
+const LOGO_MAX_W = 320, LOGO_MAX_H = 120;
+function resizeImage(file, maxW = LOGO_MAX_W, maxH = LOGO_MAX_H) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = reject;
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL("image/png")); // PNG → transparence conservée
+      };
+      img.src = String(r.result || "");
+    };
+    r.readAsDataURL(file);
+  });
+}
+
 function SignatureSection({ profile, save, saveRef }) {
   const ref = useRef(null);
   const fileRef = useRef(null);
@@ -343,20 +368,24 @@ function SignatureSection({ profile, save, saveRef }) {
   useEffect(() => { if (ref.current) { ref.current.innerHTML = initial; } }, []); // eslint-disable-line
   const sync = () => setHtml(ref.current?.innerHTML || "");
   const exec = (cmd, arg) => { ref.current?.focus(); document.execCommand(cmd, false, arg); sync(); };
-  const onImg = (file) => {
+  const onImg = async (file) => {
     setErr("");
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { setErr("Logo trop lourd (max 2 Mo)."); return; }
-    const r = new FileReader();
-    r.onload = e => { ref.current?.focus(); document.execCommand("insertImage", false, String(e.target.result || "")); sync(); };
-    r.readAsDataURL(file);
+    if (!file.type?.startsWith("image/")) { setErr("Choisis un fichier image (PNG, JPG, SVG…)."); return; }
+    if (file.size > 10 * 1024 * 1024) { setErr("Fichier trop lourd (max 10 Mo)."); return; }
+    try {
+      const dataUrl = await resizeImage(file);
+      ref.current?.focus();
+      document.execCommand("insertImage", false, dataUrl);
+      sync();
+    } catch { setErr("Image illisible."); }
   };
   const tbtn = { width: 30, height: 30, borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, display: "inline-flex", alignItems: "center", justifyContent: "center" };
   if (saveRef) saveRef.current = () => save({ emailSignature: html });
   return (
     <>
-      <style>{`.sig-edit img,.sig-prev img{max-width:200px;max-height:90px;border-radius:6px;vertical-align:middle}`}</style>
-      <Hint>Cette signature est ajoutée automatiquement aux PV, OPR et factures envoyés par email. Tu peux insérer une image (logo).</Hint>
+      <style>{`.sig-edit img,.sig-prev img{max-width:180px;max-height:60px;border-radius:6px;vertical-align:middle}`}</style>
+      <Hint>Cette signature est ajoutée automatiquement aux PV, OPR et factures envoyés par email. <b style={{ color: tokens.color.neutral[700], fontWeight: 600 }}>Logo recommandé</b> : horizontal, ~320×100 px, PNG transparent — l'image est <b style={{ color: tokens.color.neutral[700], fontWeight: 600 }}>redimensionnée automatiquement</b> à une taille standard.</Hint>
       <Card style={{ padding: 0, overflow: "hidden", marginBottom: tokens.space[4] }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: `${tokens.space[2]} ${tokens.space[3]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: "#FCFBFA" }}>
           {[["B", "bold", { fontWeight: 700 }], ["I", "italic", { fontStyle: "italic" }], ["U", "underline", { textDecoration: "underline" }]].map(([l, cmd, st]) => (
@@ -372,7 +401,10 @@ function SignatureSection({ profile, save, saveRef }) {
       <SubLabel>Aperçu dans un email</SubLabel>
       <Card>
         <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], lineHeight: 1.55, marginBottom: tokens.space[4], paddingBottom: tokens.space[4], borderBottom: `1px solid ${tokens.color.neutral[100]}` }}>Bonjour,<br />Veuillez trouver ci-joint le procès-verbal de la réunion.</div>
-        <div className="sig-prev" style={{ fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[700] }} dangerouslySetInnerHTML={{ __html: html }} />
+        <div style={{ display: "flex", alignItems: "flex-start", gap: tokens.space[3] }}>
+          <Avatar pic={profile.picture} name={profile.name} size={46} />
+          <div className="sig-prev" style={{ fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[700] }} dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
       </Card>
     </>
   );
