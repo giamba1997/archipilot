@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import {
-  AC, SB, SBB, TX, TX2, TX3, WH, SP, RAD,
-  BR, AM,
+  AC, ACL, SB, SBB, TX, TX2, TX3, WH, SP, RAD,
+  BR, BRB, AM, AMB, GR, SGB,
 } from "../constants/tokens";
 import { Ico } from "../components/ui";
-import { getStatus } from "../constants/statuses";
+import { getStatus, STATUS_TOTAL_STEPS } from "../constants/statuses";
 import { parseDateFR } from "../utils/dates";
 
 // ── MobileChantiersList — liste complète des chantiers (mobile) ──
@@ -53,6 +53,18 @@ function describeHint(p) {
 // alphabétique à la fin.
 function urgencyScore(p) {
   return (isMeetingToday(p) ? 100 : 0) + pvDrafts(p) * 10 + reservesOpen(p);
+}
+
+// Signal prioritaire affiché en bandeau (sémantique).
+function signal(p) {
+  const crit = (p.reserves || []).filter(r => r.severity === "critical" && r.status !== "levee").length;
+  const openR = reservesOpen(p);
+  const drafts = pvDrafts(p);
+  if (crit) return { txt: `${crit} réserve${crit > 1 ? "s" : ""} critique${crit > 1 ? "s" : ""}`, icon: "alert", bg: BRB, fg: BR };
+  if (isMeetingToday(p)) return { txt: "Réunion aujourd'hui", icon: "calendar", bg: ACL, fg: AC };
+  if (drafts) return { txt: `${drafts} PV à préparer`, icon: "file", bg: AMB, fg: AM };
+  if (openR) return { txt: `${openR} réserve${openR > 1 ? "s" : ""} ouverte${openR > 1 ? "s" : ""}`, icon: "alert", bg: AMB, fg: AM };
+  return { txt: "À jour · rien d'urgent", icon: "check", bg: SGB, fg: GR };
 }
 
 const FILTERS = [
@@ -105,12 +117,7 @@ export function MobileChantiersList({
               <Ico name="back" size={20} color={TX} />
             </button>
           )}
-          <h1 style={{ flex: 1, fontSize: 18, fontWeight: 800, color: TX, margin: 0, letterSpacing: -0.2 }}>
-            Mes chantiers
-            <span style={{ fontSize: 12, fontWeight: 600, color: TX3, marginLeft: 6 }}>
-              ({filtered.length})
-            </span>
-          </h1>
+          <h1 style={{ flex: 1, fontSize: 22, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>Chantiers</h1>
           {onOpenNewProject && (
             <button onClick={onOpenNewProject} aria-label="Nouveau projet" style={{ background: AC, color: "#fff", border: "none", borderRadius: RAD.full, width: 32, height: 32, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <Ico name="plus" size={16} color="#fff" />
@@ -178,37 +185,27 @@ export function MobileChantiersList({
         )}
         {filtered.map(p => {
           const status = getStatus(p.statusId);
-          const hint = describeHint(p);
-          const location = [p.address, p.city].filter(Boolean).join(", ");
+          const sig = signal(p);
+          const location = [p.city, p.client].filter(Boolean).join(" · ");
           return (
             <button
               key={p.id}
               onClick={() => onSelectProject?.(p.id)}
-              style={{
-                display: "flex", flexDirection: "column", gap: 4,
-                padding: "12px 14px", textAlign: "left",
-                border: `1px solid ${SBB}`, background: WH,
-                borderRadius: RAD.md, cursor: "pointer",
-                fontFamily: "inherit", width: "100%",
-              }}
+              style={{ display: "flex", flexDirection: "column", textAlign: "left", padding: 16, border: "1px solid #EFEDEB", background: WH, borderRadius: 16, cursor: "pointer", fontFamily: "inherit", width: "100%" }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: TX, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {p.name}
-                </div>
-                {status && (
-                  <div style={{ fontSize: 10, color: status.color || TX3, background: `${status.color || TX3}1a`, padding: "2px 8px", borderRadius: 999, fontWeight: 700, whiteSpace: "nowrap" }}>
-                    {status.label}
-                  </div>
-                )}
+              {/* Badge statut + jauge de phase */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, width: "100%" }}>
+                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: status.bg, color: status.color, fontWeight: 600 }}>{status.label}</span>
+                <span style={{ marginLeft: "auto", display: "flex", gap: 3 }}>
+                  {Array.from({ length: STATUS_TOTAL_STEPS }, (_, i) => <span key={i} style={{ width: 11, height: 4, borderRadius: 999, background: i < status.step ? status.color : SBB }} />)}
+                </span>
               </div>
-              <div style={{ fontSize: 11, color: hint.color, fontWeight: 600 }}>{hint.txt}</div>
-              {location && (
-                <div style={{ fontSize: 11, color: TX3, marginTop: 2, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  <Ico name="mappin" size={11} color={TX3} />
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{location}</span>
-                </div>
-              )}
+              <div style={{ fontSize: 17, fontWeight: 700, color: TX, letterSpacing: "-0.3px", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+              <div style={{ fontSize: 13, color: TX3, marginBottom: 12 }}>{location || "—"}</div>
+              {/* Bandeau signal */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: sig.fg, background: sig.bg, borderRadius: 9, padding: "8px 10px" }}>
+                <Ico name={sig.icon} size={14} color={sig.fg} />{sig.txt}
+              </div>
             </button>
           );
         })}
