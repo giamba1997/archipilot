@@ -133,7 +133,7 @@ export function Account({ profile: profileProp, onSave, demo: demoProp }) {
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: `${tokens.space[6]} ${tokens.space[8]}` }}>
           <div style={{ maxWidth: 980, margin: "0 auto" }}>
-            {section === "profil" && <ProfilSection profile={profile} go={setSection} />}
+            {section === "profil" && <ProfilSection profile={profile} go={setSection} save={save} />}
             {section === "structure" && <StructureSection profile={profile} save={save} />}
             {section === "signature" && <SignatureSection profile={profile} save={save} />}
             {section === "abonnement" && <AbonnementSection profile={profile} save={save} demo={demo} />}
@@ -148,21 +148,69 @@ export function Account({ profile: profileProp, onSave, demo: demoProp }) {
 }
 
 // ── Profil (tableau de bord récap) ────────────────────────────
-function ProfilSection({ profile, go }) {
+function Avatar({ pic, name, size = 72 }) {
+  if (pic) return <img src={pic} alt="" style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, display: "block" }} />;
+  return <div style={{ width: size, height: size, borderRadius: "50%", background: `linear-gradient(135deg, ${tokens.color.brand[100]}, ${tokens.color.brand[200]})`, color: tokens.color.brand[700], display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.36), fontWeight: tokens.font.weight.bold, flexShrink: 0 }}>{initials(name)}</div>;
+}
+
+function ProfilSection({ profile, go, save }) {
   const sigText = profile.emailSignature?.trim();
+  const [editing, setEditing] = useState(false);
+  const [f, setF] = useState(profile);
+  const [err, setErr] = useState("");
+  const set = (k) => (v) => setF(s => ({ ...s, [k]: v }));
+  const startEdit = () => { setF(profile); setErr(""); setEditing(true); };
+  const onPhoto = (file) => {
+    setErr("");
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { setErr("Image trop lourde (max 3 Mo)."); return; }
+    const r = new FileReader();
+    r.onload = e => setF(s => ({ ...s, picture: String(e.target.result || "") }));
+    r.readAsDataURL(file);
+  };
+  const typeOpts = (STRUCTURE_TYPES || []).map(t => typeof t === "string" ? { id: t, label: t } : { id: t.id, label: t.label });
+  const submit = () => { save({ name: f.name, picture: f.picture, structureType: f.structureType, email: f.email, phone: f.phone }); setEditing(false); };
+
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[5], marginBottom: tokens.space[6] }}>
-        <div style={{ width: 72, height: 72, borderRadius: tokens.radius.full, background: `linear-gradient(135deg, ${tokens.color.brand[100]}, ${tokens.color.brand[200]})`, color: tokens.color.brand[700], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, fontWeight: tokens.font.weight.bold, flexShrink: 0 }}>{initials(profile.name)}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: 3 }}>
-            <h1 style={{ margin: 0, fontSize: tokens.font.size["2xl"], fontWeight: tokens.font.weight.bold, letterSpacing: "-0.5px", color: tokens.color.neutral[900] }}>{profile.name || "—"}</h1>
-            <span style={{ fontSize: tokens.font.size.xs, padding: "2px 9px", borderRadius: tokens.radius.full, background: tokens.color.brand[50], color: tokens.color.brand[600], border: `1px solid ${tokens.color.brand[100]}`, fontWeight: tokens.font.weight.medium, textTransform: "capitalize" }}>{profile.structureType || "Architecte"}</span>
+      {editing ? (
+        <Card style={{ marginBottom: tokens.space[6] }}>
+          <CardTitle>Identité</CardTitle>
+          <div style={{ display: "flex", gap: tokens.space[5], alignItems: "flex-start" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: tokens.space[2], flexShrink: 0 }}>
+              <label style={{ position: "relative", cursor: "pointer", display: "block" }}>
+                <Avatar pic={f.picture} name={f.name} size={88} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(28,25,23,0.45)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: tokens.transition.base, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0}>Changer</span>
+                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => onPhoto(e.target.files?.[0])} />
+              </label>
+              {f.picture && <button onClick={() => setF(s => ({ ...s, picture: "" }))} style={{ background: "none", border: "none", color: tokens.color.neutral[500], fontSize: tokens.font.size.xs, cursor: "pointer", fontFamily: "inherit" }}>Retirer</button>}
+            </div>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: `${tokens.space[4]} ${tokens.space[6]}` }}>
+              <Field label="Nom complet" value={f.name} onChange={set("name")} />
+              <Field label="Rôle / type" value={f.structureType} onChange={set("structureType")} options={typeOpts.length ? typeOpts : [{ id: "architecte", label: "Architecte" }, { id: "bureau", label: "Bureau" }, { id: "ingénieur", label: "Ingénieur" }]} />
+              <Field label="Email" value={f.email} onChange={set("email")} type="email" />
+              <Field label="Téléphone" value={f.phone} onChange={set("phone")} />
+            </div>
           </div>
-          <div style={{ fontSize: tokens.font.size.base, color: tokens.color.neutral[500] }}>{[profile.email, profile.phone].filter(Boolean).join(" · ") || "—"}</div>
+          {err && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg, marginTop: tokens.space[3] }}>{err}</div>}
+          <div style={{ display: "flex", gap: tokens.space[2], justifyContent: "flex-end", marginTop: tokens.space[5] }}>
+            <Btn variant="ghost" onClick={() => setEditing(false)}>Annuler</Btn>
+            <Btn variant="primary" onClick={submit}>Enregistrer</Btn>
+          </div>
+        </Card>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[5], marginBottom: tokens.space[6] }}>
+          <Avatar pic={profile.picture} name={profile.name} size={72} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: 3 }}>
+              <h1 style={{ margin: 0, fontSize: tokens.font.size["2xl"], fontWeight: tokens.font.weight.bold, letterSpacing: "-0.5px", color: tokens.color.neutral[900] }}>{profile.name || "—"}</h1>
+              <span style={{ fontSize: tokens.font.size.xs, padding: "2px 9px", borderRadius: tokens.radius.full, background: tokens.color.brand[50], color: tokens.color.brand[600], border: `1px solid ${tokens.color.brand[100]}`, fontWeight: tokens.font.weight.medium, textTransform: "capitalize" }}>{profile.structureType || "Architecte"}</span>
+            </div>
+            <div style={{ fontSize: tokens.font.size.base, color: tokens.color.neutral[500] }}>{[profile.email, profile.phone].filter(Boolean).join(" · ") || "—"}</div>
+          </div>
+          <Btn leftIcon={<Svg d={ICONS.edit} size={14} />} onClick={startEdit}>Modifier le profil</Btn>
         </div>
-        <Btn leftIcon={<Svg d={ICONS.edit} size={14} />} onClick={() => go("structure")}>Modifier le profil</Btn>
-      </div>
+      )}
 
       <div style={{ display: "flex", gap: tokens.space[4], alignItems: "flex-start", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 380px", minWidth: 0, display: "flex", flexDirection: "column", gap: tokens.space[4] }}>
