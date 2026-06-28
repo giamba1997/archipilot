@@ -394,6 +394,8 @@ function deriveActions(project) {
       assignee: a.who || a.assignee || a.owner || a.assignedTo || "",
       due: a.dueDate || a.due || a.deadline || a.echeance || "",
       source: a.source || a.since || (a.pvNumber ? `PV n°${a.pvNumber}` : ""),
+      description: a.description || a.notes || "",
+      created: a.createdAt || "",
     });
   });
   return cols;
@@ -564,6 +566,8 @@ export function ProjectDetail({
   onMoveAction,
   onAssignAction,
   onSetActionDue,
+  onUpdateAction,
+  onDeleteAction,
   onViewPV,
   onViewPdf,
   onSendPv,
@@ -635,7 +639,7 @@ export function ProjectDetail({
   const planning    = useMemo(() => derivePlanning(project), [project]);
   const journal     = useMemo(() => deriveJournal(project), [project]);
 
-  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onMoveAction, onAssignAction, onSetActionDue, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onGallery, onImportPhoto, onEditMeeting };
+  const handlerMap = { onStartNotes, onEditInfo, onInvoices, onQuotes, onJournal, onOpr, onPermits, onReports, onPlanning, onCdc, onNewAction, onAddAction, onOpenAction, onMoveAction, onAssignAction, onSetActionDue, onUpdateAction, onDeleteAction, onViewPV, onViewPdf, onSendPv, onDocuments, onImportDoc, onGallery, onImportPhoto, onEditMeeting };
 
   return (
     <div
@@ -674,7 +678,7 @@ export function ProjectDetail({
         <SheetTab project={project} handlerMap={handlerMap} />
       )}
       {activeTab === "actions" && (
-        <ActionsTab project={project} handlerMap={handlerMap} />
+        <ActionsTab project={project} handlerMap={handlerMap} profile={profile} />
       )}
       {activeTab === "planning" && (
         <PlanningTab project={project} phase={phase} handlerMap={handlerMap} />
@@ -1470,56 +1474,168 @@ function AssignMenu({ participants, value, onChange, avatarStyleFor }) {
   );
 }
 
-function ActionsTab({ project, handlerMap }) {
+const PRIO_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
+function ActionsTab({ project, handlerMap, profile }) {
   const [view, setView] = useState("board");
   const [adding, setAdding] = useState(false);
+  const [q, setQ] = useState("");
+  const [who, setWho] = useState("all");      // all | me | <nom>
+  const [sort, setSort] = useState("due");    // due | priority | recent
+  const [openId, setOpenId] = useState(null);
   const cols = useMemo(() => deriveActions(project), [project]);
+  const participants = project?.participants || [];
+  const me = (profile?.name || "").toLowerCase();
 
-  // Lookup nom → style d'avatar (couleur de rôle de l'intervenant).
   const avatarStyleFor = useMemo(() => {
     const map = new Map();
-    (project?.participants || []).forEach(p => map.set((p.name || "").toLowerCase(), ROLE_STYLE[roleCategory(p.role || "")]));
+    participants.forEach(p => map.set((p.name || "").toLowerCase(), ROLE_STYLE[roleCategory(p.role || "")]));
     return (name) => map.get((name || "").toLowerCase()) || ROLE_STYLE.neutral;
   }, [project]);
 
-  // L'ajout passe par un composer inline si App fournit onAddAction ;
-  // sinon on retombe sur l'éventuel onNewAction (ouverture d'une vue dédiée).
+  // Filtre (recherche + assigné) + tri appliqués à chaque colonne.
+  const fcols = useMemo(() => {
+    const dueVal = (d) => { if (!d) return Infinity; const dt = parseDateFR(d) || new Date(d); return isNaN(+dt) ? Infinity : +dt; };
+    const apply = (arr) => {
+      let r = (arr || []).filter(a => {
+        if (q && !(a.title || "").toLowerCase().includes(q.toLowerCase())) return false;
+        if (who === "me") return (a.assignee || "").toLowerCase() === me;
+        if (who !== "all") return a.assignee === who;
+        return true;
+      });
+      return [...r].sort((a, b) =>
+        sort === "priority" ? (PRIO_RANK[a.priority] ?? 9) - (PRIO_RANK[b.priority] ?? 9)
+          : sort === "recent" ? String(b.created).localeCompare(String(a.created))
+            : dueVal(a.due) - dueVal(b.due));
+    };
+    return { todo: apply(cols.todo), doing: apply(cols.doing), done: apply(cols.done) };
+  }, [cols, q, who, sort, me]);
+
+  const totalShown = fcols.todo.length + fcols.doing.length + fcols.done.length;
   const canAdd = !!handlerMap.onAddAction;
   const onPrimary = canAdd ? () => setAdding(v => !v) : (handlerMap.onNewAction || undefined);
+  const openAction = openId != null ? (project.actions || []).find(x => String(x.id) === String(openId)) : null;
+  const selStyle = { height: 36, borderRadius: tokens.radius.md, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], fontFamily: "inherit", fontSize: tokens.font.size.sm, cursor: "pointer", padding: "0 8px" };
 
   return (
     <div>
-      {/* Toolbar : toggle vue · filtre · action primaire unique */}
-      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], marginBottom: tokens.space[4], flexWrap: "wrap" }}>
+      {/* Toolbar : vue · recherche · assigné · tri · ajout */}
+      <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], marginBottom: tokens.space[4], flexWrap: "wrap" }}>
         <SegToggle value={view} onChange={setView} options={[{ id: "board", label: "Tableau" }, { id: "list", label: "Liste" }]} />
-        <Button variant="secondary" size="md" rightIcon={<Svg size={14} sw={2}><polyline points="6 9 12 15 18 9" /></Svg>}>Tous les intervenants</Button>
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], height: 36, padding: `0 ${tokens.space[3]}`, border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[0], minWidth: 180 }}>
+          <span style={{ color: tokens.color.neutral[400], display: "inline-flex" }}><Svg size={14}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></Svg></span>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher une action…" style={{ border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], width: 150 }} />
+        </div>
+        <select value={who} onChange={e => setWho(e.target.value)} style={selStyle} title="Filtrer par intervenant">
+          <option value="all">Tous les intervenants</option>
+          {me && <option value="me">Mes tâches</option>}
+          {participants.filter(p => p.name).map((p, i) => <option key={i} value={p.name}>{p.name}</option>)}
+        </select>
+        <select value={sort} onChange={e => setSort(e.target.value)} style={selStyle} title="Trier">
+          <option value="due">Tri : échéance</option>
+          <option value="priority">Tri : priorité</option>
+          <option value="recent">Tri : récent</option>
+        </select>
         <div style={{ marginLeft: "auto" }}>
-          <Button variant="primary" size="md" leftIcon={<Icons.plus size={15} />} onClick={onPrimary} disabled={!canAdd && !handlerMap.onNewAction}>
-            Nouvelle action
-          </Button>
+          <Button variant="primary" size="md" leftIcon={<Icons.plus size={15} />} onClick={onPrimary} disabled={!canAdd && !handlerMap.onNewAction}>Nouvelle action</Button>
         </div>
       </div>
 
-      {/* Composer inline — n'apparaît que sur demande, ne charge pas l'écran. */}
       {adding && canAdd && (
         <ActionComposer
-          participants={project?.participants || []}
+          participants={participants}
           onCancel={() => setAdding(false)}
           onAdd={(draft) => { handlerMap.onAddAction(draft); setAdding(false); }}
         />
       )}
 
-      {view === "board" ? (
+      {totalShown === 0 && (q || who !== "all") ? (
+        <div style={{ padding: tokens.space[8], textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>Aucune action ne correspond à ce filtre.</div>
+      ) : view === "board" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: tokens.space[4], alignItems: "start" }}>
           {ACTION_COLS.map(col => (
-            <ActionColumn key={col.key} col={col} cards={cols[col.key]} participants={project?.participants || []} avatarStyleFor={avatarStyleFor} onOpen={handlerMap.onOpenAction} onMove={handlerMap.onMoveAction} onAssign={handlerMap.onAssignAction} onDue={handlerMap.onSetActionDue} />
+            <ActionColumn key={col.key} col={col} cards={fcols[col.key]} participants={participants} avatarStyleFor={avatarStyleFor} onOpen={(a) => setOpenId(a.id)} onMove={handlerMap.onMoveAction} onAssign={handlerMap.onAssignAction} onDue={handlerMap.onSetActionDue} />
           ))}
         </div>
       ) : (
-        <ActionList cols={cols} participants={project?.participants || []} avatarStyleFor={avatarStyleFor} onOpen={handlerMap.onOpenAction} onAssign={handlerMap.onAssignAction} onDue={handlerMap.onSetActionDue} />
+        <ActionList cols={fcols} participants={participants} avatarStyleFor={avatarStyleFor} onOpen={(a) => setOpenId(a.id)} onAssign={handlerMap.onAssignAction} onDue={handlerMap.onSetActionDue} />
+      )}
+
+      {openAction && (
+        <ActionDrawer
+          action={openAction}
+          participants={participants}
+          avatarStyleFor={avatarStyleFor}
+          onClose={() => setOpenId(null)}
+          onUpdate={handlerMap.onUpdateAction}
+          onMove={handlerMap.onMoveAction}
+          onDelete={handlerMap.onDeleteAction ? (id) => { handlerMap.onDeleteAction(id); setOpenId(null); } : undefined}
+        />
       )}
     </div>
   );
+}
+
+// ── Drawer de détail d'une action (clic sur une carte) ────────
+const DRAWER_PRIOS = [{ id: "urgent", label: "Urgent" }, { id: "high", label: "Haute" }, { id: "medium", label: "Normale" }, { id: "low", label: "Basse" }];
+function ActionDrawer({ action, participants, avatarStyleFor, onClose, onUpdate, onMove, onDelete }) {
+  const a = action;
+  const prio = a.urgent ? "urgent" : normActionPriority(a.priority);
+  const curCol = normActionColumn(a);
+  const upd = (patch) => onUpdate?.(a.id, patch);
+  return (
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(28,25,23,0.28)", display: "flex", justifyContent: "flex-end" }}>
+      <div onMouseDown={e => e.stopPropagation()} style={{ width: 440, maxWidth: "100%", height: "100%", background: tokens.color.neutral[0], boxShadow: "-12px 0 40px rgba(28,25,23,0.18)", display: "flex", flexDirection: "column", fontFamily: tokens.font.family }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[5]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
+          <span style={{ fontSize: 11, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[400] }}>{a.code || `A-${a.id}`}</span>
+          {a.since && <span style={{ fontSize: 11, padding: "1px 8px", borderRadius: tokens.radius.full, background: tokens.color.neutral[100], color: tokens.color.neutral[500] }}>{a.since}</span>}
+          <button onClick={onClose} aria-label="Fermer" style={{ marginLeft: "auto", width: 30, height: 30, borderRadius: tokens.radius.md, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Svg size={17} sw={1.8}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Svg></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: tokens.space[5], display: "flex", flexDirection: "column", gap: tokens.space[5] }}>
+          {/* Titre */}
+          <textarea defaultValue={a.text || a.title || ""} onBlur={e => { const v = e.target.value.trim(); if (v && v !== (a.text || a.title)) upd({ text: v }); }} rows={2}
+            style={{ width: "100%", boxSizing: "border-box", border: "none", outline: "none", resize: "none", fontFamily: "inherit", fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], lineHeight: 1.3 }} />
+
+          {/* Statut (colonnes) */}
+          <Field label="Statut">
+            <div style={{ display: "inline-flex", gap: 3, background: tokens.color.neutral[100], borderRadius: tokens.radius.md, padding: 3 }}>
+              {ACTION_COLS.map(c => { const act = c.key === curCol; return <button key={c.key} onClick={() => onMove?.(a.id, c.key)} style={{ padding: "6px 12px", borderRadius: tokens.radius.sm, border: "none", background: act ? tokens.color.neutral[0] : "transparent", boxShadow: act ? tokens.shadow.sm : "none", color: act ? tokens.color.neutral[900] : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: act ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{c.label}</button>; })}
+            </div>
+          </Field>
+
+          {/* Priorité */}
+          <Field label="Priorité">
+            <div style={{ display: "inline-flex", gap: 3, background: tokens.color.neutral[100], borderRadius: tokens.radius.md, padding: 3 }}>
+              {DRAWER_PRIOS.map(o => { const act = prio === o.id; const fg = o.id === "urgent" ? tokens.color.semantic.danger.fg : o.id === "high" ? "#B45309" : tokens.color.neutral[900]; return <button key={o.id} onClick={() => upd({ priority: o.id })} style={{ padding: "6px 11px", borderRadius: tokens.radius.sm, border: "none", background: act ? tokens.color.neutral[0] : "transparent", boxShadow: act ? tokens.shadow.sm : "none", color: act ? fg : tokens.color.neutral[500], fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: act ? tokens.font.weight.semibold : tokens.font.weight.medium, cursor: "pointer" }}>{o.label}</button>; })}
+            </div>
+          </Field>
+
+          {/* Assigné + échéance */}
+          <div style={{ display: "flex", gap: tokens.space[6], flexWrap: "wrap" }}>
+            <Field label="Assigné à"><AssignMenu participants={participants} value={a.who || ""} onChange={(name) => upd({ who: name })} avatarStyleFor={avatarStyleFor} /></Field>
+            <Field label="Échéance"><MiniDatePicker value={a.due || ""} onChange={(v) => upd({ due: v })} /></Field>
+          </div>
+
+          {/* Description */}
+          <Field label="Description">
+            <textarea defaultValue={a.description || a.notes || ""} onBlur={e => upd({ description: e.target.value })} placeholder="Ajoute des détails, un contexte, des étapes…" rows={5}
+              style={{ width: "100%", boxSizing: "border-box", padding: tokens.space[3], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[900], outline: "none", resize: "vertical" }} />
+          </Field>
+        </div>
+
+        {/* Footer */}
+        {onDelete && (
+          <div style={{ padding: `${tokens.space[3]} ${tokens.space[5]}`, borderTop: `1px solid ${tokens.color.neutral[200]}`, display: "flex" }}>
+            <button onClick={() => { if (confirm("Supprimer cette action ?")) onDelete(a.id); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: `0 ${tokens.space[3]}`, border: `1px solid ${tokens.color.semantic.danger.border}`, borderRadius: tokens.radius.md, background: tokens.color.neutral[0], color: tokens.color.semantic.danger.fg, cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.medium }}><Svg size={14}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></Svg>Supprimer</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+function Field({ label, children }) {
+  return <div><div style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: tokens.space[2] }}>{label}</div>{children}</div>;
 }
 
 // Toggle segmenté (Tableau / Liste).

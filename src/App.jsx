@@ -1556,6 +1556,18 @@ export default function App() {
                   p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => String(x.id) === String(id) ? { ...x, due: due || "" } : x) }
                 ));
               }}
+              onUpdateAction={(id, patch) => {
+                setProjects(prev => prev.map(p => p.id !== activeId ? p : { ...p, actions: (p.actions || []).map(x => {
+                  if (String(x.id) !== String(id)) return x;
+                  const next = { ...x, ...patch };
+                  if (patch.priority !== undefined) next.urgent = patch.priority === "urgent";
+                  return next;
+                }) }));
+              }}
+              onDeleteAction={(id) => {
+                setProjects(prev => prev.map(p => p.id !== activeId ? p : { ...p, actions: (p.actions || []).filter(x => String(x.id) !== String(id)) }));
+                showToast("Action supprimée");
+              }}
               onViewPV={(pv) => { setModalData(pv); setModal("viewpv"); }}
               onViewPdf={async (pv) => {
                 if (pv.pdfDataUrl) { setModalData({ ...pv, _tab: "output" }); setModal("viewpv"); return; }
