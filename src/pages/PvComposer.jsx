@@ -3,7 +3,7 @@ import { tokens } from "../design/tokens";
 import { Button } from "../components/ui/v2/Button";
 import { parseDateFR } from "../utils/dates";
 import { supabase } from "../supabase";
-import { parseFunctionError, track, sendPvByEmail } from "../db";
+import { parseFunctionError, track, sendPvByEmail, uploadPhoto, getPhotoUrl } from "../db";
 import { generatePDF } from "../utils/pdf";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
 import { getCurrentPositionSafe, fetchWeatherAt } from "../utils/weather";
@@ -43,6 +43,7 @@ const I = {
   spark:   (p) => <Svg {...p}><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z" /></Svg>,
   clipboard:(p) => <Svg {...p} sw={1.7}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></Svg>,
   mail:    (p) => <Svg {...p} sw={1.7}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></Svg>,
+  user:    (p) => <Svg {...p} sw={1.7}><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></Svg>,
 };
 
 const DEFAULT_PROJECT = {
@@ -179,10 +180,13 @@ export function PvComposer({
     if (demo) return;
     setProjects(prev => prev.map(p => p.id === project.id ? { ...p, posts: (p.posts || []).map(po => po.id === postId ? fn(po) : po) } : p));
   };
-  const addRemark = (postId, text, status) => {
-    const r = { id: Date.now() + Math.random(), text, status: status === "urgent" ? "open" : (status || "open"), urgent: status === "urgent", recipients: [] };
+  const addRemark = (postId, text, status, photos, recipients) => {
+    const r = { id: Date.now() + Math.random(), text, status: status === "urgent" ? "open" : (status || "open"), urgent: status === "urgent", recipients: recipients || [], photos: photos || [] };
     mutatePost(postId, po => ({ ...po, remarks: [...(po.remarks || []), r] }));
   };
+  // Édition après création : (ré)assigner une personne / joindre des photos.
+  const assignRemark = (postId, remarkId, name) => mutatePost(postId, po => ({ ...po, remarks: (po.remarks || []).map(r => r.id === remarkId ? { ...r, recipients: name ? [name] : [] } : r) }));
+  const addRemarkPhotos = (postId, remarkId, photos) => mutatePost(postId, po => ({ ...po, remarks: (po.remarks || []).map(r => r.id === remarkId ? { ...r, photos: [...(r.photos || []), ...(photos || [])] } : r) }));
   const removeRemark = (postId, rid) => mutatePost(postId, po => ({ ...po, remarks: (po.remarks || []).filter(r => r.id !== rid) }));
 
   // ── Diffusion : destinataires, envoi email, création de tâches ──
@@ -288,7 +292,7 @@ export function PvComposer({
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
-        {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
+        {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} onAssignRemark={assignRemark} onAddRemarkPhotos={addRemarkPhotos} />}
         {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} profile={profile} today={today} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
@@ -446,7 +450,7 @@ function initials(s) {
 function toDisplayRemark(r) {
   const status = r.carriedFrom ? "reported" : r.urgent ? "urgent" : r.status === "done" ? "done" : r.status === "progress" ? "observation" : "observation";
   const rec = (r.recipients || [])[0];
-  return { id: r.id, text: r.text, status, recipient: rec ? { ini: initials(rec), name: rec } : null };
+  return { id: r.id, text: r.text, status, recipient: rec ? { ini: initials(rec), name: rec } : null, photos: r.photos || [] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -662,7 +666,7 @@ function Waveform({ stream, active }) {
   );
 }
 
-function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
+function SaisieStep({ project, meta, demo, onAddRemark, initialMode, onAssignRemark, onAddRemarkPhotos }) {
   const postes = useMemo(() => demo
     ? SAISIE_POSTES
     : (project.posts || []).map(p => ({ code: p.id, name: p.label, count: (p.remarks || []).length, alert: (p.remarks || []).some(r => r.urgent && r.status !== "done") })),
@@ -676,6 +680,9 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
   const [wxState, setWxState] = useState(demo ? "ok" : "loading");
   const startTime = useMemo(() => new Date().toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }), []);
   const dateLabel = meta.meetingLabel || new Date().toLocaleDateString("fr-BE", { weekday: "short", day: "numeric", month: "long" });
+  const [pendingPhotos, setPendingPhotos] = useState([]);
+  const [pendingRecipient, setPendingRecipient] = useState(null);
+  const [photoPickerFor, setPhotoPickerFor] = useState(null); // null | "capture" | remarkId
 
   useEffect(() => { if (!postes.find(p => p.code === activePoste)) setActivePoste(postes[0]?.code); }, [postes, activePoste]);
 
@@ -687,11 +694,22 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
     ? [{ ini: "GD", name: "Gaëlle D.", present: true }, { ini: "MG", name: "M. Genin", present: true }, { ini: "PM", name: "P. Mertens", present: false }]
     : (project.participants || []).filter(p => p.name && p.name.trim()).slice(0, 4).map(p => ({ ini: initials(p.name), name: p.name, present: true }));
 
+  const recOf = (name) => name ? { ini: initials(name), name } : null;
   const addRemark = () => {
-    if (!draft.trim()) return;
-    if (demo) setMockRemarks(prev => ({ ...prev, [activePoste]: [...(prev[activePoste] || []), { id: Date.now(), text: draft.trim(), status }] }));
-    else onAddRemark(activePoste, draft.trim(), status);
-    setDraft("");
+    if (!draft.trim() && !pendingPhotos.length) return;
+    if (demo) setMockRemarks(prev => ({ ...prev, [activePoste]: [...(prev[activePoste] || []), { id: Date.now(), text: draft.trim() || "(photo)", status, photos: pendingPhotos, recipient: recOf(pendingRecipient) }] }));
+    else onAddRemark(activePoste, draft.trim() || "(photo)", status, pendingPhotos, pendingRecipient ? [pendingRecipient] : []);
+    setDraft(""); setPendingPhotos([]); setPendingRecipient(null);
+  };
+
+  // Édition d'une remarque déjà créée (assignation / photos) — démo ou réel.
+  const assignTo = (remarkId, name) => {
+    if (demo) setMockRemarks(prev => ({ ...prev, [activePoste]: (prev[activePoste] || []).map(r => r.id === remarkId ? { ...r, recipient: recOf(name) } : r) }));
+    else onAssignRemark?.(activePoste, remarkId, name);
+  };
+  const addPhotosTo = (remarkId, photos) => {
+    if (demo) setMockRemarks(prev => ({ ...prev, [activePoste]: (prev[activePoste] || []).map(r => r.id === remarkId ? { ...r, photos: [...(r.photos || []), ...photos] } : r) }));
+    else onAddRemarkPhotos?.(activePoste, remarkId, photos);
   };
 
   // Dictée : transcription Whisper → découpée en remarques sur le poste actif.
@@ -798,11 +816,21 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
           <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[6]}`, display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
             {remarks.length === 0
               ? <div style={{ padding: tokens.space[8], textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>Aucune remarque sur ce poste — ajoute-en une ci-dessous.</div>
-              : remarks.map(r => <RemarkCard key={r.id} r={r} />)}
+              : remarks.map(r => <RemarkCard key={r.id} r={r} people={présents} onAssign={(name) => assignTo(r.id, name)} onAddPhoto={() => setPhotoPickerFor(r.id)} />)}
           </div>
 
           {/* Barre de capture */}
           <div style={{ flexShrink: 0, padding: `${tokens.space[3]} ${tokens.space[6]} ${tokens.space[4]}` }}>
+            {pendingPhotos.length > 0 && (
+              <div style={{ display: "flex", gap: tokens.space[2], marginBottom: tokens.space[2], flexWrap: "wrap" }}>
+                {pendingPhotos.map((ph, i) => (
+                  <div key={i} style={{ position: "relative", width: 52, height: 52, borderRadius: tokens.radius.md, overflow: "hidden", border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[100] }}>
+                    {(ph.url || ph.dataUrl) ? <img src={ph.url || ph.dataUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", color: tokens.color.neutral[400] }}><I.image size={18} /></span>}
+                    <button onClick={() => setPendingPhotos(p => p.filter((_, j) => j !== i))} aria-label="Retirer la photo" style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: 999, border: "none", background: "rgba(28,25,23,0.72)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}><I.close size={9} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ background: tokens.color.neutral[0], border: `1.5px solid ${tokens.color.brand[200]}`, borderRadius: tokens.radius.lg, padding: `${tokens.space[2]} ${tokens.space[2]} ${tokens.space[2]} ${tokens.space[3]}`, boxShadow: tokens.shadow.priority, display: "flex", alignItems: "center", gap: tokens.space[2] }}>
               <div style={{ display: "inline-flex", gap: 3, background: tokens.color.neutral[100], borderRadius: tokens.radius.md, padding: 3, flexShrink: 0 }}>
                 {[{ id: "write", label: "Écrire" }, { id: "dictate", label: "Dicter" }].map(m => {
@@ -819,6 +847,11 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
                     placeholder={`Ajouter une remarque au poste ${poste.name}…`}
                     style={{ flex: 1, minWidth: 0, height: 34, border: "none", outline: "none", background: "transparent", fontFamily: "inherit", fontSize: tokens.font.size.base, color: tokens.color.neutral[900] }}
                   />
+                  <button onClick={() => setPhotoPickerFor("capture")} title="Joindre une photo" aria-label="Joindre une photo" style={{ width: 34, height: 34, flexShrink: 0, borderRadius: tokens.radius.md, border: "none", background: pendingPhotos.length ? tokens.color.brand[50] : "transparent", color: pendingPhotos.length ? tokens.color.brand[600] : tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                    <I.image size={18} />
+                    {pendingPhotos.length > 0 && <span style={{ position: "absolute", top: -2, right: -2, minWidth: 14, height: 14, borderRadius: 999, background: tokens.color.brand[500], color: "#fff", fontSize: 9, fontWeight: tokens.font.weight.bold, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>{pendingPhotos.length}</span>}
+                  </button>
+                  <AssigneeControl variant="capture" people={présents} current={pendingRecipient} onAssign={setPendingRecipient} />
                   <div style={{ display: "flex", alignItems: "center", gap: tokens.space[1], flexShrink: 0 }}>
                     {["observation", "urgent"].map(s => {
                       const a = s === status;
@@ -826,7 +859,7 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
                       return <button key={s} onClick={() => setStatus(s)} style={{ height: 30, padding: `0 ${tokens.space[2]}`, background: a ? sc.bg : tokens.color.neutral[0], border: `1px solid ${a ? sc.border : tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: a ? sc.fg : tokens.color.neutral[500], cursor: "pointer", textTransform: "capitalize" }}>{s === "observation" ? "Observation" : "Urgent"}</button>;
                     })}
                   </div>
-                  <Button variant="primary" size="md" onClick={addRemark} disabled={!draft.trim()}>Ajouter</Button>
+                  <Button variant="primary" size="md" onClick={addRemark} disabled={!draft.trim() && !pendingPhotos.length}>Ajouter</Button>
                 </>
               ) : (
                 <DictateBar recorder={recorder} demo={demo} posteName={poste.name} />
@@ -835,6 +868,7 @@ function SaisieStep({ project, meta, demo, onAddRemark, initialMode }) {
           </div>
         </div>
       </div>
+      {photoPickerFor && <PhotoPickerSheet project={project} demo={demo} onClose={() => setPhotoPickerFor(null)} onPick={(ref) => { if (photoPickerFor === "capture") setPendingPhotos(p => [...p, ref]); else addPhotosTo(photoPickerFor, [ref]); setPhotoPickerFor(null); }} />}
     </>
   );
 }
@@ -881,26 +915,87 @@ function DictateBar({ recorder: rec, demo, posteName }) {
   );
 }
 
-function RemarkCard({ r }) {
+function RemarkCard({ r, people, onAssign, onAddPhoto }) {
   const sc = REMARK_STATUS[r.status] || REMARK_STATUS.observation;
   const checked = r.status === "reported";
+  const photoArr = Array.isArray(r.photos) ? r.photos : [];
+  const photoNum = typeof r.photos === "number" ? r.photos : 0;
   return (
     <div style={{ background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: r.status === "urgent" ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, padding: tokens.space[3], display: "flex", gap: tokens.space[3] }}>
       <span style={{ width: 20, height: 20, borderRadius: tokens.radius.full, border: `2px solid ${checked ? "#D97706" : tokens.color.neutral[300]}`, background: tokens.color.neutral[0], flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: tokens.font.size.base, color: tokens.color.neutral[900], lineHeight: 1.45, marginBottom: tokens.space[2] }}>{r.text}</div>
+        {photoArr.length > 0 && (
+          <div style={{ display: "flex", gap: tokens.space[2], marginBottom: tokens.space[2], flexWrap: "wrap" }}>
+            {photoArr.map((ph, i) => (ph.url || ph.dataUrl)
+              ? <img key={i} src={ph.url || ph.dataUrl} alt="" style={{ width: 56, height: 56, borderRadius: tokens.radius.md, objectFit: "cover", border: `1px solid ${tokens.color.neutral[200]}` }} />
+              : <span key={i} style={{ width: 56, height: 56, borderRadius: tokens.radius.md, background: tokens.color.neutral[100], display: "flex", alignItems: "center", justifyContent: "center", color: tokens.color.neutral[400] }}><I.image size={18} /></span>)}
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: tokens.space[2], flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: tokens.radius.full, background: sc.bg, color: sc.fg, border: `1px solid ${sc.border}`, fontWeight: r.status === "urgent" ? tokens.font.weight.semibold : tokens.font.weight.medium }}>{r.status === "reported" ? "↩ Reporté" : sc.label}</span>
-          {r.recipient && (
-            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 8px", borderRadius: tokens.radius.full, background: tokens.color.neutral[100], color: tokens.color.neutral[700], border: `1px solid ${tokens.color.neutral[200]}` }}>
-              <span style={{ width: 14, height: 14, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: tokens.font.weight.bold }}>{r.recipient.ini}</span>
-              {r.recipient.name}
-            </span>
-          )}
-          {r.photos > 0 && <span style={{ marginLeft: "auto", fontSize: 11, color: tokens.color.neutral[500], display: "flex", alignItems: "center", gap: 4 }}><I.image size={13} />{r.photos} photo{r.photos > 1 ? "s" : ""}</span>}
-          {r.canConvert && <button style={{ marginLeft: "auto", height: 26, padding: `0 ${tokens.space[2]}`, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.sm, fontFamily: "inherit", fontSize: 11, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[500], cursor: "pointer" }}>→ Convertir en réserve</button>}
+          {onAssign
+            ? <AssigneeControl variant="pill" people={people} current={r.recipient?.name} onAssign={onAssign} />
+            : r.recipient && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 8px", borderRadius: tokens.radius.full, background: tokens.color.neutral[100], color: tokens.color.neutral[700], border: `1px solid ${tokens.color.neutral[200]}` }}>
+                <span style={{ width: 14, height: 14, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: tokens.font.weight.bold }}>{r.recipient.ini}</span>
+                {r.recipient.name}
+              </span>
+            )}
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: tokens.space[2] }}>
+            {photoNum > 0 && <span style={{ fontSize: 11, color: tokens.color.neutral[500], display: "flex", alignItems: "center", gap: 4 }}><I.image size={13} />{photoNum} photo{photoNum > 1 ? "s" : ""}</span>}
+            {onAddPhoto && <button onClick={onAddPhoto} title="Joindre une photo" aria-label="Joindre une photo" style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: `0 ${tokens.space[2]}`, background: tokens.color.neutral[0], border: `1px dashed ${tokens.color.neutral[300]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: 11, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[500], cursor: "pointer" }}><I.image size={13} />Photo</button>}
+            {r.canConvert && <button style={{ height: 26, padding: `0 ${tokens.space[2]}`, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.sm, fontFamily: "inherit", fontSize: 11, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[500], cursor: "pointer" }}>→ Convertir en réserve</button>}
+          </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Contrôle d'assignation réutilisable (barre de capture + carte remarque).
+function AssigneeControl({ variant, people, current, onAssign }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const list = (people || []).filter(p => p.name);
+  const curIni = current ? initials(current) : null;
+
+  const trigger = variant === "capture" ? (
+    <button onClick={() => setOpen(o => !o)} title="Assigner à une personne" aria-label="Assigner à une personne" style={{ height: 34, padding: current ? "0 10px 0 4px" : "0 9px", flexShrink: 0, borderRadius: tokens.radius.md, border: "none", background: current ? tokens.color.brand[50] : "transparent", color: current ? tokens.color.brand[700] : tokens.color.neutral[500], cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium }}>
+      {current ? <><span style={{ width: 20, height: 20, borderRadius: tokens.radius.full, background: tokens.color.brand[100], color: tokens.color.brand[700], display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold }}>{curIni}</span>{current.split(" ")[0]}</> : <I.user size={16} />}
+    </button>
+  ) : (
+    <button onClick={() => setOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 8px", borderRadius: tokens.radius.full, background: current ? tokens.color.neutral[100] : tokens.color.neutral[0], color: current ? tokens.color.neutral[700] : tokens.color.neutral[500], border: current ? `1px solid ${tokens.color.neutral[200]}` : `1px dashed ${tokens.color.neutral[300]}`, cursor: "pointer", fontFamily: "inherit", fontWeight: tokens.font.weight.medium }}>
+      {current ? <><span style={{ width: 14, height: 14, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: tokens.font.weight.bold }}>{curIni}</span>{current}</> : <><I.user size={11} />Assigner</>}
+    </button>
+  );
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      {trigger}
+      {open && (
+        <div style={{ position: "absolute", left: 0, zIndex: 60, minWidth: 190, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: 4, ...(variant === "capture" ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 4px)" }) }}>
+          <div style={{ fontSize: 10, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em", padding: `${tokens.space[1]} ${tokens.space[2]}` }}>Assigner à</div>
+          {list.length === 0 && <div style={{ padding: `${tokens.space[2]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Aucun intervenant.</div>}
+          {list.map((p, i) => {
+            const sel = current === p.name;
+            return (
+              <button key={i} onClick={() => { onAssign(sel ? null : p.name); setOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[2]}`, border: "none", borderRadius: tokens.radius.md, background: sel ? tokens.color.brand[50] : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                <span style={{ width: 22, height: 22, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold, flexShrink: 0 }}>{p.ini || initials(p.name)}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                {sel && <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.check size={14} /></span>}
+              </button>
+            );
+          })}
+          {current && <button onClick={() => { onAssign(null); setOpen(false); }} style={{ width: "100%", textAlign: "left", padding: `${tokens.space[2]}`, border: "none", borderTop: `1px solid ${tokens.color.neutral[100]}`, marginTop: 2, background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Retirer l'assignation</button>}
+        </div>
+      )}
     </div>
   );
 }
@@ -1376,6 +1471,70 @@ function ImportNotesModal({ demo, project, onClose, onApply, onDone }) {
         <div style={{ display: "flex", gap: tokens.space[2], padding: `${tokens.space[4]} ${tokens.space[5]} ${tokens.space[5]}`, justifyContent: "flex-end" }}>
           <Button variant="secondary" size="lg" onClick={onClose}>Annuler</Button>
           <Button variant="primary" size="lg" leftIcon={<I.spark size={15} />} onClick={dispatchText} disabled={!canSubmit}>{dispatching ? "Répartition…" : "Répartir en remarques"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sélecteur de photo — galerie du projet ou fichier local
+// ─────────────────────────────────────────────────────────────
+
+function PhotoPickerSheet({ project, demo, onClose, onPick }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
+  const gallery = project?.gallery || [];
+
+  const onLocal = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = String(e.target.result || "");
+      if (demo) { onPick({ dataUrl }); return; }
+      setUploading(true);
+      try { const res = await uploadPhoto(dataUrl); onPick(res?.url ? { url: res.url, storagePath: res.storagePath } : { dataUrl }); }
+      catch { onPick({ dataUrl }); }
+      finally { setUploading(false); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div onMouseDown={onClose} style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(28,25,23,0.32)", display: "flex", alignItems: "center", justifyContent: "center", padding: tokens.space[5] }}>
+      <div onMouseDown={e => e.stopPropagation()} style={{ width: 560, maxWidth: "100%", maxHeight: "80vh", background: tokens.color.neutral[0], borderRadius: tokens.radius.xl, boxShadow: "0 24px 60px rgba(28,25,23,0.28)", overflow: "hidden", fontFamily: tokens.font.family, display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3], padding: `${tokens.space[5]} ${tokens.space[5]} ${tokens.space[3]}` }}>
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: tokens.color.brand[50], color: tokens.color.brand[600], display: "flex", alignItems: "center", justifyContent: "center" }}><I.image size={20} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: tokens.color.neutral[900] }}>Joindre une photo</div>
+            <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>Depuis la galerie du projet ou ton appareil</div>
+          </div>
+          <button onClick={onClose} aria-label="Fermer" style={{ width: 32, height: 32, borderRadius: tokens.radius.md, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><I.close size={17} /></button>
+        </div>
+
+        <div style={{ padding: `0 ${tokens.space[5]} ${tokens.space[3]}` }}>
+          <button onClick={() => inputRef.current?.click()} disabled={uploading} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: tokens.space[2], height: 44, border: `1.5px dashed ${tokens.color.brand[200]}`, borderRadius: tokens.radius.lg, background: tokens.color.brand[50], color: tokens.color.brand[600], fontFamily: "inherit", fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, cursor: uploading ? "wait" : "pointer" }}>
+            <I.upload size={16} /> {uploading ? "Envoi…" : "Prendre / choisir une photo (appareil)"}
+          </button>
+          <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => onLocal(e.target.files?.[0])} />
+        </div>
+
+        <div style={{ padding: `0 ${tokens.space[5]} ${tokens.space[2]}`, fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Galerie du projet · {gallery.length}</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: `0 ${tokens.space[5]} ${tokens.space[5]}` }}>
+          {gallery.length === 0 ? (
+            <div style={{ padding: tokens.space[6], textAlign: "center", color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>Aucune photo dans la galerie du projet.</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: tokens.space[2] }}>
+              {gallery.map((ph, i) => {
+                const src = getPhotoUrl(ph);
+                return (
+                  <button key={ph.id ?? i} onClick={() => onPick({ url: src, id: ph.id, caption: ph.caption })} style={{ aspectRatio: "1 / 1", borderRadius: tokens.radius.md, overflow: "hidden", border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[100], cursor: "pointer", padding: 0 }}>
+                    {src ? <img src={src} alt={ph.caption || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <span style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", color: tokens.color.neutral[400], fontSize: 10 }}>{ph.caption || "photo"}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
