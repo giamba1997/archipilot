@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { tokens } from "../design/tokens";
 import { PLANS, STRUCTURE_TYPES } from "../constants/config";
 import { exportUserData, deleteAccount } from "../db";
@@ -314,27 +314,45 @@ function SaveHeader({ onSave }) {
 
 // ── Signature email ───────────────────────────────────────────
 function SignatureSection({ profile, save }) {
-  const [html, setHtml] = useState(profile.emailSignature || `Bien cordialement,<br><br><b>${profile.name || ""}</b><br>${profile.structureType || "Architecte"}${profile.structure ? " · " + profile.structure : ""}<br>${[profile.phone, profile.email].filter(Boolean).join(" · ")}`);
-  const exec = (cmd) => document.execCommand(cmd, false, null);
+  const ref = useRef(null);
+  const fileRef = useRef(null);
+  const initial = profile.emailSignature || `Bien cordialement,<br><br><b>${profile.name || ""}</b><br>${profile.structureType || "Architecte"}${profile.structure ? " · " + profile.structure : ""}<br>${[profile.phone, profile.email].filter(Boolean).join(" · ")}`;
+  const [html, setHtml] = useState(initial);
+  const [err, setErr] = useState("");
+  // Initialise l'éditeur une seule fois (pas de re-set par React → pas de saut de curseur).
+  useEffect(() => { if (ref.current) { ref.current.innerHTML = initial; } }, []); // eslint-disable-line
+  const sync = () => setHtml(ref.current?.innerHTML || "");
+  const exec = (cmd, arg) => { ref.current?.focus(); document.execCommand(cmd, false, arg); sync(); };
+  const onImg = (file) => {
+    setErr("");
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setErr("Logo trop lourd (max 2 Mo)."); return; }
+    const r = new FileReader();
+    r.onload = e => { ref.current?.focus(); document.execCommand("insertImage", false, String(e.target.result || "")); sync(); };
+    r.readAsDataURL(file);
+  };
+  const tbtn = { width: 30, height: 30, borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, display: "inline-flex", alignItems: "center", justifyContent: "center" };
   return (
     <>
+      <style>{`.sig-edit img,.sig-prev img{max-width:200px;max-height:90px;border-radius:6px;vertical-align:middle}`}</style>
       <div style={{ display: "flex", marginBottom: tokens.space[4] }}><div style={{ marginLeft: "auto" }}><Btn variant="primary" onClick={() => save({ emailSignature: html })}>Enregistrer</Btn></div></div>
-      <Hint>Cette signature est ajoutée automatiquement aux PV, OPR et factures envoyés par email.</Hint>
+      <Hint>Cette signature est ajoutée automatiquement aux PV, OPR et factures envoyés par email. Tu peux insérer une image (logo).</Hint>
       <Card style={{ padding: 0, overflow: "hidden", marginBottom: tokens.space[4] }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: `${tokens.space[2]} ${tokens.space[3]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: "#FCFBFA" }}>
           {[["B", "bold", { fontWeight: 700 }], ["I", "italic", { fontStyle: "italic" }], ["U", "underline", { textDecoration: "underline" }]].map(([l, cmd, st]) => (
-            <button key={cmd} onMouseDown={e => e.preventDefault()} onClick={() => exec(cmd)} style={{ width: 30, height: 30, borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, ...st }}>{l}</button>
+            <button key={cmd} onMouseDown={e => e.preventDefault()} onClick={() => exec(cmd)} title={l} style={{ ...tbtn, ...st }}>{l}</button>
           ))}
+          <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: "0 4px" }} />
+          <button onMouseDown={e => e.preventDefault()} onClick={() => fileRef.current?.click()} title="Insérer une image / un logo" style={tbtn}><Svg d={ICONS.image || "M3 5h18v14H3z|M8.5 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3|m21 16-5-5L5 21"} size={15} /></button>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => onImg(e.target.files?.[0])} />
         </div>
-        <div contentEditable suppressContentEditableWarning onInput={e => setHtml(e.currentTarget.innerHTML)} style={{ padding: tokens.space[4], fontSize: tokens.font.size.base, lineHeight: 1.6, color: tokens.color.neutral[700], outline: "none", minHeight: 120 }} dangerouslySetInnerHTML={{ __html: profile.emailSignature || html }} />
+        <div ref={ref} className="sig-edit" contentEditable suppressContentEditableWarning onInput={sync} style={{ padding: tokens.space[4], fontSize: tokens.font.size.base, lineHeight: 1.6, color: tokens.color.neutral[700], outline: "none", minHeight: 120 }} />
       </Card>
+      {err && <div style={{ fontSize: tokens.font.size.xs, color: tokens.color.semantic.danger.fg, marginTop: `-${tokens.space[3]}`, marginBottom: tokens.space[3] }}>{err}</div>}
       <SubLabel>Aperçu dans un email</SubLabel>
       <Card>
         <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[700], lineHeight: 1.55, marginBottom: tokens.space[4], paddingBottom: tokens.space[4], borderBottom: `1px solid ${tokens.color.neutral[100]}` }}>Bonjour,<br />Veuillez trouver ci-joint le procès-verbal de la réunion.</div>
-        <div style={{ display: "flex", alignItems: "center", gap: tokens.space[3] }}>
-          <div style={{ width: 46, height: 46, borderRadius: tokens.radius.lg, background: tokens.color.brand[100], color: tokens.color.brand[700], display: "flex", alignItems: "center", justifyContent: "center", fontWeight: tokens.font.weight.bold, flexShrink: 0 }}>{initials(profile.name)}</div>
-          <div style={{ fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[700] }} dangerouslySetInnerHTML={{ __html: html }} />
-        </div>
+        <div className="sig-prev" style={{ fontSize: tokens.font.size.sm, lineHeight: 1.5, color: tokens.color.neutral[700] }} dangerouslySetInnerHTML={{ __html: html }} />
       </Card>
     </>
   );
