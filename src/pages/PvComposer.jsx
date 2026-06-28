@@ -75,6 +75,7 @@ export function PvComposer({
   const [saisieMode, setSaisieMode] = useState("write");
   const [importOpen, setImportOpen] = useState(false);
   const [pvStyle, setPvStyle] = useState(projectProp?.pvTemplate || "standard");
+  const [recipFilter, setRecipFilter] = useState(() => (Array.isArray(pvRecipients) && pvRecipients.length === 1) ? pvRecipients[0] : null);
   const [gen, setGen] = useState({ loading: false, content: "", error: "", suggestedTasks: [], saved: false });
   const today = useMemo(() => new Date().toLocaleDateString("fr-BE"), []);
   const finish = () => (onBack || onClose)?.();
@@ -95,14 +96,16 @@ export function PvComposer({
   }, [project, demo]);
 
   // ── Moteur de génération (porté de ResultView.run) ──
-  const genPv = async (styleOverride) => {
+  const genPv = async (opts = {}) => {
     if (demo) return;
+    const styleId = opts.style != null ? opts.style : pvStyle;
+    const recip = opts.recip !== undefined ? opts.recip : recipFilter;
     setGen(g => ({ ...g, loading: true, error: "" }));
     const allRemarks = (p) => (p.remarks || []).length > 0 ? p.remarks : (p.notes?.trim() ? parseNotesToRemarks(p.notes) : []);
     const toRemarks = (p) => {
       const all = allRemarks(p);
-      if (!pvRecipients || pvRecipients.length === 0) return all;
-      return all.filter(r => !(r.recipients || []).length || pvRecipients.some(rec => (r.recipients || []).includes(rec)));
+      if (!recip) return all;
+      return all.filter(r => !(r.recipients || []).length || (r.recipients || []).includes(recip));
     };
     let gIdx = 0;
     const numMode = project.remarkNumbering || "none";
@@ -121,7 +124,7 @@ export function PvComposer({
         return `${p.id}. ${p.label}\n${sections.join("\n")}${extra ? "\n" + extra : ""}`;
       })
       .join("\n\n");
-    const pvTpl = PV_TEMPLATES.find(x => x.id === (styleOverride || pvStyle));
+    const pvTpl = PV_TEMPLATES.find(x => x.id === styleId);
     const SYS = pvTpl?.prompt || t("ai.systemPrompt");
     const ctxLines = [];
     if (project.client) ctxLines.push(`Maître d'ouvrage : ${project.client}`);
@@ -199,6 +202,14 @@ export function PvComposer({
     if (demo) return DIFF_RECIPIENTS;
     const palette = [["#DBEAFE", tokens.color.semantic.info.fg], ["#DCFCE7", tokens.color.semantic.success.fg], [tokens.color.brand[100], tokens.color.brand[700]], [tokens.color.neutral[100], tokens.color.neutral[500]]];
     return (project.participants || []).filter(p => p.email && p.email.trim()).map((p, i) => ({ ini: initials(p.name), name: p.name, email: p.email, role: p.role || "", avBg: palette[i % 4][0], avFg: palette[i % 4][1] }));
+  }, [project, demo]);
+  // Destinataires possibles pour filtrer les remarques du PV (toolbar Rédaction).
+  const recipOptions = useMemo(() => {
+    if (demo) return ["Gaëlle D.", "M. Genin", "P. Mertens"];
+    const set = new Set();
+    (project?.posts || []).forEach(p => (p.remarks || []).forEach(r => (r.recipients || []).forEach(n => n && set.add(n))));
+    (project?.participants || []).forEach(p => p.name && p.name.trim() && set.add(p.name));
+    return [...set];
   }, [project, demo]);
   const subject = `PV n°${meta.num} — ${project?.name || ""}${project?.nextMeeting ? ` (${project.nextMeeting})` : ""}`;
   const customMessage = `<p>Bonjour,</p><p>Veuillez trouver ci-joint le procès-verbal de la réunion de chantier. Les points en attente y sont détaillés par poste.</p><p>Bien cordialement,<br>${profile?.name || "L'architecte"}${profile?.agency ? ` — ${profile.agency}` : ""}</p>`;
@@ -294,7 +305,7 @@ export function PvComposer({
         {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} onAssignRemark={assignRemark} onAddRemarkPhotos={addRemarkPhotos} />}
-        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv(pvStyle)} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv(id); }} />}
+        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={() => genPv()} profile={profile} today={today} styleId={pvStyle} onStyleChange={(id) => { setPvStyle(id); if (!demo) genPv({ style: id }); }} recipFilter={recipFilter} recipOptions={recipOptions} onRecipChange={(name) => { setRecipFilter(name); if (!demo) genPv({ recip: name }); }} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
 
@@ -1204,7 +1215,42 @@ function RichDocEditor({ value, onChange }) {
   );
 }
 
-function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today, styleId, onStyleChange }) {
+// Menu de filtrage par destinataire (toolbar Rédaction) — "Tous" ou une personne.
+function RecipientDrop({ value, options, onChange, loading }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const pick = (v) => { setOpen(false); if (v !== value) onChange?.(v); };
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(o => !o)} disabled={loading} style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 32, padding: `0 ${tokens.space[3]}`, background: open ? tokens.color.neutral[50] : tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[700], cursor: loading ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+        Destinataire : <b style={{ fontWeight: tokens.font.weight.semibold }}>{value || "tous"}</b> <I.chevDown size={13} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 60, minWidth: 200, maxHeight: 280, overflowY: "auto", background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: 4 }}>
+          {[null, ...(options || [])].map((opt, i) => {
+            const sel = (opt || null) === (value || null);
+            return (
+              <button key={i} onClick={() => pick(opt)} style={{ width: "100%", display: "flex", alignItems: "center", gap: tokens.space[2], padding: `${tokens.space[2]} ${tokens.space[2]}`, border: "none", borderRadius: tokens.radius.md, background: sel ? tokens.color.brand[50] : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                {opt ? <span style={{ width: 22, height: 22, borderRadius: tokens.radius.full, background: "#DCFCE7", color: tokens.color.semantic.success.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: tokens.font.weight.bold, flexShrink: 0 }}>{initials(opt)}</span> : <span style={{ width: 22, height: 22, borderRadius: tokens.radius.full, background: tokens.color.neutral[100], color: tokens.color.neutral[500], display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I.user size={12} /></span>}
+                <span style={{ flex: 1, minWidth: 0, fontSize: tokens.font.size.sm, color: tokens.color.neutral[900], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{opt || "Tous les destinataires"}</span>
+                {sel && <span style={{ color: tokens.color.brand[600], display: "inline-flex" }}><I.check size={14} /></span>}
+              </button>
+            );
+          })}
+          <div style={{ padding: `${tokens.space[2]} ${tokens.space[2]} ${tokens.space[1]}`, fontSize: 10, color: tokens.color.neutral[400], lineHeight: 1.4 }}>Filtre les remarques incluses dans le PV (les remarques sans destinataire restent toujours incluses).</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today, styleId, onStyleChange, recipFilter, recipOptions, onRecipChange }) {
   const [previewTab, setPreviewTab] = useState("pdf");
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -1233,7 +1279,7 @@ function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profi
         <SegToggle label="Style" value={styleId} onChange={onStyleChange} options={[{ id: "standard", label: "Standard" }, { id: "detailed", label: "Détaillé" }, { id: "concise", label: "Concis" }]} />
         <Divider />
         <DropBtn>Numérotation : par poste <I.chevDown size={13} /></DropBtn>
-        <DropBtn>Destinataire : tous <I.chevDown size={13} /></DropBtn>
+        <RecipientDrop value={recipFilter} options={recipOptions || []} onChange={onRecipChange} loading={!demo && gen?.loading} />
         <div style={{ marginLeft: "auto" }}><button onClick={!demo ? onRegenerate : undefined} disabled={!demo && gen?.loading} style={{ display: "inline-flex", alignItems: "center", gap: tokens.space[2], height: 32, padding: `0 ${tokens.space[3]}`, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.medium, color: tokens.color.neutral[700], cursor: (!demo && gen?.loading) ? "wait" : "pointer" }}><I.redo size={13} />Régénérer</button></div>
       </div>
 
