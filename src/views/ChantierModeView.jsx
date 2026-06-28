@@ -207,7 +207,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       contractor: newRes.contractor || "",
       location: newRes.location || "",
       photos: newRes.photos || [],
-      deadline: "",
+      deadline: newRes.deadline || "",
       notes: "",
       createdAt: new Date().toISOString(),
       resolvedAt: null,
@@ -959,80 +959,88 @@ function TextNoteSheet({ onClose, onSubmit }) {
 
 // ── Sheet : Nouvelle réserve ──
 function NewReserveSheet({ contractors, onClose, onSubmit }) {
-  const [form, setForm] = useState({
-    description: "",
-    severity: "major",
-    contractor: "",
-    location: "",
-    photos: [],
-  });
+  const fileRef = useRef(null);
+  const [form, setForm] = useState({ description: "", severity: "major", contractor: "", location: "", deadline: "", photos: [] });
+  const [dictating, setDictating] = useState(false);
   const canSubmit = form.description.trim().length > 0;
+
+  const addPhoto = (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result;
+      setForm(f => ({ ...f, photos: [...f.photos, dataUrl] }));
+      if (navigator.onLine) { try { const res = await uploadPhoto(dataUrl); if (res?.url) setForm(f => ({ ...f, photos: f.photos.map(p => p === dataUrl ? res.url : p) })); } catch { /* hors-ligne : reste en dataUrl, rejoint la file de synchro */ } }
+    };
+    reader.readAsDataURL(file); e.target.value = "";
+  };
+  const dictate = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR(); r.lang = "fr-FR"; r.interimResults = false;
+    setDictating(true);
+    r.onresult = (e) => { const t = e.results[0][0].transcript; setForm(f => ({ ...f, description: (f.description ? f.description + " " : "") + t })); };
+    r.onend = () => setDictating(false); r.onerror = () => setDictating(false);
+    r.start();
+  };
+
+  const ROW = { padding: "12px 14px" };
+  const ROW_LBL = { fontSize: 11, color: TX3, marginBottom: 4 };
+  const ROW_INPUT = { ...inputStyle, padding: "6px 0", border: "none", fontSize: 14, fontWeight: 500, background: "transparent" };
 
   return (
     <SheetWrapper title="Nouvelle réserve" onClose={onClose}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 4 }}>Description *</div>
-      <textarea
-        value={form.description}
-        onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-        rows={3}
-        placeholder="Décris le défaut constaté…"
-        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
-      />
-
-      <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginTop: 12, marginBottom: 4 }}>Gravité</div>
-      <div style={{ display: "flex", gap: 4 }}>
-        {RESERVE_SEVERITIES.map(s => (
-          <button
-            key={s.id}
-            onClick={() => setForm(f => ({ ...f, severity: s.id }))}
-            style={{
-              flex: 1, padding: "8px 4px",
-              border: `1.5px solid ${form.severity === s.id ? s.color : SBB}`,
-              borderRadius: 8,
-              background: form.severity === s.id ? s.bg : WH,
-              color: form.severity === s.id ? s.color : TX3,
-              fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            {s.label}
-          </button>
+      {/* Photos (capture d'abord) */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {form.photos.map((p, i) => (
+          <div key={i} style={{ position: "relative" }}>
+            <img src={p} alt="" style={{ width: 64, height: 64, borderRadius: 10, objectFit: "cover", border: `1px solid ${SBB}` }} />
+            <button onClick={() => setForm(f => ({ ...f, photos: f.photos.filter((_, j) => j !== i) }))} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 999, background: BR, border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="x" size={11} color="#fff" /></button>
+          </div>
         ))}
+        <button onClick={() => fileRef.current?.click()} style={{ width: 64, height: 64, borderRadius: 10, border: `1.5px dashed ${SBB}`, background: SB, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, color: TX3, fontFamily: "inherit" }}>
+          <Ico name="camera" size={20} color={TX3} /><span style={{ fontSize: 9, fontWeight: 600 }}>Photo</span>
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={addPhoto} />
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 4 }}>Entreprise</div>
-          <input
-            list="contractors-list-chantier"
-            value={form.contractor}
-            onChange={e => setForm(f => ({ ...f, contractor: e.target.value }))}
-            placeholder="ex: BESIX"
-            style={inputStyle}
-          />
-          <datalist id="contractors-list-chantier">
-            {contractors.map(c => <option key={c} value={c} />)}
-          </datalist>
+      {/* Description + dictée */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>Description</div>
+      <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Décris le défaut constaté…" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+      <button onClick={dictate} style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, background: "none", border: "none", color: AC, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+        <Ico name="mic" size={14} color={AC} />{dictating ? "Écoute…" : "Dicter la description"}
+      </button>
+
+      {/* Gravité (gros boutons) */}
+      <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginTop: 16, marginBottom: 8 }}>Gravité</div>
+      <div style={{ display: "flex", gap: 7 }}>
+        {RESERVE_SEVERITIES.map(s => { const a = form.severity === s.id; return (
+          <button key={s.id} onClick={() => setForm(f => ({ ...f, severity: s.id }))} style={{ flex: 1, height: 40, borderRadius: 10, border: `1.5px solid ${a ? s.color : SBB}`, background: a ? s.bg : WH, color: a ? s.color : TX3, fontSize: 12.5, fontWeight: a ? 600 : 500, cursor: "pointer", fontFamily: "inherit" }}>{s.label}</button>
+        ); })}
+      </div>
+
+      {/* Localisation · responsable · échéance */}
+      <div style={{ marginTop: 16, background: WH, border: `1px solid ${SBB}`, borderRadius: 14, overflow: "hidden" }}>
+        <div style={ROW}>
+          <div style={ROW_LBL}>Localisation</div>
+          <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="ex : Toiture · angle N-E" style={ROW_INPUT} />
         </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: TX2, marginBottom: 4 }}>Localisation</div>
-          <input
-            value={form.location}
-            onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-            placeholder="ex: Cuisine RDC"
-            style={inputStyle}
-          />
+        <div style={{ height: 1, background: SB2, margin: "0 14px" }} />
+        <div style={ROW}>
+          <div style={ROW_LBL}>Responsable</div>
+          <input list="contractors-list-chantier" value={form.contractor} onChange={e => setForm(f => ({ ...f, contractor: e.target.value }))} placeholder="ex : Toitures Lurquin" style={ROW_INPUT} />
+          <datalist id="contractors-list-chantier">{contractors.map(c => <option key={c} value={c} />)}</datalist>
+        </div>
+        <div style={{ height: 1, background: SB2, margin: "0 14px" }} />
+        <div style={ROW}>
+          <div style={ROW_LBL}>Échéance</div>
+          <input type="date" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} style={ROW_INPUT} />
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         <button onClick={onClose} style={btnSecondary}>Annuler</button>
-        <button
-          onClick={() => onSubmit(form)}
-          disabled={!canSubmit}
-          style={{ ...btnPrimary, flex: 2, background: canSubmit ? AC : DIS, color: canSubmit ? "#fff" : DIST, cursor: canSubmit ? "pointer" : "not-allowed" }}
-        >
-          Créer la réserve
-        </button>
+        <button onClick={() => onSubmit(form)} disabled={!canSubmit} style={{ ...btnPrimary, flex: 2, background: canSubmit ? AC : DIS, color: canSubmit ? "#fff" : DIST, cursor: canSubmit ? "pointer" : "not-allowed" }}>Ajouter la réserve</button>
       </div>
     </SheetWrapper>
   );
