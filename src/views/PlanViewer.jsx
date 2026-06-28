@@ -636,6 +636,15 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
           </div>
         </div>
 
+        {/* Contrôle de zoom (comme le handoff) */}
+        {planImageSrc && (
+          <div style={{ display: "flex", alignItems: "center", border: `1px solid ${SBB}`, borderRadius: 9, overflow: "hidden", flexShrink: 0 }}>
+            <button onClick={() => zoomBy(1 / 1.4)} title="Zoom arrière" style={{ width: 30, height: 32, border: "none", borderRight: `1px solid ${SBB}`, background: WH, color: TX2, cursor: "pointer", fontSize: 16, fontWeight: 600, lineHeight: 1, fontFamily: "inherit" }}>−</button>
+            <span style={{ minWidth: 46, textAlign: "center", fontSize: 12, fontWeight: 600, color: TX2 }}>{Math.round(vp.zoom * 100)}%</span>
+            <button onClick={() => zoomBy(1.4)} title="Zoom avant" style={{ width: 30, height: 32, border: "none", borderLeft: `1px solid ${SBB}`, background: WH, color: TX2, cursor: "pointer", fontSize: 16, fontWeight: 600, lineHeight: 1, fontFamily: "inherit" }}>+</button>
+          </div>
+        )}
+
         {/* Changer de plan (secondaire) — masqué en contexte photo */}
         {planImageSrc && !hideUpload && (
           <button onClick={() => uploadRef.current.click()} style={{ height: 34, padding: "0 13px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, cursor: "pointer", fontSize: 13, fontWeight: 500, color: TX2, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
@@ -671,26 +680,51 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
         /* ── Workspace : sidebar gauche + plan ── */
         <div style={{ display: "flex", height: "calc(100vh - 130px)" }}>
 
-          {/* ═══ Sidebar outils ═══ */}
-          <div style={{ width: 210, flexShrink: 0, background: SB, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", overflowY: "auto" }}>
-
-            {/* ── Sélecteur de mode ── */}
-            <div style={{ padding: "10px 10px 0", flexShrink: 0, borderBottom: `1px solid ${SBB}`, paddingBottom: 10 }}>
-              <div style={{ display: "flex", background: SB2, borderRadius: 8, padding: 3 }}>
-                {[
-                  { id: "view",   label: "Vue",      icon: "eye"    },
-                  { id: "marker", label: "Remarques", icon: "mappin" },
-                  { id: "anno",   label: "Dessin",   icon: "pen2"   },
-                ].map((m) => (
-                  <button key={m.id} onClick={() => switchMode(m.id)}
-                    style={{ flex: 1, padding: `${SP.sm}px ${SP.xs}px`, border: "none", borderRadius: RAD.sm, background: mode === m.id ? WH : "transparent", color: mode === m.id ? TX : TX3, fontWeight: mode === m.id ? 700 : 400, fontSize: FS.xs, cursor: "pointer", fontFamily: "inherit", boxShadow: mode === m.id ? "0 1px 2px rgba(0,0,0,0.08)" : "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minHeight: 44 }}
-                  >
-                    <Ico name={m.icon} size={15} color={mode === m.id ? AC : TX3} />
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+          {/* ═══ Rail d'outils fin (56px) ═══ */}
+          <div style={{ width: 56, flexShrink: 0, order: 0, background: SB, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 0", gap: 5 }}>
+            {/* Sélection / vue */}
+            <button title="Sélection" onClick={() => switchMode("view")} style={{ width: 38, height: 38, borderRadius: 10, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: mode === "view" ? ACL : "transparent", boxShadow: mode === "view" ? `0 0 0 1.5px ${ACL2}` : "none" }}>
+              <Ico name="cursor" size={18} color={mode === "view" ? AC : TX2} />
+            </button>
+            {/* Outils de dessin */}
+            {ANNO_TOOLS.filter(t => t.id !== "select").map(t => {
+              const active = mode === "anno" && annoTool === t.id;
+              return (
+                <button key={t.id} title={t.label} onClick={() => { switchMode("anno"); setAnnoTool(t.id); setSelectedId(null); selectedIdRef.current = null; redrawCanvas(planStrokesRef.current); }}
+                  style={{ width: 38, height: 38, borderRadius: 10, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: active ? ACL : "transparent", boxShadow: active ? `0 0 0 1.5px ${ACL2}` : "none" }}>
+                  <Ico name={t.icon} size={18} color={active ? AC : TX2} />
+                </button>
+              );
+            })}
+            <div style={{ width: 30, height: 1, background: SBB, margin: "6px 0" }} />
+            {/* Punaise → réserve */}
+            <button title="Punaise réserve" onClick={() => switchMode("marker")} style={{ width: 38, height: 38, borderRadius: 10, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: mode === "marker" ? ACL : "transparent", boxShadow: mode === "marker" ? `0 0 0 1.5px ${ACL2}` : "none" }}>
+              <Ico name="mappin" size={18} color={mode === "marker" ? AC : TX2} />
+            </button>
+            {/* Palette */}
+            <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
+              {ANNO_COLORS.map(c => {
+                const sel = annoColor === c;
+                const isWhite = c.toLowerCase() === "#ffffff";
+                return <button key={c} title={c} onClick={() => { setAnnoColor(c); if (annoTool === "select" && selectedId) { const s = planStrokesRef.current.find(x => x.id === selectedId); if (s) updateStroke({ ...s, color: c }); } }}
+                  style={{ width: 18, height: 18, borderRadius: 999, background: c, border: "none", cursor: "pointer", boxShadow: sel ? `0 0 0 2px #fff, 0 0 0 3.5px ${isWhite ? SBB : c}` : isWhite ? `0 0 0 1px ${SBB}` : "none", flexShrink: 0, padding: 0 }} />;
+              })}
+              <button onClick={pickPlanColor} title="Couleur perso" style={{ width: 18, height: 18, borderRadius: 999, border: `1px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                <Ico name="pipette" size={10} color={TX2} />
+              </button>
+              <input ref={planColorPickerRef} type="color" value={annoColor} onChange={e => { const c = e.target.value; setAnnoColor(c); if (annoTool === "select" && selectedId) { const s = planStrokesRef.current.find(x => x.id === selectedId); if (s) updateStroke({ ...s, color: c }); } }} style={{ width: 0, height: 0, padding: 0, border: "none", opacity: 0, position: "absolute", pointerEvents: "none" }} />
             </div>
+          </div>
+
+          {/* ═══ Panneau droit : réserves / annotations (order:2 → à droite du canvas) ═══ */}
+          <div style={{ width: 300, flexShrink: 0, order: 2, background: WH, borderLeft: `1px solid ${SBB}`, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+            {/* En-tête du panneau (comme le handoff) */}
+            <div style={{ flexShrink: 0, height: 42, display: "flex", alignItems: "center", gap: 8, padding: "0 16px", borderBottom: `1px solid ${SBB}` }}>
+              <Ico name="mappin" size={14} color={TX3} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>{hideUpload ? "Réserves sur la photo" : "Réserves sur ce plan"}</span>
+              <span style={{ marginLeft: "auto", fontSize: 11, color: DIST }}>{locatedRemarks.length}</span>
+            </div>
+
 
             {/* ────────────────────────────── */}
             {/* MODE VUE */}
@@ -847,56 +881,7 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
             {/* ────────────────────────────── */}
             {mode === "anno" && (
               <div style={{ padding: "12px 12px 14px" }}>
-                {/* Outils — grille 3 colonnes pour 6 outils */}
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3, marginBottom: 8 }}>Outil</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 3, marginBottom: 14 }}>
-                  {ANNO_TOOLS.map((t) => {
-                    const active = annoTool === t.id;
-                    return (
-                      <button key={t.id} title={t.label}
-                        onClick={() => { setAnnoTool(t.id); if (t.id !== "select") { setSelectedId(null); selectedIdRef.current = null; redrawCanvas(planStrokesRef.current); } }}
-                        style={{ padding: `${SP.sm + 2}px ${SP.xs}px ${SP.sm}px`, border: `1.5px solid ${active ? AC : SBB}`, borderRadius: RAD.md, background: active ? ACL : WH, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: SP.xs, fontFamily: "inherit", boxShadow: active ? "none" : "0 1px 2px rgba(0,0,0,0.04)", minHeight: 44 }}
-                      >
-                        <Ico name={t.icon} size={16} color={active ? AC : TX2} />
-                        <span style={{ fontSize: FS.xs, fontWeight: active ? 700 : 500, color: active ? AC : TX3, letterSpacing: "0.01em", lineHeight: 1 }}>{t.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Couleur (toujours visible, permet de changer couleur d'un objet sélectionné) */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TX3 }}>Couleur</div>
-                  <div style={{ width: 16, height: 16, borderRadius: 4, background: annoColor, border: "1px solid rgba(0,0,0,0.12)", flexShrink: 0 }} />
-                </div>
-                <div style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 14 }}>
-                  {ANNO_COLORS.map((c) => (
-                    <button key={c} title={c}
-                      onClick={() => {
-                        setAnnoColor(c);
-                        if (annoTool === "select" && selectedId) {
-                          const sel = planStrokesRef.current.find(s => s.id === selectedId);
-                          if (sel) updateStroke({ ...sel, color: c });
-                        }
-                      }}
-                      style={{ width: 22, height: 22, borderRadius: "50%", background: c, border: annoColor === c ? `2.5px solid ${AC}` : "1.5px solid rgba(0,0,0,0.12)", cursor: "pointer", boxShadow: annoColor === c ? `0 0 0 2px ${ACL}` : "none", outline: "none", flexShrink: 0 }}
-                    />
-                  ))}
-                  <button onClick={pickPlanColor} title="Pipette" style={{ width: 22, height: 22, borderRadius: "50%", border: `1.5px solid ${SBB}`, background: WH, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
-                    <Ico name="pipette" size={12} color={TX2} />
-                  </button>
-                  <input ref={planColorPickerRef} type="color" value={annoColor}
-                    onChange={e => {
-                      const c = e.target.value;
-                      setAnnoColor(c);
-                      if (annoTool === "select" && selectedId) {
-                        const sel = planStrokesRef.current.find(s => s.id === selectedId);
-                        if (sel) updateStroke({ ...sel, color: c });
-                      }
-                    }}
-                    style={{ width: 0, height: 0, padding: 0, border: "none", opacity: 0, position: "absolute", pointerEvents: "none" }}
-                  />
-                </div>
+                {/* Outils + couleur déplacés dans le rail fin (gauche). */}
 
                 {/* Propriétés texte — visible quand outil texte ou annotation texte sélectionnée */}
                 {(annoTool === "text" || (annoTool === "select" && planStrokes.find(s => s.id === selectedId)?.type === "text")) && (
@@ -1002,12 +987,16 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
                 })}
               </div>
             )}
+            {/* Pied : placer une punaise → réserve */}
+            <div style={{ flexShrink: 0, marginTop: "auto", padding: 12, borderTop: `1px solid ${SBB}` }}>
+              <button onClick={() => switchMode("marker")} style={{ width: "100%", height: 34, background: mode === "marker" ? ACL : WH, border: `1px solid ${mode === "marker" ? ACL2 : SBB}`, borderRadius: 8, fontSize: 12, fontWeight: 500, color: mode === "marker" ? AC : TX2, cursor: "pointer", fontFamily: "inherit" }}>Placer une punaise → réserve</button>
+            </div>
           </div>
 
           {/* ═══ Zone plan ═══ */}
           <div
             ref={planAreaRef}
-            style={{ flex: 1, position: "relative", overflow: "hidden", background: hideUpload ? "#1C1917" : "#52504D", cursor: getCursor() }}
+            style={{ flex: 1, order: 1, position: "relative", overflow: "hidden", background: hideUpload ? "#1C1917" : "#52504D", cursor: getCursor() }}
             onMouseDown={onAreaDown}
             onMouseMove={onAreaMove}
             onMouseUp={onAreaUp}
