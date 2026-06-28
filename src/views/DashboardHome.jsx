@@ -250,7 +250,7 @@ export function DashboardHome({ projects = [], profile, onOpenProject, onNewProj
   const dateLabel = `${FDAY[now.getDay()]} ${now.getDate()} ${FMONTH[now.getMonth()]}`;
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, fontFamily: tokens.font.family, color: C.neutral[900], background: "#FCFBFA", padding: `${tokens.space[6]} ${tokens.space[7]}`, boxSizing: "border-box" }}>
+    <div style={{ display: "flex", flexDirection: "column", fontFamily: tokens.font.family, color: C.neutral[900] }}>
       {/* En-tête éditorial */}
       <div style={{ display: "flex", alignItems: "flex-start", marginBottom: tokens.space[5], gap: tokens.space[4], flexWrap: "wrap" }}>
         <div>
@@ -281,14 +281,14 @@ export function DashboardHome({ projects = [], profile, onOpenProject, onNewProj
 
       {/* Contenu : liste ou carte */}
       {view === "list" ? (
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: tokens.space[4], alignItems: "start", paddingBottom: tokens.space[4] }}>
-            {filtered.map(p => <ProjectCard key={p.id} p={p} onOpen={onOpenProject} />)}
-            <GhostCard onClick={onNewProject} />
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: tokens.space[4], alignItems: "start", paddingBottom: tokens.space[4] }}>
+          {filtered.map(p => <ProjectCard key={p.id} p={p} onOpen={onOpenProject} />)}
+          <GhostCard onClick={onNewProject} />
         </div>
       ) : (
-        <MapPanel projects={active} statusFilter={statusFilter} onOpen={onOpenProject} setProjects={setProjects} />
+        <div style={{ display: "flex", height: "calc(100vh - 320px)", minHeight: 440, maxHeight: 760 }}>
+          <MapPanel projects={active} statusFilter={statusFilter} onOpen={onOpenProject} setProjects={setProjects} />
+        </div>
       )}
     </div>
   );
@@ -306,8 +306,10 @@ const DASH_MOCK = [
 export function DashboardDemo() {
   const [projects, setProjects] = useState(DASH_MOCK);
   return (
-    <div style={{ height: "100dvh", background: "#FCFBFA" }}>
-      <DashboardHome projects={projects} setProjects={setProjects} profile={{ name: "Gaëlle Dupont" }} onOpenProject={() => { window.location.href = "/p/demo"; }} onNewProject={() => {}} />
+    <div style={{ minHeight: "100dvh", background: C.neutral[50] }}>
+      <div style={{ padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
+        <DashboardHome projects={projects} setProjects={setProjects} profile={{ name: "Gaëlle Dupont" }} onOpenProject={() => { window.location.href = "/p/demo"; }} onNewProject={() => {}} />
+      </div>
     </div>
   );
 }
