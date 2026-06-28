@@ -608,18 +608,19 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
     <div style={{ margin: "0 -20px -20px" }}>
       <input ref={uploadRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0]) uploadPlan(e.target.files[0]); e.target.value = ""; }} />
 
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", background: WH, borderBottom: `1px solid ${SBB}` }}>
-        {/* Back ghost */}
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 }}>
-          <Ico name="back" color={TX2} />
+      {/* ── Header éditorial (Direction D) ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, height: 54, padding: "0 20px", background: WH, borderBottom: `1px solid ${SBB}` }}>
+        {/* Retour vers Documents / Photos */}
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 7, height: 34, padding: "0 10px 0 6px", borderRadius: 9, background: "none", border: "none", cursor: "pointer", color: TX2, fontFamily: "inherit", fontSize: 13, fontWeight: 500, flexShrink: 0 }}>
+          <Ico name="back" color={TX2} size={17} />{hideUpload ? "Photos" : "Documents"}
         </button>
+        <div style={{ width: 1, height: 22, background: SBB, flexShrink: 0 }} />
 
-        {/* Titre + statut */}
+        {/* Titre + sous-titre */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TX }}>Plan du chantier</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: TX, letterSpacing: "-0.2px" }}>{hideUpload ? "Photo annotée" : "Plan du chantier"}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 1 }}>
-            <span style={{ fontSize: 11, color: TX3 }}>{project.name}</span>
+            <span style={{ fontSize: 11, color: TX3 }}>{project.name}{isPdf ? " · PDF" : ""}</span>
             {savedFlash ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: GR, background: GRBG, padding: "1px 7px 1px 5px", borderRadius: 10, flexShrink: 0 }}>
                 <Ico name="check" size={10} color={GR} />Enregistré
@@ -635,27 +636,16 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
           </div>
         </div>
 
-        {/* Sauvegarder */}
-        {(locatedRemarks.length + markers.length + planStrokes.length > 0) && (
-          <button onClick={() => { setSavedFlash(true); if (savedTimerRef.current) clearTimeout(savedTimerRef.current); savedTimerRef.current = setTimeout(() => setSavedFlash(false), 2200); }} style={{ padding: "7px 16px", border: "none", borderRadius: 8, background: savedFlash ? GR : AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0, transition: "background 0.2s" }}>
-            <Ico name={savedFlash ? "check" : "save"} size={14} color="#fff" />
-            {savedFlash ? "Enregistré !" : "Sauvegarder"}
-          </button>
-        )}
-
-        {/* Changer de plan (secondaire) — hidden in photo context */}
+        {/* Changer de plan (secondaire) — masqué en contexte photo */}
         {planImageSrc && !hideUpload && (
-          <button onClick={() => uploadRef.current.click()} style={{ padding: "7px 12px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontSize: 12, color: TX2, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+          <button onClick={() => uploadRef.current.click()} style={{ height: 34, padding: "0 13px", border: `1px solid ${SBB}`, borderRadius: 9, background: WH, cursor: "pointer", fontSize: 13, fontWeight: 500, color: TX2, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
             <Ico name="upload" size={13} color={TX3} />Changer de plan
           </button>
         )}
 
-        {/* Séparateur */}
-        <div style={{ width: 1, height: 22, background: SBB, flexShrink: 0 }} />
-
-        {/* Fermer (action principale de sortie) */}
-        <button onClick={onBack} style={{ padding: "7px 18px", border: "none", borderRadius: 8, background: TX, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-          Fermer
+        {/* Enregistrer (action primaire unique) */}
+        <button onClick={() => { setSavedFlash(true); if (savedTimerRef.current) clearTimeout(savedTimerRef.current); savedTimerRef.current = setTimeout(() => setSavedFlash(false), 2200); }} style={{ height: 34, padding: "0 16px", border: "none", borderRadius: 9, background: savedFlash ? GR : AC, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6, flexShrink: 0, transition: "background 0.2s" }}>
+          <Ico name={savedFlash ? "check" : "save"} size={14} color="#fff" />{savedFlash ? "Enregistré !" : "Enregistrer"}
         </button>
       </div>
 
