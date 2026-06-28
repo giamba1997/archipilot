@@ -73,6 +73,35 @@ function fmtDate(d, withTime = false) {
   return `${dd}/${mm}/${yy} ${hh}:${mi}`;
 }
 
+// Heure seule (HH:mm) — affichée sur la carte quand le jour sert de groupe.
+const MONTHS_SHORT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+const DAYS_LONG = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+function fmtTime(d) {
+  if (!d || isNaN(d) || (d.getHours() === 0 && d.getMinutes() === 0)) return "";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function dayKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+function dayLabel(d) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const diff = Math.round((t - x) / 86400000);
+  const dateStr = `${DAYS_LONG[x.getDay()]} ${x.getDate()} ${MONTHS_SHORT[x.getMonth()]}`;
+  if (diff === 0) return `Aujourd'hui · ${dateStr}`;
+  if (diff === 1) return `Hier · ${dateStr}`;
+  return dateStr;
+}
+// Regroupe une timeline déjà triée (desc) en sections par jour.
+function groupByDay(timeline) {
+  const groups = [];
+  let last = null;
+  for (const e of timeline) {
+    const k = dayKey(e.date);
+    if (k !== last) { groups.push({ key: k, label: dayLabel(e.date), items: [] }); last = k; }
+    groups[groups.length - 1].items.push(e);
+  }
+  return groups;
+}
+
 // ── Agrégation : produit la liste chronologique inversée d'entrées ──
 // Chaque entrée a { id, type, date (Date), title, subtitle, body, photos, raw }
 // `raw` pointe vers l'objet source pour le drawer détail.
@@ -278,48 +307,28 @@ export function JournalView({ project, setProjects, profile, onBack, showToast }
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
-      {/* Header — exactement le pattern OprView */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+      {/* En-tête éditorial */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <button onClick={onBack} aria-label="Retour" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, marginTop: 2 }}>
             <Ico name="back" color={TX2} size={16} />
           </button>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Journal de chantier</div>
-            <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Chronologie agrégée (PV, photos, réserves, visites)</div>
+            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: AC, marginBottom: 6 }}>Obligation légale RGPT · {counts.all} entrée{counts.all > 1 ? "s" : ""}</div>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", color: TX }}>Journal de chantier</h1>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8 }}>
           {!isMobile && (
-            <button
-              onClick={exportPdf}
-              disabled={exporting || timeline.length === 0}
-              title="Télécharger le journal complet en PDF (pour archivage / audit Cnac)"
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "9px 14px", borderRadius: 10,
-                border: `1px solid ${SBB}`, background: WH,
-                color: timeline.length === 0 ? DIST : TX2,
-                fontSize: 13, fontWeight: 600,
-                cursor: exporting || timeline.length === 0 ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              <Ico name="download" size={13} color={timeline.length === 0 ? DIST : TX2} />
-              {exporting ? "..." : "PDF"}
+            <button onClick={exportPdf} disabled={exporting || timeline.length === 0} title="Télécharger le journal complet en PDF (archivage / audit)"
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 14px", borderRadius: 9, border: `1px solid ${SBB}`, background: WH, color: timeline.length === 0 ? DIST : TX2, fontSize: 13, fontWeight: 600, cursor: exporting || timeline.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+              <Ico name="download" size={14} color={timeline.length === 0 ? DIST : TX2} />{exporting ? "Export…" : "Exporter PDF"}
             </button>
           )}
           {!isMobile && (
-            <button
-              onClick={() => setAddingManual(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "9px 14px", borderRadius: 10,
-                border: "none", background: AC, color: "#fff",
-                fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              <Ico name="plus" size={13} color="#fff" /> Entrée libre
+            <button onClick={() => setAddingManual(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 14px", borderRadius: 9, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              <Ico name="plus" size={15} color="#fff" /> Entrée de visite
             </button>
           )}
         </div>
@@ -327,59 +336,35 @@ export function JournalView({ project, setProjects, profile, onBack, showToast }
 
       {isMobile && <MobileConsultationBanner hint="timeline en lecture, export PDF et entrées libres depuis l'ordinateur." />}
 
-      {/* Filtres — desktop seulement (mobile = timeline brute) */}
-      {!isMobile && <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 14, marginBottom: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {/* Type */}
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          <FilterChip active={typeFilter === "all"} onClick={() => setTypeFilter("all")} label={`Tout (${counts.all})`} />
-          {ALL_TYPES.map(t => counts[t] > 0 && (
-            <FilterChip
-              key={t}
-              active={typeFilter === t}
-              onClick={() => setTypeFilter(t)}
-              label={`${ENTRY_TYPES[t].label} (${counts[t]})`}
-              dot={ENTRY_TYPES[t].dot}
+      {/* Filtres — chips de type inline + recherche/période (desktop) */}
+      {!isMobile && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            <FilterChip active={typeFilter === "all"} onClick={() => setTypeFilter("all")} label={`Tout · ${counts.all}`} />
+            {ALL_TYPES.map(t => counts[t] > 0 && (
+              <FilterChip key={t} active={typeFilter === t} onClick={() => setTypeFilter(t)} label={ENTRY_TYPES[t].label} dot={ENTRY_TYPES[t].dot} />
+            ))}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher…"
+              style={{ height: 32, width: 200, padding: "0 11px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: 12, fontFamily: "inherit", background: WH, color: TX, outline: "none", boxSizing: "border-box" }}
             />
-          ))}
-        </div>
-        <div style={{ flex: 1, minWidth: 12 }} />
-        {/* Période */}
-        <div style={{ display: "flex", gap: 4 }}>
-          {[
-            { id: 0, label: "Tout" },
-            { id: 7, label: "7j" },
-            { id: 30, label: "30j" },
-            { id: 90, label: "3 mois" },
-          ].map(p => (
-            <button
-              key={p.id}
-              onClick={() => setPeriodDays(p.id)}
-              style={{
-                padding: "5px 11px",
-                border: `1px solid ${periodDays === p.id ? ACL2 : SBB}`,
-                borderRadius: 999,
-                background: periodDays === p.id ? ACL : WH,
-                color: periodDays === p.id ? AC : TX2,
-                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              }}
+            <select
+              value={periodDays}
+              onChange={e => setPeriodDays(+e.target.value)}
+              style={{ height: 32, border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX2, fontFamily: "inherit", fontSize: 12, cursor: "pointer", padding: "0 8px" }}
             >
-              {p.label}
-            </button>
-          ))}
+              <option value={0}>Toute la période</option>
+              <option value={7}>7 jours</option>
+              <option value={30}>30 jours</option>
+              <option value={90}>3 mois</option>
+            </select>
+          </div>
         </div>
-        {/* Recherche */}
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Rechercher..."
-          style={{
-            flexBasis: 220, padding: "6px 10px",
-            border: `1px solid ${SBB}`, borderRadius: 8,
-            fontSize: 12, fontFamily: "inherit", background: SB, color: TX,
-            outline: "none", boxSizing: "border-box",
-          }}
-        />
-      </div>}
+      )}
 
       {/* Timeline */}
       {timeline.length === 0 ? (
@@ -389,76 +374,54 @@ export function JournalView({ project, setProjects, profile, onBack, showToast }
             : "Aucune entrée pour l'instant. Ajoute une visite libre, ou crée un PV / une réserve / une photo dans le projet."}
         </div>
       ) : (
-        <div style={{ position: "relative", paddingLeft: 22 }}>
+        <div style={{ position: "relative", paddingLeft: 8 }}>
           {/* Trait vertical de la timeline */}
-          <div style={{ position: "absolute", left: 7, top: 0, bottom: 0, width: 2, background: SBB, borderRadius: 1 }} />
+          <div style={{ position: "absolute", left: 24, top: 6, bottom: 6, width: 2, background: SBB, borderRadius: 1 }} />
 
-          {timeline.map((e, idx) => {
-            const meta = ENTRY_TYPES[e.type];
-            return (
-              <div
-                key={e.id}
-                style={{ position: "relative", paddingBottom: idx === timeline.length - 1 ? 0 : 14 }}
-              >
-                {/* Dot */}
-                <div style={{
-                  position: "absolute", left: -22, top: 14,
-                  width: 16, height: 16, borderRadius: "50%",
-                  background: meta.dotBg, border: `2px solid ${meta.dot}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  zIndex: 1,
-                }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: meta.dot }} />
-                </div>
-
-                {/* Card cliquable */}
-                <button
-                  onClick={() => setDrawerEntry(e)}
-                  style={{
-                    width: "100%", textAlign: "left", padding: "12px 14px",
-                    border: `1px solid ${SBB}`, borderRadius: 10, background: WH,
-                    cursor: "pointer", fontFamily: "inherit", transition: "border-color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(ev) => { ev.currentTarget.style.borderColor = ACL2; }}
-                  onMouseLeave={(ev) => { ev.currentTarget.style.borderColor = SBB; }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                      <span style={{
-                        fontSize: 9, padding: "2px 7px", borderRadius: 999,
-                        background: meta.dotBg, color: meta.dot, fontWeight: 700,
-                        textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-                      }}>{meta.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {e.title}
-                      </span>
+          {groupByDay(timeline).map(group => (
+            <div key={group.key}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 14px 44px" }}>{group.label}</div>
+              {group.items.map(e => {
+                const meta = ENTRY_TYPES[e.type];
+                const time = fmtTime(e.date);
+                return (
+                  <div key={e.id} style={{ position: "relative", display: "flex", gap: 18, marginBottom: 16 }}>
+                    {/* Dot-icône (couleur par type) */}
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: meta.dotBg, border: "2px solid #fff", boxShadow: `0 0 0 1px ${meta.dot}`, color: meta.dot, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 1 }}>
+                      <Ico name={meta.icon} size={16} color={meta.dot} />
                     </div>
-                    <span style={{ fontSize: 11, color: TX3, fontWeight: 600, flexShrink: 0 }}>{fmtDate(e.date)}</span>
-                  </div>
-                  {e.subtitle && (
-                    <div style={{ fontSize: 11, color: TX3, marginBottom: e.body ? 4 : 0 }}>{e.subtitle}</div>
-                  )}
-                  {e.body && (
-                    <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {e.body}
-                    </div>
-                  )}
-                  {e.photos.length > 0 && (
-                    <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
-                      {e.photos.slice(0, 5).map((p, i) => (
-                        <img key={i} src={p} style={{ width: 44, height: 44, borderRadius: 6, objectFit: "cover", border: `1px solid ${SBB}` }} />
-                      ))}
-                      {e.photos.length > 5 && (
-                        <div style={{ width: 44, height: 44, borderRadius: 6, background: SB, border: `1px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: TX2 }}>
-                          +{e.photos.length - 5}
+                    {/* Carte cliquable */}
+                    <button
+                      onClick={() => setDrawerEntry(e)}
+                      style={{ flex: 1, minWidth: 0, textAlign: "left", background: WH, border: `1px solid ${SBB}`, borderRadius: 13, padding: "14px 16px", cursor: "pointer", fontFamily: "inherit", transition: "border-color 0.15s" }}
+                      onMouseEnter={(ev) => { ev.currentTarget.style.borderColor = ACL2; }}
+                      onMouseLeave={(ev) => { ev.currentTarget.style.borderColor = SBB; }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: (e.subtitle || e.body || e.photos.length) ? 5 : 0 }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: meta.dotBg, color: meta.dot, flexShrink: 0 }}>{meta.label}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
+                        {time && <span style={{ marginLeft: "auto", fontSize: 12, color: TX3, flexShrink: 0 }}>{time}</span>}
+                      </div>
+                      {e.subtitle && <div style={{ fontSize: 12, color: TX3, marginBottom: e.body ? 4 : 0 }}>{e.subtitle}</div>}
+                      {e.body && (
+                        <div style={{ fontSize: 13, color: TX2, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{e.body}</div>
+                      )}
+                      {e.photos.length > 0 && (
+                        <div style={{ display: "flex", gap: 7, marginTop: 8 }}>
+                          {e.photos.slice(0, 4).map((p, i) => (
+                            <img key={i} src={p} style={{ width: 52, height: 40, borderRadius: 7, objectFit: "cover", border: `1px solid ${SBB}` }} />
+                          ))}
+                          {e.photos.length > 4 && (
+                            <div style={{ width: 52, height: 40, borderRadius: 7, background: SB, border: `1px solid ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: TX2 }}>+{e.photos.length - 4}</div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
-                </button>
-              </div>
-            );
-          })}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
 
