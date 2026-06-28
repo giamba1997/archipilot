@@ -69,6 +69,7 @@ import { UPGRADE_MESSAGES, getRequiredPlan } from "./constants/upgradeMessages";
 import { OnboardingWizard } from "./components/modals/OnboardingWizard";
 import { GuidedTour } from "./components/modals/GuidedTour";
 import { MeetingCard, MEETING_MODES, PvRow, SmallBtn, Overview, NoteEditor, PlanningDashboard, ResultView, CropTool, GallerySheet, GalleryView, PlanManager, PdfCropBridge, PlanViewer, PlanningView, PDFPreview, MfaSection, ProfileView, LegalPage, CookieBanner, LegalLinks, OprView, JournalView, InvoicesView, PermitsView, QuotesView, MapDashboardView, AlertsDrawer, ProgressReportsView, ChantierModeView, MobileHome, MobileChantiersList, MobileNotifs, TimerBanner, SessionsModal, TimesheetView, StopSessionPrompt, ChatModal, ChatLauncher, ImportProjectWizard, TasksView } from "./views";
+import { DashboardHome } from "./views/DashboardHome";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { PvComposer } from "./pages/PvComposer";
 import { Account } from "./pages/Account";
@@ -166,7 +167,14 @@ export default function App() {
   useEffect(() => {
     if (initialMobileViewRef.current) return;
     if (!dbLoaded) return;
-    if (!isMobile) { initialMobileViewRef.current = true; return; }
+    if (!isMobile) {
+      initialMobileViewRef.current = true;
+      // Atterrissage desktop : dashboard multi-projets « Mes chantiers »,
+      // sauf si un deep-link cible un projet/une vue précise.
+      const hasDeepLink = window.location.search.includes("view=") || window.location.search.includes("project=") || /^\/p\//.test(window.location.pathname);
+      if (view === "overview" && !hasDeepLink) _setView("home");
+      return;
+    }
     initialMobileViewRef.current = true;
     _setView("mobileHome");
   }, [dbLoaded, isMobile]);
@@ -1161,7 +1169,7 @@ export default function App() {
       `}</style>
       {/* Desktop : rail fin « Direction D ». Mobile : ancienne sidebar en drawer (hamburger). */}
       {!isMobile ? (
-        <AppRail projects={projects} activeId={activeId} view={view} project={project} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewProject={tryOpenNewProject} onOverview={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onProfile={() => setView("profile")} profile={profile} />
+        <AppRail projects={projects} activeId={activeId} view={view} project={project} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onNewProject={tryOpenNewProject} onHome={() => setView("home")} onOverview={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onProfile={() => setView("profile")} profile={profile} />
       ) : (
         <Sidebar projects={projects} activeId={activeId} view={view} onSelect={(id) => { setActiveId(id); setView("overview"); }} open={sidebarOpen} onClose={() => setSidebarOpen(false)} profile={profile} onNewProject={tryOpenNewProject} onImportProject={() => setImportWizardOpen(true)} onProfile={() => { setView("profile"); }} installable={!!installPrompt} onInstall={handleInstall} sharedProjects={sharedProjects} onSelectShared={(p) => { setActiveId(p.id); setView("overview"); }} onStats={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} onPlanning={() => { if (!hasFeature(profile.plan, "planningCross")) return setUpgradeFeature("planningCross"); setView("planningDashboard"); }} />
       )}
@@ -1191,13 +1199,15 @@ export default function App() {
               </button>
             )}
             {/* Bouton retour — visible dans les vues profondes */}
-            {view !== "overview" && view !== "stats" && view !== "planningDashboard" && view !== "profile" && (
+            {view !== "overview" && view !== "stats" && view !== "planningDashboard" && view !== "profile" && view !== "home" && (
               <button onClick={() => setView("overview")} aria-label="Retour à l'aperçu" className="sb-nav ap-back-btn" style={{ background: "none", border: "none", cursor: "pointer", padding: SP.xs, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: RAD.sm }}>
                 <Ico name="back" size={16} color={TX2} />
               </button>
             )}
             <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7, fontSize: 14 }}>
-              {view === "profile" ? (
+              {view === "home" ? (
+                <span style={{ fontWeight: 600, color: TX }}>Mes chantiers</span>
+              ) : view === "profile" ? (
                 <span style={{ fontWeight: 600, color: TX }}>Mon profil</span>
               ) : (view === "stats" || view === "planningDashboard" || view === "timesheet") ? (
                 <span style={{ fontWeight: 600, color: TX }}>Vue d'ensemble</span>
@@ -1473,7 +1483,16 @@ export default function App() {
           </div>
           </div>{/* end right section */}
         </div>
-        <div className="ap-content" style={view === "profile" && !isMobile ? { padding: 0, maxWidth: "none", margin: 0 } : { padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
+        <div className="ap-content" style={(view === "profile" || view === "home") && !isMobile ? { padding: 0, maxWidth: "none", margin: 0 } : { padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
+          {view === "home" && !isMobile && (
+            <DashboardHome
+              projects={projects}
+              setProjects={setProjects}
+              profile={profile}
+              onOpenProject={(id) => { setActiveId(id); setView("overview"); }}
+              onNewProject={tryOpenNewProject}
+            />
+          )}
           {view === "profile" && (
             isMobile ? (
               <div style={{ padding: "20px 28px" }}>

@@ -18,6 +18,7 @@ const Svg = ({ d, size = 19 }) => (
 );
 
 const ICONS = {
+  grid:     "M4 4h6v6H4z|M14 4h6v6h-6z|M4 14h6v6H4z|M14 14h6v6h-6z",
   building: "M3 21h18|M5 21V7l8-4v18|M19 21V11l-6-4",
   chart:    "M6 20V13|M12 20V4|M18 20V9",
   plus:     "M12 5v14|M5 12h14",
@@ -48,7 +49,7 @@ function RailIcon({ icon, label, active, onClick }) {
   );
 }
 
-export function AppRail({ projects = [], activeId, view, project, onSelectProject, onNewProject, onOverview, onProfile, profile }) {
+export function AppRail({ projects = [], activeId, view, project, onSelectProject, onNewProject, onOverview, onHome, onProfile, profile }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef(null);
@@ -63,7 +64,7 @@ export function AppRail({ projects = [], activeId, view, project, onSelectProjec
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [pickerOpen]);
 
-  const inProject = !["stats", "planningDashboard", "timesheet", "profile"].includes(view);
+  const inProject = !["stats", "planningDashboard", "timesheet", "profile", "home"].includes(view);
   const active = (projects || []).filter(p => !p.archived);
   const filtered = q.trim()
     ? active.filter(p => (p.name || "").toLowerCase().includes(q.toLowerCase()) || (p.client || "").toLowerCase().includes(q.toLowerCase()))
@@ -74,10 +75,11 @@ export function AppRail({ projects = [], activeId, view, project, onSelectProjec
 
   return (
     <div ref={ref} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 62, background: BG, borderRight: `1px solid ${SBB}`, display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 6, zIndex: 100 }}>
-      {/* Logo */}
-      <button onClick={onOverview} aria-label="ArchiPilot" title="Vue d'ensemble" style={{ width: 34, height: 34, borderRadius: 9, background: AC, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 12, fontFamily: "'Manrope','Inter',sans-serif" }}>A</button>
+      {/* Logo → accueil multi-projets */}
+      <button onClick={onHome || onOverview} aria-label="ArchiPilot — Mes chantiers" title="Mes chantiers" style={{ width: 34, height: 34, borderRadius: 9, background: AC, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 16, marginBottom: 12, fontFamily: "'Manrope','Inter',sans-serif" }}>A</button>
 
       {/* Nav */}
+      {onHome && <RailIcon icon="grid" label="Mes chantiers" active={view === "home"} onClick={onHome} />}
       <RailIcon icon="building" label="Projets" active={inProject && pickerOpen === false} onClick={() => setPickerOpen(v => !v)} />
       <RailIcon icon="chart" label="Vue d'ensemble" active={["stats", "planningDashboard", "timesheet"].includes(view)} onClick={onOverview} />
       <RailIcon icon="plus" label="Nouveau projet" onClick={onNewProject} />
