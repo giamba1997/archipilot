@@ -95,6 +95,7 @@ export function MobileHome({
   onOpenNotifications,
   onOpenNewProject,
   onResumeChantier,
+  onStartVisit,
 }) {
   const [permits, setPermits] = useState([]);
   const [loadingExtras, setLoadingExtras] = useState(true);
@@ -217,56 +218,36 @@ export function MobileHome({
     return "Bonsoir";
   }, []);
 
+  const dateLabel = useMemo(() => { const s = new Date().toLocaleDateString("fr-BE", { weekday: "long", day: "numeric", month: "long" }); return s.charAt(0).toUpperCase() + s.slice(1); }, []);
+  const initials = (profile?.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+
   return (
     <div style={{ padding: `${SP.lg}px ${SP.md}px ${SP.xl * 4}px`, maxWidth: 640, margin: "0 auto" }}>
-      {/* Banner "Visite en cours" (Tier 1) — apparait si l'archi a quitté
-          le Mode Chantier sans terminer la visite (appel reçu, lock écran,
-          fermeture app). Tap reprend la visite exactement où elle était. */}
-      {activeVisit && (
-        <button
-          onClick={() => onResumeChantier?.(activeVisit.project.id)}
-          style={{
-            display: "flex", alignItems: "center", gap: 12, width: "100%",
-            padding: "12px 14px", marginBottom: SP.md,
-            background: ACL, border: `1px solid ${AC}`,
-            borderRadius: RAD.md, cursor: "pointer",
-            fontFamily: "inherit", textAlign: "left",
-            boxShadow: "0 2px 8px rgba(184,92,44,0.12)",
-          }}
-        >
-          <div style={{
-            width: 36, height: 36, borderRadius: "50%",
-            background: AC, display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0, position: "relative",
-          }}>
-            <Ico name="building" size={18} color="#fff" />
-            <span style={{
-              position: "absolute", inset: -3, borderRadius: "50%",
-              border: `2px solid ${AC}`, opacity: 0.4,
-              animation: "pulseDot 1.6s ease-in-out infinite",
-            }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: 0.6 }}>
-              Visite en cours · {activeVisit.ageMin < 60 ? `${activeVisit.ageMin} min` : `${Math.floor(activeVisit.ageMin / 60)}h${String(activeVisit.ageMin % 60).padStart(2, "0")}`}
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: 2 }}>
-              {activeVisit.project.name}
-            </div>
-          </div>
-          <span style={{ fontSize: 11, color: AC, fontWeight: 700 }}>Reprendre →</span>
-        </button>
-      )}
-
-      {/* Header simple — pas de logo, le SidebarHeader le fait déjà */}
-      <header style={{ marginBottom: SP.lg }}>
-        <div style={{ fontSize: 13, color: TX3, fontWeight: 600, marginBottom: 2 }}>
-          {greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}
+      {/* En-tête : date + salutation + avatar */}
+      <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.lg }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: TX3, fontWeight: 500 }}>{dateLabel}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>{greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}</div>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: TX, lineHeight: 1.2 }}>
-          {todayHasItems ? "Voici ta journée" : "Tout est calme aujourd'hui"}
-        </div>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#F5DCC9", color: "#8B3A14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{initials}</div>
       </header>
+
+      {/* CTA héros : démarrer / reprendre une visite (mains libres) */}
+      <button
+        onClick={() => activeVisit ? onResumeChantier?.(activeVisit.project.id) : onStartVisit?.()}
+        style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg,#B85C2C,#A04C20)", borderRadius: 20, padding: 20, color: "#fff", position: "relative", overflow: "hidden", boxShadow: "0 10px 28px rgba(184,92,44,0.28)", marginBottom: SP.lg }}
+      >
+        <span style={{ position: "absolute", right: -24, top: -24, width: 130, height: 130, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+        <span style={{ position: "relative", display: "block" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Ico name="mappin" size={18} color="#fff" />
+            <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", opacity: 0.9 }}>{activeVisit ? "Visite en cours" : "Sur le terrain ?"}</span>
+          </span>
+          <span style={{ display: "block", fontSize: 20, fontWeight: 700, letterSpacing: "-0.3px", marginBottom: 4 }}>{activeVisit ? "Reprendre la visite" : "Démarrer une visite"}</span>
+          <span style={{ display: "block", fontSize: 13, opacity: 0.85, lineHeight: 1.5, marginBottom: 16 }}>{activeVisit ? `${activeVisit.project.name} · ${activeVisit.ageMin < 60 ? `${activeVisit.ageMin} min` : `${Math.floor(activeVisit.ageMin / 60)}h${String(activeVisit.ageMin % 60).padStart(2, "0")}`}` : "Chrono, photos, notes vocales et réserves — tout en mains libres."}</span>
+          <span style={{ height: 48, background: "#fff", color: "#A04C20", borderRadius: 13, fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>{activeVisit ? "Reprendre" : "Choisir un chantier"}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="9 6 15 12 9 18" /></svg></span>
+        </span>
+      </button>
 
       {/* ── Aujourd'hui ──
           Cap automatique à TODAY_CAP items pour les archis chargés.

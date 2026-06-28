@@ -255,7 +255,9 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Desktop : nav latérale ouverte par défaut. Mobile : drawer fermé (sinon il
+  // couvre l'accueil au 1er chargement).
+  const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 768 : true));
   const [mobilePvDictateOpen, setMobilePvDictateOpen] = useState(false);
   const [gallerySheet, setGallerySheet] = useState(false);
   const [projectPicker, setProjectPicker] = useState(false);
@@ -282,6 +284,9 @@ export default function App() {
   }, [profile.postTemplate, profile.pvTemplate, profile.remarkNumbering]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showReconnected, setShowReconnected] = useState(false);
+  // Intention « démarrer une visite » : depuis l'accueil mobile, on choisit
+  // d'abord un chantier (liste) puis on entre directement en Mode Chantier.
+  const [pendingVisit, setPendingVisit] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [pvStartMode, setPvStartMode] = useState(null); // "write" | "dictate" — passed to NoteEditor
   const [pvRecipients, setPvRecipients] = useState([]); // [] = tous
@@ -1706,13 +1711,15 @@ export default function App() {
               onOpenNotifications={() => setShowNotifications(true)}
               onOpenNewProject={() => setModal("new")}
               onResumeChantier={(id) => { setActiveId(id); setView("chantier"); }}
+              onStartVisit={() => { setPendingVisit(true); setView("chantiersList"); }}
             />
           )}
           {view === "chantiersList" && (
             <MobileChantiersList
               projects={projects}
-              onSelectProject={(id) => { setActiveId(id); setView("overview"); }}
-              onBack={() => setView(isMobile ? "mobileHome" : "overview")}
+              pickToVisit={pendingVisit}
+              onSelectProject={(id) => { setActiveId(id); if (pendingVisit) { setPendingVisit(false); setView("chantier"); } else { setView("overview"); } }}
+              onBack={() => { setPendingVisit(false); setView(isMobile ? "mobileHome" : "overview"); }}
               onOpenNewProject={() => setModal("new")}
             />
           )}
