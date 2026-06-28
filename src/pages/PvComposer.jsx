@@ -288,7 +288,7 @@ export function PvComposer({
         {step === "choice" && <ChoiceStep meta={meta} onChoose={(m) => { if (m === "dictate") { setStep("audio"); } else { setSaisieMode("write"); setStep("saisie"); } }} onImport={() => setImportOpen(true)} />}
         {step === "audio" && <AudioStep project={project} meta={meta} demo={demo} onApply={applyDispatch} onDone={() => { setStep("redaction"); if (!demo && !gen.content && !gen.loading) genPv(); }} onCancel={() => setStep("choice")} />}
         {step === "saisie" && <SaisieStep project={project} meta={meta} demo={demo} initialMode={saisieMode} onAddRemark={addRemark} onRemoveRemark={removeRemark} />}
-        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} />}
+        {step === "redaction" && <RedactionStep meta={meta} project={project} demo={demo} gen={gen} onChange={(v) => setGen(g => ({ ...g, content: v }))} onRegenerate={genPv} profile={profile} today={today} />}
         {step === "diffusion" && <DiffusionStep meta={meta} project={project} demo={demo} suggestedTasks={gen.suggestedTasks} recipients={recipients} subject={subject} isChecked={isChecked} onToggleRecipient={(i) => setDiffChecked(c => ({ ...c, [i]: c[i] === false }))} attachPdf={diffAttachPdf} onToggleAttach={() => setDiffAttachPdf(v => !v)} onCreateTask={createTask} profile={profile} />}
       </div>
 
@@ -945,10 +945,28 @@ function buildRealSources(project) {
     }));
 }
 
-function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate }) {
+function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate, profile, today }) {
   const [style, setStyle] = useState("standard");
+  const [previewTab, setPreviewTab] = useState("pdf");
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
   const sources = demo ? REDACTION_SOURCES : buildRealSources(project);
   const sourceCount = demo ? (meta.totalRemarks || 12) : sources.reduce((s, g) => s + g.items.length, 0);
+
+  // Génération de l'aperçu PDF réel, debouncée à chaque édition du contenu.
+  useEffect(() => {
+    if (demo || previewTab !== "pdf" || !gen?.content || gen.loading) return;
+    let cancelled = false;
+    setPdfLoading(true);
+    const id = setTimeout(async () => {
+      try {
+        const res = await generatePDF(project, meta.num, today, gen.content, profile, { returnDataUrl: true });
+        if (!cancelled) setPdfUrl(res.dataUrl);
+      } catch { /* aperçu indisponible */ }
+      finally { if (!cancelled) setPdfLoading(false); }
+    }, 700);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [gen?.content, gen?.loading, demo, previewTab, project, meta.num, today, profile]);
 
   return (
     <>
@@ -1012,30 +1030,53 @@ function RedactionStep({ meta, project, demo, gen, onChange, onRegenerate }) {
           </div>
         </div>
 
-        {/* Remarques source */}
-        <div style={{ width: 340, flexShrink: 0, display: "flex", flexDirection: "column", background: tokens.color.neutral[0], borderLeft: `1px solid ${tokens.color.neutral[200]}` }}>
-          <div style={{ height: 42, display: "flex", alignItems: "center", gap: tokens.space[2], padding: `0 ${tokens.space[4]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}` }}>
-            <span style={{ color: tokens.color.neutral[500], display: "inline-flex" }}><I.clipboard size={14} /></span>
-            <span style={{ fontSize: tokens.font.size.xs, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[500], textTransform: "uppercase", letterSpacing: "0.05em" }}>Remarques source</span>
-            <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[300] }}>{sourceCount}</span>
+        {/* Panneau droit — bascule Aperçu PDF / Remarques source */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", borderLeft: `1px solid ${tokens.color.neutral[200]}` }}>
+          <div style={{ height: 50, flexShrink: 0, display: "flex", alignItems: "center", gap: tokens.space[3], padding: `0 ${tokens.space[4]}`, borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0] }}>
+            <SegToggle value={previewTab} onChange={setPreviewTab} options={[{ id: "pdf", label: "Aperçu PDF" }, { id: "sources", label: "Remarques source" }]} />
+            {previewTab === "pdf" && !demo && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[500] }}>{pdfLoading ? "Mise à jour…" : pdfUrl ? "À jour" : ""}</span>}
+            {previewTab === "sources" && <span style={{ marginLeft: "auto", fontSize: tokens.font.size.xs, color: tokens.color.neutral[300] }}>{sourceCount}</span>}
           </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: tokens.space[3], display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-            {sources.map((grp, gi) => (
-              <div key={gi}>
-                <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[500], margin: `${gi > 0 ? tokens.space[2] : 0} 0 ${tokens.space[2]}` }}>{grp.poste}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
-                  {grp.items.map((it, ii) => (
-                    <div key={ii} style={{ background: tokens.color.neutral[50], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: it.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: `${tokens.space[2]} ${tokens.space[3]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[700], lineHeight: 1.45 }}>
-                      {it.text} <span style={{ color: tokens.color.brand[600], fontWeight: tokens.font.weight.medium }}>→ {it.ref}</span>
-                    </div>
-                  ))}
+
+          {previewTab === "pdf" ? (
+            <div style={{ flex: 1, minHeight: 0, position: "relative", background: tokens.color.neutral[100] }}>
+              {demo ? (
+                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: tokens.space[8], color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>L'aperçu du PDF réel (en-tête agence, mise en page finale) s'affiche ici dans le flux de génération.</div>
+              ) : pdfUrl ? (
+                <iframe src={pdfUrl} title="Aperçu du PDF" style={{ width: "100%", height: "100%", border: "none", display: "block" }} />
+              ) : (
+                <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: tokens.space[2], color: tokens.color.neutral[500], fontSize: tokens.font.size.sm }}>
+                  {gen?.content ? <><div style={{ width: 24, height: 24, border: `3px solid ${tokens.color.neutral[200]}`, borderTopColor: tokens.color.brand[500], borderRadius: "50%", animation: "pvspin 0.8s linear infinite" }} /><span>Génération de l'aperçu PDF…</span></> : "L'aperçu apparaîtra dès que le PV est rédigé."}
                 </div>
+              )}
+              {!demo && pdfLoading && pdfUrl && (
+                <div style={{ position: "absolute", top: tokens.space[3], right: tokens.space[3], display: "flex", alignItems: "center", gap: 6, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.full, padding: "4px 10px", fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], boxShadow: tokens.shadow.sm }}>
+                  <div style={{ width: 12, height: 12, border: `2px solid ${tokens.color.neutral[200]}`, borderTopColor: tokens.color.brand[500], borderRadius: "50%", animation: "pvspin 0.8s linear infinite" }} />
+                  Mise à jour…
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", background: tokens.color.neutral[0], minHeight: 0 }}>
+              <div style={{ flex: 1, overflowY: "auto", padding: tokens.space[3], display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+                {sources.map((grp, gi) => (
+                  <div key={gi}>
+                    <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: tokens.color.neutral[500], margin: `${gi > 0 ? tokens.space[2] : 0} 0 ${tokens.space[2]}` }}>{grp.poste}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: tokens.space[2] }}>
+                      {grp.items.map((it, ii) => (
+                        <div key={ii} style={{ background: tokens.color.neutral[50], border: `1px solid ${tokens.color.neutral[200]}`, borderLeft: it.urgent ? `3px solid ${tokens.color.semantic.danger.fg}` : `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, padding: `${tokens.space[2]} ${tokens.space[3]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[700], lineHeight: 1.45 }}>
+                          {it.text} <span style={{ color: tokens.color.brand[600], fontWeight: tokens.font.weight.medium }}>→ {it.ref}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div style={{ padding: `${tokens.space[3]} ${tokens.space[3]}`, borderTop: `1px solid ${tokens.color.neutral[200]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], textAlign: "center", lineHeight: 1.4 }}>
-            Chaque ligne du PV renvoie à sa remarque — la traçabilité reste visible.
-          </div>
+              <div style={{ padding: tokens.space[3], borderTop: `1px solid ${tokens.color.neutral[200]}`, fontSize: tokens.font.size.xs, color: tokens.color.neutral[500], textAlign: "center", lineHeight: 1.4 }}>
+                Chaque ligne du PV renvoie à sa remarque — la traçabilité reste visible.
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
