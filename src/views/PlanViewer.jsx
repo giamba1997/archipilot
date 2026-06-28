@@ -1017,7 +1017,7 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
           {/* ═══ Zone plan ═══ */}
           <div
             ref={planAreaRef}
-            style={{ flex: 1, position: "relative", overflow: "hidden", background: "#ECEAE6", cursor: getCursor() }}
+            style={{ flex: 1, position: "relative", overflow: "hidden", background: hideUpload ? "#1C1917" : "#52504D", cursor: getCursor() }}
             onMouseDown={onAreaDown}
             onMouseMove={onAreaMove}
             onMouseUp={onAreaUp}
