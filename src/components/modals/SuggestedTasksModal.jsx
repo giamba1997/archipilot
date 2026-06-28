@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DatePicker } from "../DatePicker";
 import {
   AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, SG, SGB,
   REDBRD, SP, FS, RAD, DIS, DIST,
@@ -170,8 +171,7 @@ function SuggestionRow({ suggestion, edit, onEditChange, onAccept, onReject }) {
           style={{ padding: "5px 8px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: priority.bg, color: priority.color, cursor: "pointer" }}>
           {TASK_PRIORITIES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
-        <input type="date" value={merged.dueDate || ""} onChange={(e) => onEditChange({ dueDate: e.target.value })}
-          style={{ padding: "5px 8px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX }} />
+        <DatePicker value={merged.dueDate || ""} onChange={(v) => onEditChange({ dueDate: v })} placeholder="Échéance" />
         <input value={merged.assigneeName || ""} onChange={(e) => onEditChange({ assigneeName: e.target.value })}
           placeholder="Assigné à…"
           style={{ padding: "5px 8px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX, minWidth: 120, flex: 1 }} />

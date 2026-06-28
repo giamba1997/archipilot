@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { tokens } from "../design/tokens";
 import { Button } from "../components/ui/v2/Button";
 import { parseDateFR } from "../utils/dates";
+import { DatePicker } from "../components/DatePicker";
 import { supabase } from "../supabase";
 import { parseFunctionError, track, sendPvByEmail, uploadPhoto, getPhotoUrl } from "../db";
 import { generatePDF } from "../utils/pdf";
@@ -1560,60 +1561,7 @@ function Toggle({ on }) {
   );
 }
 
-// ── Sélecteur de date custom (Direction D) — remplace l'input natif ───
-const MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-const DOW_FR = ["L", "M", "M", "J", "V", "S", "D"];
-const fmtDateFR = (iso) => { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
-const isoOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-function DatePicker({ value, onChange, placeholder = "Échéance" }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const base = value ? new Date(value + "T00:00:00") : new Date();
-  const [view, setView] = useState({ y: base.getFullYear(), m: base.getMonth() });
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-  const t = new Date();
-  const todayIso = isoOf(t.getFullYear(), t.getMonth(), t.getDate());
-  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7; // lundi = 0
-  const nDays = new Date(view.y, view.m + 1, 0).getDate();
-  const cells = [...Array(firstDow).fill(null), ...Array.from({ length: nDays }, (_, i) => i + 1)];
-  const shift = (n) => setView(v => { const d = new Date(v.y, v.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
-  const navBtn = (label, onClick) => <button onClick={onClick} style={{ width: 26, height: 26, borderRadius: tokens.radius.md, border: "none", background: "transparent", color: tokens.color.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{label}</button>;
-  return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button onClick={() => setOpen(o => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px", borderRadius: tokens.radius.md, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs, color: value ? tokens.color.neutral[700] : tokens.color.neutral[500] }}>
-        <I.cal size={12} />{value ? fmtDateFR(value) : placeholder}
-      </button>
-      {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 60, width: 244, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.lg, boxShadow: "0 12px 32px rgba(28,25,23,0.16)", padding: tokens.space[3] }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tokens.space[2] }}>
-            {navBtn(<I.back size={15} />, () => shift(-1))}
-            <span style={{ fontSize: tokens.font.size.sm, fontWeight: tokens.font.weight.semibold, color: tokens.color.neutral[900], textTransform: "capitalize" }}>{MONTHS_FR[view.m]} {view.y}</span>
-            {navBtn(<I.chevron size={15} />, () => shift(1))}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
-            {DOW_FR.map((d, i) => <span key={i} style={{ textAlign: "center", fontSize: 10, color: tokens.color.neutral[400], padding: "2px 0" }}>{d}</span>)}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-            {cells.map((d, i) => {
-              if (d === null) return <span key={i} />;
-              const iso = isoOf(view.y, view.m, d);
-              const sel = iso === value, isToday = iso === todayIso;
-              return (
-                <button key={i} onClick={() => { onChange(iso); setOpen(false); }} style={{ height: 28, borderRadius: tokens.radius.full, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs, fontWeight: sel ? tokens.font.weight.bold : tokens.font.weight.medium, background: sel ? tokens.color.brand[500] : isToday ? tokens.color.brand[50] : "transparent", color: sel ? "#fff" : tokens.color.neutral[900] }}>{d}</button>
-              );
-            })}
-          </div>
-          {value && <button onClick={() => { onChange(""); setOpen(false); }} style={{ marginTop: tokens.space[2], width: "100%", height: 28, borderRadius: tokens.radius.md, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[500], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.xs }}>Effacer la date</button>}
-        </div>
-      )}
-    </div>
-  );
-}
+// ── Sélecteur de date : composant partagé (cf. components/DatePicker) ───
 
 const TASK_PRIOS = [{ id: "urgent", label: "Urgent" }, { id: "high", label: "Haute" }, { id: "medium", label: "Normale" }];
 function DiffTaskCard({ t, people, onUpdate, onAccept, onIgnore, demo }) {

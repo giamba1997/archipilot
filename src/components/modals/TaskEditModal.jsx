@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DatePicker } from "../DatePicker";
 import {
   AC, ACL, ACL2, BL, BLB, SB, SB2, SBB, TX, TX2, TX3, WH, BR, RD, GR, SP, FS, RAD, DIS, DIST,
 } from "../../constants/tokens";
@@ -170,12 +171,7 @@ export function TaskEditModal({ open, onClose, project, existingTask, defaults, 
       <div style={{ display: "flex", gap: 10 }}>
         <div style={{ flex: 1 }}>
           <label style={{ display: "block", fontSize: FS.xs, fontWeight: 600, color: TX2, marginBottom: 5 }}>Échéance</label>
-          <input
-            type="date"
-            value={task.dueDate || ""}
-            onChange={(e) => setTask(t => ({ ...t, dueDate: e.target.value }))}
-            style={{ width: "100%", padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: RAD.md, fontSize: FS.base, fontFamily: "inherit", background: WH, color: TX, boxSizing: "border-box" }}
-          />
+          <DatePicker variant="field" value={task.dueDate || ""} onChange={(v) => setTask(t => ({ ...t, dueDate: v }))} placeholder="jj/mm/aaaa" />
         </div>
         <div style={{ flex: 1 }}>
           <label style={{ display: "block", fontSize: FS.xs, fontWeight: 600, color: TX2, marginBottom: 5 }}>Assigné à</label>

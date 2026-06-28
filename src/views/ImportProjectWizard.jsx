@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DatePicker } from "../components/DatePicker";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, BR, BRB, BL, BLB, GR, GRBG, VI, VIB, PU, PUB, REDBRD, SP, FS, RAD } from "../constants/tokens";
 import { Ico, Modal } from "../components/ui";
 import { extractPdfText } from "../utils/chatAttachments";
@@ -467,7 +468,7 @@ export function ImportProjectWizard({ open, onClose, profile, onImport }) {
               </label>
               <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={{ fontSize: FS.xs, fontWeight: 600, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>Date de début</span>
-                <input type="date" value={meta.startDate} onChange={(e) => setMeta(m => ({ ...m, startDate: e.target.value }))} style={{ padding: "9px 11px", border: `1px solid ${SBB}`, borderRadius: 8, fontSize: FS.sm, fontFamily: "inherit", background: WH }} />
+                <DatePicker variant="field" value={meta.startDate} onChange={(v) => setMeta(m => ({ ...m, startDate: v }))} placeholder="jj/mm/aaaa" />
               </label>
             </div>
           </div>

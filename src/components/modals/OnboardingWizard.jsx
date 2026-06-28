@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AC, ACL, ACL2, TX, TX2, TX3, SB, SBB, WH, GR, RD } from "../../constants/tokens";
 import { Ico } from "../ui";
+import { DatePicker } from "../DatePicker";
 
 // ── Wizard de première connexion (Direction D) — 5 étapes, jamais bloquant :
 //   Rôle → Structure → Formule (aucun paiement) → 1er projet → Bienvenue.
@@ -120,8 +121,14 @@ function StepProject({ data, set }) {
           <OField half label="Ville" value={data.pCity || ""} onChange={v => set({ ...data, pCity: v })} placeholder="Nivelles" />
         </div>
         <div style={{ display: "flex", gap: 14 }}>
-          <OField half type="date" label="Date de début" value={data.pStart || ""} onChange={v => set({ ...data, pStart: v })} />
-          <OField half type="date" label="Réception prévue" value={data.pEnd || ""} onChange={v => set({ ...data, pEnd: v })} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>Date de début</div>
+            <DatePicker variant="field" value={data.pStart || ""} onChange={v => set({ ...data, pStart: v })} placeholder="jj/mm/aaaa" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: TX2, marginBottom: 6 }}>Réception prévue</div>
+            <DatePicker variant="field" value={data.pEnd || ""} onChange={v => set({ ...data, pEnd: v })} placeholder="jj/mm/aaaa" />
+          </div>
         </div>
       </div>
     </>
