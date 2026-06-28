@@ -5,7 +5,7 @@ export const FEATURES = {
   collaboration:   false, // CollabModal, project_members, "Partagés avec moi"
   invoices:        false, // InvoicesView, onglet Factures, KPI CA
   opr:             false, // OprView + signatures + réserves formelles (collapse réserves)
-  permits:         false, // PermitsView, PermitHero, suivi permis
+  permits:         true,  // PermitsView (suivi permis) — refonte v2 activée
   quotes:          false, // QuotesView (comparaison devis), parse-quote
   progressReports: false, // ProgressReportsView (rapports MO), generate-progress-report
   cdcParsing:      false, // CdcStructureModal / CdcBanner / parse-cdc (extraction structurée)

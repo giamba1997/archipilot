@@ -135,44 +135,28 @@ export function PermitsView({ project, profile, showToast, onBack }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+      {/* En-tête éditorial */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <button onClick={onBack} aria-label="Retour" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, marginTop: 2 }}>
             <Ico name="back" color={TX2} size={16} />
           </button>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Permis d'urbanisme</div>
-            <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Suivi des dossiers + alertes d'échéance</div>
+            <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: AC, marginBottom: 6 }}>Délais légaux calculés · {permits.length} permis</div>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", color: TX }}>Suivi des permis</h1>
           </div>
         </div>
         {!isMobile && (
-          <button
-            onClick={() => setEditing("new")}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            <Ico name="plus" size={13} color="#fff" /> Nouveau permis
+          <button onClick={() => setEditing("new")}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 14px", borderRadius: 9, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <Ico name="plus" size={15} color="#fff" /> Nouveau permis
           </button>
         )}
       </div>
 
       {isMobile && <MobileConsultationBanner hint="création et édition de permis depuis l'ordinateur." />}
 
-      {/* Alertes échéance */}
-      {alerts.length > 0 && (
-        <div style={{ background: BRB, border: `1px solid ${BR}33`, borderRadius: 12, padding: "10px 14px", marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: BR, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
-            <Ico name="alert" size={11} color={BR} /> {alerts.length} échéance{alerts.length > 1 ? "s" : ""} approche{alerts.length > 1 ? "nt" : ""}
-          </div>
-          {alerts.slice(0, 3).map(a => (
-            <div key={a.permit.id} style={{ fontSize: 12, color: TX, marginBottom: 2 }}>
-              <strong>{a.permit.reference || "Permis sans référence"}</strong> · {a.days < 0 ? `dépassé de ${-a.days}j` : a.days === 0 ? "aujourd'hui" : `dans ${a.days}j`}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Liste */}
+      {/* Liste de permis */}
       {loading ? (
         <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>
       ) : permits.length === 0 ? (
@@ -180,51 +164,41 @@ export function PermitsView({ project, profile, showToast, onBack }) {
           Aucun permis pour ce projet. Crée-en un pour traquer le dépôt, l'AR et l'échéance de décision.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {permits.map(p => {
             const s = getStatus(p.status);
             const days = daysUntil(p.deadline_date);
-            const isUrgent = days !== null && days <= 30 && ["deposited","complete_request","in_review"].includes(p.status);
             const proc = PROCEDURES.find(x => x.id === p.procedure);
+            const typeLabel = PERMIT_TYPES.find(t => t.id === p.permit_type)?.label || p.permit_type || "Permis";
+            const procLine = [
+              proc ? proc.label : null,
+              p.depot_date ? `déposé le ${fmtDate(p.depot_date)}` : "pas encore déposé",
+              p.ar_date ? `AR le ${fmtDate(p.ar_date)}` : null,
+            ].filter(Boolean).join(" · ");
+            const docCount = (p.documents || []).length;
             return (
-              <div key={p.id} style={{ background: WH, border: `1px solid ${isUrgent ? BR : SBB}`, borderRadius: 12, padding: "14px 16px" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ width: 6, height: 36, borderRadius: 3, background: s.dot, flexShrink: 0, marginTop: 2 }} />
+              <div key={p.id} onClick={() => setEditing(p)}
+                style={{ position: "relative", background: WH, border: `1px solid ${SBB}`, borderRadius: 16, padding: "18px 20px", cursor: "pointer", transition: "border-color 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = ACL2; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = SBB; }}>
+                {!isMobile && (
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(p); }} title="Supprimer" aria-label="Supprimer" style={{ position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: 7, border: "none", background: "transparent", color: TX3, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Ico name="trash" size={14} color={TX3} />
+                  </button>
+                )}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{p.reference || "Permis sans référence"}</span>
-                      <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                        {s.label}
-                      </span>
-                      <span style={{ fontSize: 10, color: TX3 }}>{PERMIT_TYPES.find(t => t.id === p.permit_type)?.label || p.permit_type}</span>
-                      {proc && <span style={{ fontSize: 10, color: TX3 }}>· {proc.label}</span>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6, flexWrap: "wrap", paddingRight: 28 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: TX }}>{typeLabel}</span>
+                      <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 500 }}>{s.label}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: TX3, display: "flex", flexWrap: "wrap", gap: 10 }}>
-                      {p.commune && <span><strong style={{ color: TX2 }}>Commune :</strong> {p.commune}</span>}
-                      {p.depot_date && <span><strong style={{ color: TX2 }}>Dépôt :</strong> {fmtDate(p.depot_date)}</span>}
-                      {p.ar_date && <span><strong style={{ color: TX2 }}>AR :</strong> {fmtDate(p.ar_date)}</span>}
-                      {p.deadline_date && (
-                        <span style={{ color: isUrgent ? BR : TX3 }}>
-                          <strong style={{ color: isUrgent ? BR : TX2 }}>Échéance :</strong> {fmtDate(p.deadline_date)}
-                          {days !== null && ` (${days < 0 ? `dépassée de ${-days}j` : days === 0 ? "aujourd'hui" : `J-${days}`})`}
-                        </span>
-                      )}
-                      {p.decision_date && <span><strong style={{ color: TX2 }}>Décision :</strong> {fmtDate(p.decision_date)}</span>}
+                    <div style={{ fontSize: 13, color: TX3, marginBottom: 14, lineHeight: 1.5 }}>{procLine}</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {docCount > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: TX2, background: SB, borderRadius: 8, padding: "5px 9px" }}><Ico name="file" size={12} color={TX2} />{docCount} document{docCount > 1 ? "s" : ""}</span>}
+                      {p.commune && <span style={{ display: "inline-flex", alignItems: "center", fontSize: 12, color: TX2, background: SB, borderRadius: 8, padding: "5px 9px" }}>{p.commune}</span>}
                     </div>
-                    {p.notes && (
-                      <div style={{ fontSize: 12, color: TX2, marginTop: 6, lineHeight: 1.5 }}>{p.notes}</div>
-                    )}
                   </div>
-                  {!isMobile && (
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => setEditing(p)} title="Modifier" style={iconBtnStyle}>
-                        <Ico name="edit" size={14} color={TX2} />
-                      </button>
-                      <button onClick={() => handleDelete(p)} title="Supprimer" style={iconBtnStyle}>
-                        <Ico name="trash" size={14} color={RD} />
-                      </button>
-                    </div>
-                  )}
+                  <DeadlineGauge permit={p} status={s} days={days} proc={proc} />
                 </div>
               </div>
             );
@@ -241,6 +215,48 @@ export function PermitsView({ project, profile, showToast, onBack }) {
           onSave={handleSave}
         />
       )}
+    </div>
+  );
+}
+
+// ── Jauge d'échéance légale (droite de la carte) ──
+function DeadlineGauge({ permit, status, days, proc }) {
+  const W = { width: 200, flexShrink: 0, borderRadius: 13, padding: 14, textAlign: "center", boxSizing: "border-box" };
+  if (status.id === "granted") {
+    return (
+      <div style={{ ...W, background: SGB, border: `1px solid ${GR}40`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 38, height: 38, borderRadius: 999, background: GR, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}><Ico name="check" size={20} color="#fff" /></div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: GR }}>Délai purgé</div>
+      </div>
+    );
+  }
+  if (status.id === "refused" || status.id === "expired") {
+    return (
+      <div style={{ ...W, background: BRB, border: `1px solid ${BR}40`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 96 }}>
+        <Ico name="alert" size={20} color={BR} /><div style={{ fontSize: 13, fontWeight: 600, color: BR }}>{status.label}</div>
+      </div>
+    );
+  }
+  const active = ["deposited", "complete_request", "in_review", "recourse"].includes(status.id);
+  if (!active || !permit.deadline_date || days === null) {
+    return (
+      <div style={{ ...W, background: SB, border: `1px dashed ${SBB}`, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 96 }}>
+        <div style={{ fontSize: 12, color: TX3, lineHeight: 1.4 }}>Délai calculé<br />au dépôt</div>
+      </div>
+    );
+  }
+  const urgent = days <= 30;
+  const total = proc?.days || Number(permit.procedure_days) || 75;
+  const pct = days < 0 ? 100 : Math.max(5, Math.min(100, Math.round((total - days) / total * 100)));
+  const fg = urgent ? BR : ST;
+  const bg = urgent ? BRB : STB;
+  const big = days < 0 ? "Dépassé" : days === 0 ? "Aujourd'hui" : `J−${days}`;
+  return (
+    <div style={{ ...W, background: bg, border: `1px solid ${fg}40` }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: fg, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>Échéance légale</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: fg, letterSpacing: "-0.5px", lineHeight: 1 }}>{big}</div>
+      <div style={{ fontSize: 12, color: fg, opacity: 0.85, margin: "4px 0 10px" }}>{fmtDate(permit.deadline_date)}{days < 0 ? ` · +${-days}j` : ""}</div>
+      <div style={{ height: 6, borderRadius: 999, background: `${fg}26`, overflow: "hidden" }}><div style={{ width: `${pct}%`, height: "100%", background: fg, borderRadius: 999 }} /></div>
     </div>
   );
 }

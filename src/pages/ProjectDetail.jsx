@@ -890,6 +890,7 @@ function SummaryTab({ todo, reserves, billing, meeting, planning, journal, quote
         <MeetingCard meeting={meeting} participants={project.participants} onClick={handlerMap.onEditMeeting} />
         {isEnabled("planning") && <PlanningCard planning={planning} onClick={handlerMap.onPlanning} />}
         <JournalCard journal={journal} onClick={handlerMap.onJournal} />
+        {isEnabled("permits") && <PermitsCard onClick={handlerMap.onPermits} />}
         {isEnabled("quotes") && <QuotesCard count={quotesCount} onClick={handlerMap.onQuotes} />}
       </div>
     </div>
@@ -1156,6 +1157,16 @@ function JournalCard({ journal, onClick }) {
           ))}
         </div>
       )}
+    </Bento>
+  );
+}
+
+// Accès « Suivi des permis » — lanceur (les données vivent dans la vue dédiée).
+function PermitsCard({ onClick }) {
+  return (
+    <Bento onClick={onClick} ariaLabel="Suivi des permis — ouvrir">
+      <BentoHead icon={Icons.file} title="Suivi des permis" />
+      <div style={{ fontSize: tokens.font.size.sm, color: tokens.color.neutral[500], lineHeight: 1.5 }}>Dépôt, AR et échéances légales calculées automatiquement.</div>
     </Bento>
   );
 }
