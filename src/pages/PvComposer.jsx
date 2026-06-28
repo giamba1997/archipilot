@@ -1099,35 +1099,102 @@ function plainToHtml(text) {
   return html;
 }
 
+const RICH_TEXT_COLORS = ["#1C1917", "#B85C2C", "#DC2626", "#2563EB", "#16A34A", "#7C3AED"];
+const RICH_HL_COLORS = ["#FEF08A", "#BBF7D0", "#BFDBFE", "#FBCFE8", "#FED7AA"];
+
 function RichDocEditor({ value, onChange }) {
   const ref = useRef(null);
+  const wrapRef = useRef(null);
   const lastHtml = useRef(null);
+  const savedRange = useRef(null);
+  const [menu, setMenu] = useState(null); // "fore" | "back" | null
+  const [curBlock, setCurBlock] = useState("<p>");
   useEffect(() => {
     const html = plainToHtml(value || "");
     if (ref.current && html !== lastHtml.current) { ref.current.innerHTML = html; lastHtml.current = html; }
   }, [value]);
+  useEffect(() => {
+    if (!menu) return;
+    const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setMenu(null); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [menu]);
+  // Synchronise le sélecteur "Style" avec le bloc sous le curseur — pour que les
+  // titres (y compris ceux générés par l'IA) soient reconnus par l'éditeur.
+  useEffect(() => {
+    const onSel = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.anchorNode || !ref.current || !ref.current.contains(sel.anchorNode)) return;
+      let n = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+      let tag = "";
+      while (n && n !== ref.current) { const tg = n.tagName?.toLowerCase(); if (["h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "li"].includes(tg)) { tag = tg; break; } n = n.parentNode; }
+      setCurBlock(/^h[1-3]$/.test(tag) ? `<${tag}>` : "<p>");
+    };
+    document.addEventListener("selectionchange", onSel);
+    return () => document.removeEventListener("selectionchange", onSel);
+  }, []);
   const emit = () => { const html = ref.current?.innerHTML || ""; lastHtml.current = html; onChange(html); };
   const exec = (cmd, arg) => { ref.current?.focus(); document.execCommand(cmd, false, arg); emit(); };
-  const TBtn = ({ onClick, label, title, active }) => (
+  const execCss = (cmd, arg) => { ref.current?.focus(); try { document.execCommand("styleWithCSS", false, true); } catch { /* */ } document.execCommand(cmd, false, arg); try { document.execCommand("styleWithCSS", false, false); } catch { /* */ } emit(); };
+  const saveSel = () => { const s = window.getSelection(); savedRange.current = (s && s.rangeCount && ref.current?.contains(s.anchorNode)) ? s.getRangeAt(0).cloneRange() : null; };
+  const applyColor = (cmd, color) => { ref.current?.focus(); const s = window.getSelection(); if (savedRange.current) { s.removeAllRanges(); s.addRange(savedRange.current); } execCss(cmd, color); setMenu(null); };
+  const TBtn = ({ onClick, label, title }) => (
     <button type="button" title={title} onMouseDown={e => e.preventDefault()} onClick={onClick}
       style={{ minWidth: 30, height: 28, padding: "0 8px", borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], cursor: "pointer", fontFamily: "inherit", fontSize: tokens.font.size.sm, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{label}</button>
   );
+  const selStyle = { height: 28, borderRadius: tokens.radius.sm, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], color: tokens.color.neutral[700], fontFamily: "inherit", fontSize: tokens.font.size.xs, cursor: "pointer", padding: "0 4px" };
+  const Sep = () => <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: `0 ${tokens.space[1]}` }} />;
+  const Swatches = ({ colors, withNone, onPick }) => (
+    <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 60, display: "flex", alignItems: "center", gap: 4, padding: 6, background: tokens.color.neutral[0], border: `1px solid ${tokens.color.neutral[200]}`, borderRadius: tokens.radius.md, boxShadow: "0 10px 28px rgba(28,25,23,0.16)" }}>
+      {colors.map(c => <button key={c} type="button" onMouseDown={e => e.preventDefault()} onClick={() => onPick(c)} title={c} style={{ width: 22, height: 22, borderRadius: 6, border: `1px solid ${tokens.color.neutral[200]}`, background: c, cursor: "pointer", padding: 0 }} />)}
+      {withNone && <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => onPick(null)} title="Aucun" style={{ width: 22, height: 22, borderRadius: 6, border: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], cursor: "pointer", fontSize: 11, color: tokens.color.neutral[500] }}>∅</button>}
+      <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: "0 2px" }} />
+      <label title="Couleur personnalisée…" style={{ position: "relative", width: 22, height: 22, borderRadius: 6, border: `1px solid ${tokens.color.neutral[200]}`, cursor: "pointer", overflow: "hidden", background: "conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", textShadow: "0 0 2px rgba(0,0,0,.6)" }}>+</span>
+        <input type="color" defaultValue="#B85C2C" onInput={e => onPick(e.target.value)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none" }} />
+      </label>
+    </div>
+  );
+
   return (
     <>
       <style>{`.pv-rich:empty:before{content:"Le PV rédigé apparaît ici — édite librement.";color:${tokens.color.neutral[400]}}
-.pv-rich h3{font-size:14px;font-weight:700;color:${tokens.color.neutral[900]};margin:14px 0 6px}
+.pv-rich h1{font-size:22px;font-weight:800;color:${tokens.color.neutral[900]};margin:16px 0 8px;letter-spacing:-0.3px}
+.pv-rich h2{font-size:18px;font-weight:700;color:${tokens.color.neutral[900]};margin:14px 0 7px}
+.pv-rich h3{font-size:15px;font-weight:700;color:${tokens.color.neutral[900]};margin:14px 0 6px}
 .pv-rich ul{margin:6px 0 10px;padding-left:20px}.pv-rich li{margin:2px 0;line-height:1.6}
 .pv-rich p,.pv-rich div{margin:0 0 6px;line-height:1.65}
 .pv-rich [data-u="1"]{color:${tokens.color.semantic.danger.fg}}
 .pv-rich u{text-decoration:underline}.pv-rich strong{font-weight:700}`}</style>
-      <div style={{ position: "sticky", top: 0, zIndex: 2, display: "flex", alignItems: "center", gap: tokens.space[1], padding: `${tokens.space[2]} 0`, marginBottom: tokens.space[2], borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], flexWrap: "wrap" }}>
+      <div ref={wrapRef} style={{ position: "sticky", top: 0, zIndex: 2, display: "flex", alignItems: "center", gap: tokens.space[1], padding: `${tokens.space[2]} 0`, marginBottom: tokens.space[2], borderBottom: `1px solid ${tokens.color.neutral[200]}`, background: tokens.color.neutral[0], flexWrap: "wrap" }}>
         <TBtn onClick={() => exec("bold")} title="Gras (Ctrl+B)" label={<b>B</b>} />
         <TBtn onClick={() => exec("italic")} title="Italique (Ctrl+I)" label={<i style={{ fontFamily: "Georgia, serif" }}>I</i>} />
         <TBtn onClick={() => exec("underline")} title="Souligné (Ctrl+U)" label={<u>U</u>} />
-        <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: `0 ${tokens.space[1]}` }} />
-        <TBtn onClick={() => exec("formatBlock", "<h3>")} title="Titre de section" label="Titre" />
+        <Sep />
+        <select title="Style de paragraphe" value={curBlock} onChange={e => { setCurBlock(e.target.value); exec("formatBlock", e.target.value); }} style={selStyle}>
+          <option value="<p>">Paragraphe</option>
+          <option value="<h1>">Titre 1</option>
+          <option value="<h2>">Titre 2</option>
+          <option value="<h3>">Titre 3</option>
+        </select>
+        <select title="Taille du texte" defaultValue="" onChange={e => { if (e.target.value) { execCss("fontSize", e.target.value); e.target.value = ""; } }} style={selStyle}>
+          <option value="" disabled hidden>Taille</option>
+          <option value="2">Petit</option>
+          <option value="3">Normal</option>
+          <option value="5">Grand</option>
+          <option value="6">Très grand</option>
+        </select>
+        <Sep />
+        <div style={{ position: "relative" }}>
+          <TBtn onClick={() => { saveSel(); setMenu(menu === "fore" ? null : "fore"); }} title="Couleur du texte" label={<span style={{ fontWeight: 700, borderBottom: `3px solid ${tokens.color.brand[500]}`, lineHeight: 1 }}>A</span>} />
+          {menu === "fore" && <Swatches colors={RICH_TEXT_COLORS} onPick={c => applyColor("foreColor", c)} />}
+        </div>
+        <div style={{ position: "relative" }}>
+          <TBtn onClick={() => { saveSel(); setMenu(menu === "back" ? null : "back"); }} title="Surligner" label={<span style={{ background: "#FEF08A", borderRadius: 2, padding: "1px 3px", fontSize: 11 }}>A</span>} />
+          {menu === "back" && <Swatches colors={RICH_HL_COLORS} withNone onPick={c => applyColor("hiliteColor", c || "transparent")} />}
+        </div>
+        <Sep />
         <TBtn onClick={() => exec("insertUnorderedList")} title="Liste à puces" label="• Liste" />
-        <span style={{ width: 1, height: 18, background: tokens.color.neutral[200], margin: `0 ${tokens.space[1]}` }} />
         <TBtn onClick={() => exec("removeFormat")} title="Effacer le formatage" label="Effacer" />
       </div>
       <div ref={ref} className="pv-rich" contentEditable suppressContentEditableWarning onInput={emit} spellCheck={false}

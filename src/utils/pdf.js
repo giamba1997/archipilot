@@ -117,13 +117,97 @@ function pdfStyle(doc, font, b, i) {
   const s = b && i ? "bolditalic" : b ? "bold" : i ? "italic" : "normal";
   try { doc.setFont(font, s); } catch { try { doc.setFont(font, b ? "bold" : "normal"); } catch { doc.setFont(font, "normal"); } }
 }
-function pdfRichLayout(doc, font, text, maxWidth, size, baseBold) {
-  doc.setFontSize(size);
+function pdfLooksHtml(s) { return /<\/?(div|p|ul|ol|li|strong|b|em|i|u|h[1-6]|br|span|font)\b/i.test(String(s)); }
+
+// ── Styles inline → runs {text,b,i,u,color,bg,size} ────────────
+const PDF_NAMED = { black: [0, 0, 0], white: [255, 255, 255], red: [220, 38, 38], orange: [234, 88, 12], yellow: [250, 204, 21], green: [22, 163, 74], blue: [37, 99, 235], purple: [147, 51, 234], gray: [107, 114, 128], grey: [107, 114, 128] };
+const PDF_KW = { "xx-small": 7, "x-small": 8, small: 8.5, smaller: 8.5, medium: 9.5, large: 12, larger: 12, "x-large": 14, "xx-large": 18, "xxx-large": 22 };
+const PDF_FONTTAG = { "1": 7, "2": 8.5, "3": 9.5, "4": 12, "5": 14, "6": 18, "7": 22 };
+function pdfColorFromCss(v) {
+  if (!v) return null; v = String(v).trim().toLowerCase();
+  if (PDF_NAMED[v]) return PDF_NAMED[v];
+  let m = /^#([0-9a-f]{6})$/i.exec(v); if (m) return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)];
+  m = /^#([0-9a-f]{3})$/i.exec(v); if (m) return [parseInt(m[1][0] + m[1][0], 16), parseInt(m[1][1] + m[1][1], 16), parseInt(m[1][2] + m[1][2], 16)];
+  m = /rgba?\(([^)]+)\)/i.exec(v); if (m) { const p = m[1].split(",").map(s => parseFloat(s)); return [p[0] || 0, p[1] || 0, p[2] || 0]; }
+  return null;
+}
+function pdfSizeFromCss(v) {
+  if (!v) return null; v = String(v).trim().toLowerCase();
+  if (PDF_KW[v]) return PDF_KW[v];
+  let m = /^([\d.]+)px$/.exec(v); if (m) return Math.max(6, parseFloat(m[1]) * 0.75);
+  m = /^([\d.]+)pt$/.exec(v); if (m) return parseFloat(m[1]);
+  m = /^([\d.]+)em$/.exec(v); if (m) return Math.max(6, parseFloat(m[1]) * 9.5);
+  return null;
+}
+function pdfParseStyle(cs) {
+  const out = {}; String(cs).split(";").forEach(d => { const i = d.indexOf(":"); if (i < 0) return; const k = d.slice(0, i).trim().toLowerCase(); if (k) out[k] = d.slice(i + 1).trim(); }); return out;
+}
+function pdfMergeStyle(el, base) {
+  const ns = { ...base }; const tag = el.tagName.toLowerCase(); const st = pdfParseStyle(el.getAttribute("style") || "");
+  if (tag === "strong" || tag === "b" || /^(bold|[6-9]00)$/.test((st["font-weight"] || ""))) ns.b = true;
+  if (tag === "em" || tag === "i" || st["font-style"] === "italic") ns.i = true;
+  if (tag === "u" || /underline/.test(st["text-decoration"] || st["text-decoration-line"] || "")) ns.u = true;
+  if (st["color"]) { const c = pdfColorFromCss(st["color"]); if (c) ns.color = c; }
+  const bg = st["background-color"] || st["background"]; if (bg) { const c = pdfColorFromCss(bg); if (c) ns.bg = c; }
+  if (st["font-size"]) { const s = pdfSizeFromCss(st["font-size"]); if (s) ns.size = s; }
+  if (tag === "font") { const fc = el.getAttribute("color"); if (fc) { const c = pdfColorFromCss(fc); if (c) ns.color = c; } const fz = el.getAttribute("size"); if (fz && PDF_FONTTAG[fz]) ns.size = PDF_FONTTAG[fz]; }
+  return ns;
+}
+function pdfRunsFromNode(node) {
+  const runs = [];
+  const walk = (n, st) => {
+    n.childNodes.forEach(c => {
+      if (c.nodeType === 3) { if (c.textContent) runs.push({ text: c.textContent, ...st }); return; }
+      if (c.nodeType !== 1) return;
+      if (c.tagName.toLowerCase() === "br") { runs.push({ text: " ", ...st }); return; }
+      walk(c, pdfMergeStyle(c, st));
+    });
+  };
+  walk(node, {});
+  return runs;
+}
+function pdfRunsFromMarkers(text) { return pdfParseRuns(text).map(r => ({ text: r.text, b: r.b, i: r.i, u: r.u })); }
+
+// ── Découpage en blocs {type, runs} ────────────────────────────
+function pdfHtmlToBlocks(html) {
+  const dom = new DOMParser().parseFromString(String(html), "text/html");
+  const blocks = [];
+  const handle = (n) => {
+    const tag = n.tagName.toLowerCase();
+    if (tag === "ul" || tag === "ol") { n.querySelectorAll(":scope > li").forEach(li => blocks.push({ type: "bullet", runs: pdfRunsFromNode(li) })); return; }
+    if (tag === "li") { blocks.push({ type: "bullet", runs: pdfRunsFromNode(n) }); return; }
+    if (/^h[1-6]$/.test(tag)) { blocks.push({ type: tag, runs: pdfRunsFromNode(n) }); return; }
+    if (tag === "div" || tag === "p") {
+      if (n.querySelector("ul,ol,li,div,p,h1,h2,h3,h4,h5,h6")) { walk(n); return; }
+      blocks.push({ type: n.getAttribute("data-u") === "1" ? "urgent" : "normal", runs: pdfRunsFromNode(n) });
+      return;
+    }
+    blocks.push({ type: "normal", runs: pdfRunsFromNode(n) });
+  };
+  const walk = (parent) => { parent.childNodes.forEach(n => { if (n.nodeType === 3) { if (n.textContent.trim()) blocks.push({ type: "normal", runs: [{ text: n.textContent }] }); return; } if (n.nodeType === 1) handle(n); }); };
+  walk(dom.body);
+  return blocks;
+}
+function pdfTextToBlocks(text) {
+  const blocks = [];
+  for (const raw of String(text).split("\n")) {
+    const t = raw.trim();
+    if (!t) { blocks.push({ type: "space" }); continue; }
+    if (/^\d{1,2}[.-]\s/.test(t) && t.length < 90) { blocks.push({ type: "h3", runs: pdfRunsFromMarkers(t) }); continue; }
+    if (t.startsWith(">")) { blocks.push({ type: "urgent", runs: pdfRunsFromMarkers(t.slice(1).trim()) }); continue; }
+    if (t.startsWith("-")) { blocks.push({ type: "bullet", runs: pdfRunsFromMarkers(t.slice(1).trim()) }); continue; }
+    blocks.push({ type: "normal", runs: pdfRunsFromMarkers(t) });
+  }
+  return blocks;
+}
+
+// ── Layout + dessin des runs (largeur, retour ligne, hauteur variable) ──
+function pdfLayoutRuns(doc, font, runs, maxWidth, baseSize, baseBold) {
   const toks = [];
-  for (const r of pdfParseRuns(text)) for (const w of r.text.split(/(\s+)/)) { if (w === "") continue; toks.push({ word: w, sp: /^\s+$/.test(w), b: !!r.b || !!baseBold, i: !!r.i, u: !!r.u }); }
+  for (const r of (runs || [])) for (const w of String(r.text).split(/(\s+)/)) { if (w === "") continue; toks.push({ word: w, sp: /^\s+$/.test(w), b: !!r.b || !!baseBold, i: !!r.i, u: !!r.u, color: r.color, bg: r.bg, sz: r.size || baseSize }); }
   const lines = [[]]; let x = 0;
   for (const tk of toks) {
-    pdfStyle(doc, font, tk.b, tk.i); tk.w = doc.getTextWidth(tk.word);
+    doc.setFontSize(tk.sz); pdfStyle(doc, font, tk.b, tk.i); tk.w = doc.getTextWidth(tk.word);
     let ln = lines[lines.length - 1];
     if (tk.sp) { if (ln.length === 0) continue; tk.x = x; x += tk.w; ln.push(tk); continue; }
     if (x + tk.w > maxWidth && ln.length > 0) { while (ln.length && ln[ln.length - 1].sp) { x -= ln[ln.length - 1].w; ln.pop(); } lines.push([]); ln = lines[lines.length - 1]; x = 0; }
@@ -131,51 +215,21 @@ function pdfRichLayout(doc, font, text, maxWidth, size, baseBold) {
   }
   return lines;
 }
-function pdfDrawRich(doc, font, lines, x0, y, size, color, lineH) {
-  doc.setFontSize(size); doc.setTextColor(...color); doc.setDrawColor(...color); doc.setLineWidth(0.3);
-  lines.forEach((ln, li) => { const ly = y + li * lineH; for (const tk of ln) { if (tk.sp) continue; pdfStyle(doc, font, tk.b, tk.i); doc.text(tk.word, x0 + tk.x, ly); if (tk.u) doc.line(x0 + tk.x, ly + 0.7, x0 + tk.x + tk.w, ly + 0.7); } });
-}
-function pdfLooksHtml(s) { return /<\/?(div|p|ul|ol|li|strong|b|em|i|u|h[1-6]|br|span)\b/i.test(String(s)); }
-function pdfInline(node) {
-  let out = "";
-  node.childNodes.forEach(n => {
-    if (n.nodeType === 3) { out += n.textContent; return; }
-    if (n.nodeType !== 1) return;
-    const tag = n.tagName.toLowerCase();
-    const inner = pdfInline(n);
-    const st = (n.getAttribute && n.getAttribute("style")) || "";
-    if (tag === "strong" || tag === "b" || /font-weight:\s*(bold|[6-9]00)/i.test(st)) out += `**${inner}**`;
-    else if (tag === "em" || tag === "i" || /font-style:\s*italic/i.test(st)) out += `*${inner}*`;
-    else if (tag === "u" || /text-decoration:[^;]*underline/i.test(st)) out += `__${inner}__`;
-    else if (tag === "br") out += "\n";
-    else out += inner;
-  });
-  return out;
-}
-function pdfHtmlToText(html) {
-  const dom = new DOMParser().parseFromString(String(html), "text/html");
-  const lines = [];
-  const block = (n) => {
-    const tag = n.tagName.toLowerCase();
-    if (tag === "ul" || tag === "ol") { n.querySelectorAll(":scope > li").forEach(li => lines.push("- " + pdfInline(li).trim())); return; }
-    if (tag === "li") { lines.push("- " + pdfInline(n).trim()); return; }
-    if (/^h[1-6]$/.test(tag)) { lines.push(pdfInline(n).trim()); return; }
-    if (tag === "div" || tag === "p") {
-      if (n.querySelector("ul,ol,li,div,p,h1,h2,h3,h4,h5,h6")) { walk(n); return; }
-      const pre = n.getAttribute("data-u") === "1" ? "> " : "";
-      lines.push(pre + pdfInline(n).trim());
-      return;
+function pdfLineH(line, baseSize) { let m = baseSize; for (const tk of line) if (!tk.sp && tk.sz > m) m = tk.sz; return m * 0.52; }
+function pdfBlockH(lines, baseSize) { return lines.reduce((s, ln) => s + pdfLineH(ln, baseSize), 0); }
+function pdfDrawRuns(doc, font, lines, x0, y, baseSize, baseColor) {
+  let yy = y;
+  for (const ln of lines) {
+    const lh = pdfLineH(ln, baseSize);
+    for (const tk of ln) { if (tk.sp || !tk.bg) continue; doc.setFillColor(...tk.bg); doc.rect(x0 + tk.x, yy - tk.sz * 0.33, tk.w, tk.sz * 0.46, "F"); }
+    for (const tk of ln) {
+      if (tk.sp) continue;
+      doc.setFontSize(tk.sz); pdfStyle(doc, font, tk.b, tk.i); doc.setTextColor(...(tk.color || baseColor));
+      doc.text(tk.word, x0 + tk.x, yy);
+      if (tk.u) { doc.setDrawColor(...(tk.color || baseColor)); doc.setLineWidth(0.3); doc.line(x0 + tk.x, yy + 0.7, x0 + tk.x + tk.w, yy + 0.7); }
     }
-    const t = pdfInline(n).trim(); if (t) lines.push(t);
-  };
-  const walk = (parent) => {
-    parent.childNodes.forEach(n => {
-      if (n.nodeType === 3) { const t = n.textContent.trim(); if (t) lines.push(t); return; }
-      if (n.nodeType === 1) block(n);
-    });
-  };
-  walk(dom.body);
-  return lines.join("\n");
+    yy += lh;
+  }
 }
 
 export async function generatePDF(project, pvNum, date, result, profile, options) {
@@ -307,51 +361,42 @@ export async function generatePDF(project, pvNum, date, result, profile, options
   y += 9;
 
   // ── CONTENU (résultat Claude ou HTML édité) ────────────────
-  // Si l'utilisateur a édité dans l'éditeur riche, `result` est du HTML →
-  // on le normalise en texte structuré à marqueurs inline.
-  let body = result || "";
-  if (pdfLooksHtml(body)) body = pdfHtmlToText(body);
-  const lines = body.split("\n");
-  for (const line of lines) {
-    const t = line.trim();
-    if (!t) { y += 2; continue; }
-
-    const isSec     = /^\d{1,2}[.-]\s/.test(t) && t.length < 90;
-    const isUrgent  = t.startsWith(">");
-    const isPoint   = t.startsWith("-");
-
-    if (isSec) {
-      checkY(16);
-      doc.setFillColor(...BGGRAY);
-      doc.rect(ML, y - 4.5, CW, 9, "F");
-      doc.setFillColor(...AMBER);
-      doc.rect(ML, y - 4.5, 2.5, 9, "F");
-      doc.setFont(font, "bold");
-      doc.setFontSize(10.5);
-      doc.setTextColor(...DARK);
-      doc.text(pdfStripInline(t), ML + 6, y);
-      y += 9;
-    } else if (isUrgent) {
-      const lns = pdfRichLayout(doc, font, "! " + t.slice(1).trim(), CW - 12, 9.5, true);
-      checkY(lns.length * 5 + 5);
-      doc.setFillColor(...REDBG);
-      doc.rect(ML, y - 3.5, CW, lns.length * 5 + 3, "F");
-      doc.setFillColor(...RED);
-      doc.rect(ML, y - 3.5, 2, lns.length * 5 + 3, "F");
-      pdfDrawRich(doc, font, lns, ML + 6, y, 9.5, RED, 5);
-      y += lns.length * 5 + 5;
-    } else if (isPoint) {
-      const lns = pdfRichLayout(doc, font, t.slice(1).trim(), CW - 10, 9.5, false);
-      checkY(lns.length * 5 + 2);
-      doc.setFillColor(...GRAY);
-      doc.circle(ML + 3, y - 1.5, 0.8, "F");
-      pdfDrawRich(doc, font, lns, ML + 8, y, 9.5, DARK, 5);
-      y += lns.length * 5 + 2;
+  // HTML (éditeur riche) → blocs avec runs stylés (couleur, surlignage,
+  // taille, niveau de titre) ; sinon texte IA → mêmes blocs via marqueurs.
+  const HSIZE = { h1: 15, h2: 13, h3: 11, h4: 10, h5: 9.5, h6: 9.5 };
+  const blocks = pdfLooksHtml(result || "") ? pdfHtmlToBlocks(result || "") : pdfTextToBlocks(result || "");
+  for (const blk of blocks) {
+    if (blk.type === "space") { y += 2; continue; }
+    if (/^h[1-6]$/.test(blk.type)) {
+      const sz = HSIZE[blk.type] || 11;
+      const lns = pdfLayoutRuns(doc, font, blk.runs, CW - 6, sz, true);
+      const h = pdfBlockH(lns, sz);
+      checkY(h + 7);
+      doc.setFillColor(...BGGRAY); doc.rect(ML, y - 4.5, CW, h + 3, "F");
+      doc.setFillColor(...AMBER); doc.rect(ML, y - 4.5, 2.5, h + 3, "F");
+      pdfDrawRuns(doc, font, lns, ML + 6, y, sz, DARK);
+      y += h + 5;
+    } else if (blk.type === "urgent") {
+      const lns = pdfLayoutRuns(doc, font, [{ text: "! ", b: true }].concat(blk.runs || []), CW - 12, 9.5, true);
+      const h = pdfBlockH(lns, 9.5);
+      checkY(h + 5);
+      doc.setFillColor(...REDBG); doc.rect(ML, y - 3.5, CW, h + 3, "F");
+      doc.setFillColor(...RED); doc.rect(ML, y - 3.5, 2, h + 3, "F");
+      pdfDrawRuns(doc, font, lns, ML + 6, y, 9.5, RED);
+      y += h + 5;
+    } else if (blk.type === "bullet") {
+      const lns = pdfLayoutRuns(doc, font, blk.runs, CW - 10, 9.5, false);
+      const h = pdfBlockH(lns, 9.5);
+      checkY(h + 2);
+      doc.setFillColor(...GRAY); doc.circle(ML + 3, y - 1.5, 0.8, "F");
+      pdfDrawRuns(doc, font, lns, ML + 8, y, 9.5, DARK);
+      y += h + 2;
     } else {
-      const lns = pdfRichLayout(doc, font, t, CW, 9.5, false);
-      checkY(lns.length * 5 + 2);
-      pdfDrawRich(doc, font, lns, ML, y, 9.5, DARK, 5);
-      y += lns.length * 5 + 2;
+      const lns = pdfLayoutRuns(doc, font, blk.runs, CW, 9.5, false);
+      const h = pdfBlockH(lns, 9.5);
+      checkY(h + 2);
+      pdfDrawRuns(doc, font, lns, ML, y, 9.5, DARK);
+      y += h + 2;
     }
   }
 
