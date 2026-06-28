@@ -464,6 +464,7 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
   const greeting = greetingFor(firstName);
   const insight = empty ? buildInsight(projects) : null;
   const suggestions = empty ? buildSuggestions(projects) : [];
+  const firstProj = empty ? (projects || []).find(p => !p.archived)?.name : null;
 
   return (
     <>
@@ -506,10 +507,10 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: 1 }}>
             <div style={{
-              width: 28, height: 28, borderRadius: "50%", background: AC,
+              width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, #D17A47, ${AC})`,
               display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
-              <span style={{ fontSize: 13, color: "#fff", fontWeight: 700 }}>✦</span>
+              <span style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>✦</span>
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: TX, lineHeight: 1.2 }}>
@@ -642,48 +643,41 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
               )}
             </div>
           ) : empty ? (
-            // Empty state — greeting contextuel + insight personnalisé + suggestions dynamiques
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 18, padding: "20px 8px" }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: "50%", background: ACL,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: `1px solid ${ACL2}`,
-              }}>
+            // Empty state — accueil v2 : greeting + intro + carte insight + suggestions
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, padding: "4px 2px" }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${ACL}, ${ACL2})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 22, color: AC }}>✦</span>
               </div>
-              <div style={{ textAlign: "center", maxWidth: 320 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 6, letterSpacing: "-0.2px" }}>
-                  {greeting}
-                </div>
-                <div style={{ fontSize: 12, color: TX2, lineHeight: 1.5 }}>
-                  {insight}
-                </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: TX, letterSpacing: "-0.3px", marginBottom: 4 }}>{greeting} 👋</div>
+                <div style={{ fontSize: 13, color: TX2, lineHeight: 1.5 }}>Pose-moi une question sur tes chantiers, ou demande-moi de rédiger quelque chose.</div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", marginTop: 4 }}>
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendQuestion(s.label)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: 8,
-                      background: WH, cursor: "pointer", fontFamily: "inherit",
-                      textAlign: "left",
-                      transition: "all 0.12s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = ACL2;
-                      e.currentTarget.style.background = ACL;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = SBB;
-                      e.currentTarget.style.background = WH;
-                    }}
-                  >
-                    <Ico name={s.icon} size={12} color={AC} />
-                    <span style={{ fontSize: 12, color: TX2, fontWeight: 500 }}>{s.label}</span>
-                  </button>
-                ))}
+              {insight && (
+                <div style={{ background: ACL, border: `1px solid ${ACL2}`, borderRadius: 12, padding: "12px 13px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                    <span style={{ fontSize: 12, color: AC }}>✦</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.04em" }}>{firstProj ? `À noter sur ${firstProj}` : "À noter"}</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: TX2, lineHeight: 1.5 }}>{insight}</div>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Suggestions</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => sendQuestion(s.label)}
+                      style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", border: `1px solid ${SBB}`, borderRadius: 11, background: WH, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.12s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACL2; e.currentTarget.style.background = ACL; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = SBB; e.currentTarget.style.background = WH; }}
+                    >
+                      <Ico name={s.icon} size={13} color={AC} />
+                      <span style={{ fontSize: 12.5, color: TX, fontWeight: 500, flex: 1 }}>{s.label}</span>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={TX3} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 6 15 12 9 18" /></svg>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
@@ -985,12 +979,15 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
       style={{
         position: "fixed", bottom: bottomOffset, right: isMobile ? 16 : 24, zIndex: 997,
         width: 56, height: 56, borderRadius: "50%",
-        background: TX, color: "#fff", border: "none",
+        // Desktop : FAB terracotta dégradé (Direction D). Mobile : neutre TX
+        // pour ne pas entrer en conflit avec le FAB Visite central de la bottom bar.
+        background: isMobile ? TX : `linear-gradient(135deg, #D17A47, ${AC})`,
+        color: "#fff", border: "none",
         cursor: "pointer", fontFamily: "inherit",
         display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: open
           ? "0 4px 12px rgba(28,25,23,0.25)"
-          : "0 6px 20px rgba(28,25,23,0.30), 0 2px 6px rgba(0,0,0,0.10)",
+          : isMobile ? "0 6px 20px rgba(28,25,23,0.30), 0 2px 6px rgba(0,0,0,0.10)" : "0 8px 24px rgba(184,92,44,0.40), 0 2px 6px rgba(0,0,0,0.10)",
         transition: "all 0.18s ease",
         transform: open ? "scale(0.92)" : "scale(1)",
       }}
