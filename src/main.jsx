@@ -8,6 +8,7 @@ import { PvComposer } from './pages/PvComposer'
 import { Account } from './pages/Account'
 import { MetierDemo } from './pages/MetierViews'
 import { OnboardingWizard } from './components/modals/OnboardingWizard'
+import { DashboardDemo } from './views/DashboardHome'
 import { isEnabled } from './constants/featureFlags'
 
 // Route preview du composer de PV v2 (design Direction D) : /pv/demo
@@ -25,6 +26,10 @@ const metierDemo = (() => {
 // Route preview du wizard d'onboarding v2 : /onboarding/demo
 const onboardingDemo = (() => {
   try { return window.location.pathname === "/onboarding/demo"; } catch { return false; }
+})();
+// Route preview du dashboard multi-projets v2 : /dashboard/demo
+const dashboardDemo = (() => {
+  try { return window.location.pathname === "/dashboard/demo"; } catch { return false; }
 })();
 
 // Initialize Sentry before anything else
@@ -89,6 +94,8 @@ function Root() {
   if (accountDemo) return <ErrorBoundary><div style={{ height: "100vh" }}><Account demo /></div></ErrorBoundary>;
 
   if (metierDemo) return <ErrorBoundary><MetierDemo /></ErrorBoundary>;
+
+  if (dashboardDemo) return <ErrorBoundary><DashboardDemo /></ErrorBoundary>;
 
   if (onboardingDemo) { const _st = Number(new URLSearchParams(window.location.search).get("step")) || 0; return <ErrorBoundary><div style={{ minHeight: "100vh", background: "#FBF8F5" }}><OnboardingWizard initialStep={_st} profile={{ name: "Gaëlle Dupont", structure: "Atelier d'architecture GD", structureType: "architecte", plan: "free", email: "", phone: "" }} onUpdateProfile={() => {}} onCreateProject={() => {}} onComplete={() => { window.location.href = "/"; }} /></div></ErrorBoundary>; }
 
