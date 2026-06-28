@@ -62,9 +62,15 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // (le chronomètre étant calculé depuis visit.startedAt).
   const [, setTick] = useState(0);
   useEffect(() => {
-    const i = setInterval(() => setTick(t => t + 1), 30000);
+    const i = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(i);
   }, []);
+  // Chrono HH:MM:SS depuis le début de la visite.
+  const hhmmss = (() => {
+    const s = Math.max(0, Math.floor((Date.now() - new Date(visit.startedAt).getTime()) / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  })();
 
   // ── Tier 1 : météo automatique au démarrage de la visite ──
   // Fetch une fois si pas encore fait (ou si échec précédent — on
@@ -359,36 +365,15 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       {/* ── Header sticky — visite continue, sobre ──
           Chrono qui tourne + météo. Une seule visite (plus de bascule
           inspection/réunion : on capture en continu). */}
-      <div style={{
-        position: "sticky", top: 0, zIndex: 10,
-        background: WH, borderBottom: `1px solid ${SBB}`,
-        padding: "10px 14px",
-        display: "flex", alignItems: "center", gap: 10,
-      }}>
-        <button onClick={onCancelVisit} title="Annuler la visite"
-          style={{
-            background: SB, border: `1px solid ${SBB}`,
-            cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36,
-            display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8,
-          }}>
-          <Ico name="x" color={TX2} size={14} />
-        </button>
+      <div style={{ position: "sticky", top: 0, zIndex: 10, background: WH, borderBottom: `1px solid ${SBB}`, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 1 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: AC, animation: "pulseDot 1.6s ease-in-out infinite" }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: AC, textTransform: "uppercase", letterSpacing: "0.06em", fontVariantNumeric: "tabular-nums" }}>
-              Visite · {stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}
-            </span>
-            {visit.weather && (
-              <span title={`${visit.weather.label} · ${visit.weather.temperature}°C`} style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 999, background: SB, color: TX2, whiteSpace: "nowrap", marginLeft: 2 }}>
-                {formatWeatherShort(visit.weather)}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {project.name}
+          <div style={{ fontSize: 12, color: TX3, fontWeight: 500, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Visite · {project.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#DC2626", animation: "pulseDot 1.4s ease-in-out infinite", flexShrink: 0 }} />
+            <span style={{ fontSize: 26, fontWeight: 700, color: TX, fontVariantNumeric: "tabular-nums", letterSpacing: "0.5px" }}>{hhmmss}</span>
           </div>
         </div>
+        <button onClick={() => setActiveSheet("end")} style={{ height: 38, padding: "0 14px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Terminer</button>
       </div>
 
       <style>{`
@@ -400,35 +385,62 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
       <div style={{ padding: "14px" }}>
 
-      {/* ── Barre de capture — gros boutons tactiles (mains sur le chantier) ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-        <ActionButton icon="camera" label="Photo" count={stats.photos} onClick={() => setActiveSheet("photo")} />
-        <ActionButton icon="mic" label="Note vocale" onClick={() => setActiveSheet("voice")} />
-        <ActionButton icon="pen2" label="Note écrite" onClick={() => setActiveSheet("text")} />
+      {/* ── Contexte : météo + présents (pills tactiles) ── */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 16 }}>
+        {visit.weather && (
+          <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 12 }}>{formatWeatherShort(visit.weather)}</span>
+        )}
+        {visit.presents.map((p, i) => (
+          <button key={i} onClick={() => onTogglePresent(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : SBB}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ width: 20, height: 20, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{(p.name || "?").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+            {p.name}
+          </button>
+        ))}
       </div>
 
-      {/* ── Présents (compact) ── */}
-      {visit.presents.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-            Présents · {visit.presents.filter(p => p.present).length}/{visit.presents.length}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {visit.presents.map((p, i) => (
-              <button key={i} onClick={() => onTogglePresent(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", border: `1px solid ${p.present ? SG : SBB}`, background: p.present ? SGB : WH, color: p.present ? SG : TX3, borderRadius: 999, cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600 }}>
-                <Ico name={p.present ? "check" : "x"} size={9} color={p.present ? SG : TX3} />
-                {p.role ? `${p.role}: ${p.name}` : p.name}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ── Enregistrer la réunion (audio → PV par l'IA) ── */}
+      {phase === "reunion" ? (
+        <button onClick={onResumeInspection} style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg,#B85C2C,#A04C20)", borderRadius: 18, padding: 16, color: "#fff", marginBottom: 18, display: "flex", alignItems: "center", gap: 13, boxShadow: "0 8px 22px rgba(184,92,44,0.24)" }}>
+          <span style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ width: 12, height: 12, borderRadius: "50%", background: "#fff", animation: "pulseDot 1.2s ease-in-out infinite" }} /></span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 16, fontWeight: 700 }}>Réunion en cours…</span>
+            <span style={{ display: "block", fontSize: 12, opacity: 0.85, marginTop: 2 }}>Audio enregistré · appuie pour mettre en pause</span>
+          </span>
+        </button>
+      ) : (
+        <button onClick={onRequestMeeting} style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg,#B85C2C,#A04C20)", borderRadius: 18, padding: 16, color: "#fff", position: "relative", overflow: "hidden", marginBottom: 18, boxShadow: "0 8px 22px rgba(184,92,44,0.24)" }}>
+          <span style={{ position: "absolute", right: -20, top: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+          <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 13 }}>
+            <span style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="mic" size={26} color="#fff" /></span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 16, fontWeight: 700, letterSpacing: "-0.2px" }}>Enregistrer la réunion</span>
+              <span style={{ display: "block", fontSize: 12, opacity: 0.85, lineHeight: 1.45, marginTop: 2 }}>L'IA en fera le PV · se synchronise sur l'ordinateur</span>
+            </span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.9 }}><polyline points="9 6 15 12 9 18" /></svg>
+          </span>
+        </button>
       )}
+
+      {/* ── Capturer sur le vif — 3 actions tactiles ── */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Capturer sur le vif</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 22 }}>
+        {[
+          { icon: "camera", label: "Photo", bg: "#EFF6FF", fg: "#1E40AF", sheet: "photo" },
+          { icon: "mic", label: "Note vocale", bg: "#FDF6F1", fg: "#A04C20", sheet: "voice" },
+          { icon: "alert", label: "Réserve", bg: "#FEF2F2", fg: "#991B1B", sheet: "new-reserve" },
+        ].map(c => (
+          <button key={c.sheet} onClick={() => setActiveSheet(c.sheet)} style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 18, padding: "18px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, cursor: "pointer", fontFamily: "inherit", minHeight: 96 }}>
+            <span style={{ width: 50, height: 50, borderRadius: 15, background: c.bg, color: c.fg, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name={c.icon} size={26} color={c.fg} /></span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: TX }}>{c.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* ── Fil de la visite — photos + observations, chronologique ──
           Le cœur de l'écran : tout ce que l'archi capture s'empile ici
           dans l'ordre, pour qu'il voie en un coup d'œil ce qu'il a relevé. */}
-      <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-        Fil de la visite{feed.length > 0 ? ` · ${feed.length}` : ""}
+      <div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+        Capturé{feed.length > 0 ? ` · ${feed.length} élément${feed.length > 1 ? "s" : ""}` : ""}
       </div>
       {feed.length === 0 ? (
         <div style={{ textAlign: "center", padding: "30px 20px", color: TX3, background: SB, border: `1px dashed ${SBB}`, borderRadius: 12 }}>
@@ -467,30 +479,15 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           })}
         </div>
       )}
-      </div>
-
-      {/* ── Sticky footer — une seule action : terminer → brouillon de PV ── */}
-      <div style={{
-        position: "fixed", bottom: 0, left: 0, right: 0,
-        background: WH, borderTop: `1px solid ${SBB}`,
-        padding: "12px 16px",
-        paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))",
-        display: "flex", gap: 8,
-        boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.05)",
-        zIndex: 20,
-      }}>
-        <button
-          onClick={() => setActiveSheet("end")}
-          style={{
-            flex: 1, padding: "14px 16px", border: "none", borderRadius: 10,
-            background: AC, color: "#fff", fontSize: 14, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          <Ico name="check" size={14} color="#fff" />
-          Terminer la visite
-        </button>
+      {/* ── Finir → brouillon de PV (l'IA assemble la visite) ── */}
+      <button onClick={() => setActiveSheet("end")} style={{ width: "100%", textAlign: "left", marginTop: 20, background: "#FDF6F1", border: "1px solid #F0DCCB", borderRadius: 14, padding: 14, display: "flex", alignItems: "center", gap: 11, cursor: "pointer", fontFamily: "inherit" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A04C20" strokeWidth="1.7"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z" /></svg>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: TX }}>Finir → brouillon de PV</span>
+          <span style={{ display: "block", fontSize: 12, color: "#8B5A3C" }}>L'IA assemble la visite en PV</span>
+        </span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7A98E" strokeWidth="2"><polyline points="9 6 15 12 9 18" /></svg>
+      </button>
       </div>
 
       {/* ── Sheets / Modals ── */}
