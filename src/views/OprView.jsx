@@ -14,6 +14,7 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
   const isMobile = useIsMobile();
   const [mode, setMode] = useState("list"); // "list" | "add" | "edit"
   const [editingId, setEditingId] = useState(null);
+  const [detailReserve, setDetailReserve] = useState(null); // mobile : détail réserve (lecture)
   const [filter, setFilter] = useState("all"); // "all" | "non_levee" | "partiellement_levee" | "levee"
   const [filterContractor, setFilterContractor] = useState("all");
   const [signOpen, setSignOpen] = useState(false);
@@ -482,7 +483,7 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
             const st = getReserveStatus(r.status);
             const sev = getReserveSeverity(r.severity);
             return (
-              <div key={r.id} style={{ background: WH, border: `1px solid ${r.severity === "critical" && r.status !== "levee" ? REDBRD : SBB}`, borderRadius: 12, overflow: "hidden" }}>
+              <div key={r.id} onClick={isMobile ? () => setDetailReserve(r) : undefined} style={{ background: WH, border: `1px solid ${r.severity === "critical" && r.status !== "levee" ? REDBRD : SBB}`, borderRadius: 12, overflow: "hidden", cursor: isMobile ? "pointer" : "default" }}>
                 <div style={{ display: "flex", alignItems: "stretch" }}>
                   {/* Left accent */}
                   <div style={{ width: 4, background: st.color, flexShrink: 0 }} />
@@ -649,6 +650,81 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
           }}
         />
       )}
+      {detailReserve && <ReserveDetailSheet reserve={detailReserve} onClose={() => setDetailReserve(null)} />}
+    </div>
+  );
+}
+
+// ── Détail réserve (mobile, lecture seule) ──
+function ReserveDetailSheet({ reserve, onClose }) {
+  const sev = getReserveSeverity(reserve.severity);
+  const st = getReserveStatus(reserve.status);
+  const photos = reserve.photos || [];
+  const fmt = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? String(iso) : d.toLocaleDateString("fr-BE", { day: "numeric", month: "long", year: "numeric" }); };
+  const metaRow = (icon, label, value) => value ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+      <Ico name={icon} size={16} color={TX3} />
+      <span style={{ flex: 1, fontSize: 13, color: TX3 }}>{label}</span>
+      <span style={{ fontSize: 13, color: TX, fontWeight: 500, textAlign: "right" }}>{value}</span>
+    </div>
+  ) : null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: BG, overflowY: "auto", fontFamily: "inherit", animation: "fadeIn 0.2s ease" }}>
+      {/* Nav */}
+      <div style={{ display: "flex", alignItems: "center", padding: "calc(8px + env(safe-area-inset-top, 0px)) 16px 14px" }}>
+        <button onClick={onClose} aria-label="Retour" style={{ width: 38, height: 38, borderRadius: 999, background: WH, border: `1px solid #EFEDEB`, display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
+      </div>
+      {/* Titre */}
+      <div style={{ padding: "0 20px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontFamily: "ui-monospace, monospace", color: TX3 }}>{reserve.code}</span>
+          <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: sev.bg, color: sev.color, border: `1px solid ${sev.color}33`, fontWeight: 600 }}>{sev.label}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, padding: "2px 9px", borderRadius: 999, background: st.bg, color: st.color, fontWeight: 500 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot }} />{st.label}</span>
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: TX, letterSpacing: "-0.3px", lineHeight: 1.25 }}>{reserve.description || "Réserve"}</div>
+      </div>
+      {/* Photos */}
+      {photos.length > 0 && (
+        <div style={{ padding: "0 16px 18px", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {photos.map((p, i) => <img key={i} src={getPhotoUrl(p)} alt="" style={{ flex: "1 1 45%", maxWidth: "48%", height: 120, objectFit: "cover", borderRadius: 12, border: `1px solid ${SBB}` }} />)}
+        </div>
+      )}
+      {/* Méta */}
+      {(reserve.location || reserve.contractor || reserve.deadline) && (
+        <div style={{ margin: "0 16px 18px", background: WH, border: `1px solid #EFEDEB`, borderRadius: 14, overflow: "hidden" }}>
+          {metaRow("mappin", "Localisation", reserve.location)}
+          {reserve.location && (reserve.contractor || reserve.deadline) && <div style={{ height: 1, background: "#F5F2EF", margin: "0 14px" }} />}
+          {metaRow("users", "Responsable", reserve.contractor)}
+          {reserve.contractor && reserve.deadline && <div style={{ height: 1, background: "#F5F2EF", margin: "0 14px" }} />}
+          {metaRow("calendar", "Échéance", fmt(reserve.deadline))}
+        </div>
+      )}
+      {/* Description */}
+      {reserve.description && (
+        <div style={{ padding: "0 20px 8px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Description</div>
+          <div style={{ fontSize: 14, color: TX2, lineHeight: 1.55 }}>{reserve.description}</div>
+        </div>
+      )}
+      {/* Suivi */}
+      <div style={{ padding: "18px 20px 10px" }}><div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Suivi</div></div>
+      <div style={{ padding: "0 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", gap: 11 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 999, background: AC, marginTop: 5, flexShrink: 0 }} />
+          <div><div style={{ fontSize: 13, color: TX }}>Créée{reserve.createdAt ? ` le ${fmt(reserve.createdAt)}` : ""}</div></div>
+        </div>
+        {reserve.status === "levee" && (
+          <div style={{ display: "flex", gap: 11 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 999, background: GR, marginTop: 5, flexShrink: 0 }} />
+            <div><div style={{ fontSize: 13, color: TX }}>Levée{reserve.resolvedAt ? ` le ${fmt(reserve.resolvedAt)}` : ""}</div></div>
+          </div>
+        )}
+      </div>
+      {/* Note lecture seule */}
+      <div style={{ margin: "18px 16px 32px", display: "flex", alignItems: "center", gap: 9, background: "#F7F5F3", borderRadius: 11, padding: "11px 13px" }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={TX3} strokeWidth="1.7" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+        <span style={{ fontSize: 12, color: TX3, lineHeight: 1.45 }}>Marquer comme levée : pendant une visite, ou sur ordinateur.</span>
+      </div>
     </div>
   );
 }
