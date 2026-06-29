@@ -466,6 +466,11 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
   const suggestions = empty ? buildSuggestions(projects) : [];
   const firstProj = empty ? (projects || []).find(p => !p.archived)?.name : null;
 
+  // Contexte projet courant pour la ligne d'en-tête : "{projet} · N documents".
+  const ctxProject = (projects || []).find(p => String(p.id) === String(activeProjectId));
+  const ctxDocs = ctxProject ? (ctxProject.planFiles || []).filter(f => f.type !== "folder").length : 0;
+  const ctxLabel = ctxProject ? `${ctxProject.name} · ${ctxDocs} document${ctxDocs > 1 ? "s" : ""}` : null;
+
   return (
     <>
       {/* Backdrop transparent — clic ferme */}
@@ -529,9 +534,11 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
               >
                 {showArchives
                   ? "Conversations passées"
-                  : messages.length === 0
-                    ? "Pose tes questions sur tes projets"
-                    : titleForConversation(messages)}
+                  : ctxLabel
+                    ? ctxLabel
+                    : messages.length === 0
+                      ? "Pose tes questions sur tes projets"
+                      : titleForConversation(messages)}
               </div>
             </div>
           </div>
