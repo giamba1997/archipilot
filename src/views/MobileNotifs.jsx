@@ -170,107 +170,61 @@ export function MobileNotifs({
       </div>
 
       <div style={{ padding: "12px 8px 0" }}>
-        {/* ── Invitations en attente ── (collaboration différée au POC) */}
-        {isEnabled("collaboration") && invitations.length > 0 && (
-          <Section title="Invitations" iconName="users" color={ST}>
-            {invitations.map(inv => (
-              <div key={inv.id} style={{ padding: 14, background: WH, border: `1px solid ${SBB}`, borderRadius: RAD.md, marginBottom: 8 }}>
-                <div style={{ fontSize: 13, color: TX, lineHeight: 1.45, marginBottom: 10 }}>
-                  <strong>{inv.invited_name || "Quelqu'un"}</strong> t'a invité à collaborer sur <strong>{inv.project_name || inv.project_id}</strong>
+        {/* ── Nouveau ── (échéances + invitations + non lues, fondues) */}
+        {(unread.length > 0 || hasAnyEcheance || (isEnabled("collaboration") && invitations.length > 0)) && (
+          <>
+            <GroupLabel>Nouveau</GroupLabel>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 22 }}>
+              {isEnabled("collaboration") && invitations.map(inv => (
+                <div key={`inv-${inv.id}`} style={{ padding: 14, background: WH, border: "1px solid #EFEDEB", borderRadius: 14 }}>
+                  <div style={{ fontSize: 14, color: TX, lineHeight: 1.45, marginBottom: 10 }}>
+                    <strong>{inv.invited_name || "Quelqu'un"}</strong> t'a invité à collaborer sur <strong>{inv.project_name || inv.project_id}</strong>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => onAcceptInvite?.(inv.id)} style={{ flex: 1, padding: "9px 12px", border: "none", borderRadius: RAD.sm, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Accepter</button>
+                    <button onClick={() => onDeclineInvite?.(inv.id)} style={{ flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: RAD.sm, background: WH, color: TX2, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Refuser</button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => onAcceptInvite?.(inv.id)} style={{ flex: 1, padding: "9px 12px", border: "none", borderRadius: RAD.sm, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    Accepter
-                  </button>
-                  <button onClick={() => onDeclineInvite?.(inv.id)} style={{ flex: 1, padding: "9px 12px", border: `1px solid ${SBB}`, borderRadius: RAD.sm, background: WH, color: TX2, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    Refuser
-                  </button>
-                </div>
-              </div>
-            ))}
-          </Section>
+              ))}
+              {permitsSoon.map(pe => (
+                <FeedCard
+                  key={`pe-${pe.id}`}
+                  icon="file" iconColor="#991B1B" iconBg="#FEF2F2" dot
+                  body={<><b>Permis dans {pe.days} jour{pe.days > 1 ? "s" : ""}</b> — {pe.projectName}</>}
+                  time={pe.days === 0 ? "aujourd'hui" : `échéance · J-${pe.days}`}
+                  onClick={() => pe.project && onSelectProject?.(pe.project.id, "permits")}
+                />
+              ))}
+              {reservesOverdue.map(r => (
+                <FeedCard
+                  key={`r-${r.id}`}
+                  icon="alert" iconColor="#991B1B" iconBg="#FEF2F2" dot
+                  body={<>Réserve <b>{r.label} en retard</b> — {r.projectName}</>}
+                  onClick={() => onSelectProject?.(r.projectId, "opr")}
+                />
+              ))}
+              {unread.map(n => (
+                <NotifCard key={n.id} notification={n} onClick={() => handleNotifClick(n)} onDelete={() => onDelete?.(n.id)} />
+              ))}
+            </div>
+          </>
         )}
 
-        {/* ── Échéances proches ── */}
-        {hasAnyEcheance && (
-          <Section title={`Échéances < 7 jours (${permitsSoon.length + reservesOverdue.length})`} iconName="clock" color={AM}>
-            {permitsSoon.map(pe => (
-              <UrgencyRow
-                key={`pe-${pe.id}`}
-                icon="file"
-                color={AM}
-                bg={AMB}
-                title={pe.projectName}
-                sub={`Permis : J-${pe.days}${pe.days === 0 ? " (aujourd'hui)" : ""}`}
-                onClick={() => pe.project && onSelectProject?.(pe.project.id, "permits")}
-              />
-            ))}
-            {reservesOverdue.map(r => (
-              <UrgencyRow
-                key={`r-${r.id}`}
-                icon="alert"
-                color={BR}
-                bg="#F4E1DB"
-                title={r.projectName}
-                sub={`Réserve en retard : ${r.label}`}
-                onClick={() => onSelectProject?.(r.projectId, "opr")}
-              />
-            ))}
-          </Section>
-        )}
-
-        {/* ── Notifications non lues ── */}
-        {unread.length > 0 && (
-          <Section title="Nouveau" iconName="bell" color={AC}>
-            {unread.map(n => (
-              <NotifCard
-                key={n.id}
-                notification={n}
-                onClick={() => handleNotifClick(n)}
-                onDelete={() => onDelete?.(n.id)}
-              />
-            ))}
-          </Section>
-        )}
-
-        {/* ── Notifications lues (collapsable) ── */}
+        {/* ── Plus tôt ── (lues, atténuées) */}
         {read.length > 0 && (
-          <section style={{ marginBottom: SP.lg }}>
-            <button
-              onClick={() => setReadExpanded(v => !v)}
-              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 2px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}
-              aria-expanded={readExpanded}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Ico name="history" size={14} color={TX3} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: 0.6 }}>
-                  Plus tôt ({read.length})
-                </span>
-              </span>
-              <Ico name={readExpanded ? "chevron-up" : "chevron-down"} size={14} color={TX3} />
-            </button>
-            {readExpanded && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {read.map(n => (
-                  <NotifCard
-                    key={n.id}
-                    notification={n}
-                    onClick={() => handleNotifClick(n)}
-                    onDelete={() => onDelete?.(n.id)}
-                    dim
-                  />
-                ))}
-                {read.length > 1 && (
-                  <button
-                    onClick={onDeleteAll}
-                    style={{ marginTop: 8, padding: "10px 12px", background: "none", border: `1px dashed ${SBB}`, borderRadius: RAD.md, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    Tout supprimer
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
+          <>
+            <GroupLabel>Plus tôt</GroupLabel>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {read.map(n => (
+                <NotifCard key={n.id} notification={n} onClick={() => handleNotifClick(n)} onDelete={() => onDelete?.(n.id)} dim />
+              ))}
+              {read.length > 1 && (
+                <button onClick={onDeleteAll} style={{ marginTop: 8, padding: "10px 12px", background: "none", border: `1px dashed ${SBB}`, borderRadius: RAD.md, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Tout supprimer
+                </button>
+              )}
+            </div>
+          </>
         )}
 
         {/* ── Empty state global ── */}
@@ -292,6 +246,26 @@ export function MobileNotifs({
 }
 
 // ── Sub-components ───────────────────────────────────────
+function GroupLabel({ children }) {
+  return <div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", padding: "0 6px 10px" }}>{children}</div>;
+}
+
+// Carte générique (échéances) au style des notifications du mockup.
+function FeedCard({ icon, iconColor, iconBg, dot, body, time, onClick }) {
+  return (
+    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, paddingLeft: dot ? 18 : 14, border: "1px solid #EFEDEB", background: WH, borderRadius: 14, cursor: onClick ? "pointer" : "default", position: "relative" }}>
+      {dot && <div style={{ position: "absolute", left: 6, top: "50%", transform: "translateY(-50%)", width: 7, height: 7, borderRadius: 999, background: AC }} />}
+      <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: 11, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Ico name={icon} size={19} color={iconColor} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, color: TX, lineHeight: 1.45 }}>{body}</div>
+        {time && <div style={{ fontSize: 12, color: TX3, marginTop: 3 }}>{time}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, iconName, color, children }) {
   return (
     <section style={{ marginBottom: SP.lg }}>
