@@ -398,28 +398,19 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
         ))}
       </div>
 
-      {/* ── Enregistrer la réunion (audio → PV par l'IA) ── */}
-      {phase === "reunion" ? (
-        <button onClick={onResumeInspection} style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg,#B85C2C,#A04C20)", borderRadius: 18, padding: 16, color: "#fff", marginBottom: 18, display: "flex", alignItems: "center", gap: 13, boxShadow: "0 8px 22px rgba(184,92,44,0.24)" }}>
-          <span style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><span style={{ width: 12, height: 12, borderRadius: "50%", background: "#fff", animation: "pulseDot 1.2s ease-in-out infinite" }} /></span>
+      {/* ── Enregistrer la réunion (audio → PV par l'IA). En cours, l'écran
+          plein MeetingRecorderOverlay prend le relais (phase reunion). ── */}
+      <button onClick={onRequestMeeting} style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg,#B85C2C,#A04C20)", borderRadius: 18, padding: 16, color: "#fff", position: "relative", overflow: "hidden", marginBottom: 18, boxShadow: "0 8px 22px rgba(184,92,44,0.24)" }}>
+        <span style={{ position: "absolute", right: -20, top: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+        <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 13 }}>
+          <span style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="mic" size={26} color="#fff" /></span>
           <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: "block", fontSize: 16, fontWeight: 700 }}>Réunion en cours…</span>
-            <span style={{ display: "block", fontSize: 12, opacity: 0.85, marginTop: 2 }}>Audio enregistré · appuie pour mettre en pause</span>
+            <span style={{ display: "block", fontSize: 16, fontWeight: 700, letterSpacing: "-0.2px" }}>Enregistrer la réunion</span>
+            <span style={{ display: "block", fontSize: 12, opacity: 0.85, lineHeight: 1.45, marginTop: 2 }}>L'IA en fera le PV · se synchronise sur l'ordinateur</span>
           </span>
-        </button>
-      ) : (
-        <button onClick={onRequestMeeting} style={{ width: "100%", textAlign: "left", border: "none", cursor: "pointer", fontFamily: "inherit", background: "linear-gradient(135deg,#B85C2C,#A04C20)", borderRadius: 18, padding: 16, color: "#fff", position: "relative", overflow: "hidden", marginBottom: 18, boxShadow: "0 8px 22px rgba(184,92,44,0.24)" }}>
-          <span style={{ position: "absolute", right: -20, top: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-          <span style={{ position: "relative", display: "flex", alignItems: "center", gap: 13 }}>
-            <span style={{ width: 52, height: 52, borderRadius: 16, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="mic" size={26} color="#fff" /></span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 16, fontWeight: 700, letterSpacing: "-0.2px" }}>Enregistrer la réunion</span>
-              <span style={{ display: "block", fontSize: 12, opacity: 0.85, lineHeight: 1.45, marginTop: 2 }}>L'IA en fera le PV · se synchronise sur l'ordinateur</span>
-            </span>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.9 }}><polyline points="9 6 15 12 9 18" /></svg>
-          </span>
-        </button>
-      )}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" style={{ flexShrink: 0, opacity: 0.9 }}><polyline points="9 6 15 12 9 18" /></svg>
+        </span>
+      </button>
 
       {/* ── Capturer sur le vif — 3 actions tactiles ── */}
       <div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Capturer sur le vif</div>
@@ -524,6 +515,98 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           onConfirm={onConfirmMeeting}
         />
       )}
+      {phase === "reunion" && (
+        <MeetingRecorderOverlay
+          project={project}
+          conv={conv}
+          presents={visit.presents}
+          onTogglePresent={onTogglePresent}
+          onStop={onResumeInspection}
+          onPhoto={() => setActiveSheet("photo")}
+          nextPv={(project.pvHistory || []).length + 1}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Enregistrement réunion (plein écran) — handoff_mobile ────
+// S'affiche quand la visite est en phase "reunion". Reprend le recorder
+// `conv` déjà actif (duration + audioLevel live). Pause/Reprise, Stop
+// (= revient en inspection, l'audio reste pour la transcription finale),
+// Ajout photo. Carte de continuité desktop + présents.
+function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onStop, onPhoto, nextPv }) {
+  const mmss = `${String(Math.floor(conv.duration / 60)).padStart(2, "0")}:${String(conv.duration % 60).padStart(2, "0")}`;
+  const lvl = conv.isPaused ? 0 : (conv.audioLevel || 0) / 100;
+  // 24 barres : motif fixe modulé par le niveau audio live.
+  const BARS = [30, 60, 85, 45, 70, 100, 50, 80, 38, 92, 55, 42, 75, 60, 95, 48, 82, 35, 68, 52, 88, 40, 28, 64];
+  const barColor = (i) => ["#E8B58E", "#D17A47", "#B85C2C"][i % 3];
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 250, background: "#FCFBFA", display: "flex", flexDirection: "column", paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))", fontFamily: "inherit" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(8px + env(safe-area-inset-top, 0px)) 16px 8px" }}>
+        <button onClick={onStop} aria-label="Retour à la visite" style={{ width: 38, height: 38, borderRadius: 999, background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Réunion · {project.name}</div>
+          <div style={{ fontSize: 11, color: TX3 }}>PV n°{nextPv} en préparation</div>
+        </div>
+      </div>
+
+      {/* Recorder */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: conv.isPaused ? "#A8A29E" : "#DC2626", animation: conv.isPaused ? "none" : "pulseDot 1.4s ease-in-out infinite" }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: conv.isPaused ? TX3 : "#991B1B", letterSpacing: "0.04em" }}>{conv.isPaused ? "EN PAUSE" : "ENREGISTREMENT"}</span>
+        </div>
+        <div style={{ fontSize: 46, fontWeight: 700, color: TX, fontVariantNumeric: "tabular-nums", letterSpacing: 1, marginBottom: 24 }}>{mmss}</div>
+
+        {/* Waveform */}
+        <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 3, height: 64, marginBottom: 30, overflow: "hidden" }}>
+          {BARS.map((base, i) => {
+            const h = Math.max(12, Math.min(100, base * (0.35 + lvl * 0.75)));
+            return <div key={i} style={{ width: 3, height: `${h}%`, borderRadius: 9, background: conv.isPaused ? "#EFE0D4" : barColor(i), transition: "height 0.12s ease" }} />;
+          })}
+        </div>
+
+        {/* Contrôles */}
+        <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
+          <button onClick={() => conv.isPaused ? conv.resume() : conv.pause()} aria-label={conv.isPaused ? "Reprendre" : "Pause"} style={{ width: 56, height: 56, borderRadius: 999, background: WH, border: "1px solid #E7E5E4", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}>
+            {conv.isPaused
+              ? <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              : <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>}
+          </button>
+          <button onClick={onStop} aria-label="Terminer la réunion" style={{ width: 84, height: 84, borderRadius: 999, background: "#DC2626", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 24px rgba(220,38,38,0.35)", cursor: "pointer" }}>
+            <span style={{ width: 30, height: 30, borderRadius: 7, background: "#fff" }} />
+          </button>
+          <button onClick={onPhoto} aria-label="Ajouter une photo" style={{ width: 56, height: 56, borderRadius: 999, background: WH, border: "1px solid #E7E5E4", display: "flex", alignItems: "center", justifyContent: "center", color: "#A04C20", cursor: "pointer" }}>
+            <Ico name="camera" size={22} color="#A04C20" />
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: TX3, marginTop: 18, textAlign: "center" }}>Pause · Stop · Ajouter une photo</div>
+      </div>
+
+      {/* Continuité desktop */}
+      <div style={{ margin: "0 16px", background: WH, border: "1px solid #EFEDEB", borderRadius: 14, padding: "13px 15px", display: "flex", alignItems: "center", gap: 11 }}>
+        <span style={{ width: 36, height: 36, borderRadius: 10, background: "#F0FDF4", color: "#166534", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Se synchronise sur l'ordinateur</div>
+          <div style={{ fontSize: 12, color: TX2 }}>Audio + captures dispo sur le desktop dès qu'il y a du réseau</div>
+        </div>
+        <span style={{ width: 8, height: 8, borderRadius: 999, background: "#16A34A", flexShrink: 0, animation: "pulseDot 1.6s ease-in-out infinite" }} />
+      </div>
+
+      {/* Présents */}
+      <div style={{ padding: "14px 16px 0", display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: TX3 }}>Présents :</span>
+        {presents.map((p, i) => (
+          <button key={i} onClick={() => onTogglePresent?.(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : "#EFEDEB"}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ width: 18, height: 18, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700 }}>{(p.name || "?").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+            {p.name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
