@@ -121,7 +121,7 @@ export function MobileChantiersList({
       {/* En-tête (sur le fond de page, comme le mockup) : retour seulement
           en mode "choisir un chantier" (sinon c'est l'onglet pur) + titre +
           bouton nouveau projet + recherche + filtres. */}
-      <div style={{ position: "sticky", top: 0, background: BG, zIndex: 10, padding: `calc(${SP.md}px + env(safe-area-inset-top, 0px)) 8px ${SP.sm}px` }}>
+      <div style={{ position: "sticky", top: 0, background: BG, zIndex: 10, padding: `calc(${SP.md}px + env(safe-area-inset-top, 0px)) 4px ${SP.sm}px` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.md }}>
           {pickToVisit && onBack && (
             <button onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", padding: 4, cursor: "pointer", marginLeft: -4 }}>
@@ -192,7 +192,7 @@ export function MobileChantiersList({
       </div>
 
       {/* Liste */}
-      <div style={{ padding: "12px 8px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ padding: "12px 4px 0", display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.length === 0 && (
           <div style={{ padding: SP.xl, textAlign: "center", background: SB, borderRadius: RAD.md, fontSize: 13, color: TX2 }}>
             {query

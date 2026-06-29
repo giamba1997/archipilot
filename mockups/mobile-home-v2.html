@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ArchiPilot — Mockup Accueil mobile (simplifié)</title>
+<style>
+  :root {
+    --brand-50:#FDF6F1; --brand-100:#F5DCC9; --brand-200:#E8B58E;
+    --brand-400:#D17A47; --brand-500:#B85C2C; --brand-600:#A04C20; --brand-700:#8B3A14;
+    --n-0:#FFFFFF; --n-50:#FAFAF9; --n-100:#F5F5F4; --n-200:#E7E5E4;
+    --n-300:#D6D3D1; --n-500:#78716C; --n-700:#44403C; --n-900:#1C1917;
+    --info-bg:#EFF6FF; --info-fg:#1E40AF; --info-br:#BFDBFE;
+    --suc-bg:#F0FDF4; --suc-fg:#166534; --suc-br:#BBF7D0;
+    --wrn-bg:#FFFBEB; --wrn-fg:#92400E; --wrn-br:#FDE68A;
+    --dgr-bg:#FEF2F2; --dgr-fg:#991B1B; --dgr-br:#FECACA;
+    --r-md:8px; --r-lg:12px; --r-xl:16px; --r-full:999px;
+    --sh-sm:0 1px 2px rgba(28,25,23,.04);
+    --sh-fab:0 8px 24px rgba(184,92,44,.32), 0 2px 6px rgba(28,25,23,.12);
+    --sh-priority:0 2px 8px rgba(184,92,44,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    background:#2a2826;color:var(--n-900);min-height:100vh;-webkit-font-smoothing:antialiased;
+  }
+  .stage{display:flex;flex-direction:column;align-items:center;gap:24px;padding:40px 16px 80px}
+  .stage h1{font-size:14px;color:#ddd;font-weight:500;letter-spacing:.05em;text-transform:uppercase;text-align:center}
+  .stage p.caption{font-size:12px;color:#999;max-width:520px;text-align:center;line-height:1.5}
+  .ribbon{display:inline-block;padding:4px 12px;background:var(--brand-500);color:#fff;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-radius:var(--r-full)}
+
+  .phone{width:390px;height:844px;background:var(--n-50);border-radius:44px;
+    box-shadow:0 30px 80px rgba(0,0,0,.5),0 0 0 12px #111;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .phone::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);
+    width:120px;height:28px;background:#111;border-radius:16px;z-index:100}
+  .statusbar{height:50px;padding:14px 28px 0;display:flex;justify-content:space-between;
+    align-items:flex-start;font-size:14px;font-weight:600;color:var(--n-900);flex-shrink:0}
+  .statusbar .right{display:flex;gap:6px;align-items:center}
+
+  .scroll{flex:1;overflow-y:auto;padding:0 16px 120px}
+
+  .greeting{display:flex;justify-content:space-between;align-items:center;padding:16px 0 20px}
+  .greeting h1{font-size:22px;font-weight:700;color:var(--n-900);letter-spacing:-0.01em}
+  .greeting .sub{font-size:13px;color:var(--n-500);margin-top:2px}
+  .bell{position:relative;width:40px;height:40px;border-radius:var(--r-full);background:var(--n-0);
+    border:1px solid var(--n-200);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .bell .dot{position:absolute;top:8px;right:8px;width:16px;height:16px;border-radius:var(--r-full);
+    background:var(--brand-500);color:#fff;font-size:10px;font-weight:700;display:flex;
+    align-items:center;justify-content:center;border:2px solid var(--n-0)}
+
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin:24px 0 10px}
+  .section-header .label{font-size:11px;font-weight:600;color:var(--n-500);
+    letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+  .section-header .action{font-size:12px;font-weight:500;color:var(--n-700);cursor:pointer}
+  .section-header.urgent .label{color:var(--brand-700)}
+
+  .card{background:var(--n-0);border:1px solid var(--n-200);border-radius:var(--r-lg);
+    padding:14px;margin-bottom:8px;box-shadow:var(--sh-sm)}
+  .card.priority{border-left:3px solid var(--brand-500);box-shadow:var(--sh-priority)}
+  .card-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .card-time{font-size:13px;font-weight:700;color:var(--brand-700);min-width:48px}
+  .card-title{font-size:15px;font-weight:600;color:var(--n-900);line-height:1.3}
+  .card-meta{font-size:12px;color:var(--n-500);margin-top:4px}
+  .card-chevron{color:var(--n-300);font-size:18px;line-height:1}
+  .btn-go{margin-top:10px;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;
+    background:var(--brand-500);color:#fff;font-size:13px;font-weight:600;
+    border-radius:var(--r-full);border:none;cursor:pointer;text-decoration:none}
+  .btn-go:hover{background:var(--brand-600)}
+
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--r-full);
+    font-size:11px;font-weight:600;border:1px solid;white-space:nowrap}
+  .badge.warning{background:var(--wrn-bg);color:var(--wrn-fg);border-color:var(--wrn-br)}
+  .badge.danger{background:var(--dgr-bg);color:var(--dgr-fg);border-color:var(--dgr-br)}
+  .badge.info{background:var(--info-bg);color:var(--info-fg);border-color:var(--info-br)}
+  .badge.success{background:var(--suc-bg);color:var(--suc-fg);border-color:var(--suc-br)}
+
+  .project-card{background:var(--n-0);border:1px solid var(--n-200);border-radius:var(--r-lg);
+    padding:14px;margin-bottom:8px;cursor:pointer}
+  .project-card .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .project-card .name{font-size:15px;font-weight:600;color:var(--n-900)}
+  .project-card .hint{font-size:12px;color:var(--n-500);margin-top:6px;display:flex;align-items:center;gap:6px}
+  .project-card .hint .hint-icon{width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;color:var(--brand-500)}
+  .project-card .hint.warning .hint-icon{color:var(--wrn-fg)}
+
+  .nearme{background:var(--n-0);border:1px solid var(--n-200);border-radius:var(--r-lg);
+    padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer}
+  .nearme .icon{width:36px;height:36px;border-radius:var(--r-full);background:var(--brand-50);
+    color:var(--brand-500);display:flex;align-items:center;justify-content:center}
+  .nearme .body{flex:1}
+  .nearme .body .title{font-size:14px;font-weight:600;color:var(--n-900)}
+  .nearme .body .sub{font-size:12px;color:var(--n-500);margin-top:2px}
+
+  .stats{margin-top:18px;padding:14px 16px;background:var(--brand-50);border-radius:var(--r-lg);
+    display:flex;justify-content:space-around;text-align:center}
+  .stat .num{font-size:20px;font-weight:700;color:var(--brand-700);line-height:1}
+  .stat .lbl{font-size:10px;font-weight:500;color:var(--n-700);margin-top:4px;
+    letter-spacing:.04em;text-transform:uppercase}
+
+  .bottombar{position:absolute;bottom:0;left:0;right:0;height:86px;background:var(--n-0);
+    border-top:1px solid var(--n-200);display:flex;align-items:flex-start;
+    justify-content:space-around;padding:10px 4px 24px;z-index:50}
+  .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0;
+    cursor:pointer;color:var(--n-500);position:relative;min-width:0}
+  .nav-item.active{color:var(--brand-700)}
+  .nav-item.active::before{content:"";position:absolute;top:0;width:24px;height:2px;
+    border-radius:var(--r-full);background:var(--brand-500)}
+  .nav-item .lbl{font-size:10px;font-weight:500}
+  .nav-item .badge-mini{position:absolute;top:0;right:calc(50% - 18px);min-width:16px;height:16px;
+    padding:0 4px;border-radius:var(--r-full);background:var(--brand-500);color:#fff;
+    font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    border:2px solid var(--n-0)}
+  .fab-wrap{flex:0 0 64px;position:relative;height:0}
+  .fab{position:absolute;top:-28px;left:50%;transform:translateX(-50%);width:64px;height:64px;
+    border-radius:var(--r-full);background:var(--brand-500);color:#fff;display:flex;
+    align-items:center;justify-content:center;box-shadow:var(--sh-fab);cursor:pointer;
+    border:4px solid var(--n-0)}
+  .fab:hover{background:var(--brand-600)}
+  .fab .ring{position:absolute;inset:-4px;border-radius:var(--r-full);
+    border:2px solid var(--brand-100);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:0;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+  .fab-label{position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);
+    font-size:10px;font-weight:600;color:var(--n-700);white-space:nowrap}
+
+  .home-indicator{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+    width:134px;height:5px;background:var(--n-900);border-radius:var(--r-full);z-index:100}
+
+  .annotations{max-width:520px;color:#ccc;font-size:12px;line-height:1.6}
+  .annotations h2{font-size:14px;color:#fff;margin-bottom:8px}
+  .annotations ul{list-style:none;padding:0}
+  .annotations li{padding:8px 0;border-bottom:1px solid #444}
+  .annotations li strong{color:var(--brand-400)}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="ribbon">Version simplifiée v2</div>
+  <h1>ArchiPilot — Accueil mobile (simplifié)</h1>
+  <p class="caption">Mobile = visite + consultation. Plus de chips Actions rapides : la capture passe TOUJOURS par le Mode Chantier. Bottom bar 5 slots avec Notifs réintégré.</p>
+
+  <div class="phone">
+    <div class="statusbar">
+      <span>9:41</span>
+      <span class="right">
+        <svg width="18" height="12" viewBox="0 0 18 12" fill="none"><path d="M1 11h2V8H1v3zm4 0h2V6H5v5zm4 0h2V3H9v8zm4 0h2V0h-2v11z" fill="currentColor"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 11.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm-3.5-3.7a5 5 0 0 1 7 0l-1 1a3.5 3.5 0 0 0-5 0l-1-1zM2 5.3a9 9 0 0 1 12 0l-1 1a7.5 7.5 0 0 0-10 0l-1-1z"/></svg>
+        <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="1" y="1" width="22" height="10" rx="2.5" stroke="currentColor" stroke-width="1"/><rect x="3" y="3" width="16" height="6" rx="1" fill="currentColor"/><rect x="24" y="4" width="1.5" height="4" rx="0.5" fill="currentColor"/></svg>
+      </span>
+    </div>
+
+    <div class="scroll">
+      <div class="greeting">
+        <div>
+          <h1>Bonjour, Anthony</h1>
+          <div class="sub">Mercredi 13 mai · 9 chantiers actifs</div>
+        </div>
+        <div class="bell">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span class="dot">3</span>
+        </div>
+      </div>
+
+      <div class="section-header urgent">
+        <span class="label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.09 12.97 12 14l-1 8 8.91-10.97L12 10z"/></svg>
+          Aujourd'hui
+        </span>
+        <span class="action">Tout voir →</span>
+      </div>
+
+      <div class="card priority">
+        <div class="card-row">
+          <div class="card-time">14:00</div>
+          <div style="flex:1">
+            <div class="card-title">Réunion · SNCB Hall 6</div>
+            <div class="card-meta">Av. Fonsny 47, 1060 Bruxelles · 3 participants</div>
+            <a class="btn-go" href="#">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Y aller
+            </a>
+          </div>
+          <span class="card-chevron">›</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div style="flex:1">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
+              <span class="badge warning">Permis J-3</span>
+            </div>
+            <div class="card-title">Maison Dupont — échéance proche</div>
+            <div class="card-meta">Procédure 75 jours · silence vaut refus</div>
+          </div>
+          <span class="card-chevron">›</span>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <span class="label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 21V8l9-5 9 5v13h-6v-7H9v7z"/></svg>
+          Mes chantiers actifs
+        </span>
+        <span class="action">Voir tout (9) →</span>
+      </div>
+
+      <div class="project-card">
+        <div class="top">
+          <div class="name">SNCB Hall 6</div>
+          <span class="badge info">Chantier · Ph. 4</span>
+        </div>
+        <div class="hint warning">
+          <span class="hint-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+          </span>
+          3 réserves ouvertes · 2 en retard
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="top">
+          <div class="name">Maison Dupont</div>
+          <span class="badge warning">Permis</span>
+        </div>
+        <div class="hint">
+          <span class="hint-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </span>
+          PV à rédiger depuis la dernière visite
+        </div>
+      </div>
+
+      <div class="project-card">
+        <div class="top">
+          <div class="name">Loft Saint-Gilles</div>
+          <span class="badge success">Réception</span>
+        </div>
+        <div class="hint">
+          <span class="hint-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          Toutes les réserves levées · 5 PV
+        </div>
+      </div>
+
+      <div class="section-header">
+        <span class="label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a8 8 0 0 0-8 8c0 5.4 7 11.5 7.4 11.8a1 1 0 0 0 1.2 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+          Près de moi
+        </span>
+        <span class="action">Carte →</span>
+      </div>
+
+      <div class="nearme">
+        <div class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div class="body">
+          <div class="title">2 chantiers à moins de 5 min</div>
+          <div class="sub">Activer la géolocalisation pour voir</div>
+        </div>
+        <span class="card-chevron">›</span>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="num">7</div><div class="lbl">PV cette sem.</div></div>
+        <div class="stat"><div class="num">14</div><div class="lbl">Rés. levées</div></div>
+        <div class="stat"><div class="num">5</div><div class="lbl">Visites</div></div>
+      </div>
+    </div>
+
+    <!-- Bottom bar 5 slots -->
+    <div class="bottombar">
+      <div class="nav-item active">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span class="lbl">Accueil</span>
+      </div>
+      <div class="nav-item">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span class="lbl">Chantiers</span>
+      </div>
+      <div class="fab-wrap">
+        <div class="fab" title="Démarrer la visite">
+          <span class="ring"></span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h6M9 13h6M9 17h6"/></svg>
+        </div>
+        <span class="fab-label">Visite</span>
+      </div>
+      <div class="nav-item">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="lbl">Notifs</span>
+        <span class="badge-mini">5</span>
+      </div>
+      <div class="nav-item">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="lbl">Moi</span>
+      </div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+
+  <div class="annotations">
+    <h2>Différences vs version 1</h2>
+    <ul>
+      <li><strong>Chips "Actions rapides" supprimés</strong> · plus de Photo / PV / Réserve out-of-context. La capture = toujours via le FAB Visite. Un seul chemin, sans confusion.</li>
+      <li><strong>Bottom bar 5 slots avec Notifs</strong> · les signatures OPR + échéances + cloche notifs sont consolidées dans un seul endroit (badge "5"). Ouvre la page Notifs au tap.</li>
+      <li><strong>Cloche du header conservée</strong> · raccourci redondant mais utile (toujours visible quand on scroll en haut).</li>
+      <li><strong>Sections Aujourd'hui / Mes chantiers / Près de moi / Stats inchangées</strong> · elles répondent à "qu'est-ce que je fais maintenant ?" sans rien proposer de saisissable.</li>
+      <li><strong>Item "Signature attendue" retiré de l'Aujourd'hui</strong> · déplacé dans la page Notifs (badge 5 = 3 notifs + 2 signatures). Évite la duplication.</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>

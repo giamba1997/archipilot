@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+</style>
+</helmet>
+
+<div style="position:absolute;left:80px;top:36px;width:1000px">
+  <div style="font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#A04C20">Archipilot · Direction D — mobile</div>
+  <div style="font-size:30px;font-weight:700;color:#1C1917;letter-spacing:-.5px;margin-top:6px">Mobile — moins de features, le bon réflexe terrain</div>
+  <div style="font-size:15px;color:#78716C;margin-top:8px;line-height:1.55;max-width:840px">Sur téléphone, l'archi fait deux choses : <b>consulter</b> (vite, une main) ou <b>capturer en visite</b> (chrono, photo, vocal, réserve). Pas de facturation, pas d'édition lourde, pas de Gantt — ça reste sur desktop. Trois écrans pour démarrer.</div>
+</div>
+
+<!-- ════════════════ MOBILE — ACCUEIL ════════════════ -->
+<div style="position:absolute;left:80px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · ACCUEIL — « qu'est-ce que je fais maintenant ? »</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 90px">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 20px 18px">
+        <div><div style="font-size:13px;color:#A8A29E;font-weight:500">Mardi 30 juin</div><div style="font-size:24px;font-weight:700;color:#1C1917;letter-spacing:-.5px">Bonjour Gaëlle</div></div>
+        <div style="margin-left:auto;width:40px;height:40px;border-radius:999px;background:#F5DCC9;display:flex;align-items:center;justify-content:center;color:#8B3A14;font-weight:700;font-size:14px">GD</div>
+      </div>
+      <!-- primary CTA: visite -->
+      <div style="margin:0 16px 22px;background:linear-gradient(135deg,#B85C2C,#A04C20);border-radius:20px;padding:20px;color:#fff;position:relative;overflow:hidden;box-shadow:0 10px 28px rgba(184,92,44,.28)">
+        <div style="position:absolute;right:-24px;top:-24px;width:130px;height:130px;border-radius:999px;background:rgba(255,255,255,.08)"></div>
+        <div style="position:relative">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;opacity:.9">Sur le terrain ?</span></div>
+          <div style="font-size:20px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px">Démarrer une visite</div>
+          <div style="font-size:13px;opacity:.85;line-height:1.5;margin-bottom:16px">Chrono, photos, notes vocales et réserves — tout en mains libres.</div>
+          <div style="height:48px;background:#fff;color:#A04C20;border-radius:13px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px">Choisir un chantier <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 6 15 12 9 18"/></svg></div>
+        </div>
+      </div>
+      <!-- Aujourd'hui -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Aujourd'hui</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:10px;margin-bottom:22px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:11px;background:#EFF6FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Réunion · Hôtel de Ville</div><div style="font-size:13px;color:#78716C">09:00 · sur site · dans 1h</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="background:#fff;border:1px solid #FECACA;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:11px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Permis · Écoles des Sources</div><div style="font-size:13px;color:#991B1B;font-weight:500">Échéance dans 8 jours</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+      </div>
+      <!-- Mes chantiers -->
+      <div style="display:flex;align-items:center;padding:0 20px 10px"><span style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em">Mes chantiers</span><span style="margin-left:auto;font-size:13px;color:#A04C20;font-weight:600">Tout voir</span></div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:10px;margin-bottom:22px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px">
+          <div style="width:10px;height:10px;border-radius:999px;background:#B85C2C;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Hôtel de Ville</div><div style="font-size:13px;color:#78716C">Chantier · 7 réserves ouvertes</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px">
+          <div style="width:10px;height:10px;border-radius:999px;background:#B85C2C;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Villa Lambert</div><div style="font-size:13px;color:#78716C">Chantier · PV n°4 à préparer</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px">
+          <div style="width:10px;height:10px;border-radius:999px;background:#C0791A;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Écoles des Sources</div><div style="font-size:13px;color:#78716C">Permis · en instruction</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+      </div>
+      <!-- À proximité -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">À proximité</div>
+      <div style="padding:0 16px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px">
+          <div style="width:42px;height:42px;border-radius:11px;background:#F0FDF4;color:#166534;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Hôtel de Ville</div><div style="font-size:13px;color:#78716C">à 1,2 km · Grand-Place 1</div></div>
+          <div style="height:34px;padding:0 12px;border-radius:9px;background:#FDF6F1;color:#A04C20;font-size:13px;font-weight:600;display:flex;align-items:center">Y aller</div>
+        </div>
+      </div>
+    </div>
+    <!-- assistant FAB (entry point) -->
+    <div style="position:absolute;right:18px;bottom:100px;z-index:45;display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+      <div style="background:#fff;border:1px solid #EFEDEB;box-shadow:0 4px 14px rgba(28,25,23,.12);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:600;color:#44403C">Demander à l'assistant</div>
+      <div style="width:58px;height:58px;border-radius:999px;background:linear-gradient(135deg,#D17A47,#B85C2C);box-shadow:0 8px 22px rgba(184,92,44,.4);display:flex;align-items:center;justify-content:center;color:#fff"><svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg></div>
+    </div>
+    <!-- bottom tab bar (reduced nav) -->
+    <div style="position:absolute;bottom:0;left:0;right:0;height:84px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid #EFEDEB;display:flex;align-items:flex-start;padding:10px 0 0;z-index:40">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#B85C2C"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span style="font-size:11px;font-weight:600">Accueil</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A8A29E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg><span style="font-size:11px;font-weight:500">Chantiers</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A8A29E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span style="font-size:11px;font-weight:500">Notifs</span></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — CONSULTATION PROJET ════════════════ -->
+<div style="position:absolute;left:600px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · CONSULTATION PROJET (lecture seule)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 40px">
+      <!-- nav -->
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 16px 14px">
+        <div style="width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+        <div style="margin-left:auto;width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="5" cy="12" r="1.6"/></svg></div>
+      </div>
+      <!-- header -->
+      <div style="padding:0 20px 16px">
+        <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#A04C20;margin-bottom:6px">Chantier · phase 5/7</div>
+        <div style="font-size:24px;font-weight:700;color:#1C1917;letter-spacing:-.5px;line-height:1.1;margin-bottom:10px">Hôtel de Ville</div>
+        <div style="display:flex;gap:4px;margin-bottom:8px"><div style="flex:1;height:4px;border-radius:999px;background:#B85C2C"></div><div style="flex:1;height:4px;border-radius:999px;background:#B85C2C"></div><div style="flex:1;height:4px;border-radius:999px;background:#B85C2C"></div><div style="flex:1;height:4px;border-radius:999px;background:#B85C2C"></div><div style="flex:1;height:4px;border-radius:999px;background:#B85C2C"></div><div style="flex:1;height:4px;border-radius:999px;background:#E7E5E4"></div><div style="flex:1;height:4px;border-radius:999px;background:#E7E5E4"></div></div>
+        <div style="font-size:13px;color:#A8A29E">Nivelles · MAJ il y a 1 jour</div>
+      </div>
+      <!-- KPI row (glanceable, read-only) -->
+      <div style="padding:0 16px 18px;display:flex;gap:8px">
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:13px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1C1917;letter-spacing:-.5px">11</div><div style="font-size:11px;color:#A8A29E;margin-top:2px">PV</div></div>
+        <div style="flex:1;background:#fff;border:1px solid #FDE68A;border-radius:13px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:#92400E;letter-spacing:-.5px">7</div><div style="font-size:11px;color:#A8A29E;margin-top:2px">réserves</div></div>
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:13px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1C1917;letter-spacing:-.5px">84</div><div style="font-size:11px;color:#A8A29E;margin-top:2px">photos</div></div>
+      </div>
+      <!-- consultation list — what you can READ on mobile -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Consulter</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:1px;background:#fff;border:1px solid #EFEDEB;border-radius:14px;margin:0 16px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:13px;padding:14px 14px">
+          <div style="width:36px;height:36px;border-radius:10px;background:#FFFBEB;color:#92400E;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">PV de chantier</div><div style="font-size:12px;color:#A8A29E">11 PV · dernier le 23 juin</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:14px 14px">
+          <div style="width:36px;height:36px;border-radius:10px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Réserves OPR</div><div style="font-size:12px;color:#A8A29E">7 ouvertes · 13/20 levées</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:14px 14px">
+          <div style="width:36px;height:36px;border-radius:10px;background:#EFF6FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m21 17-5-5-9 5"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Photos</div><div style="font-size:12px;color:#A8A29E">84 · 12 annotées</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:14px 14px">
+          <div style="width:36px;height:36px;border-radius:10px;background:#F5F5F4;color:#78716C;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;color:#1C1917">Plans &amp; documents</div><div style="font-size:12px;color:#A8A29E">63 fichiers</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+      </div>
+      <!-- read-only note -->
+      <div style="margin:18px 16px 0;display:flex;align-items:center;gap:9px;background:#F7F5F3;border-radius:11px;padding:11px 13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg><span style="font-size:12px;color:#78716C;line-height:1.45">Édition des PV, facturation et planning : sur ordinateur.</span></div>
+      <!-- sticky visite CTA -->
+      <div style="margin:18px 16px 0"><div style="height:50px;background:#B85C2C;color:#fff;border-radius:14px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 8px 20px rgba(184,92,44,.25)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Démarrer une visite</div></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — MODE CHANTIER ════════════════ -->
+<div style="position:absolute;left:1120px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · MODE CHANTIER (visite en cours)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 40px;position:relative">
+      <!-- header: chrono + terminer -->
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 18px 16px">
+        <div><div style="font-size:12px;color:#A8A29E;font-weight:500;margin-bottom:2px">Visite · Hôtel de Ville</div><div style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:999px;background:#DC2626;animation:pulseDot 1.4s ease-in-out infinite"></span><span style="font-size:26px;font-weight:700;color:#1C1917;font-variant-numeric:tabular-nums;letter-spacing:.5px">00:14:32</span></div></div>
+        <div style="margin-left:auto;height:38px;padding:0 14px;border-radius:999px;background:#fff;border:1px solid #E7E5E4;color:#44403C;font-size:13px;font-weight:600;display:flex;align-items:center">Terminer</div>
+      </div>
+      <!-- context: weather + présents -->
+      <div style="padding:0 18px 16px;display:flex;flex-wrap:wrap;gap:7px">
+        <div style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;color:#78716C;font-size:12px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>12°C couvert</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px 0 4px;border-radius:999px;background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;font-size:12px;font-weight:500"><span style="width:20px;height:20px;border-radius:999px;background:#166534;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700">MG</span>M. Genin</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;color:#A8A29E;font-size:12px">+ Présents</div>
+      </div>
+      <!-- SAISIE RÉUNION (audio) — feature entry -->
+      <div style="margin:0 16px 18px;background:linear-gradient(135deg,#B85C2C,#A04C20);border-radius:18px;padding:16px;color:#fff;position:relative;overflow:hidden;box-shadow:0 8px 22px rgba(184,92,44,.24)">
+        <div style="position:absolute;right:-20px;top:-20px;width:120px;height:120px;border-radius:999px;background:rgba(255,255,255,.08)"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:13px">
+          <div style="width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:700;letter-spacing:-.2px">Enregistrer la réunion</div><div style="font-size:12px;opacity:.85;line-height:1.45;margin-top:2px">L'IA en fera le PV · se synchronise sur l'ordinateur</div></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" style="flex-shrink:0;opacity:.9"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+      </div>
+      <!-- 3 big tactile actions -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Capturer sur le vif</div>
+      <div style="padding:0 16px 22px;display:flex;gap:10px">
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:18px;padding:18px 8px;display:flex;flex-direction:column;align-items:center;gap:9px"><div style="width:50px;height:50px;border-radius:15px;background:#EFF6FF;color:#1E40AF;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/></svg></div><span style="font-size:13px;font-weight:600;color:#1C1917">Photo</span></div>
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:18px;padding:18px 8px;display:flex;flex-direction:column;align-items:center;gap:9px"><div style="width:50px;height:50px;border-radius:15px;background:#FDF6F1;color:#A04C20;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div><span style="font-size:13px;font-weight:600;color:#1C1917">Note vocale</span></div>
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:18px;padding:18px 8px;display:flex;flex-direction:column;align-items:center;gap:9px"><div style="width:50px;height:50px;border-radius:15px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div><span style="font-size:13px;font-weight:600;color:#1C1917">Réserve</span></div>
+      </div>
+      <!-- captured feed -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 12px">Capturé · 5 éléments</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:9px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:13px;padding:12px;display:flex;align-items:center;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917">Réserve · étanchéité N-E</div><div style="font-size:12px;color:#A8A29E">critique · il y a 2 min</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:13px;padding:12px;display:flex;align-items:center;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:repeating-linear-gradient(45deg,#EDE4DA,#EDE4DA 6px,#E5D9CC 6px,#E5D9CC 12px);flex-shrink:0"></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917">3 photos · façade nord</div><div style="font-size:12px;color:#A8A29E">il y a 5 min</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:13px;padding:12px;display:flex;align-items:center;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#FDF6F1;color:#A04C20;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917">Note vocale · 0:38</div><div style="font-size:12px;color:#A8A29E">transcrite · il y a 8 min</div></div>
+        </div>
+      </div>
+      <!-- generate PV draft from visit -->
+      <div style="margin:20px 16px 0;background:#FDF6F1;border:1px solid #F0DCCB;border-radius:14px;padding:14px;display:flex;align-items:center;gap:11px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A04C20" stroke-width="1.7"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg><div style="flex:1"><div style="font-size:13px;font-weight:600;color:#1C1917">Finir → brouillon de PV</div><div style="font-size:12px;color:#8B5A3C">L'IA assemble la visite en PV</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7A98E" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — CHANTIERS (liste) ════════════════ -->
+<div style="position:absolute;left:1640px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · CHANTIERS (onglet nav)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 90px">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 20px 14px">
+        <div style="font-size:26px;font-weight:700;color:#1C1917;letter-spacing:-.5px">Chantiers</div>
+        <div style="margin-left:auto;width:40px;height:40px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      </div>
+      <!-- search -->
+      <div style="padding:0 16px 14px">
+        <div style="height:42px;background:#F1ECE8;border-radius:12px;display:flex;align-items:center;gap:9px;padding:0 13px;color:#A8A29E;font-size:15px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg> Rechercher un chantier</div>
+      </div>
+      <!-- filter chips (scrollable) -->
+      <div style="display:flex;gap:7px;padding:0 16px 18px;overflow:hidden">
+        <span style="flex-shrink:0;height:32px;padding:0 14px;border-radius:999px;background:#FDF6F1;border:1px solid #E8B58E;color:#A04C20;font-size:13px;font-weight:600;display:flex;align-items:center">Tous · 8</span>
+        <span style="flex-shrink:0;height:32px;padding:0 13px;border-radius:999px;background:#fff;border:1px solid #E7E5E4;color:#78716C;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#B85C2C"></span>Chantier</span>
+        <span style="flex-shrink:0;height:32px;padding:0 13px;border-radius:999px;background:#fff;border:1px solid #E7E5E4;color:#78716C;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#C0791A"></span>Permis</span>
+      </div>
+      <!-- project list -->
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:11px">
+        <!-- card 1 -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:16px;padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:11px;padding:3px 9px;border-radius:999px;background:#FDF6F1;color:#A04C20;border:1px solid #F0DCCB;font-weight:600">Chantier</span><div style="margin-left:auto;display:flex;gap:3px"><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span></div></div>
+          <div style="font-size:17px;font-weight:700;color:#1C1917;letter-spacing:-.3px;margin-bottom:2px">Hôtel de Ville</div>
+          <div style="font-size:13px;color:#A8A29E;margin-bottom:12px">Nivelles · Ville de Nivelles</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#991B1B;background:#FEF2F2;border-radius:9px;padding:8px 10px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>2 réserves critiques · réunion à 9h</div>
+        </div>
+        <!-- card 2 -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:16px;padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:11px;padding:3px 9px;border-radius:999px;background:#FDF6F1;color:#A04C20;border:1px solid #F0DCCB;font-weight:600">Chantier</span><div style="margin-left:auto;display:flex;gap:3px"><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span></div></div>
+          <div style="font-size:17px;font-weight:700;color:#1C1917;letter-spacing:-.3px;margin-bottom:2px">Villa Lambert</div>
+          <div style="font-size:13px;color:#A8A29E;margin-bottom:12px">Waterloo · privé</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#92400E;background:#FFFBEB;border-radius:9px;padding:8px 10px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg>PV n°4 à préparer</div>
+        </div>
+        <!-- card 3 — permit -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:16px;padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:11px;padding:3px 9px;border-radius:999px;background:#F6EFE2;color:#8A6A1E;border:1px solid #E8D7B0;font-weight:600">Permis</span><div style="margin-left:auto;display:flex;gap:3px"><span style="width:11px;height:4px;border-radius:999px;background:#C0791A"></span><span style="width:11px;height:4px;border-radius:999px;background:#C0791A"></span><span style="width:11px;height:4px;border-radius:999px;background:#C0791A"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span></div></div>
+          <div style="font-size:17px;font-weight:700;color:#1C1917;letter-spacing:-.3px;margin-bottom:2px">Écoles des Sources</div>
+          <div style="font-size:13px;color:#A8A29E;margin-bottom:12px">Genappe · Commune de Genappe</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#991B1B;background:#FEF2F2;border-radius:9px;padding:8px 10px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>Échéance permis dans 8 jours</div>
+        </div>
+        <!-- card 4 — calm -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:16px;padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:11px;padding:3px 9px;border-radius:999px;background:#FDF6F1;color:#A04C20;border:1px solid #F0DCCB;font-weight:600">Chantier</span><div style="margin-left:auto;display:flex;gap:3px"><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#B85C2C"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span><span style="width:11px;height:4px;border-radius:999px;background:#E7E5E4"></span></div></div>
+          <div style="font-size:17px;font-weight:700;color:#1C1917;letter-spacing:-.3px;margin-bottom:2px">Bureaux Axis</div>
+          <div style="font-size:13px;color:#A8A29E;margin-bottom:12px">Louvain-la-Neuve · Axis SA</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#166534;background:#F0FDF4;border-radius:9px;padding:8px 10px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>À jour · rien d'urgent</div>
+        </div>
+      </div>
+    </div>
+    <!-- bottom tab bar : Chantiers active -->
+    <div style="position:absolute;bottom:0;left:0;right:0;height:84px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid #EFEDEB;display:flex;align-items:flex-start;padding:10px 0 0;z-index:40">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A8A29E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span style="font-size:11px;font-weight:500">Accueil</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#B85C2C"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg><span style="font-size:11px;font-weight:600">Chantiers</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A8A29E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span style="font-size:11px;font-weight:500">Notifs</span></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — NOTIFS ════════════════ -->
+<div style="position:absolute;left:2160px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · NOTIFS (onglet nav)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 90px">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 20px 14px">
+        <div style="font-size:26px;font-weight:700;color:#1C1917;letter-spacing:-.5px">Notifications</div>
+        <div style="margin-left:auto;font-size:13px;color:#A04C20;font-weight:600">Tout lire</div>
+      </div>
+      <!-- NEW group -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Nouveau</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:9px;margin-bottom:22px">
+        <!-- signature -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px;position:relative">
+          <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:999px;background:#B85C2C"></div>
+          <div style="width:40px;height:40px;border-radius:11px;background:#F0FDF4;color:#166534;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:6px"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;color:#1C1917;line-height:1.45"><b>M. Genin a signé</b> l'OPR — Hôtel de Ville</div><div style="font-size:12px;color:#A8A29E;margin-top:3px">il y a 12 min</div></div>
+        </div>
+        <!-- reserve overdue -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px;position:relative">
+          <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:999px;background:#B85C2C"></div>
+          <div style="width:40px;height:40px;border-radius:11px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:6px"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;color:#1C1917;line-height:1.45">Réserve <b>R-012 en retard</b> — Hôtel de Ville</div><div style="font-size:12px;color:#A8A29E;margin-top:3px">il y a 2 h</div></div>
+        </div>
+        <!-- permit deadline -->
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px;position:relative">
+          <div style="position:absolute;left:6px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:999px;background:#B85C2C"></div>
+          <div style="width:40px;height:40px;border-radius:11px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:6px"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;color:#1C1917;line-height:1.45"><b>Permis dans 8 jours</b> — Écoles des Sources</div><div style="font-size:12px;color:#A8A29E;margin-top:3px">aujourd'hui · 08:00</div></div>
+        </div>
+      </div>
+      <!-- EARLIER group -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Plus tôt</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:9px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px;opacity:.78">
+          <div style="width:40px;height:40px;border-radius:11px;background:#EFF6FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;color:#1C1917;line-height:1.45">Réunion <b>demain à 9h</b> — Villa Lambert</div><div style="font-size:12px;color:#A8A29E;margin-top:3px">hier · 17:30</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px;opacity:.78">
+          <div style="width:40px;height:40px;border-radius:11px;background:#F5F5F4;color:#78716C;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="7" r="3"/><path d="M2 21a7 7 0 0 1 14 0"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;color:#1C1917;line-height:1.45"><b>Paul Mertens</b> a commenté le PV n°11</div><div style="font-size:12px;color:#A8A29E;margin-top:3px">hier · 14:05</div></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px;opacity:.78">
+          <div style="width:40px;height:40px;border-radius:11px;background:#F0FDF4;color:#166534;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;color:#1C1917;line-height:1.45">3 réserves levées — Bureaux Axis</div><div style="font-size:12px;color:#A8A29E;margin-top:3px">lun. · 11:20</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- bottom tab bar : Notifs active -->
+    <div style="position:absolute;bottom:0;left:0;right:0;height:84px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid #EFEDEB;display:flex;align-items:flex-start;padding:10px 0 0;z-index:40">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A8A29E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span style="font-size:11px;font-weight:500">Accueil</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#A8A29E"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg><span style="font-size:11px;font-weight:500">Chantiers</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:#B85C2C;position:relative"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span style="font-size:11px;font-weight:600">Notifs</span></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — ENREGISTREMENT RÉUNION (audio) ════════════════ -->
+<div style="position:absolute;left:2680px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · ENREGISTREMENT RÉUNION (le téléphone = micro)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 40px;display:flex;flex-direction:column">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 16px 8px">
+        <div style="width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+        <div><div style="font-size:13px;font-weight:600;color:#1C1917">Réunion · Hôtel de Ville</div><div style="font-size:11px;color:#A8A29E">PV n°12 en préparation</div></div>
+      </div>
+      <!-- big recorder -->
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 24px">
+        <!-- status -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px"><span style="width:10px;height:10px;border-radius:999px;background:#DC2626;animation:pulseDot 1.4s ease-in-out infinite"></span><span style="font-size:13px;font-weight:600;color:#991B1B;letter-spacing:.04em">ENREGISTREMENT</span></div>
+        <!-- timer -->
+        <div style="font-size:46px;font-weight:700;color:#1C1917;font-variant-numeric:tabular-nums;letter-spacing:1px;margin-bottom:24px">12:48</div>
+        <!-- waveform -->
+        <div style="width:100%;display:flex;align-items:center;justify-content:center;gap:3px;height:64px;margin-bottom:30px;overflow:hidden">
+          <div style="width:3px;height:30%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:60%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:85%;border-radius:9px;background:#B85C2C"></div><div style="width:3px;height:45%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:70%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:100%;border-radius:9px;background:#B85C2C"></div><div style="width:3px;height:50%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:80%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:38%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:92%;border-radius:9px;background:#B85C2C"></div><div style="width:3px;height:55%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:42%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:75%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:60%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:95%;border-radius:9px;background:#B85C2C"></div><div style="width:3px;height:48%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:82%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:35%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:68%;border-radius:9px;background:#D17A47"></div><div style="width:3px;height:52%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:88%;border-radius:9px;background:#B85C2C"></div><div style="width:3px;height:40%;border-radius:9px;background:#E8B58E"></div><div style="width:3px;height:25%;border-radius:9px;background:#EFE0D4"></div><div style="width:3px;height:18%;border-radius:9px;background:#EFE0D4"></div>
+        </div>
+        <!-- controls -->
+        <div style="display:flex;align-items:center;gap:26px">
+          <div style="width:56px;height:56px;border-radius:999px;background:#fff;border:1px solid #E7E5E4;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></div>
+          <div style="width:84px;height:84px;border-radius:999px;background:#DC2626;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(220,38,38,.35)"><div style="width:30px;height:30px;border-radius:7px;background:#fff"></div></div>
+          <div style="width:56px;height:56px;border-radius:999px;background:#fff;border:1px solid #E7E5E4;display:flex;align-items:center;justify-content:center;color:#A04C20"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="m21 17-4-4-7 5"/></svg></div>
+        </div>
+        <div style="font-size:12px;color:#A8A29E;margin-top:18px;text-align:center">Pause · Stop · Ajouter une photo</div>
+      </div>
+      <!-- desktop sync (async continuity) -->
+      <div style="margin:0 16px;background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:13px 15px;display:flex;align-items:center;gap:11px">
+        <div style="width:36px;height:36px;border-radius:10px;background:#F0FDF4;color:#166534;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:#1C1917">Se synchronise sur l'ordinateur</div><div style="font-size:12px;color:#78716C">Audio + captures dispo sur le desktop dès qu'il y a du réseau</div></div>
+        <span style="width:8px;height:8px;border-radius:999px;background:#16A34A;flex-shrink:0;animation:pulseDot 1.6s ease-in-out infinite"></span>
+      </div>
+      <!-- presents mini -->
+      <div style="padding:14px 16px 0;display:flex;align-items:center;gap:7px">
+        <span style="font-size:12px;color:#A8A29E">Présents :</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px 0 4px;border-radius:999px;background:#F0FDF4;border:1px solid #BBF7D0;color:#166534;font-size:12px;font-weight:500"><span style="width:18px;height:18px;border-radius:999px;background:#166534;color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700">MG</span>M. Genin</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;color:#A8A29E;font-size:12px">+ ajouter</span>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — MON PROFIL ════════════════ -->
+<div style="position:absolute;left:3200px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · MON PROFIL</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 40px">
+      <!-- header -->
+      <div style="padding:8px 20px 18px"><div style="font-size:26px;font-weight:700;color:#1C1917;letter-spacing:-.5px">Profil</div></div>
+      <!-- identity card -->
+      <div style="margin:0 16px 22px;background:#fff;border:1px solid #EFEDEB;border-radius:18px;padding:20px;display:flex;align-items:center;gap:15px">
+        <div style="width:60px;height:60px;border-radius:999px;background:linear-gradient(135deg,#F5DCC9,#E8B58E);color:#8B3A14;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;flex-shrink:0">GD</div>
+        <div style="flex:1;min-width:0"><div style="font-size:18px;font-weight:700;color:#1C1917;letter-spacing:-.3px">Gaëlle Dupont</div><div style="font-size:13px;color:#78716C">Architecte · Atelier GD</div></div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+      </div>
+      <!-- subscription pill -->
+      <div style="margin:0 16px 22px;background:linear-gradient(135deg,#B85C2C,#A04C20);border-radius:16px;padding:16px 18px;color:#fff;display:flex;align-items:center;gap:12px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-20px;top:-20px;width:110px;height:110px;border-radius:999px;background:rgba(255,255,255,.08)"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:12px;width:100%">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6" style="flex-shrink:0"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg>
+          <div style="flex:1"><div style="font-size:15px;font-weight:700">Plan Pro</div><div style="font-size:12px;opacity:.85">Renouvelé le 1er juillet</div></div>
+          <span style="font-size:12px;font-weight:600;background:rgba(255,255,255,.2);border-radius:999px;padding:4px 11px">Gérer</span>
+        </div>
+      </div>
+      <!-- settings groups -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Préférences</div>
+      <div style="margin:0 16px 22px;background:#fff;border:1px solid #EFEDEB;border-radius:14px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:13px;padding:14px">
+          <div style="width:34px;height:34px;border-radius:9px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+          <span style="flex:1;font-size:15px;color:#1C1917;font-weight:500">Notifications push</span>
+          <div style="width:40px;height:24px;border-radius:999px;background:#B85C2C;position:relative"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:999px;background:#fff"></span></div>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:14px">
+          <div style="width:34px;height:34px;border-radius:9px;background:#F0FDF4;color:#166534;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <span style="flex:1;font-size:15px;color:#1C1917;font-weight:500">Chantiers à proximité</span>
+          <div style="width:40px;height:24px;border-radius:999px;background:#B85C2C;position:relative"><span style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:999px;background:#fff"></span></div>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:14px">
+          <div style="width:34px;height:34px;border-radius:9px;background:#EFF6FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a9 9 0 1 1-6.2-8.6"/><polyline points="21 4 12 14 9 11"/></svg></div>
+          <span style="flex:1;font-size:15px;color:#1C1917;font-weight:500">Synchro hors-ligne</span>
+          <span style="font-size:12px;color:#16A34A;font-weight:500">À jour</span>
+        </div>
+      </div>
+      <!-- account group -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Compte</div>
+      <div style="margin:0 16px 22px;background:#fff;border:1px solid #EFEDEB;border-radius:14px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:13px;padding:14px"><div style="width:34px;height:34px;border-radius:9px;background:#F5F5F4;color:#78716C;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><span style="flex:1;font-size:15px;color:#1C1917;font-weight:500">Sécurité</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:14px"><div style="width:34px;height:34px;border-radius:9px;background:#F5F5F4;color:#78716C;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></div><span style="flex:1;font-size:15px;color:#1C1917;font-weight:500">Aide &amp; support</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></div>
+      </div>
+      <!-- desktop hint + logout -->
+      <div style="margin:0 16px 14px;display:flex;align-items:center;gap:9px;background:#F7F5F3;border-radius:11px;padding:11px 13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.7"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/></svg><span style="font-size:12px;color:#78716C;line-height:1.45">Facturation, signature et abonnement détaillé : sur ordinateur.</span></div>
+      <div style="margin:0 16px"><div style="height:48px;background:#fff;border:1px solid #FECACA;border-radius:13px;color:#991B1B;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center">Se déconnecter</div></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — ASSISTANT ARCHIPILOT ════════════════ -->
+<div style="position:absolute;left:3720px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · ASSISTANT ARCHIPILOT (Q&amp;A sur doc)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 0;display:flex;flex-direction:column;height:874px">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:11px;padding:6px 16px 14px;border-bottom:1px solid #EFEDEB">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#D17A47,#B85C2C);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;color:#1C1917">Assistant</div><div style="font-size:11px;color:#A8A29E">Hôtel de Ville · 63 documents</div></div>
+        <div style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#78716C" title="Historique"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12a9 9 0 1 0 9-9 9.7 9.7 0 0 0-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg></div>
+        <div style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#78716C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+      </div>
+      <!-- messages -->
+      <div style="flex:1;overflow:hidden;padding:18px 16px;display:flex;flex-direction:column;gap:14px">
+        <!-- doc context chip -->
+        <div style="align-self:center;display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #EFEDEB;border-radius:999px;padding:6px 12px;font-size:12px;color:#78716C"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A04C20" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>CCTP — lot Électricité.pdf</div>
+        <!-- user -->
+        <div style="align-self:flex-end;max-width:84%;background:#B85C2C;color:#fff;border-radius:16px 16px 5px 16px;padding:11px 14px;font-size:14px;line-height:1.5">Quelle section de câble est imposée pour les prises du rez ?</div>
+        <!-- assistant -->
+        <div style="display:flex;gap:9px;max-width:92%">
+          <div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#D17A47,#B85C2C);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg></div>
+          <div style="min-width:0">
+            <div style="background:#fff;border:1px solid #EFEDEB;border-radius:5px 16px 16px 16px;padding:12px 14px;font-size:14px;color:#1C1917;line-height:1.55;margin-bottom:8px">Le CCTP impose du <b>2,5 mm²</b> minimum pour les circuits prises (art. 4.2), avec différentiel 30 mA. La section relevée sur site était inférieure — d'où la réserve R-012.</div>
+            <div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#A8A29E"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>CCTP Électricité · p.7</div>
+          </div>
+        </div>
+      </div>
+      <!-- suggestion chips -->
+      <div style="display:flex;gap:7px;padding:0 16px 10px;overflow:hidden">
+        <span style="flex-shrink:0;height:32px;padding:0 12px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;color:#44403C;font-size:12px;font-weight:500;display:flex;align-items:center">Résume ce doc</span>
+        <span style="flex-shrink:0;height:32px;padding:0 12px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;color:#44403C;font-size:12px;font-weight:500;display:flex;align-items:center">Les obligations CVC ?</span>
+      </div>
+      <!-- input -->
+      <div style="padding:10px 14px 12px;border-top:1px solid #EFEDEB;background:#fff">
+        <div style="border:1.5px solid #E8B58E;border-radius:14px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:8px">
+          <span style="flex:1;font-size:14px;color:#C7C2BD">Pose ta question…</span>
+          <div style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#78716C"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div>
+          <div style="width:36px;height:36px;border-radius:10px;background:#B85C2C;color:#fff;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+  <div style="position:absolute;top:900px;left:0;width:560px;background:#fef4a8;padding:13px 15px;font:13px/1.5 'Inter';color:#5a4a00;box-shadow:0 1px 3px rgba(0,0,0,.08);transform:rotate(-.3deg);border-radius:2px"><b>L'assistant utile en mobilité.</b> Centré Q&amp;A sur les documents du projet (« quelle section de câble ? ») avec la source citée (CCTP p.7). Lecture, pas génération lourde — exactement l'usage terrain. Accessible depuis la consultation projet.</div>
+</div>
+
+<!-- ════════════════ MOBILE — ASSISTANT HISTORIQUE ════════════════ -->
+<div style="position:absolute;left:4240px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · ASSISTANT — HISTORIQUE DES CONVERSATIONS</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 40px">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:11px;padding:6px 16px 14px">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#D17A47,#B85C2C);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l1.9 6.1L20 11l-6.1 1.9L12 19l-1.9-6.1L4 11l6.1-1.9z"/></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:18px;font-weight:700;color:#1C1917;letter-spacing:-.3px">Conversations</div></div>
+        <div style="height:36px;padding:0 13px;border-radius:999px;background:#B85C2C;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nouvelle</div>
+      </div>
+      <!-- search -->
+      <div style="padding:0 16px 16px"><div style="height:42px;background:#F1ECE8;border-radius:12px;display:flex;align-items:center;gap:9px;padding:0 13px;color:#A8A29E;font-size:15px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg> Rechercher dans l'historique</div></div>
+      <!-- TODAY -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Aujourd'hui</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:9px;margin-bottom:22px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#FDF6F1;color:#A04C20;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Section de câble prises du rez</div><div style="font-size:12px;color:#A8A29E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hôtel de Ville · « 2,5 mm² minimum imposé… »</div></div>
+          <span style="font-size:11px;color:#C7C2BD;flex-shrink:0">14:02</span>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#FEF2F2;color:#991B1B;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Résumer les réserves ouvertes</div><div style="font-size:12px;color:#A8A29E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hôtel de Ville · « 7 réserves dont 2 critiques… »</div></div>
+          <span style="font-size:11px;color:#C7C2BD;flex-shrink:0">09:18</span>
+        </div>
+      </div>
+      <!-- THIS WEEK -->
+      <div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;padding:0 20px 10px">Cette semaine</div>
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:9px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#F0FDF4;color:#166534;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h16v12H5.2L4 17.2z"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Brouillon de relance facture</div><div style="font-size:12px;color:#A8A29E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hôtel de Ville · « Objet : relance 2026-011… »</div></div>
+          <span style="font-size:11px;color:#C7C2BD;flex-shrink:0">lun.</span>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#EFF6FF;color:#1E40AF;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Norme PEB rénovation lourde</div><div style="font-size:12px;color:#A8A29E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Général · « La PEB impose un Espec max… »</div></div>
+          <span style="font-size:11px;color:#C7C2BD;flex-shrink:0">dim.</span>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:14px;display:flex;gap:12px">
+          <div style="width:38px;height:38px;border-radius:10px;background:#FDF6F1;color:#A04C20;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="6" y1="20" x2="6" y2="13"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="18" y1="20" x2="18" y2="9"/></svg></div>
+          <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#1C1917;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Comparer les devis électricité</div><div style="font-size:12px;color:#A8A29E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hôtel de Ville · « ElectroPro mieux-disant… »</div></div>
+          <span style="font-size:11px;color:#C7C2BD;flex-shrink:0">sam.</span>
+        </div>
+      </div>
+    </div>
+  </x-import>
+  <div style="position:absolute;top:900px;left:0;width:560px;background:#fef4a8;padding:13px 15px;font:13px/1.5 'Inter';color:#5a4a00;box-shadow:0 1px 3px rgba(0,0,0,.08);transform:rotate(.4deg);border-radius:2px"><b>L'historique rend l'assistant consultable.</b> Conversations groupées par date, chacune avec son contexte projet et un extrait de réponse. Recherche dans l'historique, « Nouvelle » pour repartir. On y accède par l'icône horloge dans l'en-tête du chat — le FAB reste pour poser vite une question, l'historique pour retrouver.</div>
+</div>
+
+<!-- ════════════════ MOBILE — FORMULAIRE CRÉATION RÉSERVE ════════════════ -->
+<div style="position:absolute;left:4760px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · CRÉER UNE RÉSERVE (en visite)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 100px">
+      <!-- header -->
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 16px 14px">
+        <div style="width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+        <div style="font-size:18px;font-weight:700;color:#1C1917;letter-spacing:-.3px">Nouvelle réserve</div>
+      </div>
+      <!-- photo capture -->
+      <div style="padding:0 16px 18px">
+        <div style="height:170px;border-radius:16px;background:repeating-linear-gradient(45deg,#EDE4DA,#EDE4DA 10px,#E5D9CC 10px,#E5D9CC 20px);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center">
+          <div style="position:absolute;left:120px;top:50px;width:80px;height:64px;border:3px solid #F97316;border-radius:999px"></div>
+          <div style="position:absolute;bottom:10px;left:10px;display:flex;gap:6px">
+            <div style="width:44px;height:44px;border-radius:9px;background:rgba(28,25,23,.7);display:flex;align-items:center;justify-content:center;color:#fff"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/></svg></div>
+            <div style="width:44px;height:44px;border-radius:9px;background:rgba(28,25,23,.7);display:flex;align-items:center;justify-content:center;color:#fff"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
+          </div>
+          <span style="position:absolute;top:10px;right:10px;font-size:11px;background:rgba(28,25,23,.7);color:#fff;border-radius:999px;padding:3px 9px;font-weight:500">2 photos</span>
+        </div>
+      </div>
+      <!-- description -->
+      <div style="padding:0 16px 16px">
+        <div style="font-size:12px;font-weight:600;color:#44403C;margin-bottom:7px">Description</div>
+        <div style="border:1px solid #E7E5E4;border-radius:12px;background:#fff;padding:13px;font-size:14px;color:#1C1917;line-height:1.5;min-height:72px">Étanchéité défectueuse à l'angle nord-est — infiltration visible en sous-face.<span style="display:inline-block;width:1.5px;height:16px;background:#B85C2C;vertical-align:middle;margin-left:1px;animation:pulseDot 1s ease-in-out infinite"></span></div>
+        <div style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px;color:#A04C20;font-weight:500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>Dicter la description</div>
+      </div>
+      <!-- gravité -->
+      <div style="padding:0 16px 16px">
+        <div style="font-size:12px;font-weight:600;color:#44403C;margin-bottom:8px">Gravité</div>
+        <div style="display:flex;gap:7px">
+          <div style="flex:1;height:40px;border-radius:10px;background:#FEF2F2;border:1.5px solid #DC2626;color:#991B1B;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">Critique</div>
+          <div style="flex:1;height:40px;border-radius:10px;background:#fff;border:1px solid #E7E5E4;color:#78716C;font-size:13px;font-weight:500;display:flex;align-items:center;justify-content:center">Majeure</div>
+          <div style="flex:1;height:40px;border-radius:10px;background:#fff;border:1px solid #E7E5E4;color:#78716C;font-size:13px;font-weight:500;display:flex;align-items:center;justify-content:center">Mineure</div>
+        </div>
+      </div>
+      <!-- localisation + responsable rows -->
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:1px;background:#fff;border:1px solid #EFEDEB;border-radius:14px;margin:0 16px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px">
+          <div style="width:34px;height:34px;border-radius:9px;background:#FDF6F1;color:#A04C20;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <div style="flex:1"><div style="font-size:11px;color:#A8A29E">Localisation · punaise sur plan</div><div style="font-size:14px;color:#1C1917;font-weight:500">Toiture · angle N-E</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px">
+          <div style="width:34px;height:34px;border-radius:9px;background:#F5F5F4;color:#78716C;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="7" r="3"/><path d="M2 21a7 7 0 0 1 14 0"/></svg></div>
+          <div style="flex:1"><div style="font-size:11px;color:#A8A29E">Responsable</div><div style="font-size:14px;color:#1C1917;font-weight:500">Toitures Lurquin</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px">
+          <div style="width:34px;height:34px;border-radius:9px;background:#F5F5F4;color:#78716C;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div style="flex:1"><div style="font-size:11px;color:#A8A29E">Échéance</div><div style="font-size:14px;color:#1C1917;font-weight:500">8 juillet 2026</div></div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>
+        </div>
+      </div>
+    </div>
+    <!-- sticky save -->
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px 28px;background:rgba(252,251,250,.94);backdrop-filter:blur(10px);border-top:1px solid #EFEDEB;z-index:40"><div style="height:50px;background:#B85C2C;color:#fff;border-radius:14px;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 8px 20px rgba(184,92,44,.25)">Ajouter la réserve</div></div>
+  </x-import>
+  <div style="position:absolute;top:900px;left:0;width:560px;background:#fef4a8;padding:13px 15px;font:13px/1.5 'Inter';color:#5a4a00;box-shadow:0 1px 3px rgba(0,0,0,.08);transform:rotate(-.3deg);border-radius:2px"><b>L'action terrain n°1, en mains libres.</b> Photo d'abord (avec annotation rapide), description dictable, gravité en gros boutons, puis localisation (punaise sur plan), responsable et échéance. Bouton « Ajouter » collant. Fonctionne hors-ligne — la réserve rejoint la file de synchro.</div>
+</div>
+
+<!-- ════════════════ MOBILE — DÉTAIL RÉSERVE (lecture) ════════════════ -->
+<div style="position:absolute;left:5280px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · DÉTAIL RÉSERVE (lecture)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 40px">
+      <!-- nav -->
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 16px 14px">
+        <div style="width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+        <div style="margin-left:auto;width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div>
+      </div>
+      <!-- title -->
+      <div style="padding:0 20px 14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:12px;font-family:ui-monospace,monospace;color:#A8A29E">R-011</span><span style="font-size:11px;padding:2px 9px;border-radius:999px;background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;font-weight:600">Critique</span><span style="font-size:11px;padding:2px 9px;border-radius:999px;background:#FFFBEB;color:#92400E;border:1px solid #FDE68A;font-weight:500">Non levée</span></div>
+        <div style="font-size:20px;font-weight:700;color:#1C1917;letter-spacing:-.3px;line-height:1.25">Étanchéité défectueuse à l'angle nord-est</div>
+      </div>
+      <!-- photos -->
+      <div style="padding:0 16px 18px;display:flex;gap:8px">
+        <div style="flex:1;height:120px;border-radius:12px;background:repeating-linear-gradient(45deg,#EDE4DA,#EDE4DA 9px,#E5D9CC 9px,#E5D9CC 18px);position:relative"><div style="position:absolute;left:40px;top:35px;width:50px;height:42px;border:2.5px solid #F97316;border-radius:999px"></div></div>
+        <div style="flex:1;height:120px;border-radius:12px;background:repeating-linear-gradient(45deg,#E7E5E4,#E7E5E4 9px,#DEDCDA 9px,#DEDCDA 18px)"></div>
+      </div>
+      <!-- meta -->
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:1px;background:#fff;border:1px solid #EFEDEB;border-radius:14px;margin:0 16px 18px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span style="flex:1;font-size:13px;color:#78716C">Localisation</span><span style="font-size:13px;color:#1C1917;font-weight:500">Toiture · angle N-E</span></div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.7"><circle cx="9" cy="7" r="3"/><path d="M2 21a7 7 0 0 1 14 0"/></svg><span style="flex:1;font-size:13px;color:#78716C">Responsable</span><span style="font-size:13px;color:#1C1917;font-weight:500">Toitures Lurquin</span></div>
+        <div style="height:1px;background:#F5F2EF;margin:0 14px"></div>
+        <div style="display:flex;align-items:center;gap:12px;padding:13px 14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span style="flex:1;font-size:13px;color:#78716C">Échéance</span><span style="font-size:13px;color:#1C1917;font-weight:500">8 juillet 2026</span></div>
+      </div>
+      <!-- description -->
+      <div style="padding:0 20px 8px"><div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Description</div><div style="font-size:14px;color:#44403C;line-height:1.55">Infiltration visible en sous-face de la toiture à l'angle nord-est. Reprise de l'étanchéité nécessaire avant les finitions intérieures de la zone.</div></div>
+      <!-- timeline -->
+      <div style="padding:18px 20px 10px"><div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em">Suivi</div></div>
+      <div style="padding:0 20px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:11px"><div style="width:8px;height:8px;border-radius:999px;background:#B85C2C;margin-top:5px;flex-shrink:0"></div><div><div style="font-size:13px;color:#1C1917">Créée pendant la visite du 24 juin</div><div style="font-size:12px;color:#A8A29E">Gaëlle D.</div></div></div>
+        <div style="display:flex;gap:11px"><div style="width:8px;height:8px;border-radius:999px;background:#D6D3D1;margin-top:5px;flex-shrink:0"></div><div><div style="font-size:13px;color:#1C1917">Reportée au PV n°11</div><div style="font-size:12px;color:#A8A29E">23 juin</div></div></div>
+      </div>
+      <!-- read-only note -->
+      <div style="margin:18px 16px 0;display:flex;align-items:center;gap:9px;background:#F7F5F3;border-radius:11px;padding:11px 13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A8A29E" stroke-width="1.7" style="flex-shrink:0"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg><span style="font-size:12px;color:#78716C;line-height:1.45">Marquer comme levée : pendant une visite, ou sur ordinateur.</span></div>
+    </div>
+  </x-import>
+</div>
+
+<!-- ════════════════ MOBILE — DÉTAIL PV (lecture) ════════════════ -->
+<div style="position:absolute;left:5800px;top:200px;width:402px">
+  <div data-drags-parent="1" style="position:absolute;top:-30px;left:0;font:700 12px 'Inter';color:#A04C20;letter-spacing:.04em">MOBILE · DÉTAIL PV (lecture)</div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+    <div style="min-height:100%;background:#FCFBFA;padding:54px 0 90px">
+      <!-- nav -->
+      <div style="display:flex;align-items:center;gap:12px;padding:6px 16px 14px">
+        <div style="width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+        <div style="margin-left:auto;width:38px;height:38px;border-radius:999px;background:#fff;border:1px solid #EFEDEB;display:flex;align-items:center;justify-content:center;color:#44403C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div>
+      </div>
+      <!-- title -->
+      <div style="padding:0 20px 16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:13px;font-weight:700;font-family:ui-monospace,monospace;color:#1C1917">PV n°11</span><span style="font-size:11px;padding:2px 9px;border-radius:999px;background:#F0FDF4;color:#166534;border:1px solid #BBF7D0;font-weight:500">Validé</span></div>
+        <div style="font-size:20px;font-weight:700;color:#1C1917;letter-spacing:-.3px;line-height:1.25">Réunion du 23 juin</div>
+        <div style="font-size:13px;color:#A8A29E;margin-top:4px">Hôtel de Ville · 8 postes · 7 présents</div>
+      </div>
+      <!-- meta strip -->
+      <div style="padding:0 16px 18px;display:flex;gap:8px">
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:12px;padding:11px;text-align:center"><div style="font-size:12px;color:#78716C">Météo</div><div style="font-size:14px;font-weight:600;color:#1C1917;margin-top:2px">12°C</div></div>
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:12px;padding:11px;text-align:center"><div style="font-size:12px;color:#78716C">Postes</div><div style="font-size:14px;font-weight:600;color:#1C1917;margin-top:2px">8</div></div>
+        <div style="flex:1;background:#fff;border:1px solid #EFEDEB;border-radius:12px;padding:11px;text-align:center"><div style="font-size:12px;color:#78716C">Réserves</div><div style="font-size:14px;font-weight:600;color:#92400E;margin-top:2px">3</div></div>
+      </div>
+      <!-- content sections (read) -->
+      <div style="padding:0 16px;display:flex;flex-direction:column;gap:14px">
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:15px">
+          <div style="font-size:13px;font-weight:700;color:#A04C20;margin-bottom:8px">03 · Électricité</div>
+          <div style="font-size:13.5px;color:#44403C;line-height:1.55;margin-bottom:8px"><b style="color:#1C1917">03.1</b> Reprise du tirage des câbles dans la gaine du 2<sup>e</sup> — section sous-dimensionnée.</div>
+          <div style="font-size:13.5px;color:#44403C;line-height:1.55"><b style="color:#1C1917">03.2</b> <span style="background:#FEF2F2;color:#991B1B;border-radius:3px;padding:0 3px">Tableau sans différentiel — à corriger avant mise sous tension.</span></div>
+        </div>
+        <div style="background:#fff;border:1px solid #EFEDEB;border-radius:14px;padding:15px">
+          <div style="font-size:13px;font-weight:700;color:#1C1917;margin-bottom:8px">04 · HVAC</div>
+          <div style="font-size:13.5px;color:#44403C;line-height:1.55"><b style="color:#1C1917">04.1</b> Centrale de traitement d'air en cours d'installation.</div>
+        </div>
+      </div>
+      <!-- linked photos -->
+      <div style="padding:18px 20px 10px"><div style="font-size:12px;font-weight:700;color:#78716C;text-transform:uppercase;letter-spacing:.05em">Photos liées · 5</div></div>
+      <div style="padding:0 16px;display:flex;gap:7px">
+        <div style="flex:1;height:60px;border-radius:9px;background:repeating-linear-gradient(45deg,#EDE4DA,#EDE4DA 8px,#E5D9CC 8px,#E5D9CC 16px)"></div>
+        <div style="flex:1;height:60px;border-radius:9px;background:repeating-linear-gradient(45deg,#E7E5E4,#E7E5E4 8px,#DEDCDA 8px,#DEDCDA 16px)"></div>
+        <div style="flex:1;height:60px;border-radius:9px;background:repeating-linear-gradient(45deg,#EDE4DA,#EDE4DA 8px,#E5D9CC 8px,#E5D9CC 16px)"></div>
+        <div style="flex:1;height:60px;border-radius:9px;background:#F5F5F4;display:flex;align-items:center;justify-content:center;font-size:12px;color:#A8A29E;font-weight:600">+2</div>
+      </div>
+    </div>
+    <!-- sticky actions -->
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:14px 16px 28px;background:rgba(252,251,250,.94);backdrop-filter:blur(10px);border-top:1px solid #EFEDEB;z-index:40;display:flex;gap:10px">
+      <div style="flex:1;height:48px;background:#fff;border:1px solid #E7E5E4;border-radius:13px;color:#44403C;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>PDF</div>
+      <div style="flex:1;height:48px;background:#B85C2C;color:#fff;border-radius:13px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>Partager</div>
+    </div>
+  </x-import>
+  <div style="position:absolute;top:900px;left:0;width:560px;background:#fef4a8;padding:13px 15px;font:13px/1.5 'Inter';color:#5a4a00;box-shadow:0 1px 3px rgba(0,0,0,.08);transform:rotate(.3deg);border-radius:2px"><b>Lire un PV / une réserve sur place.</b> Détail réserve : photos annotées, méta, suivi chronologique — la levée se fait en visite ou desktop. Détail PV : contenu par poste, photos liées, export PDF / partage. Consultation pure, pas d'édition (qui reste desktop).</div>
+</div>
+
+<div style="position:absolute;left:80px;top:1140px;width:1450px;background:#fef4a8;padding:14px 16px;font:13px/1.55 'Inter';color:#5a4a00;box-shadow:0 1px 3px rgba(0,0,0,.08);transform:rotate(-.2deg);border-radius:2px"><b>Philosophie mobile : moins, mais le bon.</b> ① <b>Accueil</b> répond à « qu'est-ce que je fais maintenant ? » — visite en 1 tap, agenda du jour, chantiers récents et proches. ② <b>Consultation</b> = lecture rapide (PV, réserves, photos, plans) ; l'édition lourde renvoie au desktop, assumé. ③ <b>Mode Chantier</b> = l'écran terrain : chrono, 3 grosses cibles tactiles (Photo / Vocal / Réserve ≥ 50px), présents + météo auto, et à la fin l'IA assemble la visite en brouillon de PV. Pas de facturation ni Gantt sur mobile.</div>
+
+</x-dc>
+</body>
+</html>

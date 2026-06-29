@@ -365,7 +365,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       {/* ── Header sticky — visite continue, sobre ──
           Chrono qui tourne + météo. Une seule visite (plus de bascule
           inspection/réunion : on capture en continu). */}
-      <div style={{ position: "sticky", top: 0, zIndex: 10, background: WH, borderBottom: `1px solid ${SBB}`, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 10, background: WH, borderBottom: `1px solid ${SBB}`, padding: "10px 8px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, color: TX3, fontWeight: 500, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Visite · {project.name}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -383,7 +383,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
         }
       `}</style>
 
-      <div style={{ padding: "14px" }}>
+      <div style={{ padding: "14px 8px" }}>
 
       {/* ── Contexte : météo + présents (pills tactiles) ── */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 16 }}>
@@ -544,7 +544,7 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 250, background: "#FCFBFA", display: "flex", flexDirection: "column", paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))", fontFamily: "inherit" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(8px + env(safe-area-inset-top, 0px)) 16px 8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(8px + env(safe-area-inset-top, 0px)) 8px 8px" }}>
         <button onClick={onStop} aria-label="Retour à la visite" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Réunion · {project.name}</div>
@@ -586,7 +586,7 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
       </div>
 
       {/* Continuité desktop */}
-      <div style={{ margin: "0 16px", background: WH, border: "1px solid #EFEDEB", borderRadius: 14, padding: "13px 15px", display: "flex", alignItems: "center", gap: 11 }}>
+      <div style={{ margin: "0 8px", background: WH, border: "1px solid #EFEDEB", borderRadius: 14, padding: "13px 15px", display: "flex", alignItems: "center", gap: 11 }}>
         <span style={{ width: 36, height: 36, borderRadius: 10, background: "#F0FDF4", color: "#166534", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
         </span>
@@ -598,7 +598,7 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
       </div>
 
       {/* Présents */}
-      <div style={{ padding: "14px 16px 0", display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+      <div style={{ padding: "14px 8px 0", display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: TX3 }}>Présents :</span>
         {presents.map((p, i) => (
           <button key={i} onClick={() => onTogglePresent?.(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : "#EFEDEB"}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>

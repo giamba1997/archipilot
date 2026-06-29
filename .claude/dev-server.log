@@ -1,0 +1,345 @@
+
+> archipilot@0.3.0 dev
+> vite
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+  [32m[1mVITE[22m v6.4.1[39m  [2mready in [0m[1m618[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m16:14:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/NoteEditor.jsx[22m
+[2m16:14:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m16:15:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m16:15:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:15:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:15:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m16:15:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/modals/SearchModal.jsx[22m
+[2m16:18:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m16:21:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:21:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:22:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:22:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:22:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:23:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m16:29:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:29:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:30:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/LegalPages.jsx, /src/App.jsx, /src/views/PvRow.jsx, /src/views/MeetingCard.jsx, /src/views/Overview.jsx, /src/views/ChecklistsView.jsx, /src/views/ResultView.jsx, /src/components/modals/SendPvModal.jsx, /src/components/modals/OnboardingWizard.jsx, /src/components/modals/PricingSection.jsx, /src/components/modals/UpgradeGate.jsx, /src/components/modals/UpgradeRequiredModal.jsx, /src/views/AgencyView.jsx, /src/components/modals/CollabModal.jsx, /src/views/DocumentsView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/components/ui/StatusBadge.jsx, /src/components/modals/RemarkEditModal.jsx, /src/components/modals/SearchModal.jsx, /src/components/layout/Sidebar.jsx, /src/components/ui/PvStatusBadge.jsx, /src/views/PlanningDashboard.jsx, /src/views/OprView.jsx, /src/views/PlanningView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx, /src/components/modals/GuidedTour.jsx, /src/components/ui/Ico.jsx, /src/components/ui/PB.jsx, /src/components/ui/Modal.jsx, /src/views/WeatherWidget.jsx, /src/components/ui/KpiCard.jsx, /src/components/ui/Skeleton.jsx, /src/views/MfaSection.jsx, /src/components/modals/OrgInviteModal.jsx, /src/views/GallerySheet.jsx, /src/views/CropTool.jsx, /src/components/ui/Field.jsx, /src/components/layout/CaptureSheet.jsx, /src/components/layout/MobileBottomBar.jsx, /src/views/GalleryView.jsx, /src/views/PDFPreview.jsx, /src/views/PlanManager.jsx[22m
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/modals/CollabModal.jsx[22m Could not Fast Refresh ("canEdit" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/CollabModalWrapper.jsx, /src/views/Overview.jsx[22m
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m16:37:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/MeetingCard.jsx, /src/views/StatsView.jsx, /src/components/ui/StatusBadge.jsx, /src/components/modals/RemarkEditModal.jsx, /src/views/PvRow.jsx, /src/components/modals/SearchModal.jsx, /src/components/layout/Sidebar.jsx, /src/components/ui/PvStatusBadge.jsx, /src/views/Overview.jsx, /src/views/PlanningDashboard.jsx, /src/views/OprView.jsx, /src/views/ResultView.jsx, /src/views/PlanningView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx[22m
+[2m16:37:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:37:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m16:37:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:37:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m16:37:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:37:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/LegalPages.jsx, /src/App.jsx, /src/views/PvRow.jsx, /src/views/MeetingCard.jsx, /src/views/Overview.jsx, /src/views/ChecklistsView.jsx, /src/views/ResultView.jsx, /src/components/modals/SendPvModal.jsx, /src/components/modals/OnboardingWizard.jsx, /src/components/modals/PricingSection.jsx, /src/components/modals/UpgradeGate.jsx, /src/components/modals/UpgradeRequiredModal.jsx, /src/views/AgencyView.jsx, /src/components/modals/CollabModal.jsx, /src/views/DocumentsView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/components/ui/StatusBadge.jsx, /src/components/modals/RemarkEditModal.jsx, /src/components/modals/SearchModal.jsx, /src/components/layout/Sidebar.jsx, /src/components/ui/PvStatusBadge.jsx, /src/views/PlanningDashboard.jsx, /src/views/OprView.jsx, /src/views/PlanningView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx, /src/components/modals/GuidedTour.jsx, /src/components/ui/Ico.jsx, /src/components/ui/PB.jsx, /src/components/ui/Modal.jsx, /src/views/WeatherWidget.jsx, /src/components/ui/KpiCard.jsx, /src/components/ui/Skeleton.jsx, /src/views/MfaSection.jsx, /src/components/modals/OrgInviteModal.jsx, /src/views/GallerySheet.jsx, /src/views/CropTool.jsx, /src/components/ui/Field.jsx, /src/components/layout/CaptureSheet.jsx, /src/components/layout/MobileBottomBar.jsx, /src/views/GalleryView.jsx, /src/views/PDFPreview.jsx, /src/views/PlanManager.jsx[22m
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/modals/CollabModal.jsx[22m Could not Fast Refresh ("canEdit" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/CollabModalWrapper.jsx, /src/views/Overview.jsx[22m
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:44:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m16:44:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/MeetingCard.jsx, /src/views/StatsView.jsx, /src/components/ui/StatusBadge.jsx, /src/components/modals/RemarkEditModal.jsx, /src/views/PvRow.jsx, /src/components/modals/SearchModal.jsx, /src/components/layout/Sidebar.jsx, /src/components/ui/PvStatusBadge.jsx, /src/views/Overview.jsx, /src/views/PlanningDashboard.jsx, /src/views/OprView.jsx, /src/views/ResultView.jsx, /src/views/PlanningView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx[22m
+[2m16:44:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:44:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m16:44:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m16:44:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m16:45:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m16:45:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m16:45:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/LegalPages.jsx, /src/App.jsx, /src/views/PvRow.jsx, /src/views/MeetingCard.jsx, /src/views/Overview.jsx, /src/views/ChecklistsView.jsx, /src/views/ResultView.jsx, /src/components/modals/SendPvModal.jsx, /src/components/modals/OnboardingWizard.jsx, /src/components/modals/PricingSection.jsx, /src/components/modals/UpgradeGate.jsx, /src/components/modals/UpgradeRequiredModal.jsx, /src/views/AgencyView.jsx, /src/components/modals/CollabModal.jsx, /src/views/DocumentsView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/components/ui/StatusBadge.jsx, /src/components/modals/RemarkEditModal.jsx, /src/components/modals/SearchModal.jsx, /src/components/layout/Sidebar.jsx, /src/components/ui/PvStatusBadge.jsx, /src/views/PlanningDashboard.jsx, /src/views/OprView.jsx, /src/views/PlanningView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx, /src/components/modals/GuidedTour.jsx, /src/components/ui/Ico.jsx, /src/components/ui/PB.jsx, /src/components/ui/Modal.jsx, /src/views/WeatherWidget.jsx, /src/components/ui/KpiCard.jsx, /src/components/ui/Skeleton.jsx, /src/views/MfaSection.jsx, /src/components/modals/OrgInviteModal.jsx, /src/views/GallerySheet.jsx, /src/views/CropTool.jsx, /src/components/ui/Field.jsx, /src/components/layout/CaptureSheet.jsx, /src/components/layout/MobileBottomBar.jsx, /src/views/GalleryView.jsx, /src/views/PDFPreview.jsx, /src/views/PlanManager.jsx[22m
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/modals/CollabModal.jsx[22m Could not Fast Refresh ("canEdit" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/CollabModalWrapper.jsx, /src/views/Overview.jsx[22m
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m18:34:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:34:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:34:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:34:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:34:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:34:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:38[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m18:35:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:35:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:35:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:35:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:35:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:35:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:35:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:36:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m18:36:23[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:36:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:36:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:36:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:36:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AgencyView.jsx[22m
+[2m18:36:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AgencyView.jsx[22m
+[2m18:36:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AgencyView.jsx[22m
+[2m18:36:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AgencyView.jsx[22m
+[2m18:36:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:36:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:37:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:37:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ProfileView.jsx[22m
+[2m18:42:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:42:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:43:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:43:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:47:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m18:47:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m18:47:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/Auth.jsx[22m
+[2m18:47:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/Auth.jsx[22m Could not Fast Refresh ("useAuth" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:47:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/main.jsx[22m
+[2m18:47:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/main.jsx[22m Could not Fast Refresh ("true" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:47:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/main.jsx[22m
+[2m18:47:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/main.jsx[22m
+[2m18:47:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/main.jsx[22m Could not Fast Refresh ("true" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:47:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/main.jsx[22m
+[2m18:47:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/LegalPages.jsx, /src/App.jsx, /src/views/PvRow.jsx, /src/views/MeetingCard.jsx, /src/views/Overview.jsx, /src/views/ChecklistsView.jsx, /src/views/ResultView.jsx, /src/components/modals/SendPvModal.jsx, /src/components/modals/OnboardingWizard.jsx, /src/components/modals/PricingSection.jsx, /src/components/modals/UpgradeGate.jsx, /src/components/modals/UpgradeRequiredModal.jsx, /src/views/AgencyView.jsx, /src/components/modals/CollabModal.jsx, /src/views/DocumentsView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/components/ui/StatusBadge.jsx, /src/components/modals/RemarkEditModal.jsx, /src/components/modals/SearchModal.jsx, /src/components/layout/Sidebar.jsx, /src/components/ui/PvStatusBadge.jsx, /src/views/PlanningDashboard.jsx, /src/views/OprView.jsx, /src/views/PlanningView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx, /src/components/modals/GuidedTour.jsx, /src/components/ui/Ico.jsx, /src/components/ui/PB.jsx, /src/components/ui/Modal.jsx, /src/views/WeatherWidget.jsx, /src/components/ui/KpiCard.jsx, /src/components/ui/Skeleton.jsx, /src/views/MfaSection.jsx, /src/components/modals/OrgInviteModal.jsx, /src/views/GallerySheet.jsx, /src/views/CropTool.jsx, /src/components/ui/Field.jsx, /src/components/layout/CaptureSheet.jsx, /src/components/layout/MobileBottomBar.jsx, /src/views/GalleryView.jsx, /src/views/PDFPreview.jsx, /src/views/PlanManager.jsx[22m
+[2m18:47:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:47:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m18:47:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/modals/CollabModal.jsx[22m Could not Fast Refresh ("canEdit" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:47:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/CollabModalWrapper.jsx, /src/views/Overview.jsx[22m
+[2m18:47:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m18:47:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m18:48:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:48:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:48:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:54:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:54:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:54:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m18:54:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m19:04:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m19:04:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:04:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/StatsView.jsx[22m
+[2m19:04:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/StatsView.jsx[22m
+[2m19:05:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m19:05:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m19:06:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:07:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:07:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:09:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m19:10:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m19:10:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m19:12:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m19:41:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:41:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:42:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:42:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m19:51:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m19:51:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m19:51:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m19:54:38[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m19:55:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m19:59:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:00:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:43:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:43:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:45:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:45:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:46:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:46:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:46:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:46:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:46:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:46:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:47:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:47:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/SessionsModal.jsx[22m
+[2m20:53:23[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/TimerCard.jsx, /src/views/TimerBanner.jsx, /src/views/SessionsModal.jsx[22m
+[2m20:53:35[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/TimerCard.jsx, /src/views/TimerBanner.jsx, /src/views/SessionsModal.jsx[22m
+[2m20:53:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:53:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:54:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:54:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:55:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:55:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:55:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:55:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m20:56:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimerBanner.jsx[22m
+[2m20:56:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:56:35[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/SessionsModal.jsx[22m
+[2m20:56:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/SessionsModal.jsx[22m
+[2m20:56:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/SessionsModal.jsx[22m
+[2m20:56:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/SessionsModal.jsx[22m
+[2m20:57:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/SessionsModal.jsx[22m
+[2m20:59:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:59:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:59:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:59:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:59:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:59:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m20:59:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/StatsView.jsx[22m
+[2m21:00:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/StatsView.jsx[22m
+[2m21:00:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m21:00:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m21:02:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:07:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimerCard.jsx[22m
+[2m21:08:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:08:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:11:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:12:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:12:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:12:42[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:12:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:13:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:13:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:13:19[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:13:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:16:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimerCard.jsx[22m
+[2m21:16:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimerCard.jsx[22m
+[2m21:21:59[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:22:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:22:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:22:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m21:22:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimesheetView.jsx[22m
+[2m21:22:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimesheetView.jsx[22m
+[2m21:23:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanningDashboard.jsx[22m
+[2m21:23:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:30:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:31:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:33:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:35:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/PricingSection.jsx, /src/views/MeetingCard.jsx, /src/components/modals/SendPvModal.jsx, /src/views/MfaSection.jsx, /src/views/ChecklistsView.jsx, /src/components/layout/Sidebar.jsx, /src/views/Overview.jsx, /src/components/modals/CollabModal.jsx, /src/views/PlanManager.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/PlanningView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx[22m
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/modals/CollabModal.jsx[22m Could not Fast Refresh ("canEdit" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/CollabModalWrapper.jsx, /src/views/Overview.jsx[22m
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m21:41:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m21:41:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/PricingSection.jsx, /src/views/MeetingCard.jsx, /src/components/modals/SendPvModal.jsx, /src/views/MfaSection.jsx, /src/views/ChecklistsView.jsx, /src/components/layout/Sidebar.jsx, /src/views/Overview.jsx, /src/components/modals/CollabModal.jsx, /src/views/PlanManager.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/PlanningView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx[22m
+[2m21:41:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/MeetingCard.jsx[22m Could not Fast Refresh ("MEETING_MODES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m21:41:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/Overview.jsx[22m
+[2m21:41:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/components/modals/CollabModal.jsx[22m Could not Fast Refresh ("canEdit" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m21:41:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/CollabModalWrapper.jsx, /src/views/Overview.jsx[22m
+[2m21:41:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/views/AnnotationEditor.jsx[22m Could not Fast Refresh ("ANNO_COLORS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m21:41:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/PlanViewer.jsx[22m
+[2m21:42:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/NoteEditor.jsx, /src/views/Overview.jsx[22m
+[2m21:43:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/NoteEditor.jsx, /src/views/Overview.jsx[22m
+[2m19:14:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m19:14:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m19:14:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m19:28:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:28:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:29:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:29:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m19:29:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m20:05:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:06:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:06:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:14:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:14:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:15:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:15:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:15:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:16:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m20:59:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/NoteEditor.jsx, /src/views/Overview.jsx, /src/views/ChatModal.jsx[22m
+[2m20:59:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m20:59:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m20:59:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:00:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:00:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:00:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/MeetingCard.jsx, /src/views/StatsView.jsx, /src/views/SessionsModal.jsx, /src/views/TimesheetView.jsx[22m
+[2m21:00:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/MeetingCard.jsx, /src/views/StatsView.jsx, /src/views/SessionsModal.jsx, /src/views/TimesheetView.jsx[22m
+[2m21:00:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/views/MeetingCard.jsx, /src/views/StatsView.jsx, /src/views/SessionsModal.jsx, /src/views/TimesheetView.jsx[22m
+[2m21:00:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m21:00:33[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ResultView.jsx[22m
+[2m21:00:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:00:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:01:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:01:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:01:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:02:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PvRow.jsx[22m
+[2m21:02:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PvRow.jsx[22m
+[2m21:11:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:11:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:11:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:12:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:13:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:13:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:14:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:14:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:14:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m
+[2m21:15:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:15:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:15:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:15:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:15:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m21:16:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:16:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:16:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:16:50[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:16:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:17:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:17:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:18:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:18:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:19:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:19:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:19:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:19:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:24:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:25:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:25:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:25:17[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:25:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:25:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:38:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:38:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/ChatModal.jsx[22m
+[2m21:54:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/modals/GuidedTour.jsx, /src/components/modals/OnboardingWizard.jsx, /src/views/WeatherWidget.jsx, /src/components/modals/RemarkEditModal.jsx, /src/components/modals/PricingSection.jsx, /src/components/modals/UpgradeGate.jsx, /src/views/PvRow.jsx, /src/components/modals/UpgradeRequiredModal.jsx, /src/components/modals/SearchModal.jsx, /src/views/MeetingCard.jsx, /src/components/modals/SendPvModal.jsx, /src/views/MfaSection.jsx, /src/components/modals/OrgInviteModal.jsx, /src/views/GallerySheet.jsx, /src/views/CropTool.jsx, /src/views/ChecklistsView.jsx, /src/components/layout/CaptureSheet.jsx, /src/components/layout/Sidebar.jsx, /src/components/layout/MobileBottomBar.jsx, /src/views/AgencyView.jsx, /src/views/Overview.jsx, /src/views/GalleryView.jsx, /src/views/PlanningDashboard.jsx, /src/components/modals/CollabModal.jsx, /src/views/OprView.jsx, /src/views/PlanManager.jsx, /src/views/ResultView.jsx, /src/views/DocumentsView.jsx, /src/views/PlanningView.jsx, /src/views/StatsView.jsx, /src/views/ProfileView.jsx, /src/views/PlanViewer.jsx, /src/views/AnnotationEditor.jsx, /src/views/NoteEditor.jsx, /src/views/TimerCard.jsx, /src/views/TimerBanner.jsx, /src/views/SessionsModal.jsx, /src/views/TimerPill.jsx, /src/views/TimesheetView.jsx, /src/views/StopSessionPrompt.jsx, /src/views/ChatModal.jsx[22m
+[2m21:54:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:54:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m21:54:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:03:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:03:39[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:03:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:04:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:04:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:04:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:04:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:05:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:05:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/NoteEditor.jsx[22m
+[2m22:17:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:18:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:18:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:20:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:21:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:21:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:21:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:21:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:21:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:21:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m22:21:54[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx[22m
+[2m22:27:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:27:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:33:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:33:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:33:18[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:48:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanManager.jsx[22m
+[2m22:48:44[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanManager.jsx[22m
+[2m22:50:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/DocumentsView.jsx[22m
+[2m22:50:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:50:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:52:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m22:59:45[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PlanViewer.jsx[22m
+[2m22:59:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/WeatherWidget.jsx[22m
+[2m22:59:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/StatsView.jsx[22m
+[2m22:59:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/AnnotationEditor.jsx[22m
+[2m22:59:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/TimerPill.jsx[22m
+[2m23:00:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m23:00:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m23:00:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m23:00:49[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/Overview.jsx[22m

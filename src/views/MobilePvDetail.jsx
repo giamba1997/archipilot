@@ -62,7 +62,7 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
       </div>
 
       {/* Titre */}
-      <div style={{ padding: "0 20px 16px" }}>
+      <div style={{ padding: "0 8px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "ui-monospace, monospace", color: TX }}>PV n°{pv.number}</span>
           <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: st.bg, color: st.color, fontWeight: 500 }}>{st.label}</span>
@@ -72,7 +72,7 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
       </div>
 
       {/* Méta */}
-      <div style={{ padding: "0 16px 18px", display: "flex", gap: 8 }}>
+      <div style={{ padding: "0 8px 18px", display: "flex", gap: 8 }}>
         {pv.weather && metaBox("Météo", typeof pv.weather === "string" ? pv.weather : `${pv.weather.temperature}°C`)}
         {metaBox("Postes", pv.postsCount || blocks.length || "—")}
         {metaBox("Date", pv.date || "—")}
@@ -80,11 +80,11 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
 
       {/* Contenu par poste */}
       {pv.pdfDataUrl ? (
-        <div style={{ padding: "0 16px 16px" }}>
+        <div style={{ padding: "0 8px 16px" }}>
           <iframe src={pv.pdfDataUrl} title={`PV n°${pv.number}`} style={{ width: "100%", height: "60vh", border: `1px solid ${SBB}`, borderRadius: 12, background: SB }} />
         </div>
       ) : blocks.length ? (
-        <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ padding: "0 8px", display: "flex", flexDirection: "column", gap: 14 }}>
           {blocks.map((b, i) => (
             <div key={i} style={{ background: WH, border: `1px solid #EFEDEB`, borderRadius: 14, padding: 15 }}>
               {b.title && <div style={{ fontSize: 13, fontWeight: 700, color: URGENT_RE.test(b.title) ? BR : AC, marginBottom: 8 }}>{b.title.replace(/\*\*/g, "")}</div>}
@@ -101,14 +101,14 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
           ))}
         </div>
       ) : (
-        <div style={{ padding: "0 20px", fontSize: 14, color: TX3 }}>Aucun contenu.</div>
+        <div style={{ padding: "0 8px", fontSize: 14, color: TX3 }}>Aucun contenu.</div>
       )}
 
       {/* Photos liées */}
       {photos.length > 0 && (
         <>
-          <div style={{ padding: "18px 20px 10px" }}><div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Photos liées · {photos.length}</div></div>
-          <div style={{ padding: "0 16px", display: "flex", gap: 7, flexWrap: "wrap" }}>
+          <div style={{ padding: "18px 8px 10px" }}><div style={{ fontSize: 12, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Photos liées · {photos.length}</div></div>
+          <div style={{ padding: "0 8px", display: "flex", gap: 7, flexWrap: "wrap" }}>
             {photos.slice(0, 8).map((p, i) => <img key={i} src={getPhotoUrl(p)} alt="" style={{ flex: "1 1 22%", maxWidth: "23%", height: 60, objectFit: "cover", borderRadius: 9, border: `1px solid ${SBB}` }} />)}
           </div>
         </>
@@ -117,7 +117,7 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
       <div style={{ height: 90 }} />
 
       {/* Actions collantes */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "14px 16px calc(20px + env(safe-area-inset-bottom, 0px))", background: "rgba(252,251,250,0.94)", backdropFilter: "blur(10px)", borderTop: "1px solid #EFEDEB", zIndex: 10, display: "flex", gap: 10 }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "14px 8px calc(20px + env(safe-area-inset-bottom, 0px))", background: "rgba(252,251,250,0.94)", backdropFilter: "blur(10px)", borderTop: "1px solid #EFEDEB", zIndex: 10, display: "flex", gap: 10 }}>
         <button onClick={doPdf} style={{ flex: 1, height: 48, background: WH, border: `1px solid ${SBB}`, borderRadius: 13, color: TX2, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
           <Ico name="download" size={16} color={TX2} />PDF
         </button>

@@ -223,7 +223,7 @@ export function MobileHome({
   const initials = (profile?.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 
   return (
-    <div style={{ padding: `${SP.lg}px 8px ${SP.xl * 4}px`, maxWidth: "none", margin: "0 auto" }}>
+    <div style={{ padding: `${SP.lg}px 4px ${SP.xl * 4}px`, maxWidth: "none", margin: "0 auto" }}>
       {/* En-tête : date + salutation + avatar */}
       <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.lg }}>
         <div style={{ flex: 1, minWidth: 0 }}>
