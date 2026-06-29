@@ -49,6 +49,16 @@ import { savePvDraft as savePvDraftLocal } from "../utils/offline";
 // vont DIRECTEMENT dans project.* via setProjects — la visite ne sert
 // qu'à logger les actions pour la composition finale du PV.
 
+// Temps relatif court pour le fil ("à l'instant" / "il y a N min" / "il y a N h").
+function relTimeShort(iso) {
+  if (!iso) return "";
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "à l'instant";
+  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
+  return new Date(iso).toLocaleDateString("fr-BE", { day: "numeric", month: "short" });
+}
+
 export function ChantierModeView({ project, setProjects, profile, onBack, showToast }) {
   const [visit, setVisit] = useState(() => {
     const existing = getActiveVisit();
@@ -360,9 +370,12 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // inverse (le plus récent en haut). Donne à l'archi un retour immédiat sur
   // ce qu'il a capturé.
   const galleryById = new Map((project.gallery || []).map(g => [g.id, g]));
+  const reservesById = new Map((project.reserves || []).map(r => [String(r.id), r]));
+  const reserveCreatedAt = new Map((visit.reserveActions || []).filter(a => a.action === "created").map(a => [String(a.reserveId), a.timestamp]));
   const feed = [
     ...visit.photoIds.map(id => { const ph = galleryById.get(id); return ph ? { kind: "photo", at: ph.date, ph, id } : null; }).filter(Boolean),
     ...visit.decisions.map(d => ({ kind: "note", at: d.timestamp, text: d.text, source: d.source, id: d.id })),
+    ...(visit.newReserveIds || []).map(rid => { const r = reservesById.get(String(rid)); return r ? { kind: "reserve", at: reserveCreatedAt.get(String(rid)) || r.createdAt, reserve: r, id: `res-${rid}` } : null; }).filter(Boolean),
   ].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 
   // Présents nommés uniquement (on évite les pastilles "?" des participants
@@ -384,7 +397,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
             <span style={{ fontSize: 26, fontWeight: 700, color: TX, fontVariantNumeric: "tabular-nums", letterSpacing: "0.5px" }}>{hhmmss}</span>
           </div>
         </div>
-        <button onClick={() => setActiveSheet("end")} style={{ height: 38, padding: "0 14px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Terminer</button>
+        <button onClick={() => setActiveSheet("end")} style={{ height: 38, minHeight: 38, padding: "0 16px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Ico name="check" size={14} color={TX2} />Terminer</button>
       </div>
 
       <style>{`
@@ -460,31 +473,43 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>Photos et observations s'ajoutent ici. À la fin, l'IA en fait un brouillon de PV.</div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {feed.map(item => {
-            const time = item.at ? new Date(item.at).toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" }) : "";
+            const time = relTimeShort(item.at);
             if (item.kind === "photo") {
               return (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 8, background: WH, border: `1px solid ${SBB}`, borderRadius: 12 }}>
-                  <img src={getPhotoUrl(item.ph)} alt="" style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8, flexShrink: 0, border: `1px solid ${SBB}` }} />
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 13 }}>
+                  <img src={getPhotoUrl(item.ph)} alt="" style={{ width: 38, height: 38, objectFit: "cover", borderRadius: 10, flexShrink: 0, border: `1px solid ${SBB}` }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>Photo</div>
-                    {item.ph.caption && <div style={{ fontSize: 12.5, color: TX, lineHeight: 1.4, marginTop: 1 }}>{item.ph.caption}</div>}
+                    <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.ph.caption || "Photo"}</div>
+                    <div style={{ fontSize: 12, color: TX3 }}>Photo · {time}</div>
                   </div>
-                  <span style={{ fontSize: 11, color: TX3, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{time}</span>
                 </div>
               );
             }
-            return (
-              <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: WH, border: `1px solid ${SBB}`, borderRadius: 12 }}>
-                <Ico name={item.source === "voice" ? "mic" : "pen2"} size={13} color={TX3} />
-                <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: TX, lineHeight: 1.5 }}>{item.text}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <span style={{ fontSize: 11, color: TX3, fontVariantNumeric: "tabular-nums" }}>{time}</span>
-                  <button onClick={() => onRemoveDecision(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-                    <Ico name="x" size={11} color={TX3} />
-                  </button>
+            if (item.kind === "reserve") {
+              const sev = getReserveSeverity(item.reserve.severity);
+              return (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 13 }}>
+                  <span style={{ width: 38, height: 38, borderRadius: 10, background: "#FEF2F2", color: "#991B1B", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="alert" size={18} color="#991B1B" /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Réserve · {item.reserve.code || (item.reserve.description || "").slice(0, 28) || "réserve"}</div>
+                    <div style={{ fontSize: 12, color: TX3 }}>{sev?.label || "Réserve"} · {time}</div>
+                  </div>
                 </div>
+              );
+            }
+            const isVoice = item.source === "voice";
+            return (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 13 }}>
+                <span style={{ width: 38, height: 38, borderRadius: 10, background: isVoice ? "#FDF6F1" : SB, color: isVoice ? "#A04C20" : TX2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name={isVoice ? "mic" : "pen2"} size={18} color={isVoice ? "#A04C20" : TX2} /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{isVoice ? "Note vocale" : "Note écrite"}</div>
+                  <div style={{ fontSize: 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.text || time}</div>
+                </div>
+                <button onClick={() => onRemoveDecision(item.id)} aria-label="Supprimer" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, flexShrink: 0 }}>
+                  <Ico name="x" size={13} color={TX3} />
+                </button>
               </div>
             );
           })}
@@ -762,7 +787,8 @@ function ReserveRow({ reserve, action, onLifted, onStill }) {
 // (si raté), ou éditer manuellement le texte transcrit avant de garder.
 // Aucun audio brut n'est stocké — seul le texte transcrit est gardé.
 function PhotoSheet({ onClose, onSubmit }) {
-  const fileRef = useRef(null);
+  const fileRef = useRef(null);     // caméra (capture)
+  const galleryRef = useRef(null);  // galerie de l'appareil
   const [photo, setPhoto] = useState(null);
   const [annotation, setAnnotation] = useState("");
   const [voiceAnnotated, setVoiceAnnotated] = useState(false);
@@ -784,11 +810,8 @@ function PhotoSheet({ onClose, onSubmit }) {
     },
   });
 
-  // Auto-open file picker à l'ouverture — l'archi a déjà tap "Photo",
-  // pas la peine de demander un second tap pour ouvrir la caméra.
-  useEffect(() => {
-    fileRef.current?.click();
-  }, []);
+  // On ne force plus l'ouverture caméra : l'archi choisit d'abord
+  // « Prendre une photo » (caméra) ou « Depuis la galerie ».
 
   // Auto-start dictée dès que la photo est capturée. Court délai pour
   // laisser le navigateur peindre la preview avant de demander le mic.
@@ -859,15 +882,17 @@ function PhotoSheet({ onClose, onSubmit }) {
   return (
     <SheetWrapper title="Photo + annotation vocale" onClose={onClose}>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFile} />
+      <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFile} />
       {!photo ? (
-        <div style={{ padding: 30, textAlign: "center", color: TX3, fontSize: 13 }}>
-          Ouverture de la caméra…
-          <div style={{ marginTop: 12 }}>
-            <button onClick={() => fileRef.current?.click()}
-              style={{ padding: "10px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              Choisir une photo
-            </button>
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingBottom: 4 }}>
+          <button onClick={() => fileRef.current?.click()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 10px", border: "1px solid #EFEDEB", borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ width: 52, height: 52, borderRadius: 15, background: "#FDF6F1", color: "#A04C20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="camera" size={26} color="#A04C20" /></span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: TX, textAlign: "center" }}>Prendre une photo</span>
+          </button>
+          <button onClick={() => galleryRef.current?.click()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 10px", border: "1px solid #EFEDEB", borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ width: 52, height: 52, borderRadius: 15, background: "#EFF6FF", color: "#1E40AF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="image" size={26} color="#1E40AF" /></span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: TX, textAlign: "center" }}>Depuis la galerie</span>
+          </button>
         </div>
       ) : (
         <>
@@ -965,6 +990,7 @@ function PhotoSheet({ onClose, onSubmit }) {
 function VoiceSheet({ onClose, onSubmit, showToast }) {
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [level, setLevel] = useState(0); // niveau audio live (0..1) pour l'anim
 
   const recorder = useWhisperRecorder({
     onResult: (text) => {
@@ -977,6 +1003,30 @@ function VoiceSheet({ onClose, onSubmit, showToast }) {
     },
   });
 
+  // Analyse le flux micro en direct pour faire « respirer » le halo autour
+  // du bouton au rythme de la voix — feedback clair que ça enregistre.
+  useEffect(() => {
+    if (!recorder.isRecording || !recorder.stream) { setLevel(0); return; }
+    let ctx, raf, analyser;
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaStreamSource(recorder.stream);
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+        setLevel(Math.min(1, Math.sqrt(sum / data.length) * 3.2));
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch { /* audio context indisponible : pas d'anim, le reste marche */ }
+    return () => { if (raf) cancelAnimationFrame(raf); if (ctx) ctx.close().catch(() => {}); };
+  }, [recorder.isRecording, recorder.stream]);
+
   const submit = () => {
     if (!transcript.trim()) return;
     onSubmit(transcript, "voice");
@@ -985,23 +1035,33 @@ function VoiceSheet({ onClose, onSubmit, showToast }) {
 
   return (
     <SheetWrapper title="Note vocale" onClose={onClose}>
-      <div style={{ textAlign: "center", padding: "20px 0" }}>
-        <button
-          onClick={recorder.isRecording ? recorder.stop : recorder.start}
-          style={{
-            width: 80, height: 80, borderRadius: "50%",
-            border: "none", background: recorder.isRecording ? RD : AC,
-            color: "#fff", cursor: "pointer", fontFamily: "inherit",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            boxShadow: recorder.isRecording ? `0 0 0 6px ${RD}33` : `0 4px 12px rgba(0,0,0,0.15)`,
-            transition: "all 0.2s",
-          }}
-        >
-          <Ico name="mic" size={32} color="#fff" />
-        </button>
+      <div style={{ textAlign: "center", padding: "16px 0 4px" }}>
+        <div style={{ position: "relative", width: 150, height: 150, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {recorder.isRecording && (
+            <>
+              <span style={{ position: "absolute", width: 80, height: 80, borderRadius: "50%", background: `${RD}20`, transform: `scale(${1 + level * 0.85})`, transition: "transform 0.09s ease-out", pointerEvents: "none" }} />
+              <span style={{ position: "absolute", width: 80, height: 80, borderRadius: "50%", background: `${RD}14`, transform: `scale(${1.1 + level * 1.55})`, transition: "transform 0.14s ease-out", pointerEvents: "none" }} />
+            </>
+          )}
+          <button
+            onClick={recorder.isRecording ? recorder.stop : recorder.start}
+            aria-label={recorder.isRecording ? "Arrêter l'enregistrement" : "Démarrer l'enregistrement"}
+            style={{
+              position: "relative",
+              width: 80, height: 80, minHeight: 80, borderRadius: "50%",
+              border: "none", background: recorder.isRecording ? RD : AC,
+              color: "#fff", cursor: "pointer", fontFamily: "inherit",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              boxShadow: recorder.isRecording ? `0 6px 18px ${RD}55` : `0 4px 12px rgba(0,0,0,0.15)`,
+              transition: "background 0.2s",
+            }}
+          >
+            <Ico name="mic" size={32} color="#fff" />
+          </button>
+        </div>
         <div style={{ fontSize: 12, color: TX2, marginTop: 12, fontWeight: 600 }}>
           {recorder.isTranscribing ? "Transcription en cours…"
-            : recorder.isRecording ? "Tap pour arrêter"
+            : recorder.isRecording ? "Tap pour arrêter · ça enregistre…"
             : "Tap pour démarrer l'enregistrement"}
         </div>
       </div>
@@ -1231,9 +1291,9 @@ function SheetWrapper({ title, onClose, children }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: TX }}>{title}</div>
-          <button onClick={onClose} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
-            <Ico name="x" size={14} color={TX2} />
+          <div style={{ fontSize: 17, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>{title}</div>
+          <button onClick={onClose} aria-label="Fermer" style={{ width: 34, height: 34, minHeight: 34, flexShrink: 0, background: WH, border: `1px solid ${SBB}`, cursor: "pointer", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: TX2 }}>
+            <Ico name="x" size={16} color={TX2} />
           </button>
         </div>
         {children}
