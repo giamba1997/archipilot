@@ -1007,15 +1007,16 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
       style={{
         position: "fixed", bottom: bottomOffset, right: isMobile ? 16 : 24, zIndex: 997,
         width: 56, height: 56, borderRadius: "50%",
-        // Desktop : FAB terracotta dégradé (Direction D). Mobile : neutre TX
-        // pour ne pas entrer en conflit avec le FAB Visite central de la bottom bar.
-        background: isMobile ? TX : `linear-gradient(135deg, #D17A47, ${AC})`,
+        // FAB assistant terracotta dégradé (la marque ✦), mobile + desktop.
+        // (L'ancien fond neutre mobile servait à le distinguer du FAB Visite
+        // central, désormais retiré de la tab bar à 3 destinations.)
+        background: `linear-gradient(135deg, #D17A47, ${AC})`,
         color: "#fff", border: "none",
         cursor: "pointer", fontFamily: "inherit",
         display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: open
           ? "0 4px 12px rgba(28,25,23,0.25)"
-          : isMobile ? "0 6px 20px rgba(28,25,23,0.30), 0 2px 6px rgba(0,0,0,0.10)" : "0 8px 24px rgba(184,92,44,0.40), 0 2px 6px rgba(0,0,0,0.10)",
+          : "0 8px 24px rgba(184,92,44,0.40), 0 2px 6px rgba(0,0,0,0.10)",
         transition: "all 0.18s ease",
         transform: open ? "scale(0.92)" : "scale(1)",
       }}
