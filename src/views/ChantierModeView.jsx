@@ -9,7 +9,7 @@ import { isEnabled } from "../constants/featureFlags";
 import { Ico } from "../components/ui";
 import { uploadPhoto, getPhotoUrl } from "../db";
 import { useWhisperRecorder } from "../hooks/useWhisperRecorder";
-import { useConversationRecorder, transcribeAudioBlob } from "../hooks/useConversationRecorder";
+import { transcribeAudioBlob } from "../hooks/useConversationRecorder";
 import { fetchWeatherAt, getCurrentPositionSafe, formatWeatherShort } from "../utils/weather";
 import {
   getActiveVisit,
@@ -65,7 +65,7 @@ function fmtDur(s) {
   return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 }
 
-export function ChantierModeView({ project, setProjects, profile, onBack, showToast }) {
+export function ChantierModeView({ project, setProjects, profile, onBack, showToast, meetingRec, meetingProjectId, setMeetingProjectId, meetingMinimized, setMeetingMinimized, meetingRecError }) {
   const [visit, setVisit] = useState(() => {
     const existing = getActiveVisit();
     if (existing && String(existing.projectId) === String(project.id) && !existing.endedAt) {
@@ -133,13 +133,22 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   const onRequestMeeting = () => setShowRgpdModal(true);
   const onConfirmMeeting = () => {
     setMeetingPaused(false);
+    setMeetingProjectId?.(project.id);   // marque la réunion comme active (bannière globale)
+    setMeetingMinimized?.(false);
     setVisit(v => setPhase(v, "reunion"));
     setShowRgpdModal(false);
   };
+  // Terminer la réunion : on repasse en inspection (l'audio reste pour la
+  // transcription en fin de visite) et on retire la bannière.
   const onResumeInspection = () => {
     setMeetingPaused(false);
+    setMeetingProjectId?.(null);
+    setMeetingMinimized?.(false);
     setVisit(v => setPhase(v, "inspection"));
   };
+  // Réduire : on masque l'overlay mais l'enregistrement CONTINUE (la
+  // bannière globale prend le relais). Pas de pause.
+  const onMinimizeMeeting = () => setMeetingMinimized?.(true);
   // Pause/Reprise manuelle depuis l'overlay réunion.
   const onToggleMeetingPause = () => {
     if (conv.isPaused) { setMeetingPaused(false); conv.resume(); }
@@ -153,15 +162,10 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // l'archi repasse en inspection, resume au retour. Stop à la fin
   // de la visite via onEndVisit qui récupère le blob et déclenche
   // la transcription Whisper.
-  const [recorderErrorMsg, setRecorderErrorMsg] = useState("");
   const [transcribing, setTranscribing] = useState(false);
-  const conv = useConversationRecorder({
-    onError: (code) => {
-      if (code === "micDenied") setRecorderErrorMsg("Accès micro refusé — la réunion ne sera pas enregistrée. Tu peux toujours saisir les décisions manuellement.");
-      else if (code === "noMic") setRecorderErrorMsg("Aucun micro détecté — la réunion ne sera pas enregistrée.");
-      else setRecorderErrorMsg("Enregistrement audio indisponible — la réunion continue sans transcription.");
-    },
-  });
+  // Recorder hissé dans App (survit à la navigation). Erreur micro idem.
+  const conv = meetingRec;
+  const recorderErrorMsg = meetingRecError;
 
   // Garde-fou audio (limite POC connue : pas de chunking, le blob audio en
   // mémoire est perdu si la page est rechargée/fermée pendant l'enregistrement).
@@ -580,13 +584,14 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           onConfirm={onConfirmMeeting}
         />
       )}
-      {phase === "reunion" && (
+      {String(meetingProjectId) === String(project.id) && !meetingMinimized && (
         <MeetingRecorderOverlay
           project={project}
           conv={conv}
           presents={visit.presents}
           onTogglePresent={onTogglePresent}
           onTogglePause={onToggleMeetingPause}
+          onMinimize={onMinimizeMeeting}
           onStop={onResumeInspection}
           onPhoto={() => setActiveSheet("photo")}
           recorderError={recorderErrorMsg}
@@ -602,7 +607,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 // `conv` déjà actif (duration + audioLevel live). Pause/Reprise, Stop
 // (= revient en inspection, l'audio reste pour la transcription finale),
 // Ajout photo. Carte de continuité desktop + présents.
-function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onTogglePause, onStop, onPhoto, recorderError, nextPv }) {
+function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onTogglePause, onMinimize, onStop, onPhoto, recorderError, nextPv }) {
   const [confirmStop, setConfirmStop] = useState(false);
   const micFailed = !!(conv.error || recorderError) && !conv.isRecording;
   const namedPresents = (presents || []).filter(p => p.name && String(p.name).trim());
@@ -615,10 +620,10 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
     <div style={{ position: "fixed", inset: 0, zIndex: 250, background: "#FCFBFA", display: "flex", flexDirection: "column", paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))", fontFamily: "inherit" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(20px + env(safe-area-inset-top, 0px)) 8px 10px" }}>
-        <button onClick={onStop} aria-label="Retour à la visite" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
-        <div>
+        <button onClick={onMinimize} aria-label="Réduire (l'enregistrement continue)" title="Réduire — l'enregistrement continue" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Réunion · {project.name}</div>
-          <div style={{ fontSize: 11, color: TX3 }}>PV n°{nextPv} en préparation</div>
+          <div style={{ fontSize: 11, color: TX3 }}>PV n°{nextPv} en préparation · l'enregistrement continue si tu réduis</div>
         </div>
       </div>
 

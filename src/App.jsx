@@ -39,6 +39,7 @@ import { loadProjects as dbLoadProjects, saveProjects as dbSaveProjects, loadPro
 import { useInviteToken } from "./hooks/useInviteToken";
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext";
 import { useIsMobile } from "./hooks/useIsMobile";
+import { useConversationRecorder } from "./hooks/useConversationRecorder";
 import useUIStore from "./stores/useUIStore";
 
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, BG, WH, RD, GR, SP, FS, LH, RAD, BL, BLB, OR, ORB, VI, VIB, TE, TEB, PU, PUB, GRY, GRYB, REDBG, REDBRD, GRBG, DIS, DIST, BR, BRB } from "./constants/tokens";
@@ -291,6 +292,33 @@ export default function App() {
   // Intention « démarrer une visite » : depuis l'accueil mobile, on choisit
   // d'abord un chantier (liste) puis on entre directement en Mode Chantier.
   const [pendingVisit, setPendingVisit] = useState(false);
+
+  // ── Enregistrement réunion hissé au niveau App ──
+  // Le recorder vit ici (pas dans ChantierModeView) pour SURVIVRE à la
+  // navigation : l'archi peut revenir à l'accueil, l'enregistrement
+  // continue. Une bannière globale (mobile + desktop) le rappelle et
+  // ramène d'un clic à l'écran d'enregistrement.
+  const [meetingProjectId, setMeetingProjectId] = useState(null);
+  const [meetingMinimized, setMeetingMinimized] = useState(false);
+  const [meetingRecError, setMeetingRecError] = useState("");
+  const meetingRec = useConversationRecorder({
+    onError: (code) => setMeetingRecError(
+      code === "micDenied" ? "Accès micro refusé — autorise le micro et réessaie."
+      : code === "noMic" ? "Aucun micro détecté."
+      : "Enregistrement audio indisponible."
+    ),
+  });
+  // Timer de la bannière (re-render chaque seconde tant que ça enregistre).
+  const [, setMeetingTick] = useState(0);
+  useEffect(() => {
+    if (!meetingRec.isRecording) return;
+    const i = setInterval(() => setMeetingTick(t => t + 1), 1000);
+    return () => clearInterval(i);
+  }, [meetingRec.isRecording]);
+  const meetingProject = meetingProjectId ? projects.find(p => String(p.id) === String(meetingProjectId)) : null;
+  const meetingOnScreen = view === "chantier" && String(activeId) === String(meetingProjectId) && !meetingMinimized;
+  const showMeetingBanner = meetingRec.isRecording && meetingProjectId && !meetingOnScreen;
+  const openMeeting = () => { if (meetingProjectId) { setActiveId(meetingProjectId); setMeetingMinimized(false); setView("chantier"); } };
   const [installPrompt, setInstallPrompt] = useState(null);
   const [pvStartMode, setPvStartMode] = useState(null); // "write" | "dictate" — passed to NoteEditor
   const [pvRecipients, setPvRecipients] = useState([]); // [] = tous
@@ -1714,7 +1742,7 @@ export default function App() {
           {view !== "profile" && project && view === "permits" && isEnabled("permits") && <PermitsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "quotes" && isEnabled("quotes") && <QuotesView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
           {view !== "profile" && project && view === "reports" && isEnabled("progressReports") && <ProgressReportsView project={project} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
-          {view !== "profile" && project && view === "chantier" && <ChantierModeView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} />}
+          {view !== "profile" && project && view === "chantier" && <ChantierModeView project={project} setProjects={setProjects} profile={profile} showToast={showToast} onBack={() => setView("overview")} meetingRec={meetingRec} meetingProjectId={meetingProjectId} setMeetingProjectId={setMeetingProjectId} meetingMinimized={meetingMinimized} setMeetingMinimized={setMeetingMinimized} meetingRecError={meetingRecError} />}
           {view === "planningDashboard" && isEnabled("planning") && <PlanningDashboard projects={projects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} onSwitchToTimesheet={() => setView("timesheet")} />}
           {view === "mapDashboard" && isEnabled("map") && <MapDashboardView projects={projects} setProjects={setProjects} onBack={() => setView("overview")} onSelectProject={(id) => { setActiveId(id); setView("overview"); }} />}
           {view === "mobileHome" && (
@@ -2882,6 +2910,30 @@ Règles :
       />
       {/* FAB IA masqué sur les vues plein écran focalisées (composition PV +
           Mode Chantier) : il chevauchait les footers et l'IA est ailleurs. */}
+      {/* Bannière globale « Réunion en cours » — survit à la navigation,
+          ramène d'un clic à l'écran d'enregistrement (mobile + desktop). */}
+      {showMeetingBanner && (
+        <button
+          onClick={openMeeting}
+          aria-label="Revenir à l'enregistrement de la réunion"
+          style={{
+            position: "fixed", top: "calc(10px + env(safe-area-inset-top, 0px))", left: "50%", transform: "translateX(-50%)",
+            zIndex: 1200, maxWidth: "calc(100vw - 24px)",
+            display: "inline-flex", alignItems: "center", gap: 10,
+            height: 44, padding: "0 16px 0 14px", borderRadius: 999,
+            background: "#DC2626", color: "#fff", border: "none",
+            boxShadow: "0 6px 20px rgba(220,38,38,0.4)", cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#fff", animation: "pulseDot 1.4s ease-in-out infinite", flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+            {meetingRec.isPaused ? "Réunion en pause" : "Réunion en cours"}
+            <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 8, opacity: 0.9 }}>{`${String(Math.floor(meetingRec.duration / 60)).padStart(2, "0")}:${String(meetingRec.duration % 60).padStart(2, "0")}`}</span>
+          </span>
+          {meetingProject && <span style={{ fontSize: 12, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 120 }}>· {meetingProject.name}</span>}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" style={{ flexShrink: 0 }}><polyline points="9 6 15 12 9 18" /></svg>
+        </button>
+      )}
       {!["notes", "result", "chantier"].includes(view) && <ChatLauncher open={chatOpen} onToggle={toggleChat} isMobile={isMobile} />}
       <ChatModal
         open={chatOpen}
