@@ -172,6 +172,36 @@ const titleForConversation = (msgs) => {
   return `Conversation du ${new Date().toLocaleDateString("fr-BE")}`;
 };
 
+// ── Historique : groupement par date (handoff_mobile) ──
+function archiveBucket(iso) {
+  const d = new Date(iso), now = new Date();
+  const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
+  if (d >= startToday) return "Aujourd'hui";
+  if (now - d < 7 * 86400000) return "Cette semaine";
+  return "Plus tôt";
+}
+function archiveTime(iso) {
+  const d = new Date(iso), now = new Date();
+  const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
+  if (d >= startToday) return d.toLocaleTimeString("fr-BE", { hour: "2-digit", minute: "2-digit" });
+  if (now - d < 7 * 86400000) return d.toLocaleDateString("fr-BE", { weekday: "short" });
+  return d.toLocaleDateString("fr-BE", { day: "numeric", month: "short" });
+}
+function archiveIcon(title) {
+  const t = (title || "").toLowerCase();
+  if (/réserve|reserve|critique|défaut/.test(t)) return { icon: "alert", bg: "#FEF2F2", fg: "#991B1B" };
+  if (/facture|relance|devis|paiement|honoraire/.test(t)) return { icon: "file", bg: "#F0FDF4", fg: "#166534" };
+  if (/peb|norme|permis|loi|réglement|reglement|rgpt/.test(t)) return { icon: "file", bg: "#EFF6FF", fg: "#1E40AF" };
+  return { icon: "file", bg: "#FDF6F1", fg: "#A04C20" };
+}
+// Extrait de la dernière réponse de l'assistant (aperçu).
+function archiveExtract(a) {
+  const am = [...(a.messages || [])].reverse().find(m => m.role === "assistant" && m.content);
+  if (!am) return "";
+  const t = String(am.content).replace(/\s+/g, " ").trim();
+  return t.length > 52 ? `« ${t.slice(0, 52)}… »` : `« ${t} »`;
+}
+
 // ChatModal — fenêtre conversationnelle qui flotte au-dessus du contenu.
 // Reçoit les data du parent pour construire le contexte (stuff context: pas
 // d'embeddings, pas d'indexation — l'utilisateur a sa data en mémoire et on
@@ -617,37 +647,33 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
                   Aucune conversation archivée pour le moment.<br />
                   Utilise « Nouveau sujet » pour archiver la conversation actuelle.
                 </div>
-              ) : (
-                archives.map(a => (
-                  <div
-                    key={a.id}
-                    style={{
-                      display: "flex", alignItems: "flex-start", gap: 10,
-                      padding: "10px 12px", background: WH, border: `1px solid ${SBB}`, borderRadius: 8,
-                      cursor: "pointer", transition: "border-color 0.12s",
-                    }}
-                    onClick={() => handleLoadArchive(a.id)}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = ACL2; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = SBB; }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: TX, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {a.title}
-                      </div>
-                      <div style={{ fontSize: 10, color: TX3, marginTop: 2 }}>
-                        {a.messages.length} message{a.messages.length > 1 ? "s" : ""} · {new Date(a.createdAt).toLocaleDateString("fr-BE", { day: "numeric", month: "short" })}
-                      </div>
+              ) : (() => {
+                const order = ["Aujourd'hui", "Cette semaine", "Plus tôt"];
+                const groups = {};
+                archives.forEach(a => { const b = archiveBucket(a.createdAt); (groups[b] = groups[b] || []).push(a); });
+                return order.filter(b => groups[b]?.length).map(b => (
+                  <div key={b} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 2px 8px" }}>{b}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {groups[b].map(a => { const ic = archiveIcon(a.title); return (
+                        <div key={a.id} onClick={() => handleLoadArchive(a.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, background: WH, border: "1px solid #EFEDEB", borderRadius: 14, cursor: "pointer" }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: ic.bg, color: ic.fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Ico name={ic.icon} size={17} color={ic.fg} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.title}</div>
+                            <div style={{ fontSize: 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{archiveExtract(a)}</div>
+                          </div>
+                          <span style={{ fontSize: 11, color: "#C7C2BD", flexShrink: 0 }}>{archiveTime(a.createdAt)}</span>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteArchive(a.id); }} aria-label="Supprimer" style={{ width: 24, height: 24, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4, flexShrink: 0 }}>
+                            <Ico name="trash" size={11} color={TX3} />
+                          </button>
+                        </div>
+                      ); })}
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteArchive(a.id); }}
-                      aria-label="Supprimer cette archive"
-                      style={{ width: 24, height: 24, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4 }}
-                    >
-                      <Ico name="trash" size={10} color={TX3} />
-                    </button>
                   </div>
-                ))
-              )}
+                ));
+              })()}
             </div>
           ) : empty ? (
             // Empty state — accueil v2 : greeting + intro + carte insight + suggestions
