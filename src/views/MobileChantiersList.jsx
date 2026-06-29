@@ -67,10 +67,17 @@ function signal(p) {
   return { txt: "À jour · rien d'urgent", icon: "check", bg: SGB, fg: GR };
 }
 
+// Type de projet (mockup) : "Permis" si le projet est en phase permis,
+// sinon "Chantier". Pilote le badge de carte, la jauge et les filtres.
+function projectType(p) {
+  if (p.statusId === "permit") return { id: "permit", label: "Permis", color: "#C0791A", bg: "#F6EFE2", border: "#E8D7B0", fg: "#8A6A1E" };
+  return { id: "chantier", label: "Chantier", color: AC, bg: "#FDF6F1", border: "#F0DCCB", fg: "#A04C20" };
+}
+
 const FILTERS = [
-  { id: "active",   label: "Actifs",   test: p => !p.archived },
-  { id: "all",      label: "Tous",     test: () => true },
-  { id: "archived", label: "Archivés", test: p => p.archived },
+  { id: "all",      label: "Tous",     test: p => !p.archived },
+  { id: "chantier", label: "Chantier", dot: AC,        test: p => !p.archived && projectType(p).id === "chantier" },
+  { id: "permit",   label: "Permis",   dot: "#C0791A", test: p => !p.archived && projectType(p).id === "permit" },
 ];
 
 export function MobileChantiersList({
@@ -78,10 +85,11 @@ export function MobileChantiersList({
   onSelectProject,
   onBack,
   onOpenNewProject,
+  onOpenMap,
   pickToVisit = false,
 }) {
   const [query, setQuery] = useState("");
-  const [filterId, setFilterId] = useState("active");
+  const [filterId, setFilterId] = useState("all");
 
   const filtered = useMemo(() => {
     const filter = FILTERS.find(f => f.id === filterId);
@@ -121,9 +129,9 @@ export function MobileChantiersList({
             </button>
           )}
           <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>{pickToVisit ? "Choisir un chantier" : "Chantiers"}</h1>
-          {!pickToVisit && onOpenNewProject && (
-            <button onClick={onOpenNewProject} aria-label="Nouveau projet" title="Nouveau projet" style={{ background: WH, color: TX2, border: "1px solid #EFEDEB", borderRadius: RAD.full, width: 40, height: 40, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Ico name="plus" size={18} color={TX2} />
+          {!pickToVisit && onOpenMap && (
+            <button onClick={onOpenMap} aria-label="Carte des chantiers" title="Carte des chantiers" style={{ background: WH, color: TX2, border: "1px solid #EFEDEB", borderRadius: RAD.full, width: 40, height: 40, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Ico name="mappin" size={19} color={TX2} />
             </button>
           )}
         </div>
@@ -140,9 +148,10 @@ export function MobileChantiersList({
             onChange={e => setQuery(e.target.value)}
             aria-label="Rechercher"
             style={{
-              width: "100%", padding: "10px 36px 10px 38px",
-              border: `1px solid ${SBB}`, borderRadius: RAD.md,
-              fontSize: 14, fontFamily: "inherit", background: SB,
+              width: "100%", padding: "11px 36px 11px 38px",
+              border: "none", borderRadius: 12,
+              fontSize: 15, fontFamily: "inherit", background: "#F1ECE8",
+              color: TX,
               outline: "none",
               WebkitAppearance: "none",
               boxSizing: "border-box",
@@ -155,25 +164,30 @@ export function MobileChantiersList({
           )}
         </div>
 
-        {/* Filtres tactiles */}
-        <div style={{ display: "flex", gap: 6 }}>
-          {FILTERS.map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFilterId(f.id)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: RAD.full,
-                border: `1px solid ${filterId === f.id ? AC : SBB}`,
-                background: filterId === f.id ? AC : WH,
-                color: filterId === f.id ? "#fff" : TX2,
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-                cursor: "pointer",
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
+        {/* Filtres par type (Tous · N / Chantier / Permis) */}
+        <div style={{ display: "flex", gap: 7, overflowX: "auto" }}>
+          {FILTERS.map(f => {
+            const active = filterId === f.id;
+            const count = f.id === "all" ? (projects || []).filter(p => !p.archived).length : null;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilterId(f.id)}
+                style={{
+                  flexShrink: 0, height: 32, padding: "0 14px",
+                  borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6,
+                  border: `1px solid ${active ? "#E8B58E" : "#E7E5E4"}`,
+                  background: active ? "#FDF6F1" : WH,
+                  color: active ? "#A04C20" : "#78716C",
+                  fontSize: 13, fontWeight: active ? 600 : 500, fontFamily: "inherit",
+                  cursor: "pointer", whiteSpace: "nowrap",
+                }}
+              >
+                {f.dot && <span style={{ width: 7, height: 7, borderRadius: 999, background: f.dot }} />}
+                {f.label}{count != null ? ` · ${count}` : ""}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -188,6 +202,7 @@ export function MobileChantiersList({
         )}
         {filtered.map(p => {
           const status = getStatus(p.statusId);
+          const type = projectType(p);
           const sig = signal(p);
           const location = [p.city, p.client].filter(Boolean).join(" · ");
           return (
@@ -196,11 +211,11 @@ export function MobileChantiersList({
               onClick={() => onSelectProject?.(p.id)}
               style={{ display: "flex", flexDirection: "column", textAlign: "left", padding: 16, border: "1px solid #EFEDEB", background: WH, borderRadius: 16, cursor: "pointer", fontFamily: "inherit", width: "100%" }}
             >
-              {/* Badge statut + jauge de phase */}
+              {/* Badge type (Chantier / Permis) + jauge de phase */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, width: "100%" }}>
-                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: status.bg, color: status.color, fontWeight: 600 }}>{status.label}</span>
+                <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 999, background: type.bg, color: type.fg, border: `1px solid ${type.border}`, fontWeight: 600 }}>{type.label}</span>
                 <span style={{ marginLeft: "auto", display: "flex", gap: 3 }}>
-                  {Array.from({ length: STATUS_TOTAL_STEPS }, (_, i) => <span key={i} style={{ width: 11, height: 4, borderRadius: 999, background: i < status.step ? status.color : SBB }} />)}
+                  {Array.from({ length: STATUS_TOTAL_STEPS }, (_, i) => <span key={i} style={{ width: 11, height: 4, borderRadius: 999, background: i < status.step ? type.color : SBB }} />)}
                 </span>
               </div>
               <div style={{ fontSize: 17, fontWeight: 700, color: TX, letterSpacing: "-0.3px", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>

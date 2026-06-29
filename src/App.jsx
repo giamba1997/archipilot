@@ -1739,6 +1739,7 @@ export default function App() {
               onSelectProject={(id) => { setActiveId(id); if (pendingVisit) { setPendingVisit(false); setView("chantier"); } else { setView("overview"); } }}
               onBack={() => { setPendingVisit(false); setView(isMobile ? "mobileHome" : "overview"); }}
               onOpenNewProject={() => setModal("new")}
+              onOpenMap={isEnabled("map") ? () => setView("mapDashboard") : null}
             />
           )}
           {view === "notifs" && (
