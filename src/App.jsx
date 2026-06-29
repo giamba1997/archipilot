@@ -73,6 +73,7 @@ import { DashboardHome } from "./views/DashboardHome";
 import { CommandPalette } from "./components/CommandPalette";
 import { MobilePvDetail } from "./views/MobilePvDetail";
 import { MobileProjectConsult } from "./views/MobileProjectConsult";
+import { MobileProfile } from "./views/MobileProfile";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { PvComposer } from "./pages/PvComposer";
 import { Account } from "./pages/Account";
@@ -269,6 +270,7 @@ export default function App() {
   const galleryInputRef = useRef(null);
   const [modal, setModal] = useState(null);
   const [modalData, setModalData] = useState(null);
+  const [mobileProfileEdit, setMobileProfileEdit] = useState(false); // mobile : drill-in édition profil
   const [upgradeFeature, setUpgradeFeature] = useState(null);
   const [newP, setNewP] = useState({ name: "", client: "", contractor: "", street: "", number: "", postalCode: "", city: "", country: "Belgique", desc: "", startDate: "", endDate: "", nextMeeting: "", recurrence: "none", statusId: "sketch", postTemplate: "general", pvTemplate: "standard", remarkNumbering: "none", projectTemplate: "blank",
     // Brouillon de dossier permis — créé en DB seulement si statusId === "permit"
@@ -1503,10 +1505,17 @@ export default function App() {
           )}
           {view === "profile" && (
             isMobile ? (
-              <div style={{ padding: "20px 28px" }}>
-                {profileSaved && <div style={{ padding: "10px 16px", background: "#EAF3DE", borderRadius: 8, color: GR, fontSize: 13, marginBottom: 16, fontWeight: 500 }}>Profil enregistré !</div>}
-                <ProfileView profile={profile} onSave={saveProfile} />
-              </div>
+              mobileProfileEdit ? (
+                <div style={{ padding: "12px 16px 28px" }}>
+                  <button onClick={() => setMobileProfileEdit(false)} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, color: TX2, padding: "4px 0 12px" }}>
+                    <Ico name="back" size={16} color={TX2} /> Profil
+                  </button>
+                  {profileSaved && <div style={{ padding: "10px 16px", background: "#EAF3DE", borderRadius: 8, color: GR, fontSize: 13, marginBottom: 16, fontWeight: 500 }}>Profil enregistré !</div>}
+                  <ProfileView profile={profile} onSave={saveProfile} />
+                </div>
+              ) : (
+                <MobileProfile profile={profile} onManage={() => setMobileProfileEdit(true)} />
+              )
             ) : (
               <Account profile={profile} onSave={saveProfile} />
             )
