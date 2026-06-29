@@ -1097,21 +1097,21 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
     r.start();
   };
 
-  const LBL = { fontSize: 12, fontWeight: 600, color: "#44403C", marginBottom: 7 };
+  const LBL = { fontSize: 12, fontWeight: 600, color: "#44403C", marginBottom: 5 };
   const ROW_INPUT = { width: "100%", border: "none", background: "transparent", padding: "4px 0", fontSize: 14, fontWeight: 500, color: TX, fontFamily: "inherit", outline: "none" };
-  const rowIcon = (icon, bg, fg) => <span style={{ width: 34, height: 34, borderRadius: 9, background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name={icon} size={17} color={fg} /></span>;
+  const rowIcon = (icon, bg, fg) => <span style={{ width: 30, height: 30, borderRadius: 9, background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name={icon} size={17} color={fg} /></span>;
 
   return (
     <SheetWrapper title="Nouvelle réserve" onClose={onClose}>
       {/* Photos (capture d'abord) */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
         {form.photos.map((p, i) => (
           <div key={i} style={{ position: "relative" }}>
-            <img src={p} alt="" style={{ width: 68, height: 68, borderRadius: 12, objectFit: "cover", border: `1px solid ${SBB}` }} />
+            <img src={p} alt="" style={{ width: 54, height: 54, borderRadius: 12, objectFit: "cover", border: `1px solid ${SBB}` }} />
             <button onClick={() => setForm(f => ({ ...f, photos: f.photos.filter((_, j) => j !== i) }))} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, minHeight: 22, borderRadius: "50%", background: BR, border: "2px solid #fff", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="x" size={11} color="#fff" /></button>
           </div>
         ))}
-        <button onClick={() => fileRef.current?.click()} style={{ width: 68, height: 68, borderRadius: 12, border: `1.5px dashed ${SBB}`, background: "#FCFBFA", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "#A04C20", fontFamily: "inherit" }}>
+        <button onClick={() => fileRef.current?.click()} style={{ width: 54, height: 54, borderRadius: 12, border: `1.5px dashed ${SBB}`, background: "#FCFBFA", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "#A04C20", fontFamily: "inherit" }}>
           <Ico name="camera" size={20} color="#A04C20" /><span style={{ fontSize: 10, fontWeight: 600 }}>Photo</span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={addPhoto} />
@@ -1119,22 +1119,22 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
 
       {/* Description + dictée */}
       <div style={LBL}>Description</div>
-      <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Décris le défaut constaté…" style={{ width: "100%", border: "1px solid #E7E5E4", borderRadius: 12, background: WH, padding: 13, fontSize: 14, color: TX, lineHeight: 1.5, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+      <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Décris le défaut constaté…" style={{ width: "100%", border: "1px solid #E7E5E4", borderRadius: 12, background: WH, padding: 13, fontSize: 14, color: TX, lineHeight: 1.5, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
       <button onClick={dictate} style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, background: "none", border: "none", color: "#A04C20", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
         <Ico name="mic" size={14} color="#A04C20" />{dictating ? "Écoute…" : "Dicter la description"}
       </button>
 
       {/* Gravité (gros boutons) */}
-      <div style={{ ...LBL, marginTop: 18 }}>Gravité</div>
+      <div style={{ ...LBL, marginTop: 14 }}>Gravité</div>
       <div style={{ display: "flex", gap: 7 }}>
         {RESERVE_SEVERITIES.map(s => { const a = form.severity === s.id; return (
-          <button key={s.id} onClick={() => setForm(f => ({ ...f, severity: s.id }))} style={{ flex: 1, height: 40, minHeight: 40, borderRadius: 10, border: `1.5px solid ${a ? s.color : "#E7E5E4"}`, background: a ? s.bg : WH, color: a ? s.color : "#78716C", fontSize: 13, fontWeight: a ? 600 : 500, cursor: "pointer", fontFamily: "inherit" }}>{s.label}</button>
+          <button key={s.id} onClick={() => setForm(f => ({ ...f, severity: s.id }))} style={{ flex: 1, height: 36, minHeight: 36, borderRadius: 10, border: `1.5px solid ${a ? s.color : "#E7E5E4"}`, background: a ? s.bg : WH, color: a ? s.color : "#78716C", fontSize: 13, fontWeight: a ? 600 : 500, cursor: "pointer", fontFamily: "inherit" }}>{s.label}</button>
         ); })}
       </div>
 
       {/* Localisation · responsable · échéance (lignes à icônes) */}
-      <div style={{ marginTop: 18, background: WH, border: "1px solid #EFEDEB", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+      <div style={{ marginTop: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 12px" }}>
           {rowIcon("mappin", "#FDF6F1", "#A04C20")}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, color: TX3 }}>Localisation</div>
@@ -1142,7 +1142,7 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
           </div>
         </div>
         <div style={{ height: 1, background: "#F5F2EF", margin: "0 14px" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 12px" }}>
           {rowIcon("users", "#F5F5F4", "#78716C")}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, color: TX3 }}>Responsable</div>
@@ -1151,7 +1151,7 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
           </div>
         </div>
         <div style={{ height: 1, background: "#F5F2EF", margin: "0 14px" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 12px" }}>
           {rowIcon("calendar", "#F5F5F4", "#78716C")}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, color: TX3 }}>Échéance</div>
@@ -1161,7 +1161,7 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
       </div>
 
       {/* CTA pleine largeur (comme le mockup) */}
-      <button onClick={() => onSubmit(form)} disabled={!canSubmit} style={{ width: "100%", height: 50, marginTop: 18, border: "none", borderRadius: 14, background: canSubmit ? AC : DIS, color: canSubmit ? "#fff" : DIST, fontSize: 15, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: canSubmit ? "0 8px 20px rgba(184,92,44,0.25)" : "none" }}>Ajouter la réserve</button>
+      <button onClick={() => onSubmit(form)} disabled={!canSubmit} style={{ width: "100%", height: 48, marginTop: 14, border: "none", borderRadius: 14, background: canSubmit ? AC : DIS, color: canSubmit ? "#fff" : DIST, fontSize: 15, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: canSubmit ? "0 8px 20px rgba(184,92,44,0.25)" : "none" }}>Ajouter la réserve</button>
     </SheetWrapper>
   );
 }
@@ -1241,7 +1241,7 @@ function SheetWrapper({ title, onClose, children }) {
           background: WH, width: "100%",
           borderRadius: "16px 16px 0 0",
           padding: "18px 20px 24px",
-          maxHeight: "85vh", overflowY: "auto",
+          maxHeight: "92vh", overflowY: "auto",
           fontFamily: "inherit",
           animation: "slideUp 0.22s ease-out",
           paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))",
