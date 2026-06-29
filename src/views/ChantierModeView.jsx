@@ -20,6 +20,7 @@ import {
   setWeather,
   setMeetingTranscript,
   togglePresent,
+  addPresent,
   logReserveAction,
   addNewReserve,
   addPhoto,
@@ -164,6 +165,10 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // ── Mutations ──
 
   const onTogglePresent = (name) => setVisit(v => togglePresent(v, name));
+  const onAddPresent = () => {
+    const name = window.prompt("Nom de la personne présente ?");
+    if (name && name.trim()) setVisit(v => addPresent(v, name));
+  };
 
   // Changer le statut d'une réserve : applique IMMÉDIATEMENT à project.reserves
   // ET logge l'action dans la visite pour la composition finale du PV.
@@ -391,23 +396,26 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 
       <div style={{ padding: "14px 8px" }}>
 
-      {/* ── Contexte : météo + présents (pills tactiles) ── */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 16 }}>
+      {/* ── Contexte : météo + présents + ajout (pills uniformes 30px) ──
+          Tous les éléments partagent height:30 + minHeight:30 (sinon les
+          BOUTONS présents seraient étirés à 44px par la règle tactile et
+          ne s'aligneraient pas avec la pastille météo). */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 7, marginBottom: 16 }}>
         {visit.weather && (
-          <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 12 }}>{formatWeatherShort(visit.weather)}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", height: 30, minHeight: 30, padding: "0 12px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 12, lineHeight: 1 }}>{formatWeatherShort(visit.weather)}</span>
         )}
         {presentsShown.map((p, i) => (
-          <button key={i} onClick={() => onTogglePresent(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : SBB}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-            <span style={{ width: 20, height: 20, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{p.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+          <button key={i} onClick={() => onTogglePresent(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, minHeight: 30, padding: "0 12px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : SBB}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, lineHeight: 1, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{p.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
             {p.name}
           </button>
         ))}
         {presentsMore > 0 && (
-          <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX3, fontSize: 12 }}>+{presentsMore} présent{presentsMore > 1 ? "s" : ""}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", height: 30, minHeight: 30, padding: "0 12px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX3, fontSize: 12, lineHeight: 1 }}>+{presentsMore} présent{presentsMore > 1 ? "s" : ""}</span>
         )}
-        {namedPresents.length === 0 && (
-          <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX3, fontSize: 12 }}>+ Présents</span>
-        )}
+        <button onClick={onAddPresent} aria-label="Ajouter une personne présente" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 30, minHeight: 30, padding: "0 12px", borderRadius: 999, background: WH, border: `1px dashed ${SBB}`, color: TX3, fontSize: 12, fontWeight: 500, lineHeight: 1, cursor: "pointer", fontFamily: "inherit" }}>
+          <Ico name="plus" size={12} color={TX3} /> Ajouter
+        </button>
       </div>
 
       {/* ── Enregistrer la réunion (audio → PV par l'IA). En cours, l'écran

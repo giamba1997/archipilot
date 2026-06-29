@@ -156,6 +156,18 @@ export function togglePresent(visit, name) {
   return next;
 }
 
+// Ajoute une personne présente (saisie manuelle sur le terrain).
+// No-op si nom vide ou déjà présent.
+export function addPresent(visit, name) {
+  if (!visit) return visit;
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return visit;
+  if ((visit.presents || []).some(p => p.name === trimmed)) return visit;
+  const next = { ...visit, presents: [...(visit.presents || []), { name: trimmed, present: true }] };
+  persistVisit(next);
+  return next;
+}
+
 export function logReserveAction(visit, reserveId, action) {
   if (!visit) return visit;
   // Si une action a déjà été loguée pour cette réserve à cette visite,
