@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  AC, ACL, SB, SBB, TX, TX2, TX3, WH, SP, RAD,
+  AC, ACL, SB, SBB, TX, TX2, TX3, WH, BG, SP, RAD,
   BR, BRB, AM, AMB, GR, SGB,
 } from "../constants/tokens";
 import { Ico } from "../components/ui";
@@ -78,6 +78,7 @@ export function MobileChantiersList({
   onSelectProject,
   onBack,
   onOpenNewProject,
+  pickToVisit = false,
 }) {
   const [query, setQuery] = useState("");
   const [filterId, setFilterId] = useState("active");
@@ -109,18 +110,20 @@ export function MobileChantiersList({
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", paddingBottom: SP.xl * 4 }}>
-      {/* Sticky header : back + titre + search + filtres */}
-      <div style={{ position: "sticky", top: 0, background: WH, zIndex: 10, padding: `${SP.md}px ${SP.md}px ${SP.sm}px`, borderBottom: `1px solid ${SBB}` }}>
+      {/* En-tête (sur le fond de page, comme le mockup) : retour seulement
+          en mode "choisir un chantier" (sinon c'est l'onglet pur) + titre +
+          bouton nouveau projet + recherche + filtres. */}
+      <div style={{ position: "sticky", top: 0, background: BG, zIndex: 10, padding: `calc(${SP.md}px + env(safe-area-inset-top, 0px)) ${SP.md}px ${SP.sm}px` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.md }}>
-          {onBack && (
+          {pickToVisit && onBack && (
             <button onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", padding: 4, cursor: "pointer", marginLeft: -4 }}>
-              <Ico name="back" size={20} color={TX} />
+              <Ico name="back" size={22} color={TX} />
             </button>
           )}
-          <h1 style={{ flex: 1, fontSize: 22, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>Chantiers</h1>
-          {onOpenNewProject && (
-            <button onClick={onOpenNewProject} aria-label="Nouveau projet" style={{ background: AC, color: "#fff", border: "none", borderRadius: RAD.full, width: 32, height: 32, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              <Ico name="plus" size={16} color="#fff" />
+          <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>{pickToVisit ? "Choisir un chantier" : "Chantiers"}</h1>
+          {!pickToVisit && onOpenNewProject && (
+            <button onClick={onOpenNewProject} aria-label="Nouveau projet" title="Nouveau projet" style={{ background: WH, color: TX2, border: "1px solid #EFEDEB", borderRadius: RAD.full, width: 40, height: 40, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Ico name="plus" size={18} color={TX2} />
             </button>
           )}
         </div>
