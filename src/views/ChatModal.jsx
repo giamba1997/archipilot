@@ -1000,6 +1000,26 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
     ? `calc(108px + env(safe-area-inset-bottom, 0px))`
     : 24;
   return (
+    <>
+      {/* Label d'amorce (mockup) — au-dessus du FAB, mobile au repos. */}
+      {isMobile && !open && (
+        <button
+          onClick={onToggle}
+          aria-hidden="true"
+          tabIndex={-1}
+          style={{
+            position: "fixed", right: 16, zIndex: 997,
+            bottom: `calc(108px + 56px + 10px + env(safe-area-inset-bottom, 0px))`,
+            background: WH, border: "1px solid #EFEDEB",
+            boxShadow: "0 4px 14px rgba(28,25,23,0.12)",
+            borderRadius: 999, padding: "7px 13px",
+            fontSize: 12, fontWeight: 600, color: TX2, fontFamily: "inherit",
+            cursor: "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          Demander à l'assistant
+        </button>
+      )}
     <button
       onClick={onToggle}
       aria-label={open ? "Fermer l'assistant" : "Ouvrir l'assistant"}
@@ -1040,5 +1060,6 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
         }} />
       )}
     </button>
+    </>
   );
 }

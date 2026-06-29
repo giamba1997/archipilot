@@ -228,7 +228,7 @@ export function MobileHome({
       <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.lg }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, color: TX3, fontWeight: 500 }}>{dateLabel}</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>{greeting}{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>{greeting}{profile?.name ? ` ${profile.name.split(" ")[0]}` : ""}</div>
         </div>
         <button onClick={() => onProfile?.()} aria-label="Mon profil" style={{ width: 40, height: 40, borderRadius: "50%", background: "#F5DCC9", color: "#8B3A14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0, border: "none", cursor: "pointer", fontFamily: "inherit" }}>{initials}</button>
       </header>
@@ -369,12 +369,12 @@ export function MobileHome({
         title="Mes chantiers"
         iconName="building"
         right={
-          activeProjects.length > 5 ? (
+          activeProjects.length > 0 ? (
             <button
               onClick={() => onOpenAllProjects?.()}
-              style={{ background: "none", border: "none", color: AC, fontWeight: 700, fontSize: 12, fontFamily: "inherit", cursor: "pointer", padding: 0 }}
+              style={{ background: "none", border: "none", color: "#A04C20", fontWeight: 600, fontSize: 13, fontFamily: "inherit", cursor: "pointer", padding: 0 }}
             >
-              Voir tous ({activeProjects.length})
+              Tout voir
             </button>
           ) : null
         }
@@ -390,7 +390,6 @@ export function MobileHome({
         {recentProjects.map(p => {
           const status = getStatus(p.statusId);
           const hint = describeNextAction(p);
-          const lastTs = getProjectActivityTs(p);
           return (
             <ProjectCard
               key={p.id}
@@ -398,7 +397,6 @@ export function MobileHome({
               statusLabel={status?.label || ""}
               statusColor={status?.color || TX3}
               hint={hint}
-              lastSeen={lastTs ? relativeDate(new Date(lastTs).toLocaleDateString("fr-BE")) : ""}
               onClick={() => onSelectProject?.(p.id)}
             />
           );
@@ -406,7 +404,7 @@ export function MobileHome({
       </Section>
 
       {/* ── Chantiers proches ── (POC : dépend de la carte, différée) */}
-      {isEnabled("map") && <Section title="Chantiers proches" iconName="mappin">
+      {isEnabled("map") && <Section title="À proximité" iconName="mappin">
         {geo.status === "idle" && (
           <GeoPrompt onClick={geo.request} />
         )}
@@ -437,17 +435,23 @@ export function MobileHome({
         )}
         {geo.status === "granted" && nearbyProjects.length > 0 && (
           <>
-            {nearbyProjects.map(({ p, km }) => (
-              <UrgencyRow
-                key={`np-${p.id}`}
-                icon="mappin"
-                color={ST}
-                bg={STB}
-                title={p.name}
-                sub={km < 1 ? `À ${Math.round(km * 1000)} m` : `À ${km.toFixed(1)} km`}
-                onClick={() => onSelectProject?.(p.id)}
-              />
-            ))}
+            {nearbyProjects.map(({ p, km }) => {
+              const dist = km < 1 ? `à ${Math.round(km * 1000)} m` : `à ${km.toFixed(1)} km`;
+              const where = [dist, p.city || p.address].filter(Boolean).join(" · ");
+              const mapsUrl = buildMapsUrl(p);
+              return (
+                <UrgencyRow
+                  key={`np-${p.id}`}
+                  icon="mappin"
+                  color="#166534"
+                  bg="#F0FDF4"
+                  title={p.name}
+                  sub={where}
+                  onClick={() => onSelectProject?.(p.id)}
+                  extraAction={mapsUrl ? { href: mapsUrl, label: "Y aller", icon: "mappin" } : null}
+                />
+              );
+            })}
             <button
               onClick={() => onOpenMap?.()}
               style={{ width: "100%", marginTop: 6, padding: 10, border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, fontSize: 12, color: AC, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
@@ -457,32 +461,6 @@ export function MobileHome({
           </>
         )}
       </Section>}
-
-      {/* ── Stats hebdo (1 ligne) ── */}
-      {hasAnyStat && (
-        <div style={{ padding: SP.md, background: ACL, borderRadius: RAD.md, marginBottom: SP.lg, fontSize: 12, color: TX2, lineHeight: 1.5 }}>
-          Cette semaine :{" "}
-          <strong style={{ color: TX }}>{weekStats.pvs}</strong>&nbsp;PV ·{" "}
-          <strong style={{ color: TX }}>{weekStats.reservesLevees}</strong>&nbsp;réserve{weekStats.reservesLevees > 1 ? "s" : ""} levée{weekStats.reservesLevees > 1 ? "s" : ""} ·{" "}
-          <strong style={{ color: TX }}>{weekStats.visites}</strong>&nbsp;visite{weekStats.visites > 1 ? "s" : ""}
-        </div>
-      )}
-
-      {/* ── Footer : actions globales ── */}
-      <div style={{ display: "flex", gap: 8, marginTop: SP.lg }}>
-        <button
-          onClick={() => onOpenAllProjects?.()}
-          style={{ flex: 1, padding: "12px 14px", border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, color: TX, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          Tous les projets
-        </button>
-        <button
-          onClick={() => onOpenNewProject?.()}
-          style={{ flex: 1, padding: "12px 14px", border: "none", borderRadius: RAD.md, background: AC, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-        >
-          Nouveau projet
-        </button>
-      </div>
 
       {loadingExtras && (
         <div style={{ marginTop: SP.md, fontSize: 11, color: TX3, textAlign: "center" }}>
@@ -516,24 +494,24 @@ function UrgencyRow({ icon, color, bg, title, sub, onClick, extraAction }) {
   // Si `extraAction` est fourni, on rend un lien à droite qui ne propage
   // pas le click (ex: "Y aller" → Google Maps, sans ouvrir le projet).
   return (
-    <div style={{ display: "flex", alignItems: "stretch", gap: 0, border: `1px solid ${SBB}`, borderRadius: RAD.md, background: WH, overflow: "hidden" }}>
+    <div style={{ display: "flex", alignItems: "stretch", gap: 0, border: "1px solid #EFEDEB", borderRadius: 14, background: WH, overflow: "hidden" }}>
       <button
         onClick={onClick}
         style={{
           display: "flex", alignItems: "center", gap: 12,
-          padding: "12px 14px", textAlign: "left",
+          padding: 14, textAlign: "left",
           border: "none", background: "transparent",
           cursor: "pointer", fontFamily: "inherit", flex: 1, minWidth: 0,
         }}
       >
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Ico name={icon} size={18} color={color} />
+        <div style={{ width: 42, height: 42, borderRadius: 11, background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Ico name={icon} size={20} color={color} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
-          <div style={{ fontSize: 11, color: TX3, marginTop: 1 }}>{sub}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</div>
+          <div style={{ fontSize: 13, color: TX3, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>
         </div>
-        {!extraAction && <Ico name="chevron-right" size={16} color={TX3} />}
+        {!extraAction && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" strokeWidth="2" style={{ flexShrink: 0 }}><polyline points="9 6 15 12 9 18" /></svg>}
       </button>
       {extraAction && (
         <a
@@ -558,30 +536,25 @@ function UrgencyRow({ icon, color, bg, title, sub, onClick, extraAction }) {
   );
 }
 
-function ProjectCard({ project, statusLabel, statusColor, hint, lastSeen, onClick }) {
+function ProjectCard({ project, statusLabel, statusColor, hint, onClick }) {
+  // Mockup : pastille couleur (statut) + nom + "{type} · {signal}" + chevron.
   return (
     <button
       onClick={onClick}
       style={{
-        display: "flex", flexDirection: "column", gap: 4,
-        padding: "12px 14px", textAlign: "left",
-        border: `1px solid ${SBB}`, background: WH,
-        borderRadius: RAD.md, cursor: "pointer",
+        display: "flex", alignItems: "center", gap: 12,
+        padding: 14, textAlign: "left",
+        border: "1px solid #EFEDEB", background: WH,
+        borderRadius: 14, cursor: "pointer",
         fontFamily: "inherit", width: "100%",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: TX, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {project.name}
-        </div>
-        <div style={{ fontSize: 10, color: statusColor, background: `${statusColor}1a`, padding: "2px 8px", borderRadius: 999, fontWeight: 700, whiteSpace: "nowrap" }}>
-          {statusLabel}
-        </div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-        <div style={{ fontSize: 11, color: hint.color, fontWeight: 600 }}>{hint.txt}</div>
-        {lastSeen && <div style={{ fontSize: 10, color: TX3 }}>{lastSeen}</div>}
-      </div>
+      <span style={{ width: 10, height: 10, borderRadius: 999, background: statusColor, flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{project.name}</span>
+        <span style={{ display: "block", fontSize: 13, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{statusLabel}{hint?.txt ? ` · ${hint.txt}` : ""}</span>
+      </span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C7C2BD" strokeWidth="2"><polyline points="9 6 15 12 9 18" /></svg>
     </button>
   );
 }
