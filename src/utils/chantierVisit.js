@@ -222,6 +222,15 @@ export function removeDecision(visit, decisionId) {
   return next;
 }
 
+// Met à jour une décision existante (ex : injecter la transcription d'une
+// réunion une fois Whisper terminé).
+export function updateDecision(visit, decisionId, patch) {
+  if (!visit) return visit;
+  const next = { ...visit, decisions: visit.decisions.map(d => d.id === decisionId ? { ...d, ...patch } : d) };
+  persistVisit(next);
+  return next;
+}
+
 // ── Composition du brouillon de PV depuis la visite ──
 // Génère le contenu d'un PV à partir des données collectées pendant la
 // visite. Utilise les posts du projet pour structurer le rendu. Le PV

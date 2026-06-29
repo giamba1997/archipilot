@@ -26,6 +26,7 @@ import {
   addPhoto,
   addDecision,
   removeDecision,
+  updateDecision,
   composeDraftPvFromVisit,
   getVisitStats,
 } from "../utils/chantierVisit";
@@ -149,6 +150,31 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // Réduire : on masque l'overlay mais l'enregistrement CONTINUE (la
   // bannière globale prend le relais). Pas de pause.
   const onMinimizeMeeting = () => setMeetingMinimized?.(true);
+  // Terminer la réunion (depuis l'overlay, après confirmation) : on STOPPE
+  // l'enregistrement, on l'ajoute IMMÉDIATEMENT et visiblement au fil de la
+  // visite (carte "Réunion · MM:SS"), puis Whisper transcrit en arrière-plan
+  // et injecte le texte dans cette même carte (→ il finira dans le PV).
+  const onFinishMeeting = async () => {
+    const durationSec = conv.duration || 0;
+    let blob = null;
+    if (conv.isRecording) { try { blob = await conv.stop(); } catch { blob = null; } }
+    setMeetingPaused(false);
+    setMeetingProjectId?.(null);
+    setMeetingMinimized?.(false);
+    setVisit(v => setPhase(v, "inspection"));
+    const id = `dec-meeting-${Date.now()}`;
+    const willTranscribe = !!(blob && blob.size > 0);
+    setVisit(v => addDecision(v, "Réunion enregistrée", "meeting", { id, durationSec, transcribing: willTranscribe }));
+    showToast?.(`Réunion ajoutée à la visite · ${String(Math.floor(durationSec / 60)).padStart(2, "0")}:${String(durationSec % 60).padStart(2, "0")}`);
+    if (willTranscribe) {
+      try {
+        const text = await transcribeAudioBlob(blob);
+        setVisit(v => updateDecision(v, id, { text: text?.trim() || "Réunion enregistrée", transcribing: false }));
+      } catch {
+        setVisit(v => updateDecision(v, id, { transcribing: false }));
+      }
+    }
+  };
   // Pause/Reprise manuelle depuis l'overlay réunion.
   const onToggleMeetingPause = () => {
     if (conv.isPaused) { setMeetingPaused(false); conv.resume(); }
@@ -398,7 +424,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   const reserveCreatedAt = new Map((visit.reserveActions || []).filter(a => a.action === "created").map(a => [String(a.reserveId), a.timestamp]));
   const feed = [
     ...visit.photoIds.map(id => { const ph = galleryById.get(id); return ph ? { kind: "photo", at: ph.date, ph, id } : null; }).filter(Boolean),
-    ...visit.decisions.map(d => ({ kind: "note", at: d.timestamp, text: d.text, source: d.source, id: d.id })),
+    ...visit.decisions.map(d => ({ kind: d.source === "meeting" ? "meeting" : "note", at: d.timestamp, text: d.text, source: d.source, id: d.id, durationSec: d.durationSec, transcribing: d.transcribing })),
     ...(visit.newReserveIds || []).map(rid => { const r = reservesById.get(String(rid)); return r ? { kind: "reserve", at: reserveCreatedAt.get(String(rid)) || r.createdAt, reserve: r, id: `res-${rid}` } : null; }).filter(Boolean),
   ].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 
@@ -523,6 +549,21 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
                 </div>
               );
             }
+            if (item.kind === "meeting") {
+              const dur = item.durationSec ? `${String(Math.floor(item.durationSec / 60)).padStart(2, "0")}:${String(item.durationSec % 60).padStart(2, "0")}` : "";
+              return (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, background: "#FDF6F1", border: "1px solid #F0DCCB", borderRadius: 14 }}>
+                  <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg,#D17A47,#B85C2C)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="mic" size={20} color="#fff" /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: TX }}>Réunion enregistrée{dur ? ` · ${dur}` : ""}</div>
+                    <div style={{ fontSize: 12.5, color: "#A04C20", fontWeight: 500 }}>{item.transcribing ? "Transcription en cours…" : "Intégrée au PV"}</div>
+                  </div>
+                  {item.transcribing
+                    ? <span style={{ flexShrink: 0, display: "inline-flex", animation: "pulseDot 1.2s ease-in-out infinite" }}><Ico name="sparkle" size={18} color="#A04C20" /></span>
+                    : <Ico name="check" size={18} color="#166534" />}
+                </div>
+              );
+            }
             const isVoice = item.source === "voice";
             return (
               <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 13 }}>
@@ -592,7 +633,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           onTogglePresent={onTogglePresent}
           onTogglePause={onToggleMeetingPause}
           onMinimize={onMinimizeMeeting}
-          onStop={onResumeInspection}
+          onStop={onFinishMeeting}
           onPhoto={() => setActiveSheet("photo")}
           recorderError={recorderErrorMsg}
           nextPv={(project.pvHistory || []).length + 1}
@@ -1217,53 +1258,46 @@ function EndVisitSheet({ stats, transcribing, onCancel, onConfirm }) {
   return (
     <SheetWrapper title="Terminer la visite" onClose={transcribing ? undefined : onCancel}>
       {transcribing && (
-        <div style={{
-          padding: "14px 16px", background: ACL, border: `1px solid ${ACL2}`,
-          borderRadius: 10, marginBottom: 12,
-          display: "flex", alignItems: "center", gap: 12,
-        }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: "50%",
-            background: AC, display: "inline-flex", alignItems: "center", justifyContent: "center",
-            animation: "pulseDot 1.4s ease-in-out infinite",
-          }}>
-            <Ico name="sparkle" size={14} color="#fff" />
-          </div>
-          <div style={{ flex: 1, fontSize: 12, color: TX, lineHeight: 1.45 }}>
-            <strong>Transcription Whisper en cours…</strong><br />
-            Ne ferme pas l'app — la conversation est envoyée et structurée.
+        <div style={{ padding: "13px 14px", background: ACL, border: `1px solid ${ACL2}`, borderRadius: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 30, height: 30, borderRadius: "50%", background: AC, display: "inline-flex", alignItems: "center", justifyContent: "center", animation: "pulseDot 1.4s ease-in-out infinite", flexShrink: 0 }}>
+            <Ico name="sparkle" size={15} color="#fff" />
+          </span>
+          <div style={{ flex: 1, fontSize: 12.5, color: TX, lineHeight: 1.45 }}>
+            <strong>Transcription en cours…</strong><br />Ne ferme pas l'app — la réunion est structurée.
           </div>
         </div>
       )}
-      <div style={{ fontSize: 13, color: TX2, lineHeight: 1.6, marginBottom: 14 }}>
-        Tu t'apprêtes à clôturer la visite. Un brouillon de PV sera créé
-        avec ce qui a été collecté pendant la visite. Tu pourras l'éditer
-        depuis l'écran "PV à finaliser" du projet.
+
+      <div style={{ fontSize: 13.5, color: TX2, lineHeight: 1.55, marginBottom: 16 }}>
+        L'IA assemble tout ce que tu as capturé en un <strong style={{ color: TX }}>brouillon de PV</strong>, éditable ensuite depuis le projet.
       </div>
 
-      <div style={{
-        padding: "12px 14px", background: SB, border: `1px solid ${SBB}`,
-        borderRadius: 10, marginBottom: 14,
-      }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-          Récap de la visite
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: TX }}>
-          <div>Durée : <strong>{stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`}</strong></div>
-          {stats.lifted > 0 && <div><strong style={{ color: SG }}>{stats.lifted}</strong> réserve{stats.lifted > 1 ? "s" : ""} levée{stats.lifted > 1 ? "s" : ""}</div>}
-          {stats.still > 0 && <div><strong style={{ color: AM }}>{stats.still}</strong> réserve{stats.still > 1 ? "s" : ""} toujours présente{stats.still > 1 ? "s" : ""}</div>}
-          {stats.created > 0 && <div><strong style={{ color: BR }}>{stats.created}</strong> nouvelle{stats.created > 1 ? "s" : ""} réserve{stats.created > 1 ? "s" : ""}</div>}
-          {stats.decisions > 0 && <div><strong style={{ color: ST }}>{stats.decisions}</strong> décision{stats.decisions > 1 ? "s" : ""} notée{stats.decisions > 1 ? "s" : ""}</div>}
-          {stats.photos > 0 && <div><strong style={{ color: TX2 }}>{stats.photos}</strong> photo{stats.photos > 1 ? "s" : ""} prise{stats.photos > 1 ? "s" : ""}</div>}
-        </div>
+      {/* Récap — carte à puces icônes (Direction D) */}
+      <div style={{ background: WH, border: "1px solid #EFEDEB", borderRadius: 14, overflow: "hidden", marginBottom: 18 }}>
+        {[
+          { icon: "clock", bg: SB, fg: TX2, label: "Durée", value: stats.duration < 60 ? `${stats.duration} min` : `${Math.floor(stats.duration / 60)}h${String(stats.duration % 60).padStart(2, "0")}`, show: true },
+          { icon: "camera", bg: "#EFF6FF", fg: "#1E40AF", label: "Photos", value: stats.photos, show: stats.photos > 0 },
+          { icon: "alert", bg: "#FEF2F2", fg: "#991B1B", label: "Nouvelles réserves", value: stats.created, show: stats.created > 0 },
+          { icon: "check", bg: "#F0FDF4", fg: "#166534", label: "Réserves levées", value: stats.lifted, show: stats.lifted > 0 },
+          { icon: "pen2", bg: "#FDF6F1", fg: "#A04C20", label: "Notes", value: stats.decisions, show: stats.decisions > 0 },
+        ].filter(r => r.show).map((r, i, arr) => (
+          <div key={r.label}>
+            {i > 0 && <div style={{ height: 1, background: "#F5F2EF", margin: "0 14px" }} />}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px" }}>
+              <span style={{ width: 32, height: 32, borderRadius: 9, background: r.bg, color: r.fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name={r.icon} size={16} color={r.fg} /></span>
+              <span style={{ flex: 1, fontSize: 14, color: TX }}>{r.label}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: TX }}>{r.value}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={onCancel} disabled={transcribing} style={{ ...btnSecondary, opacity: transcribing ? 0.5 : 1, cursor: transcribing ? "not-allowed" : "pointer" }}>
-          Continuer la visite
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={onCancel} disabled={transcribing} style={{ flex: 1, height: 48, borderRadius: 13, border: "1px solid #E7E5E4", background: WH, color: TX2, fontSize: 14, fontWeight: 600, cursor: transcribing ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: transcribing ? 0.5 : 1 }}>
+          Continuer
         </button>
-        <button onClick={onConfirm} disabled={transcribing} style={{ ...btnPrimary, flex: 2, opacity: transcribing ? 0.6 : 1, cursor: transcribing ? "not-allowed" : "pointer" }}>
-          {transcribing ? "Transcription…" : "Terminer · Créer le brouillon"}
+        <button onClick={onConfirm} disabled={transcribing} style={{ flex: 1.6, height: 48, borderRadius: 13, border: "none", background: AC, color: "#fff", fontSize: 14, fontWeight: 700, cursor: transcribing ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: transcribing ? "none" : "0 8px 20px rgba(184,92,44,0.25)", opacity: transcribing ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          {transcribing ? "Transcription…" : <><Ico name="sparkle" size={15} color="#fff" />Créer le brouillon</>}
         </button>
       </div>
     </SheetWrapper>
