@@ -360,12 +360,18 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
     ...visit.decisions.map(d => ({ kind: "note", at: d.timestamp, text: d.text, source: d.source, id: d.id })),
   ].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
 
+  // Présents nommés uniquement (on évite les pastilles "?" des participants
+  // sans nom), cappés pour ne pas déborder sur 2 lignes.
+  const namedPresents = (visit.presents || []).filter(p => p.name && String(p.name).trim());
+  const presentsShown = namedPresents.slice(0, 4);
+  const presentsMore = namedPresents.length - presentsShown.length;
+
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", animation: "fadeIn 0.2s ease", paddingBottom: 100 }}>
+    <div style={{ maxWidth: "none", margin: "0 auto", animation: "fadeIn 0.2s ease", paddingBottom: 100 }}>
       {/* ── Header sticky — visite continue, sobre ──
           Chrono qui tourne + météo. Une seule visite (plus de bascule
           inspection/réunion : on capture en continu). */}
-      <div style={{ position: "sticky", top: 0, zIndex: 10, background: WH, borderBottom: `1px solid ${SBB}`, padding: "10px 8px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 10, background: "#FCFBFA", padding: "calc(10px + env(safe-area-inset-top, 0px)) 8px 8px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, color: TX3, fontWeight: 500, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Visite · {project.name}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -390,12 +396,18 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
         {visit.weather && (
           <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX2, fontSize: 12 }}>{formatWeatherShort(visit.weather)}</span>
         )}
-        {visit.presents.map((p, i) => (
+        {presentsShown.map((p, i) => (
           <button key={i} onClick={() => onTogglePresent(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 11px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : SBB}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-            <span style={{ width: 20, height: 20, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{(p.name || "?").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+            <span style={{ width: 20, height: 20, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{p.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
             {p.name}
           </button>
         ))}
+        {presentsMore > 0 && (
+          <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX3, fontSize: 12 }}>+{presentsMore} présent{presentsMore > 1 ? "s" : ""}</span>
+        )}
+        {namedPresents.length === 0 && (
+          <span style={{ display: "inline-flex", alignItems: "center", height: 30, padding: "0 11px", borderRadius: 999, background: WH, border: `1px solid ${SBB}`, color: TX3, fontSize: 12 }}>+ Présents</span>
+        )}
       </div>
 
       {/* ── Enregistrer la réunion (audio → PV par l'IA). En cours, l'écran
