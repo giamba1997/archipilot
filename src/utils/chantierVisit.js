@@ -200,7 +200,7 @@ export function addPhoto(visit, photoId) {
   return next;
 }
 
-export function addDecision(visit, text, source = "text") {
+export function addDecision(visit, text, source = "text", meta = {}) {
   if (!visit) return visit;
   if (!text || !text.trim()) return visit;
   const decision = {
@@ -208,6 +208,7 @@ export function addDecision(visit, text, source = "text") {
     text: text.trim(),
     timestamp: new Date().toISOString(),
     source,
+    ...meta, // ex : { durationSec } pour les notes vocales
   };
   const next = { ...visit, decisions: [...visit.decisions, decision] };
   persistVisit(next);

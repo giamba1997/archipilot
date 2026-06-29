@@ -59,6 +59,12 @@ function relTimeShort(iso) {
   return new Date(iso).toLocaleDateString("fr-BE", { day: "numeric", month: "short" });
 }
 
+// Durée M:SS (note vocale).
+function fmtDur(s) {
+  const n = Number(s) || 0;
+  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+}
+
 export function ChantierModeView({ project, setProjects, profile, onBack, showToast }) {
   const [visit, setVisit] = useState(() => {
     const existing = getActiveVisit();
@@ -200,9 +206,9 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
     showToast?.(`${r?.code || "Réserve"} ${action === "lifted" ? "marquée levée" : "toujours présente"}`);
   };
 
-  const onAddDecision = (text, source = "text") => {
+  const onAddDecision = (text, source = "text", meta = {}) => {
     if (!text?.trim()) return;
-    setVisit(v => addDecision(v, text, source));
+    setVisit(v => addDecision(v, text, source, meta));
     showToast?.("Décision notée");
   };
 
@@ -482,7 +488,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
                   <img src={getPhotoUrl(item.ph)} alt="" style={{ width: 38, height: 38, objectFit: "cover", borderRadius: 10, flexShrink: 0, border: `1px solid ${SBB}` }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.ph.caption || "Photo"}</div>
-                    <div style={{ fontSize: 12, color: TX3 }}>Photo · {time}</div>
+                    <div style={{ fontSize: 12, color: TX3 }}>Prise {time}</div>
                   </div>
                 </div>
               );
@@ -493,7 +499,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
                 <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 13 }}>
                   <span style={{ width: 38, height: 38, borderRadius: 10, background: "#FEF2F2", color: "#991B1B", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="alert" size={18} color="#991B1B" /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Réserve · {item.reserve.code || (item.reserve.description || "").slice(0, 28) || "réserve"}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: TX, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Réserve · {(item.reserve.description || "").slice(0, 26) || item.reserve.code || "réserve"}</div>
                     <div style={{ fontSize: 12, color: TX3 }}>{sev?.label || "Réserve"} · {time}</div>
                   </div>
                 </div>
@@ -504,8 +510,8 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
               <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: WH, border: "1px solid #EFEDEB", borderRadius: 13 }}>
                 <span style={{ width: 38, height: 38, borderRadius: 10, background: isVoice ? "#FDF6F1" : SB, color: isVoice ? "#A04C20" : TX2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name={isVoice ? "mic" : "pen2"} size={18} color={isVoice ? "#A04C20" : TX2} /></span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{isVoice ? "Note vocale" : "Note écrite"}</div>
-                  <div style={{ fontSize: 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.text || time}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: TX }}>{isVoice ? `Note vocale${item.durationSec ? ` · ${fmtDur(item.durationSec)}` : ""}` : "Note écrite"}</div>
+                  <div style={{ fontSize: 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isVoice ? `transcrite · ${time}` : (item.text || time)}</div>
                 </div>
                 <button onClick={() => onRemoveDecision(item.id)} aria-label="Supprimer" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, flexShrink: 0 }}>
                   <Ico name="x" size={13} color={TX3} />
@@ -991,6 +997,7 @@ function VoiceSheet({ onClose, onSubmit, showToast }) {
   const [transcript, setTranscript] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [level, setLevel] = useState(0); // niveau audio live (0..1) pour l'anim
+  const [recordingSec, setRecordingSec] = useState(0); // durée cumulée enregistrée
 
   const recorder = useWhisperRecorder({
     onResult: (text) => {
@@ -1027,9 +1034,19 @@ function VoiceSheet({ onClose, onSubmit, showToast }) {
     return () => { if (raf) cancelAnimationFrame(raf); if (ctx) ctx.close().catch(() => {}); };
   }, [recorder.isRecording, recorder.stream]);
 
+  // Chrono cumulé d'enregistrement (sert de durée de la note vocale).
+  useEffect(() => {
+    if (!recorder.isRecording) return;
+    const start = Date.now();
+    const base = recordingSec;
+    const id = setInterval(() => setRecordingSec(base + Math.floor((Date.now() - start) / 1000)), 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recorder.isRecording]);
+
   const submit = () => {
     if (!transcript.trim()) return;
-    onSubmit(transcript, "voice");
+    onSubmit(transcript, "voice", { durationSec: recordingSec });
     onClose();
   };
 
