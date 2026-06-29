@@ -174,13 +174,13 @@ export function MobileChantiersList({
                 key={f.id}
                 onClick={() => setFilterId(f.id)}
                 style={{
-                  flexShrink: 0, height: 32, padding: "0 14px",
+                  flexShrink: 0, height: 28, padding: "0 12px", minHeight: 28,
                   borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6,
-                  border: `1px solid ${active ? "#E8B58E" : "#E7E5E4"}`,
+                  border: `1px solid ${active ? "#EAC29E" : "#ECE7E2"}`,
                   background: active ? "#FDF6F1" : WH,
                   color: active ? "#A04C20" : "#78716C",
-                  fontSize: 13, fontWeight: active ? 600 : 500, fontFamily: "inherit",
-                  cursor: "pointer", whiteSpace: "nowrap",
+                  fontSize: 12.5, fontWeight: active ? 600 : 500, fontFamily: "inherit",
+                  cursor: "pointer", whiteSpace: "nowrap", lineHeight: 1,
                 }}
               >
                 {f.dot && <span style={{ width: 7, height: 7, borderRadius: 999, background: f.dot }} />}
