@@ -589,6 +589,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           onTogglePause={onToggleMeetingPause}
           onStop={onResumeInspection}
           onPhoto={() => setActiveSheet("photo")}
+          recorderError={recorderErrorMsg}
           nextPv={(project.pvHistory || []).length + 1}
         />
       )}
@@ -601,8 +602,9 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 // `conv` déjà actif (duration + audioLevel live). Pause/Reprise, Stop
 // (= revient en inspection, l'audio reste pour la transcription finale),
 // Ajout photo. Carte de continuité desktop + présents.
-function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onTogglePause, onStop, onPhoto, nextPv }) {
+function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onTogglePause, onStop, onPhoto, recorderError, nextPv }) {
   const [confirmStop, setConfirmStop] = useState(false);
+  const micFailed = !!(conv.error || recorderError) && !conv.isRecording;
   const namedPresents = (presents || []).filter(p => p.name && String(p.name).trim());
   const mmss = `${String(Math.floor(conv.duration / 60)).padStart(2, "0")}:${String(conv.duration % 60).padStart(2, "0")}`;
   const lvl = conv.isPaused ? 0 : (conv.audioLevel || 0) / 100;
@@ -623,8 +625,8 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
       {/* Recorder */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 999, background: conv.isPaused ? "#A8A29E" : "#DC2626", animation: conv.isPaused ? "none" : "pulseDot 1.4s ease-in-out infinite" }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: conv.isPaused ? TX3 : "#991B1B", letterSpacing: "0.04em" }}>{conv.isPaused ? "EN PAUSE" : "ENREGISTREMENT"}</span>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: micFailed ? "#A8A29E" : conv.isPaused ? "#A8A29E" : "#DC2626", animation: micFailed || conv.isPaused ? "none" : "pulseDot 1.4s ease-in-out infinite" }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: micFailed ? TX3 : conv.isPaused ? TX3 : "#991B1B", letterSpacing: "0.04em" }}>{micFailed ? "MICRO INDISPONIBLE" : conv.isPaused ? "EN PAUSE" : "ENREGISTREMENT"}</span>
         </div>
         <div style={{ fontSize: 46, fontWeight: 700, color: TX, fontVariantNumeric: "tabular-nums", letterSpacing: 1, marginBottom: 24 }}>{mmss}</div>
 
@@ -635,6 +637,14 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
             return <div key={i} style={{ width: 3, height: `${h}%`, borderRadius: 9, background: conv.isPaused ? "#EFE0D4" : barColor(i), transition: "height 0.12s ease" }} />;
           })}
         </div>
+
+        {/* Erreur micro : message + réessayer */}
+        {micFailed && (
+          <div style={{ width: "100%", maxWidth: 340, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "12px 14px", marginBottom: 22, textAlign: "center" }}>
+            <div style={{ fontSize: 12.5, color: "#991B1B", lineHeight: 1.5, marginBottom: 10 }}>{recorderError || "L'enregistrement n'a pas pu démarrer — autorise l'accès au micro."}</div>
+            <button onClick={() => conv.start()} style={{ height: 38, padding: "0 16px", borderRadius: 999, border: "none", background: "#DC2626", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}><Ico name="mic" size={14} color="#fff" />Réessayer</button>
+          </div>
+        )}
 
         {/* Contrôles */}
         <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
