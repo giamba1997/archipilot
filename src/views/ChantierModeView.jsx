@@ -545,7 +545,7 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
     <div style={{ position: "fixed", inset: 0, zIndex: 250, background: "#FCFBFA", display: "flex", flexDirection: "column", paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))", fontFamily: "inherit" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(8px + env(safe-area-inset-top, 0px)) 16px 8px" }}>
-        <button onClick={onStop} aria-label="Retour à la visite" style={{ width: 38, height: 38, borderRadius: 999, background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
+        <button onClick={onStop} aria-label="Retour à la visite" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Réunion · {project.name}</div>
           <div style={{ fontSize: 11, color: TX3 }}>PV n°{nextPv} en préparation</div>

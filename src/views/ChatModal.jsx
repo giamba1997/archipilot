@@ -999,9 +999,17 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
   const bottomOffset = isMobile
     ? `calc(108px + env(safe-area-inset-bottom, 0px))`
     : 24;
+  // Le label d'amorce ne s'affiche qu'au premier chargement puis s'efface
+  // (fondu) après quelques secondes, pour ne pas encombrer durablement.
+  const [pillVisible, setPillVisible] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setPillVisible(false), 4500);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <>
-      {/* Label d'amorce (mockup) — au-dessus du FAB, mobile au repos. */}
+      {/* Label d'amorce (mockup) — au-dessus du FAB, mobile au repos.
+          Disparaît en fondu après ~4,5 s (premier load uniquement). */}
       {isMobile && !open && (
         <button
           onClick={onToggle}
@@ -1015,6 +1023,10 @@ export function ChatLauncher({ open, onToggle, hasUnread = false, isMobile = fal
             borderRadius: 999, padding: "7px 13px",
             fontSize: 12, fontWeight: 600, color: TX2, fontFamily: "inherit",
             cursor: "pointer", whiteSpace: "nowrap",
+            opacity: pillVisible ? 1 : 0,
+            transform: pillVisible ? "translateY(0)" : "translateY(6px)",
+            pointerEvents: pillVisible ? "auto" : "none",
+            transition: "opacity 0.5s ease, transform 0.5s ease",
           }}
         >
           Demander à l'assistant

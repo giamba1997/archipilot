@@ -1488,7 +1488,7 @@ export default function App() {
           </div>
           </div>{/* end right section */}
         </div>
-        <div className="ap-content" style={view === "profile" && !isMobile ? { padding: 0, maxWidth: "none", margin: 0 } : { padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
+        <div className="ap-content" style={(isMobile || (view === "profile" && !isMobile)) ? { padding: 0, maxWidth: "none", margin: 0 } : { padding: "20px 28px", maxWidth: 1200, margin: "0 auto" }}>
           {view === "home" && !isMobile && (
             <DashboardHome
               projects={projects}

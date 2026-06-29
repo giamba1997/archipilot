@@ -672,7 +672,7 @@ function ReserveDetailSheet({ reserve, onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: BG, overflowY: "auto", fontFamily: "inherit", animation: "fadeIn 0.2s ease" }}>
       {/* Nav */}
       <div style={{ display: "flex", alignItems: "center", padding: "calc(8px + env(safe-area-inset-top, 0px)) 16px 14px" }}>
-        <button onClick={onClose} aria-label="Retour" style={{ width: 38, height: 38, borderRadius: 999, background: WH, border: `1px solid #EFEDEB`, display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
+        <button onClick={onClose} aria-label="Retour" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: `1px solid #EFEDEB`, display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
       </div>
       {/* Titre */}
       <div style={{ padding: "0 20px 14px" }}>

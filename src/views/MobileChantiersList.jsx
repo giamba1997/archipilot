@@ -117,11 +117,11 @@ export function MobileChantiersList({
   }, [projects, filterId, query]);
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", paddingBottom: SP.xl * 4 }}>
+    <div style={{ maxWidth: "none", margin: "0 auto", paddingBottom: SP.xl * 4 }}>
       {/* En-tête (sur le fond de page, comme le mockup) : retour seulement
           en mode "choisir un chantier" (sinon c'est l'onglet pur) + titre +
           bouton nouveau projet + recherche + filtres. */}
-      <div style={{ position: "sticky", top: 0, background: BG, zIndex: 10, padding: `calc(${SP.md}px + env(safe-area-inset-top, 0px)) ${SP.md}px ${SP.sm}px` }}>
+      <div style={{ position: "sticky", top: 0, background: BG, zIndex: 10, padding: `calc(${SP.md}px + env(safe-area-inset-top, 0px)) 12px ${SP.sm}px` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.md }}>
           {pickToVisit && onBack && (
             <button onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", padding: 4, cursor: "pointer", marginLeft: -4 }}>
@@ -130,7 +130,7 @@ export function MobileChantiersList({
           )}
           <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>{pickToVisit ? "Choisir un chantier" : "Chantiers"}</h1>
           {!pickToVisit && onOpenMap && (
-            <button onClick={onOpenMap} aria-label="Carte des chantiers" title="Carte des chantiers" style={{ background: WH, color: TX2, border: "1px solid #EFEDEB", borderRadius: RAD.full, width: 40, height: 40, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <button onClick={onOpenMap} aria-label="Carte des chantiers" title="Carte des chantiers" style={{ background: WH, color: TX2, border: "1px solid #EFEDEB", borderRadius: "50%", width: 40, height: 40, minWidth: 40, minHeight: 40, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Ico name="mappin" size={19} color={TX2} />
             </button>
           )}
@@ -192,7 +192,7 @@ export function MobileChantiersList({
       </div>
 
       {/* Liste */}
-      <div style={{ padding: `${SP.md}px ${SP.md}px 0`, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ padding: "12px 12px 0", display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.length === 0 && (
           <div style={{ padding: SP.xl, textAlign: "center", background: SB, borderRadius: RAD.md, fontSize: 13, color: TX2 }}>
             {query

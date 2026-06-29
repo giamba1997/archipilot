@@ -158,7 +158,7 @@ export function MobileNotifs({
   };
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", paddingBottom: SP.xl * 4 }}>
+    <div style={{ maxWidth: "none", margin: "0 auto", paddingBottom: SP.xl * 4 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 20px 14px" }}>
         <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>Notifications</h1>
@@ -169,7 +169,7 @@ export function MobileNotifs({
         )}
       </div>
 
-      <div style={{ padding: `${SP.md}px ${SP.md}px 0` }}>
+      <div style={{ padding: "12px 12px 0" }}>
         {/* ── Invitations en attente ── (collaboration différée au POC) */}
         {isEnabled("collaboration") && invitations.length > 0 && (
           <Section title="Invitations" iconName="users" color={ST}>

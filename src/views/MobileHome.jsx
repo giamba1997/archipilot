@@ -223,14 +223,14 @@ export function MobileHome({
   const initials = (profile?.name || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 
   return (
-    <div style={{ padding: `${SP.lg}px ${SP.md}px ${SP.xl * 4}px`, maxWidth: 640, margin: "0 auto" }}>
+    <div style={{ padding: `${SP.lg}px 12px ${SP.xl * 4}px`, maxWidth: "none", margin: "0 auto" }}>
       {/* En-tête : date + salutation + avatar */}
       <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: SP.lg }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, color: TX3, fontWeight: 500 }}>{dateLabel}</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.5px" }}>{greeting}{profile?.name ? ` ${profile.name.split(" ")[0]}` : ""}</div>
         </div>
-        <button onClick={() => onProfile?.()} aria-label="Mon profil" style={{ width: 40, height: 40, borderRadius: "50%", background: "#F5DCC9", color: "#8B3A14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0, border: "none", cursor: "pointer", fontFamily: "inherit" }}>{initials}</button>
+        <button onClick={() => onProfile?.()} aria-label="Mon profil" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, borderRadius: "50%", background: "#F5DCC9", color: "#8B3A14", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0, border: "none", cursor: "pointer", fontFamily: "inherit" }}>{initials}</button>
       </header>
 
       {/* CTA héros : démarrer / reprendre une visite (mains libres) */}

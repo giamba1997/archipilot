@@ -33,7 +33,7 @@ export function MobileProjectConsult({ project, onBack, onOpr, onGallery, onDocu
     <div style={{ minHeight: "100%", background: BG, paddingBottom: 40 }}>
       {/* Nav */}
       <div style={{ display: "flex", alignItems: "center", padding: "6px 16px 14px" }}>
-        <button onClick={onBack} aria-label="Retour" style={{ width: 38, height: 38, borderRadius: 999, background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
+        <button onClick={onBack} aria-label="Retour" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
       </div>
 
       {/* En-tête phase + jauge */}
