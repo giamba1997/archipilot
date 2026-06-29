@@ -515,41 +515,36 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
         onDragOver={onDragOver}
         onDrop={onDrop}
         style={{
-          // Sur mobile : le panneau s'ouvre au-dessus du FAB (lui-même
-          // au-dessus de la MobileBottomBar v3). 108 + 56 (FAB) + 8 gap +
-          // safe-area = ~172 px d'offset bas. Sur desktop, on garde 92.
+          // Mobile : chat PLEIN ÉCRAN (comme le mockup) — prend tout le
+          // viewport, en-tête blanc, pas d'ombre ni d'arrondi. Desktop :
+          // panneau flottant bottom-right.
           position: "fixed",
-          bottom: isMobile ? `calc(172px + env(safe-area-inset-bottom, 0px))` : 92,
-          right: isMobile ? 12 : 24,
-          left: isMobile ? 12 : "auto",
           zIndex: 999,
-          width: isMobile ? "auto" : 560, maxWidth: "calc(100vw - 32px)",
-          height: 680, maxHeight: isMobile
-            ? "calc(100vh - 252px - env(safe-area-inset-bottom, 0px))"
-            : "calc(100vh - 130px)",
-          background: WH, border: `1px solid ${SBB}`, borderRadius: 14,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+          background: WH,
           display: "flex", flexDirection: "column", overflow: "hidden",
-          animation: "chatPopIn 0.18s ease-out",
           fontFamily: "inherit",
+          ...(isMobile
+            ? { inset: 0, width: "100%", maxWidth: "100%", height: "100%", maxHeight: "100%", border: "none", borderRadius: 0, boxShadow: "none", animation: "none" }
+            : { bottom: 92, right: 24, left: "auto", width: 560, maxWidth: "calc(100vw - 32px)", height: 680, maxHeight: "calc(100vh - 130px)", border: `1px solid ${SBB}`, borderRadius: 14, boxShadow: "0 12px 40px rgba(0,0,0,0.18)", animation: "chatPopIn 0.18s ease-out" }),
         }}
       >
         {/* Header — gauche : titre + sujet courant ; droite : nouveau / archives / close */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 12px 10px 14px", borderBottom: `1px solid ${SBB}`,
-          background: ACL, gap: 8,
+          padding: isMobile ? "calc(8px + env(safe-area-inset-top, 0px)) 12px 12px 16px" : "10px 12px 10px 14px",
+          borderBottom: `1px solid ${isMobile ? "#EFEDEB" : SBB}`,
+          background: isMobile ? WH : ACL, gap: 8,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 11 : 9, minWidth: 0, flex: 1 }}>
             <div style={{
-              width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, #D17A47, ${AC})`,
+              width: isMobile ? 36 : 30, height: isMobile ? 36 : 30, borderRadius: isMobile ? 10 : 9, background: `linear-gradient(135deg, #D17A47, ${AC})`,
               display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
             }}>
-              <span style={{ fontSize: 14, color: "#fff", fontWeight: 700 }}>✦</span>
+              <span style={{ fontSize: isMobile ? 17 : 14, color: "#fff", fontWeight: 700 }}>✦</span>
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: TX, lineHeight: 1.2 }}>
-                Assistant ArchiPilot
+              <div style={{ fontSize: isMobile ? 15 : 13, fontWeight: 700, color: TX, lineHeight: 1.2 }}>
+                {isMobile ? "Assistant" : "Assistant ArchiPilot"}
               </div>
               <div
                 title={
