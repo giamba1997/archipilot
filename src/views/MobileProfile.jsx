@@ -15,8 +15,8 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v ? "1" : "0"); } catch 
 
 function Toggle({ on, onChange }) {
   return (
-    <button onClick={() => onChange(!on)} aria-pressed={on} style={{ width: 40, height: 24, borderRadius: 999, background: on ? AC : "#D6D3D1", border: "none", position: "relative", cursor: "pointer", flexShrink: 0, transition: "background 0.15s", padding: 0 }}>
-      <span style={{ position: "absolute", top: 2, left: on ? 18 : 2, width: 20, height: 20, borderRadius: 999, background: "#fff", transition: "left 0.15s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
+    <button onClick={() => onChange(!on)} aria-pressed={on} aria-label="Activer/désactiver" style={{ width: 44, height: 26, minHeight: 26, borderRadius: 999, background: on ? AC : "#D6D3D1", border: "none", position: "relative", cursor: "pointer", flexShrink: 0, transition: "background 0.18s", padding: 0 }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 22, height: 22, borderRadius: 999, background: "#fff", transition: "left 0.18s", boxShadow: "0 1px 3px rgba(0,0,0,0.25)" }} />
     </button>
   );
 }
