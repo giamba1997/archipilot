@@ -120,6 +120,11 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // Modal RGPD de transition vers la Phase 2 (réunion)
   const [showRgpdModal, setShowRgpdModal] = useState(false);
 
+  // Pause MANUELLE de la réunion (depuis l'overlay). Distincte de la pause
+  // automatique quand on repasse en inspection — sinon l'effet de phase
+  // re-resume immédiatement et le bouton Pause « ne marche pas ».
+  const [meetingPaused, setMeetingPaused] = useState(false);
+
   // Phase courante : "inspection" (default) ou "reunion" (assis autour
   // de la table, enregistrement de la conversation). Bascule explicite.
   const phase = visit.phase || "inspection";
@@ -127,11 +132,18 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // ── Mutations phase ──
   const onRequestMeeting = () => setShowRgpdModal(true);
   const onConfirmMeeting = () => {
+    setMeetingPaused(false);
     setVisit(v => setPhase(v, "reunion"));
     setShowRgpdModal(false);
   };
   const onResumeInspection = () => {
+    setMeetingPaused(false);
     setVisit(v => setPhase(v, "inspection"));
+  };
+  // Pause/Reprise manuelle depuis l'overlay réunion.
+  const onToggleMeetingPause = () => {
+    if (conv.isPaused) { setMeetingPaused(false); conv.resume(); }
+    else { setMeetingPaused(true); conv.pause(); }
   };
 
   // ── Enregistrement de la conversation (Phase 2) ──
@@ -166,7 +178,9 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
     if (phase === "reunion") {
       if (!conv.isRecording && !conv.error) {
         conv.start();
-      } else if (conv.isRecording && conv.isPaused) {
+      } else if (conv.isRecording && conv.isPaused && !meetingPaused) {
+        // Resume auto seulement si la pause vient du retour inspection,
+        // PAS d'une pause manuelle de l'archi (sinon le bouton Pause saute).
         conv.resume();
       }
     } else if (phase === "inspection" && conv.isRecording && !conv.isPaused) {
@@ -176,7 +190,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       conv.pause();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, conv.isRecording, conv.isPaused, conv.error]);
+  }, [phase, conv.isRecording, conv.isPaused, conv.error, meetingPaused]);
 
   // ── Mutations ──
 
@@ -572,6 +586,7 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
           conv={conv}
           presents={visit.presents}
           onTogglePresent={onTogglePresent}
+          onTogglePause={onToggleMeetingPause}
           onStop={onResumeInspection}
           onPhoto={() => setActiveSheet("photo")}
           nextPv={(project.pvHistory || []).length + 1}
@@ -586,7 +601,9 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
 // `conv` déjà actif (duration + audioLevel live). Pause/Reprise, Stop
 // (= revient en inspection, l'audio reste pour la transcription finale),
 // Ajout photo. Carte de continuité desktop + présents.
-function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onStop, onPhoto, nextPv }) {
+function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent, onTogglePause, onStop, onPhoto, nextPv }) {
+  const [confirmStop, setConfirmStop] = useState(false);
+  const namedPresents = (presents || []).filter(p => p.name && String(p.name).trim());
   const mmss = `${String(Math.floor(conv.duration / 60)).padStart(2, "0")}:${String(conv.duration % 60).padStart(2, "0")}`;
   const lvl = conv.isPaused ? 0 : (conv.audioLevel || 0) / 100;
   // 24 barres : motif fixe modulé par le niveau audio live.
@@ -595,7 +612,7 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 250, background: "#FCFBFA", display: "flex", flexDirection: "column", paddingBottom: "max(20px, env(safe-area-inset-bottom, 20px))", fontFamily: "inherit" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(8px + env(safe-area-inset-top, 0px)) 8px 8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(20px + env(safe-area-inset-top, 0px)) 8px 10px" }}>
         <button onClick={onStop} aria-label="Retour à la visite" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, borderRadius: "50%", background: WH, border: "1px solid #EFEDEB", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}><Ico name="back" size={18} color={TX2} /></button>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: TX }}>Réunion · {project.name}</div>
@@ -621,15 +638,15 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
 
         {/* Contrôles */}
         <div style={{ display: "flex", alignItems: "center", gap: 26 }}>
-          <button onClick={() => conv.isPaused ? conv.resume() : conv.pause()} aria-label={conv.isPaused ? "Reprendre" : "Pause"} style={{ width: 56, height: 56, borderRadius: 999, background: WH, border: "1px solid #E7E5E4", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer" }}>
+          <button onClick={onTogglePause} aria-label={conv.isPaused ? "Reprendre" : "Pause"} style={{ width: 56, height: 56, minHeight: 56, borderRadius: "50%", background: WH, border: "1px solid #E7E5E4", display: "flex", alignItems: "center", justifyContent: "center", color: TX2, cursor: "pointer", flexShrink: 0 }}>
             {conv.isPaused
               ? <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
               : <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>}
           </button>
-          <button onClick={onStop} aria-label="Terminer la réunion" style={{ width: 84, height: 84, borderRadius: 999, background: "#DC2626", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 24px rgba(220,38,38,0.35)", cursor: "pointer" }}>
+          <button onClick={() => setConfirmStop(true)} aria-label="Terminer la réunion" style={{ width: 84, height: 84, minHeight: 84, borderRadius: "50%", background: "#DC2626", border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 24px rgba(220,38,38,0.35)", cursor: "pointer", flexShrink: 0 }}>
             <span style={{ width: 30, height: 30, borderRadius: 7, background: "#fff" }} />
           </button>
-          <button onClick={onPhoto} aria-label="Ajouter une photo" style={{ width: 56, height: 56, borderRadius: 999, background: WH, border: "1px solid #E7E5E4", display: "flex", alignItems: "center", justifyContent: "center", color: "#A04C20", cursor: "pointer" }}>
+          <button onClick={onPhoto} aria-label="Ajouter une photo" style={{ width: 56, height: 56, minHeight: 56, borderRadius: "50%", background: WH, border: "1px solid #E7E5E4", display: "flex", alignItems: "center", justifyContent: "center", color: "#A04C20", cursor: "pointer", flexShrink: 0 }}>
             <Ico name="camera" size={22} color="#A04C20" />
           </button>
         </div>
@@ -651,13 +668,27 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
       {/* Présents */}
       <div style={{ padding: "14px 8px 0", display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: TX3 }}>Présents :</span>
-        {presents.map((p, i) => (
-          <button key={i} onClick={() => onTogglePresent?.(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 28, padding: "0 10px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : "#EFEDEB"}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-            <span style={{ width: 18, height: 18, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700 }}>{(p.name || "?").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+        {namedPresents.map((p, i) => (
+          <button key={i} onClick={() => onTogglePresent?.(p.name)} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, minHeight: 30, padding: "0 12px 0 4px", borderRadius: 999, background: p.present ? SGB : WH, border: `1px solid ${p.present ? SG : "#EFEDEB"}`, color: p.present ? SG : TX3, fontSize: 12, fontWeight: 500, lineHeight: 1, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, background: p.present ? SG : SBB, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{p.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
             {p.name}
           </button>
         ))}
       </div>
+
+      {/* Confirmation d'arrêt de la réunion */}
+      {confirmStop && (
+        <div onClick={() => setConfirmStop(false)} style={{ position: "fixed", inset: 0, zIndex: 260, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: WH, borderRadius: 18, padding: 22, width: "100%", maxWidth: 360, fontFamily: "inherit", boxShadow: "0 12px 40px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: TX, marginBottom: 6 }}>Terminer la réunion ?</div>
+            <div style={{ fontSize: 13, color: TX2, lineHeight: 1.5, marginBottom: 18 }}>L'enregistrement s'arrête. L'IA l'assemblera dans le PV. Tu pourras reprendre la visite ensuite.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmStop(false)} style={{ flex: 1, height: 46, borderRadius: 12, border: "1px solid #E7E5E4", background: WH, color: TX2, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Continuer</button>
+              <button onClick={() => { setConfirmStop(false); onStop(); }} style={{ flex: 1, height: 46, borderRadius: 12, border: "none", background: "#DC2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Terminer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1230,7 +1261,7 @@ function SheetWrapper({ title, onClose, children }) {
     <div
       onClick={onClose}
       style={{
-        position: "fixed", inset: 0, zIndex: 250,
+        position: "fixed", inset: 0, zIndex: 400,
         background: "rgba(0, 0, 0, 0.5)",
         display: "flex", alignItems: "flex-end",
       }}
