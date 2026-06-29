@@ -819,15 +819,8 @@ function PhotoSheet({ onClose, onSubmit }) {
   // On ne force plus l'ouverture caméra : l'archi choisit d'abord
   // « Prendre une photo » (caméra) ou « Depuis la galerie ».
 
-  // Auto-start dictée dès que la photo est capturée. Court délai pour
-  // laisser le navigateur peindre la preview avant de demander le mic.
-  useEffect(() => {
-    if (!photo || autoStarted || errorMsg) return;
-    setAutoStarted(true);
-    const t = setTimeout(() => { recorder.start(); }, 250);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photo, autoStarted, errorMsg]);
+  // L'annotation est désormais opt-in : l'archi tape « Dicter » s'il veut
+  // la voix, ou écrit à la main, ou rien. Plus d'auto-démarrage micro.
 
   // Chrono pendant l'enregistrement — affiché en overlay sur la photo.
   useEffect(() => {
@@ -886,7 +879,7 @@ function PhotoSheet({ onClose, onSubmit }) {
   const chrono = `${String(Math.floor(recordingSec / 60)).padStart(2, "0")}:${String(recordingSec % 60).padStart(2, "0")}`;
 
   return (
-    <SheetWrapper title="Photo + annotation vocale" onClose={onClose}>
+    <SheetWrapper title={photo ? "Annoter la photo" : "Ajouter une photo"} onClose={onClose}>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFile} />
       <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFile} />
       {!photo ? (
@@ -902,90 +895,30 @@ function PhotoSheet({ onClose, onSubmit }) {
         </div>
       ) : (
         <>
-          {/* Photo + overlay chrono enregistrement */}
-          <div style={{ position: "relative", marginBottom: 12 }}>
-            <img src={photo} alt="" style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 10, background: SB, display: "block" }} />
-            {recorder.isRecording && (
-              <div style={{ position: "absolute", top: 10, left: 10, padding: "5px 10px", background: "rgba(0,0,0,0.65)", borderRadius: 999, fontSize: 11, color: "#fff", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "ui-monospace, monospace", letterSpacing: "0.04em" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: RD, animation: "pulseDot 1.2s ease-in-out infinite" }} />
-                {chrono}
-              </div>
-            )}
-            {recorder.isTranscribing && !recorder.isRecording && (
-              <div style={{ position: "absolute", top: 10, left: 10, padding: "5px 10px", background: "rgba(0,0,0,0.65)", borderRadius: 999, fontSize: 11, color: "#fff", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <Ico name="sparkle" size={11} color="#fff" />
-                Transcription…
-              </div>
-            )}
-          </div>
+          {/* Aperçu photo */}
+          <img src={photo} alt="" style={{ width: "100%", maxHeight: 240, objectFit: "cover", borderRadius: 14, background: SB, display: "block", marginBottom: 14, border: `1px solid ${SBB}` }} />
 
-          {/* Transcript area — toujours visible, devient éditable quand non vide */}
-          <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: voiceAnnotated ? AC : TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {voiceAnnotated ? "Annotation vocale" : recorder.isRecording ? "Dictée en cours…" : "Annotation"}
-              </span>
-              {voiceAnnotated && (
-                <Ico name="mic" size={12} color={AC} />
-              )}
-            </div>
-            {annotation ? (
-              <textarea
-                value={annotation}
-                onChange={e => setAnnotation(e.target.value)}
-                rows={3}
-                style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, color: TX, lineHeight: 1.5, resize: "vertical", outline: "none", fontFamily: "inherit", padding: 0, boxSizing: "border-box" }}
-              />
-            ) : (
-              <div style={{ fontSize: 12, color: TX3, lineHeight: 1.5, fontStyle: "italic", minHeight: 36 }}>
-                {recorder.isRecording
-                  ? "Décris ce que tu viens de photographier — la transcription apparaîtra ici."
-                  : "Tape Recommencer pour démarrer la dictée, ou Sans annotation pour passer."}
-              </div>
-            )}
-          </div>
+          {/* Annotation — manuscrite et/ou vocale, ou aucune */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#44403C", marginBottom: 7 }}>Annotation <span style={{ color: TX3, fontWeight: 500 }}>· optionnelle</span></div>
+          <textarea value={annotation} onChange={e => setAnnotation(e.target.value)} rows={3} placeholder="Écris une note… ou dicte-la" style={{ width: "100%", border: "1px solid #E7E5E4", borderRadius: 12, background: WH, padding: 13, fontSize: 14, color: TX, lineHeight: 1.5, fontFamily: "inherit", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+          <button onClick={recorder.isRecording ? recorder.stop : recorder.start} disabled={uploading || recorder.isTranscribing}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 9, background: recorder.isRecording ? `${RD}12` : "transparent", border: recorder.isRecording ? `1px solid ${RD}55` : "1px solid #E7E5E4", borderRadius: 999, padding: "7px 13px", color: recorder.isRecording ? RD : "#A04C20", fontSize: 12.5, fontWeight: 600, cursor: uploading || recorder.isTranscribing ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+            {recorder.isRecording
+              ? <><span style={{ width: 8, height: 8, borderRadius: "50%", background: RD, animation: "pulseDot 1.2s ease-in-out infinite" }} />Enregistre… {chrono} · arrêter</>
+              : recorder.isTranscribing
+                ? <><Ico name="sparkle" size={14} color="#A04C20" />Transcription…</>
+                : <><Ico name="mic" size={14} color="#A04C20" />Dicter l'annotation</>}
+          </button>
 
           {errorMsg && (
-            <div style={{ padding: "8px 12px", background: BRB, color: BR, borderRadius: 8, fontSize: 12, marginBottom: 12, lineHeight: 1.4 }}>
-              {errorMsg}
-            </div>
+            <div style={{ padding: "8px 12px", background: BRB, color: BR, borderRadius: 8, fontSize: 12, marginTop: 10, lineHeight: 1.4 }}>{errorMsg}</div>
           )}
 
-          {/* 3 actions : Skip / Recommencer / Garder */}
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={skip} disabled={uploading} style={{
-              flex: 1, padding: "11px 10px",
-              border: `1px solid ${SBB}`, background: WH, color: TX2,
-              borderRadius: 10, fontSize: 12, fontWeight: 600,
-              cursor: uploading ? "not-allowed" : "pointer", fontFamily: "inherit",
-            }}>
-              Sans annotation
-            </button>
-            <button onClick={restart} disabled={uploading || recorder.isTranscribing}
-              title="Recommencer la dictée"
-              style={{
-                padding: "11px 12px",
-                border: `1px solid ${SBB}`, background: WH, color: TX2,
-                borderRadius: 10, fontSize: 12, fontWeight: 600,
-                cursor: uploading || recorder.isTranscribing ? "not-allowed" : "pointer", fontFamily: "inherit",
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                minWidth: 44,
-              }}
-            >
-              <Ico name="undo" size={14} color={TX2} />
-            </button>
-            <button onClick={submit} disabled={uploading || recorder.isTranscribing} style={{
-              flex: 1.4, padding: "11px 14px",
-              border: "none", background: AC, color: "#fff",
-              borderRadius: 10, fontSize: 13, fontWeight: 700,
-              cursor: uploading || recorder.isTranscribing ? "not-allowed" : "pointer", fontFamily: "inherit",
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-              opacity: uploading || recorder.isTranscribing ? 0.6 : 1,
-            }}>
-              <Ico name="check" size={14} color="#fff" />
-              {uploading ? "..." : "Garder"}
-            </button>
-          </div>
+          {/* CTA — l'annotation reste optionnelle */}
+          <button onClick={submit} disabled={uploading || recorder.isTranscribing}
+            style={{ width: "100%", height: 50, marginTop: 16, border: "none", borderRadius: 14, background: AC, color: "#fff", fontSize: 15, fontWeight: 700, cursor: uploading || recorder.isTranscribing ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 8px 20px rgba(184,92,44,0.25)", opacity: uploading || recorder.isTranscribing ? 0.6 : 1 }}>
+            {uploading ? "Ajout…" : "Ajouter la photo"}
+          </button>
         </>
       )}
     </SheetWrapper>
