@@ -160,7 +160,7 @@ export function MobileNotifs({
   return (
     <div style={{ maxWidth: "none", margin: "0 auto", paddingBottom: SP.xl * 4 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 20px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 10px 14px" }}>
         <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>Notifications</h1>
         {unread.length > 0 && (
           <button onClick={onMarkAllRead} aria-label="Tout marquer lu" style={{ background: "none", border: "none", padding: 6, cursor: "pointer", fontSize: 13, color: "#A04C20", fontWeight: 600, fontFamily: "inherit" }}>
@@ -169,7 +169,7 @@ export function MobileNotifs({
         )}
       </div>
 
-      <div style={{ padding: "12px 12px 0" }}>
+      <div style={{ padding: "12px 8px 0" }}>
         {/* ── Invitations en attente ── (collaboration différée au POC) */}
         {isEnabled("collaboration") && invitations.length > 0 && (
           <Section title="Invitations" iconName="users" color={ST}>
