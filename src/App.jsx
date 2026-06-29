@@ -988,15 +988,10 @@ export default function App() {
           button, a, select, label { min-height: 44px; }
           input, textarea, select { font-size: 16px !important; } /* prevent iOS zoom */
 
-          /* Header compact */
-          .ap-header { padding: 8px 12px !important; gap: 8px !important; }
-          .ap-header .ap-search-pill { display: none !important; }
-          .ap-header .ap-profile-text { display: none !important; }
-          .ap-header .ap-project-name { max-width: 140px !important; font-size: 14px !important; }
-          .ap-header .ap-project-meta { max-width: 160px !important; }
-
-          /* Hide header on profile page — profile has its own header */
-          body:has(.ap-profile-mobile) .ap-header { display: none !important; }
+          /* Mobile : pas de topbar desktop (nom de projet + cloche).
+             Chaque écran mobile (Accueil, Consultation, Chantiers, Notifs,
+             Profil, Mode Chantier…) porte son propre en-tête. */
+          .ap-header { display: none !important; }
 
           /* Overview secondary column — handled by mobile cards */
 
