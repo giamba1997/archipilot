@@ -718,16 +718,22 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
             // Liste des messages
             messages.map((m, i) => (
               <div key={i} style={{
-                display: "flex", flexDirection: "column",
-                alignItems: m.role === "user" ? "flex-end" : "flex-start",
+                display: "flex", gap: 9, alignItems: "flex-start",
+                justifyContent: m.role === "user" ? "flex-end" : "flex-start",
               }}>
+                {m.role !== "user" && (
+                  <span style={{ width: 26, height: 26, borderRadius: 8, background: "linear-gradient(135deg,#D17A47,#B85C2C)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                    <span style={{ fontSize: 13, color: "#fff", fontWeight: 700, lineHeight: 1 }}>✦</span>
+                  </span>
+                )}
                 <div style={{
-                  maxWidth: "85%",
-                  padding: "9px 13px", borderRadius: 12,
+                  maxWidth: m.role === "user" ? "84%" : "calc(92% - 35px)",
+                  padding: "10px 14px",
+                  borderRadius: m.role === "user" ? "16px 16px 5px 16px" : "5px 16px 16px 16px",
                   background: m.role === "user" ? AC : WH,
                   color: m.role === "user" ? "#fff" : TX,
-                  border: m.role === "user" ? "none" : `1px solid ${SBB}`,
-                  fontSize: 13, lineHeight: 1.55,
+                  border: m.role === "user" ? "none" : `1px solid #EFEDEB`,
+                  fontSize: 14, lineHeight: 1.55,
                   wordBreak: "break-word",
                 }}>
                   {/* Pièces jointes du user — thumbnails image, label PDF/text */}
@@ -822,6 +828,15 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
             </div>
           )}
         </div>
+
+        {/* Chips de suivi rapides (mockup) — pendant la conversation */}
+        {!showArchives && !empty && !loading && (
+          <div style={{ display: "flex", gap: 7, padding: "0 14px 10px", overflowX: "auto", background: WH }}>
+            {["Résume ça", "Un exemple ?", "Les obligations ?", "Sources ?"].map((c, i) => (
+              <button key={i} onClick={() => sendQuestion(c)} style={{ flexShrink: 0, height: 32, minHeight: 32, padding: "0 12px", borderRadius: 999, background: WH, border: "1px solid #EFEDEB", color: "#44403C", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{c}</button>
+            ))}
+          </div>
+        )}
 
         {/* Pending attachments preview */}
         {pendingAttachments.length > 0 && (
