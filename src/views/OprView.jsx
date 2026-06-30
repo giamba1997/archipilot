@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG } from "../constants/tokens";
 import { RESERVE_STATUSES, RESERVE_SEVERITIES, getReserveStatus, getReserveSeverity, nextReserveStatus } from "../constants/statuses";
-import { Ico, MobileConsultationBanner } from "../components/ui";
+import { Ico } from "../components/ui";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { uploadPhoto, getPhotoUrl, loadOprSignatureRequests, requestOprSignatures, loadReserveTemplates, saveReserveTemplate, incrementReserveTemplateUsage } from "../db";
 import { MAX_UPLOAD_PHOTO_BYTES } from "../constants/config";
 import { SignOprModal, SendOprModal, RequestSignaturesModal } from "../components/modals";
 import { generateOprPdf } from "../utils/pdf";
+import { NewReserveSheet } from "./ChantierModeView";
 
 // ── OPR View ─────────────────────────────────────────────────
 
@@ -23,7 +24,31 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
   const [signatureRequests, setSignatureRequests] = useState([]);
   const [relaunchingId, setRelaunchingId] = useState(null); // id du sigreq en cours de relance
   const [reserveTemplates, setReserveTemplates] = useState([]); // F8 — bibliothèque
+  const [mobileNewReserve, setMobileNewReserve] = useState(false); // mobile : sheet de création (même UI que Mode Chantier)
   const photoRef = useRef(null);
+
+  // Création d'une réserve depuis la NewReserveSheet partagée (mobile) — même
+  // forme d'objet que Mode Chantier (onCreateReserve), persistée sur le projet.
+  const createReserveFromSheet = (newRes) => {
+    const code = `R-${String((project.reserves || []).length + 1).padStart(3, "0")}`;
+    const reserve = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      code,
+      description: (newRes.description || "").trim(),
+      severity: newRes.severity || "major",
+      status: "non_levee",
+      contractor: newRes.contractor || "",
+      location: newRes.location || "",
+      photos: newRes.photos || [],
+      deadline: newRes.deadline || "",
+      notes: "",
+      createdAt: new Date().toISOString(),
+      resolvedAt: null,
+    };
+    setProjects(prev => prev.map(p => p.id !== project.id ? p : { ...p, reserves: [...(p.reserves || []), reserve] }));
+    setMobileNewReserve(false);
+    showToast?.(`${code} créée`);
+  };
 
   // Chargement de la bibliothèque de modèles (F8). Lazy : seulement quand
   // l'OPR view est ouverte, jamais sur d'autres écrans. Si l'archi n'a
@@ -199,16 +224,18 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
+    <div style={isMobile ? { padding: "calc(8px + env(safe-area-inset-top, 0px)) 16px 0", animation: "fadeIn 0.2s ease" } : { maxWidth: 1200, margin: "0 auto", animation: "fadeIn 0.2s ease" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
-            <Ico name="back" color={TX2} size={16} />
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 10, minWidth: 0 }}>
+          <button onClick={onBack} aria-label="Retour" style={isMobile
+            ? { background: WH, border: "1px solid #EFEDEB", cursor: "pointer", width: 40, height: 40, minWidth: 40, minHeight: 40, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", color: TX2 }
+            : { background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+            <Ico name="back" color={TX2} size={isMobile ? 18 : 16} />
           </button>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: TX }}>Réserves OPR</div>
-            <div style={{ fontSize: 12, color: TX3 }}>{project.name} — Opérations préalables à réception</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? 24 : 18, fontWeight: 700, color: TX, letterSpacing: isMobile ? "-0.4px" : 0 }}>Réserves OPR</div>
+            <div style={{ fontSize: isMobile ? 13 : 12, color: TX3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isMobile ? project.name : `${project.name} — Opérations préalables à réception`}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -258,7 +285,11 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
         </div>
       </div>
 
-      {isMobile && <MobileConsultationBanner hint="création de réserves via la capture rapide ou depuis l'ordinateur." />}
+      {isMobile && (
+        <button onClick={() => setMobileNewReserve(true)} style={{ width: "100%", height: 48, marginBottom: 16, background: AC, color: "#fff", border: "none", borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 8px 20px rgba(184,92,44,0.25)" }}>
+          <Ico name="plus" size={17} color="#fff" />Nouvelle réserve
+        </button>
+      )}
 
       {/* KPI Dashboard */}
       {total > 0 && (
@@ -651,6 +682,13 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
         />
       )}
       {detailReserve && <ReserveDetailSheet reserve={detailReserve} onClose={() => setDetailReserve(null)} />}
+      {mobileNewReserve && (
+        <NewReserveSheet
+          contractors={contractors}
+          onClose={() => setMobileNewReserve(false)}
+          onSubmit={createReserveFromSheet}
+        />
+      )}
     </div>
   );
 }

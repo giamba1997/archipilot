@@ -1172,7 +1172,7 @@ function TextNoteSheet({ onClose, onSubmit }) {
 }
 
 // ── Sheet : Nouvelle réserve ──
-function NewReserveSheet({ contractors, onClose, onSubmit }) {
+export function NewReserveSheet({ contractors, onClose, onSubmit }) {
   const fileRef = useRef(null);
   const [form, setForm] = useState({ description: "", severity: "major", contractor: "", location: "", deadline: "", photos: [] });
   const [dictating, setDictating] = useState(false);
