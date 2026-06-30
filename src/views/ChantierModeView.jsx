@@ -702,7 +702,7 @@ function MeetingRecorderOverlay({ project, conv, presents = [], onTogglePresent,
         {micFailed && (
           <div style={{ width: "100%", maxWidth: 340, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "12px 14px", marginBottom: 22, textAlign: "center" }}>
             <div style={{ fontSize: 12.5, color: "#991B1B", lineHeight: 1.5, marginBottom: 10 }}>{recorderError || "L'enregistrement n'a pas pu démarrer — autorise l'accès au micro."}</div>
-            <button onClick={() => conv.start()} style={{ height: 38, padding: "0 16px", borderRadius: 999, border: "none", background: "#DC2626", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}><Ico name="mic" size={14} color="#fff" />Réessayer</button>
+            <button onClick={() => conv.start()} style={{ height: 38, minHeight: 38, padding: "0 16px", borderRadius: 999, border: "none", background: "#DC2626", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}><Ico name="mic" size={14} color="#fff" />Réessayer</button>
           </div>
         )}
 

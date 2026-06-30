@@ -44,6 +44,14 @@
   → matérialise le choix **brouillon-only sur mobile, finalisation/envoi sur desktop**.
 - **FAB assistant** terracotta + label d'amorce qui s'efface après ~4,5 s.
 - **Largeur de contenu** élargie sur les onglets (marges réduites).
+- **Cold-start vérifié + corrigé** — un nouvel utilisateur (0 projet) crée son
+  1ᵉʳ projet via l'`OnboardingWizard` (étape « projet » → `onCreateProject`),
+  puis atterrit sur `overview`. Bug mobile corrigé : la carte du wizard avait
+  `overflow: hidden` sans `maxHeight` → contenu clippé (surtout clavier ouvert) ;
+  passée en `maxHeight: calc(100dvh - 48px)` + `overflowY: auto`.
+- **Audit cibles tactiles** — clean : les boutons étirés à 44px sont des
+  actions (où 44px est la bonne cible) ou des icônes à fond transparent (hit-area
+  44px = bonus tactile). Seul correctif : pilule « Réessayer » (micro) `minHeight: 38`.
 
 ---
 

@@ -216,7 +216,7 @@ export function OnboardingWizard({ profile, onUpdateProfile, onComplete, onCreat
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10002, background: "rgba(28,25,23,0.55)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Inter', system-ui, sans-serif" }}>
       <style>{`@keyframes onbUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}.onb-card{animation:onbUp .3s ease both}`}</style>
-      <div className="onb-card" style={{ width: "100%", maxWidth: cardWidth, background: WH, borderRadius: 22, boxShadow: "0 24px 60px rgba(28,25,23,0.22)", overflow: "hidden" }}>
+      <div className="onb-card" style={{ width: "100%", maxWidth: cardWidth, background: WH, borderRadius: 22, boxShadow: "0 24px 60px rgba(28,25,23,0.22)", maxHeight: "calc(100dvh - 48px)", overflowY: "auto", overflowX: "hidden" }}>
         {/* Header : logo A + dots */}
         <div style={{ padding: "22px 32px 0", display: "flex", alignItems: "center" }}>
           <div style={{ width: 34, height: 34, borderRadius: 9, background: AC, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, fontFamily: "'Manrope','Inter',sans-serif" }}>A</div>
