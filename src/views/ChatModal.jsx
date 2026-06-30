@@ -222,6 +222,7 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
   // Conversations archivées (multi-sujets lite)
   const [archives, setArchives] = useState(() => loadArchives());
   const [showArchives, setShowArchives] = useState(false);
+  const [archiveQuery, setArchiveQuery] = useState(""); // recherche dans l'historique
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -625,27 +626,32 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
           background: SB,
         }}>
           {showArchives ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Conversations archivées
-                </span>
-                <button
-                  onClick={() => setShowArchives(false)}
-                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, color: TX3, padding: 4 }}
-                >
-                  Retour
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* En-tête : Conversations + Nouvelle (mockup) */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 17, fontWeight: 700, color: TX, letterSpacing: "-0.3px" }}>Conversations</span>
+                <button onClick={handleNewTopic} style={{ height: 32, minHeight: 32, padding: "0 13px", borderRadius: 999, border: "none", background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Ico name="plus" size={13} color="#fff" />Nouvelle
                 </button>
               </div>
-              {archives.length === 0 ? (
-                <div style={{ padding: "32px 16px", textAlign: "center", color: TX3, fontSize: 12, lineHeight: 1.5 }}>
-                  Aucune conversation archivée pour le moment.<br />
-                  Utilise « Nouveau sujet » pour archiver la conversation actuelle.
-                </div>
-              ) : (() => {
+              {/* Recherche dans l'historique */}
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", display: "inline-flex" }}><Ico name="search" size={15} color={TX3} /></span>
+                <input value={archiveQuery} onChange={e => setArchiveQuery(e.target.value)} placeholder="Rechercher dans l'historique" style={{ width: "100%", height: 42, border: "none", borderRadius: 12, background: "#F1ECE8", padding: "0 12px 0 38px", fontSize: 14, color: TX, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+              </div>
+              {(() => {
+                const q = archiveQuery.trim().toLowerCase();
+                const list = q ? archives.filter(a => (a.title || "").toLowerCase().includes(q) || archiveExtract(a).toLowerCase().includes(q)) : archives;
+                if (list.length === 0) {
+                  return (
+                    <div style={{ padding: "32px 16px", textAlign: "center", color: TX3, fontSize: 12.5, lineHeight: 1.5 }}>
+                      {q ? <>Aucune conversation ne correspond à <strong style={{ color: TX }}>"{archiveQuery}"</strong>.</> : <>Aucune conversation pour le moment.<br />« Nouvelle » pour repartir.</>}
+                    </div>
+                  );
+                }
                 const order = ["Aujourd'hui", "Cette semaine", "Plus tôt"];
                 const groups = {};
-                archives.forEach(a => { const b = archiveBucket(a.createdAt); (groups[b] = groups[b] || []).push(a); });
+                list.forEach(a => { const b = archiveBucket(a.createdAt); (groups[b] = groups[b] || []).push(a); });
                 return order.filter(b => groups[b]?.length).map(b => (
                   <div key={b} style={{ marginBottom: 6 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em", margin: "4px 2px 8px" }}>{b}</div>
