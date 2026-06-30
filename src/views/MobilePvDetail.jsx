@@ -33,6 +33,11 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
   const blocks = parsePvContent(pv.content);
   const photos = pv.photos || [];
   const presents = pv.recipients?.length || (project?.participants || []).length || null;
+  // Nombre de réserves/remarques du PV : priorité à un champ explicite, sinon
+  // on compte les points numérotés "NN.X" du contenu parsé.
+  const reservesCount = (typeof pv.reservesCount === "number" ? pv.reservesCount
+    : Array.isArray(pv.reserves) ? pv.reserves.length
+    : blocks.reduce((n, b) => n + b.items.filter(it => /^\d{1,2}\.\d/.test(it)).length, 0));
 
   const doPdf = async () => {
     try {
@@ -47,10 +52,10 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
     try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
   };
 
-  const metaBox = (label, value) => (
+  const metaBox = (label, value, valueColor) => (
     <div style={{ flex: 1, background: WH, border: `1px solid #EFEDEB`, borderRadius: 12, padding: 11, textAlign: "center" }}>
       <div style={{ fontSize: 12, color: TX3 }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: TX, marginTop: 2 }}>{value}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: valueColor || TX, marginTop: 2 }}>{value}</div>
     </div>
   );
 
@@ -78,7 +83,7 @@ export function MobilePvDetail({ pv, project, profile, onClose }) {
       <div style={{ padding: "0 16px 18px", display: "flex", gap: 8 }}>
         {pv.weather && metaBox("Météo", typeof pv.weather === "string" ? pv.weather : `${pv.weather.temperature}°C`)}
         {metaBox("Postes", pv.postsCount || blocks.length || "—")}
-        {metaBox("Date", pv.date || "—")}
+        {metaBox("Réserves", reservesCount, reservesCount > 0 ? "#92400E" : TX)}
       </div>
 
       {/* Contenu par poste */}
