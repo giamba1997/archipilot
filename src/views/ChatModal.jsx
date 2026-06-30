@@ -625,6 +625,13 @@ export function ChatModal({ open, onClose, projects, profile, activeContext, act
           display: "flex", flexDirection: "column", gap: 12,
           background: SB,
         }}>
+          {/* Puce de contexte (mockup) — projet + documents, en tête de conversation */}
+          {!showArchives && !empty && ctxLabel && (
+            <div style={{ alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 7, background: WH, border: "1px solid #EFEDEB", borderRadius: 999, padding: "6px 12px", fontSize: 12, color: TX3, maxWidth: "92%" }}>
+              <Ico name="file" size={13} color="#A04C20" />
+              <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ctxLabel}</span>
+            </div>
+          )}
           {showArchives ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {/* En-tête : Conversations + Nouvelle (mockup) */}
