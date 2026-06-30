@@ -984,16 +984,27 @@ function PhotoSheet({ onClose, onSubmit }) {
       <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFile} />
       <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFile} />
       {!photo ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingBottom: 4 }}>
-          <button onClick={() => fileRef.current?.click()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 10px", border: "1px solid #EFEDEB", borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
-            <span style={{ width: 52, height: 52, borderRadius: 15, background: "#FDF6F1", color: "#A04C20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="camera" size={26} color="#A04C20" /></span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: TX, textAlign: "center" }}>Prendre une photo</span>
-          </button>
-          <button onClick={() => galleryRef.current?.click()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 10px", border: "1px solid #EFEDEB", borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
-            <span style={{ width: 52, height: 52, borderRadius: 15, background: "#EFF6FF", color: "#1E40AF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="image" size={26} color="#1E40AF" /></span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: TX, textAlign: "center" }}>Depuis la galerie</span>
-          </button>
-        </div>
+        <>
+          <div style={{ fontSize: 13.5, color: TX2, lineHeight: 1.5, marginBottom: 14 }}>
+            Ajoute une photo à ta visite — elle rejoindra le fil « Capturé » et le brouillon de PV.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingBottom: 4 }}>
+            <button onClick={() => fileRef.current?.click()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 11, padding: "18px 12px", border: "1px solid #EFEDEB", borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+              <span style={{ width: 50, height: 50, borderRadius: 14, background: "#FDF6F1", color: "#A04C20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="camera" size={24} color="#A04C20" /></span>
+              <span style={{ textAlign: "center" }}>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: TX }}>Prendre une photo</span>
+                <span style={{ display: "block", fontSize: 11.5, color: TX3, marginTop: 2 }}>Avec l'appareil</span>
+              </span>
+            </button>
+            <button onClick={() => galleryRef.current?.click()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 11, padding: "18px 12px", border: "1px solid #EFEDEB", borderRadius: 16, background: WH, cursor: "pointer", fontFamily: "inherit" }}>
+              <span style={{ width: 50, height: 50, borderRadius: 14, background: "#EFF6FF", color: "#1E40AF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Ico name="image" size={24} color="#1E40AF" /></span>
+              <span style={{ textAlign: "center" }}>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: TX }}>Depuis la galerie</span>
+                <span style={{ display: "block", fontSize: 11.5, color: TX3, marginTop: 2 }}>Ta photothèque</span>
+              </span>
+            </button>
+          </div>
+        </>
       ) : (
         <>
           {/* Aperçu photo */}
