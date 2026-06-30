@@ -935,7 +935,7 @@ export function PlanViewer({ project, setProjects, planRemarks, onPlanRemarksCha
                   {planStrokes.length > 0 && (
                     <div style={{ display: "flex", gap: 2 }}>
                       <button onClick={undoStroke} title="Annuler le dernier" style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 5px", borderRadius: 5 }}><Ico name="undo" size={12} color={TX2} /></button>
-                      <button onClick={clearStrokes} title="Tout effacer" style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 5px", borderRadius: 5 }}><Ico name="trash" size={12} color={RD} /></button>
+                      <button onClick={() => { if (confirm("Effacer toutes les annotations du plan ? Cette action est définitive.")) clearStrokes(); }} title="Tout effacer" aria-label="Tout effacer" style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 5px", borderRadius: 5 }}><Ico name="trash" size={12} color={RD} /></button>
                     </div>
                   )}
                 </div>

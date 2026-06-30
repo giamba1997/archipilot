@@ -7,12 +7,12 @@
 ---
 
 ## Lot A — Garde-fous sur actions destructives/sensibles
-- [ ] **P1** `MfaSection.jsx:79` — confirmation avant `disableMfa()` (désactivation 2FA).
-- [ ] **P1** `PlanManager.jsx:348,399` — `confirm()` avant `deleteItem()` (dossier + fichiers/sous-dossiers récursifs), surtout si `getChildren(id).length > 0`.
-- [ ] **P1** `GalleryView.jsx:160,277` — confirmation avant suppression groupée « Supprimer (n) » et suppression en lightbox.
-- [ ] **P2** `CollabModal.jsx:76` — confirmation avant `handleRemove()` (retrait d'un collaborateur).
-- [ ] **P2** `PricingSection.jsx:140` — confirmation avant rétrogradation vers Free (perte d'accès features).
-- [ ] **P2** `PlanViewer.jsx:938` — confirmation avant « Tout effacer » (calques d'annotation).
+- [x] **P1** `MfaSection.jsx:79` — confirmation avant `disableMfa()` (désactivation 2FA).
+- [x] **P1** `PlanManager.jsx:348,399` — `confirm()` avant `deleteItem()` (dossier + fichiers/sous-dossiers récursifs), surtout si `getChildren(id).length > 0`.
+- [x] **P1** `GalleryView.jsx:160,277` — confirmation avant suppression groupée « Supprimer (n) » et suppression en lightbox.
+- [x] **P2** `CollabModal.jsx:76` — confirmation avant `handleRemove()` (retrait d'un collaborateur).
+- [x] **P2** `PricingSection.jsx:140` — confirmation avant rétrogradation vers Free (perte d'accès features).
+- [x] **P2** `PlanViewer.jsx:938` — confirmation avant « Tout effacer » (calques d'annotation).
 
 ## Lot B — Erreurs de chargement vs état vide
 - [ ] **P2** `InvoicesView.jsx:47` — état erreur distinct + toast (au lieu de `setLoading(false)` seul → faux « Aucune facture »).
@@ -24,16 +24,16 @@
 - [ ] **P3** `AlertsDrawer.jsx:51,94` — distinguer l'erreur de l'état succès « Tout est à jour ».
 
 ## Lot C — Bugs fonctionnels
-- [ ] **P1** `DashboardHome.jsx:121,137,196,199,200` — `C.neutral[400]` inexistant → remplacer par `C.neutral[500]` (hiérarchie de texte cassée sur toutes les cartes).
-- [ ] **P1** `NoteEditor.jsx:1132` — gater la dictée sur `navigator.mediaDevices?.getUserMedia && window.MediaRecorder` (et non `SpeechRecognition`) → débloque Firefox/Safari desktop.
-- [ ] **P1** `ProgressReportsView.jsx:218-219` — vrai flux « Envoyer au MO » (statut sent + sent_to) ou retirer le CTA trompeur (même handler que « Modifier »).
-- [ ] **P1** `ProfileView.jsx:673` — supprimer le doublon `<input type="color">` superposé (captation de clic imprévisible).
-- [ ] **P2** `Overview.jsx:136,1600` — câbler la suppression de PV (passer `setPvToDelete` à `PvRow`) ou retirer le code mort `deletePv`.
-- [ ] **P2** `DashboardHome.jsx:242` — KPI « Factures en retard » : calculer la vraie valeur (ou retirer le ton `danger` quand 0) → plus de « 0 € » rouge permanent.
-- [ ] **P2** `DashboardHome.jsx:221,277` — implémenter le tri par date (« Trier : récent » ne trie pas) ou renommer le bouton.
-- [ ] **P2** `Overview.jsx:129,158-160` — gardes `(project.actions || [])` / `(project.pvHistory || [])` (crash potentiel).
-- [ ] **P2** `PlanningDashboard.jsx:123-165` — supprimer `DetailPanel` (jamais rendu + caractère corrompu « é�lément »).
-- [ ] **P3** `QuotesView.jsx:148` — `handleAward` : dériver `_wasAwarded` de `q` (au lieu de `false` codé en dur).
+- [x] **P1** `DashboardHome.jsx:121,137,196,199,200` — `C.neutral[400]` inexistant → remplacer par `C.neutral[500]` (hiérarchie de texte cassée sur toutes les cartes).
+- [x] **P1** `NoteEditor.jsx:1132` — gater la dictée sur `navigator.mediaDevices?.getUserMedia && window.MediaRecorder` (et non `SpeechRecognition`) → débloque Firefox/Safari desktop.
+- [x] **P1** `ProgressReportsView.jsx:218-219` — vrai flux « Envoyer au MO » (statut sent + sent_to) ou retirer le CTA trompeur (même handler que « Modifier »).
+- [x] **P1** `ProfileView.jsx:673` — supprimer le doublon `<input type="color">` superposé (captation de clic imprévisible).
+- [x] **P2** `Overview.jsx:136,1600` — câbler la suppression de PV (passer `setPvToDelete` à `PvRow`) ou retirer le code mort `deletePv`.
+- [x] **P2** `DashboardHome.jsx:242` — KPI « Factures en retard » : calculer la vraie valeur (ou retirer le ton `danger` quand 0) → plus de « 0 € » rouge permanent.
+- [x] **P2** `DashboardHome.jsx:221,277` — implémenter le tri par date (« Trier : récent » ne trie pas) ou renommer le bouton.
+- [x] **P2** `Overview.jsx:129,158-160` — gardes `(project.actions || [])` / `(project.pvHistory || [])` (crash potentiel).
+- [x] **P2** `PlanningDashboard.jsx:123-165` — supprimer `DetailPanel` (jamais rendu + caractère corrompu « é�lément »).
+- [x] **P3** `QuotesView.jsx:148` — `handleAward` : dériver `_wasAwarded` de `q` (au lieu de `false` codé en dur).
 - [ ] **P3** `SessionsModal.jsx:143,355` — toggle « Mes sessions » liste TOUTES les sessions → renommer « Toutes » ou filtrer réellement.
 - [ ] **P3** `QuotesView.jsx:261` — message d'état vide « Drag-and-drop un PDF » conditionnel `isMobile` (dropzone masquée sur mobile).
 - [ ] **P3** `PlanningView.jsx:327-360 vs 566-575` — harmoniser la suppression de lot entre vue Gantt et vue Hiérarchie.

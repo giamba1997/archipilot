@@ -145,7 +145,7 @@ export function QuotesView({ project, profile, showToast, onBack }) {
   const handleAward = async (q) => {
     if (!confirm(`Attribuer le lot à ${q.contractor_name} ?\n\nLes autres devis seront marqués comme rejetés.`)) return;
     // 1. Attribuer ce devis
-    await saveQuote({ ...q, status: "awarded", _wasAwarded: false });
+    await saveQuote({ ...q, status: "awarded", _wasAwarded: q.status === "awarded" });
     // 2. Rejeter les autres pour le même lot
     const others = quotes.filter(x => x.lot_id === q.lot_id && x.id !== q.id && x.status !== "rejected");
     for (const o of others) {

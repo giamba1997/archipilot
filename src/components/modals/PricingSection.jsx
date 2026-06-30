@@ -128,7 +128,7 @@ export function PricingSection({ currentPlan, onSelectPlan }) {
                 <div style={{ width: "100%", padding: "9px 16px", border: `1px solid ${SBB}`, borderRadius: 8, textAlign: "center", fontSize: 12, fontWeight: 600, color: TX3, marginTop: 14 }}>Plan actuel</div>
               ) : (
                 <button
-                  onClick={() => handleSelectPlan(p.id)}
+                  onClick={() => { if (p.price === 0 && !confirm("Rétrograder vers le plan gratuit ? Tu perdras l'accès aux fonctionnalités payantes.")) return; handleSelectPlan(p.id); }}
                   disabled={isLoading}
                   style={{
                     width: "100%", padding: "9px 16px", border: "none", borderRadius: 8,

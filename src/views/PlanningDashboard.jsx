@@ -119,51 +119,6 @@ export function PlanningDashboard({ projects, onBack, onSelectProject, onSwitchT
 
   const periodLabel = viewMode === "today" ? fmtDay(today) : viewMode === "week" ? `${fmtShort(weekDays[0])} — ${fmtShort(weekDays[6])}` : monthStart.toLocaleDateString("fr-BE", { month: "long", year: "numeric" });
 
-  // ── Detail panel (kept for month view clicks) ──
-  const DetailPanel = () => {
-    if (!selected) return (
-      <div style={{ padding: 20, textAlign: "center", color: TX3, fontSize: 12 }}>
-        <div style={{ width: 40, height: 40, borderRadius: "50%", background: SB, display: "flex", alignItems: "center", justifyContent: "center", margin: "20px auto 10px" }}>
-          <Ico name="calendar" size={18} color={TX3} />
-        </div>
-        Sélectionnez un ��lément pour voir ses détails
-      </div>
-    );
-    const ev = selected;
-    return (
-      <div style={{ padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: ev.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Ico name={ev.icon} size={15} color={ev.color} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ev.color }}>{ev.type === "meeting" ? "Réunion" : ev.type === "action" ? "Action" : ev.type === "lot" ? "Lot" : "Alerte"}</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: TX }}>{ev.title}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico name="building" size={11} color={TX3} /><span style={{ color: TX2 }}>{ev.project.name}</span></div>
-          {ev.date && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico name="calendar" size={11} color={TX3} /><span style={{ color: TX2 }}>{fmtDay(ev.date)}{ev.endDate && !isSameDay(ev.date, ev.endDate) ? ` → ${fmtShort(ev.endDate)}` : ""}</span></div>}
-          {ev.who && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico name="users" size={11} color={TX3} /><span style={{ color: TX2 }}>{ev.who}</span></div>}
-          {ev.since && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico name="file" size={11} color={TX3} /><span style={{ color: TX3 }}>Source : {ev.since}</span></div>}
-          {ev.contractor && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Ico name="users" size={11} color={TX3} /><span style={{ color: TX2 }}>{ev.contractor}</span></div>}
-          {ev.lotStatus && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: ev.lotStatus.color, background: ev.lotStatus.bg, padding: "2px 8px", borderRadius: 5 }}>{ev.lotStatus.label}</span>
-              {ev.progress > 0 && <span style={{ fontSize: 10, color: TX3 }}>{ev.progress}%</span>}
-            </div>
-          )}
-          {ev.urgent && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: RD }} /><span style={{ fontSize: 11, fontWeight: 600, color: RD }}>Urgent</span></div>}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 16 }}>
-          <button onClick={() => onSelectProject(ev.project.id)} style={{ width: "100%", padding: "9px 12px", border: "none", borderRadius: 8, background: AC, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <Ico name="arrowr" size={11} color="#fff" />Ouvrir le projet
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   // ═══ MOBILE PLANNING ═══
   if (typeof window !== "undefined" && window.innerWidth < 768) {
     // Group events by day for agenda view

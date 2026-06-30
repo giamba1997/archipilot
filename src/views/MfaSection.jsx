@@ -76,7 +76,7 @@ export function MfaSection() {
             <div style={{ width: 8, height: 8, borderRadius: 4, background: GR }} />
             <span style={{ fontSize: 13, fontWeight: 600, color: GR }}>{t("mfa.enabled")}</span>
           </div>
-          <button onClick={disableMfa} style={{ padding: "9px 18px", border: `1px solid #FECACA`, borderRadius: 8, background: "#FEF2F2", color: RD, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={() => { if (confirm("Désactiver l'authentification à deux facteurs ? Ton compte sera moins protégé.")) disableMfa(); }} style={{ padding: "9px 18px", border: `1px solid #FECACA`, borderRadius: 8, background: "#FEF2F2", color: RD, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             {t("mfa.disable")}
           </button>
         </div>

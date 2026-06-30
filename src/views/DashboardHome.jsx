@@ -118,7 +118,7 @@ function ProjectCard({ p, onOpen }) {
         <span style={{ marginLeft: "auto" }}><PhaseGauge statusId={p.statusId} /></span>
       </div>
       <div style={{ fontSize: tokens.font.size.md, fontWeight: tokens.font.weight.bold, color: C.neutral[900], letterSpacing: "-0.2px", marginBottom: 2 }}>{p.name}</div>
-      <div style={{ fontSize: tokens.font.size.xs, color: C.neutral[400], marginBottom: 14 }}>{[p.city, p.client].filter(Boolean).join(" · ") || "—"}</div>
+      <div style={{ fontSize: tokens.font.size.xs, color: C.neutral[500], marginBottom: 14 }}>{[p.city, p.client].filter(Boolean).join(" · ") || "—"}</div>
       <div style={{ marginBottom: 14 }}><Tone {...sig} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: tokens.font.size.xs, color: C.neutral[500], paddingTop: 12, borderTop: `1px solid ${C.neutral[100]}` }}>
         {p.nextMeeting && <span style={{ display: "flex", alignItems: "center", gap: 5 }}><S d={IC.cal} size={13} />Réunion {shortDate(p.nextMeeting)}</span>}
@@ -134,7 +134,7 @@ function GhostCard({ onClick }) {
       style={{ background: hover ? C.brand[50] : C.neutral[50], border: `1.5px dashed ${hover ? C.brand[200] : C.neutral[300]}`, borderRadius: tokens.radius.xl, padding: tokens.space[4], cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", minHeight: 172, fontFamily: "inherit", transition: tokens.transition.base }}>
       <span style={{ width: 42, height: 42, borderRadius: tokens.radius.lg, background: C.brand[50], color: C.brand[600], display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}><S d={IC.plus} size={22} sw={1.8} /></span>
       <span style={{ fontSize: tokens.font.size.base, fontWeight: tokens.font.weight.semibold, color: C.neutral[900], marginBottom: 3 }}>Nouveau projet</span>
-      <span style={{ fontSize: tokens.font.size.xs, color: C.neutral[400], lineHeight: 1.4 }}>Importer un CdC ou partir de zéro</span>
+      <span style={{ fontSize: tokens.font.size.xs, color: C.neutral[500], lineHeight: 1.4 }}>Importer un CdC ou partir de zéro</span>
     </button>
   );
 }
@@ -193,11 +193,11 @@ function MapPanel({ projects, statusFilter, onOpen, setProjects }) {
           <div style={{ background: C.neutral[0], border: `1px solid ${C.neutral[200]}`, borderRadius: tokens.radius.xl, padding: tokens.space[4] }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
               <StatusPill statusId={selected.statusId} />
-              <button onClick={() => setSelected(null)} aria-label="Fermer" style={{ marginLeft: "auto", width: 26, height: 26, borderRadius: tokens.radius.sm, border: "none", background: "transparent", color: C.neutral[400], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><S d={IC.x} size={14} sw={2} /></button>
+              <button onClick={() => setSelected(null)} aria-label="Fermer" style={{ marginLeft: "auto", width: 26, height: 26, borderRadius: tokens.radius.sm, border: "none", background: "transparent", color: C.neutral[500], cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><S d={IC.x} size={14} sw={2} /></button>
             </div>
             <div style={{ fontSize: tokens.font.size.lg, fontWeight: tokens.font.weight.bold, color: C.neutral[900], letterSpacing: "-0.3px", marginBottom: 3 }}>{selected.name}</div>
-            {selected.client && <div style={{ fontSize: tokens.font.size.xs, color: C.neutral[400], marginBottom: 2 }}>MO : {selected.client}</div>}
-            {(selected.address || selected.city) && <div style={{ fontSize: tokens.font.size.xs, color: C.neutral[400], marginBottom: 14 }}>{selected.address || selected.city}</div>}
+            {selected.client && <div style={{ fontSize: tokens.font.size.xs, color: C.neutral[500], marginBottom: 2 }}>MO : {selected.client}</div>}
+            {(selected.address || selected.city) && <div style={{ fontSize: tokens.font.size.xs, color: C.neutral[500], marginBottom: 14 }}>{selected.address || selected.city}</div>}
             <div style={{ marginBottom: 14 }}><Tone {...sig} /></div>
             <Button variant="primary" size="md" fullWidth onClick={() => onOpen?.(selected.id)} rightIcon={<S d={IC.chev} size={15} sw={2} />}>Ouvrir le projet</Button>
           </div>
@@ -226,6 +226,7 @@ export function DashboardHome({ projects = [], profile, onOpenProject, onNewProj
   const filtered = useMemo(() => {
     let r = active.filter(p => statusFilter === "all" || p.statusId === statusFilter);
     if (sortByPriority) r = [...r].sort((a, b) => severityRank[projectSignal(a).tone] - severityRank[projectSignal(b).tone]);
+    else r = [...r].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0)); // « récent » = ajout le plus récent (id croissant)
     return r;
   }, [active, statusFilter, sortByPriority]);
 
@@ -239,7 +240,9 @@ export function DashboardHome({ projects = [], profile, onOpenProject, onNewProj
       { label: "Chantiers actifs", value: active.filter(p => p.statusId !== "closed").length },
       { label: "Actions urgentes", value: urgent, tone: urgent > 0 ? "warning" : undefined },
     ];
-    if (isEnabled("invoices")) list.push({ label: "Factures en retard", value: 0, unit: "€", tone: "danger" });
+    // NB : KPI « Factures en retard » retiré — il était codé en dur à 0 € avec un
+    // ton "danger" (fausse alerte permanente). À réintroduire quand les données de
+    // facturation seront chargées dans le dashboard (calcul réel des échéances).
     list.push({ label: "Réunions (7 j)", value: meetings });
     list.push({ label: "Actions ouvertes", value: openTotal });
     return list.slice(0, 4);

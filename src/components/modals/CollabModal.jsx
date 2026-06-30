@@ -76,6 +76,7 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
   const handleRemove = async (id) => {
     const member = members.find(m => m.id === id);
     if (member?.role === "admin" && adminCount <= 1) { setError(t("collab.lastAdmin")); return; }
+    if (!confirm(`Retirer ${member?.name || member?.email || "ce collaborateur"} du projet ?`)) return;
     await removeMember(id);
     setMembers(prev => prev.filter(m => m.id !== id));
   };

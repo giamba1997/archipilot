@@ -123,11 +123,11 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   // POC solo : présence temps réel retirée (liée à l'agence, CUT).
   const present = [];
   const selfId = null;
-  const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
-  const deletePv = (pvNum) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: p.pvHistory.filter(pv => pv.number !== pvNum) } : p));
+  const updatePvStatus = (pvNum, newStatus) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: (p.pvHistory || []).map(pv => pv.number === pvNum ? { ...pv, status: newStatus } : pv) } : p));
+  const deletePv = (pvNum) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, pvHistory: (p.pvHistory || []).filter(pv => pv.number !== pvNum) } : p));
   const setCdc = (cdc) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, cahierDesCharges: cdc } : p));
-  const urgent = project.actions.filter((a) => a.urgent && a.open);
-  const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: p.actions.map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
+  const urgent = (project.actions || []).filter((a) => a.urgent && a.open);
+  const toggleAction = (aid) => setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, actions: (p.actions || []).map((a) => a.id === aid ? { ...a, open: !a.open } : a) } : p));
   const rec = RECURRENCES.find((r) => r.id === project.recurrence);
   const t = useT();
   const [showAllPV, setShowAllPV] = useState(false);
@@ -155,9 +155,9 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
   const isMobile = useIsMobile();
   const [tabSheetOpen, setTabSheetOpen] = useState(false);
 
-  const openActions   = project.actions.filter((a) => a.open);
-  const closedActions = project.actions.filter((a) => !a.open);
-  const lastPV        = project.pvHistory[0] || null;
+  const openActions   = (project.actions || []).filter((a) => a.open);
+  const closedActions = (project.actions || []).filter((a) => !a.open);
+  const lastPV        = (project.pvHistory || [])[0] || null;
 
   // Suggestions IA en attente — comptées sur tous les PV. Le banner ne
   // s'affiche que si > 0 et la modal de revue est portée par Overview.
@@ -1226,6 +1226,7 @@ export function Overview({ project, onStartNotes, onEditInfo, onEditParticipants
           onViewPV={onViewPV}
           onViewPdf={onViewPdf}
           onImportPV={onImportPV}
+          onDeletePv={setPvToDelete}
           canEdit={_canEdit && !isMobile}
           isMobile={isMobile}
         />
@@ -1478,7 +1479,7 @@ const PanelTitle = ({ children, action }) => (
 // PV_STATUSES dans constants/statuses.js (draft → review → validated → sent → late).
 const PV_STATUS_RANK = PV_STATUSES.reduce((map, s, i) => { map[s.id] = i; return map; }, {});
 
-function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, onImportPV, canEdit, isMobile }) {
+function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, onImportPV, onDeletePv, canEdit, isMobile }) {
   const pvs = project.pvHistory || [];
   // Filtre par statut (multi). Set vide = tous affichés.
   const [filterStatuses, setFilterStatuses] = useState(new Set());
@@ -1597,7 +1598,7 @@ function TabPanelPv({ project, setProjects, onStartNotes, onViewPV, onViewPdf, o
                     onViewPV={() => onViewPV(pv)}
                     onViewPdf={() => onViewPdf(pv)}
                     updatePvStatus={updatePvStatus}
-                    onDeletePv={null}
+                    onDeletePv={canEdit ? onDeletePv : null}
                     t={t}
                   />
                 ))}

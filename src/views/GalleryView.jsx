@@ -157,7 +157,7 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
               <button onClick={selected.size === photos.length ? () => setSelected(new Set()) : selectAll} style={{ padding: "7px 14px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: TX2 }}>
                 {selected.size === photos.length ? "Désélectionner" : "Tout sélectionner"}
               </button>
-              <button onClick={deleteSelected} disabled={selected.size === 0} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "none", borderRadius: 8, background: selected.size > 0 ? RD : DIS, cursor: selected.size > 0 ? "pointer" : "default", fontFamily: "inherit" }}>
+              <button onClick={() => { if (selected.size > 0 && confirm(`Supprimer ${selected.size} photo${selected.size > 1 ? "s" : ""} ? Cette action est définitive.`)) deleteSelected(); }} disabled={selected.size === 0} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", border: "none", borderRadius: 8, background: selected.size > 0 ? RD : DIS, cursor: selected.size > 0 ? "pointer" : "default", fontFamily: "inherit" }}>
                 <Ico name="trash" size={13} color="#fff" />
                 <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>Supprimer{selected.size > 0 ? ` (${selected.size})` : ""}</span>
               </button>
@@ -274,7 +274,7 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                 </button>
               )}
               {!isMobile && (
-                <button onClick={() => { removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                <button onClick={() => { if (confirm("Supprimer cette photo ? Cette action est définitive.")) removePhoto(lbPhoto.id); }} style={{ padding: "6px 12px", border: "none", borderRadius: 6, background: "rgba(255,255,255,0.15)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
                   <Ico name="trash" size={13} color="#fff" />
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
                 </button>

@@ -1129,7 +1129,10 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
         ) : !inputMethod ? (
           /* ── Method chooser — action-oriented ── */
           (() => {
-            const hasSR = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+            // La dictée passe par useWhisperRecorder (MediaRecorder + getUserMedia
+            // → Whisper), PAS par SpeechRecognition. On gate donc sur la vraie API
+            // utilisée, sinon Firefox/Safari desktop bloquent la dictée à tort.
+            const canDictate = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
             const sel = selectedMethod;
             const isDictate = sel === "dictate";
             return (
@@ -1145,9 +1148,9 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 {/* Dictate */}
                 <button
                   onClick={() => setSelectedMethod("dictate")}
-                  disabled={!hasSR}
+                  disabled={!canDictate}
                   className="method-card-dictate"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${isDictate && hasSR ? AC : SBB}`, borderRadius: 12, background: isDictate && hasSR ? ACL : WH, cursor: hasSR ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left", opacity: hasSR ? 1 : 0.5, position: "relative" }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: `2px solid ${isDictate && canDictate ? AC : SBB}`, borderRadius: 12, background: isDictate && canDictate ? ACL : WH, cursor: canDictate ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.15s", textAlign: "left", opacity: canDictate ? 1 : 0.5, position: "relative" }}
                 >
                   <div style={{ width: 42, height: 42, borderRadius: 10, background: isDictate ? AC : SB, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
                     <Ico name="mic" size={20} color={isDictate ? "#fff" : TX3} />
@@ -1155,7 +1158,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: TX }}>Dicter</span>
-                      {hasSR && <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: AC, background: WH, padding: "1px 6px", borderRadius: 3, border: `1px solid ${ACL2}` }}>Recommandé</span>}
+                      {canDictate && <span style={{ fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: AC, background: WH, padding: "1px 6px", borderRadius: 3, border: `1px solid ${ACL2}` }}>Recommandé</span>}
                     </div>
                     <div style={{ fontSize: 11, color: TX3, lineHeight: 1.4, marginTop: 2 }}>Parlez librement, l'IA répartit les remarques automatiquement.</div>
                     <div style={{ display: "flex", gap: 4, marginTop: 5 }}>
@@ -1163,11 +1166,11 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                         <span key={ti} style={{ fontSize: 9, fontWeight: 600, color: isDictate ? AC : TX3, background: isDictate ? WH : SB, border: `1px solid ${isDictate ? ACL2 : SBB}`, padding: "1px 6px", borderRadius: 3 }}>{tag}</span>
                       ))}
                     </div>
-                    {!hasSR && <div style={{ fontSize: 10, color: RD, marginTop: 3 }}>Non supporté par ce navigateur</div>}
+                    {!canDictate && <div style={{ fontSize: 10, color: RD, marginTop: 3 }}>Micro indisponible sur ce navigateur</div>}
                   </div>
                   {/* Radio indicator */}
-                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${isDictate && hasSR ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
-                    {isDictate && hasSR && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
+                  <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${isDictate && canDictate ? AC : SBB}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
+                    {isDictate && canDictate && <div style={{ width: 10, height: 10, borderRadius: "50%", background: AC }} />}
                   </div>
                 </button>
 
@@ -1220,7 +1223,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                 {/* CTA — inside cards container */}
                 <button
                   onClick={() => {
-                    if (sel === "dictate" && hasSR) { setInputMethod("dictate"); startContinuous(); }
+                    if (sel === "dictate" && canDictate) { setInputMethod("dictate"); startContinuous(); }
                     else if (sel === "freeWrite") { setInputMethod("freeWrite"); }
                     else { setInputMethod("write"); }
                   }}
@@ -1232,7 +1235,7 @@ export function NoteEditor({ project, setProjects, profile, onBack, onGenerate, 
                     boxShadow: "0 3px 14px rgba(184,92,44,0.25)", transition: "all 0.15s",
                   }}
                 >
-                  {sel === "dictate" && hasSR ? (
+                  {sel === "dictate" && canDictate ? (
                     <><Ico name="mic" size={16} color="#fff" />Commencer à dicter</>
                   ) : sel === "freeWrite" ? (
                     <><Ico name="edit" size={16} color="#fff" />Commencer la capture</>

@@ -140,6 +140,9 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
       } else {
         showToast?.("Échec de la sauvegarde", "error");
       }
+    } catch (e) {
+      console.error("Progress report generation error:", e);
+      showToast?.("Échec de la génération du rapport — vérifie ta connexion et réessaie.", "error");
     } finally {
       setGenerating(false);
     }
@@ -215,8 +218,12 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
                   <ReportBody md={sel.content_md} />
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  {/* Les deux actions ouvrent l'éditeur (édition + destinataires +
+                      copie/export PDF = la préparation d'envoi). On n'affiche plus
+                      « Envoyer au MO » qui laissait croire à un envoi un-clic
+                      inexistant. */}
                   <button onClick={() => setEditing(sel)} style={{ flex: 1, height: 38, background: WH, border: `1px solid ${SBB}`, borderRadius: 9, fontSize: 13, fontWeight: 500, color: TX2, cursor: "pointer", fontFamily: "inherit" }}>Modifier</button>
-                  <button onClick={() => setEditing(sel)} style={{ flex: 1, height: 38, background: AC, border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>Envoyer au MO</button>
+                  <button onClick={() => setEditing(sel)} style={{ flex: 1.4, height: 38, background: AC, border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Ico name="send" size={13} color="#fff" />Préparer l'envoi au MO</button>
                 </div>
               </>
             ) : (

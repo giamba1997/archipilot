@@ -345,7 +345,7 @@ export function PlanManager({ project, setProjects, onBack, onAnnotate, onCrop, 
         <Ico name="textT" size={11} color={TX3} />
       </button>
       {/* Delete */}
-      <button onClick={() => deleteItem(item.id)} title="Supprimer" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <button onClick={() => { if (confirm(`Supprimer « ${item.name || "cet élément"} » ? S'il contient des fichiers ou sous-dossiers, ils seront supprimés aussi. Action définitive.`)) deleteItem(item.id); }} title="Supprimer" aria-label="Supprimer" style={{ width: 28, height: 28, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Ico name="trash" size={10} color={TX3} />
       </button>
     </div>
