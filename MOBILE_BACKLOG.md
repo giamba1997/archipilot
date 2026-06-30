@@ -58,12 +58,19 @@ aligné sur son mockup et les autres écrans de détail.
 **`MobileNotifs`** : le titre ne passe plus sous la barre d'état sur device à
 encoche. (Invisible en navigateur, vérifié par build + tests.)
 
-### P3 — Création de projet sur mobile
-En remplaçant le « + » par le pin carte sur Chantiers, la création n'est plus
-accessible que via l'état vide.
-- **Décision à prendre** : soit assumé « création = desktop » (cohérent avec la
-  philosophie), soit ajouter une entrée discrète (ex. depuis le profil ou un
-  menu « + » secondaire).
+### ⛔ P3 — Création de projet sur mobile *(décidé : non nécessaire)*
+**Décision actée : pas d'entrée de création permanente sur mobile.** Créer un
+projet est une tâche de **setup** (nom, adresse, client, type, intervenants,
+upload CCTP/plans) faite une fois par mandat, au bureau — jamais un geste de
+terrain. Une entrée permanente irait à l'encontre du positionnement
+*capture + consultation* et inviterait à une saisie lourde sur le mauvais écran.
+Cohérent avec la décision PV (brouillon mobile → finalisation desktop).
+- **Seul cas critique conservé** : le **cold-start** (nouvel utilisateur, 0 projet)
+  doit pouvoir créer son 1ᵉʳ projet — couvert par l'**état vide**, pas par une
+  entrée permanente. À garder à l'œil lors du QA mobile (cf. P4).
+- **Évolution future possible (nice-to-have)** : *quick-create nom-seulement* sur
+  chantier pour démarrer une capture immédiate, complété au bureau — même patron
+  que le PV brouillon. Non bloquant.
 
 ### P4 — QA sur device réel (non vérifiable en headless)
 - Enregistrement réunion en arrière-plan + Wake Lock sur **vrai téléphone**
