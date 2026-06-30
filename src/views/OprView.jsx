@@ -503,7 +503,7 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: TX, marginBottom: 6 }}>Aucune réserve</div>
           <div style={{ fontSize: 13, color: TX3, marginBottom: 16 }}>Commencez par ajouter les réserves constatées lors de la visite OPR.</div>
-          <button onClick={() => setMode("add")}
+          <button onClick={() => isMobile ? setMobileNewReserve(true) : setMode("add")}
             style={{ padding: "10px 20px", border: "none", borderRadius: 10, background: AC, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             Ajouter une réserve
           </button>
