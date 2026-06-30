@@ -206,7 +206,7 @@ export function PlanningView({ project, setProjects, onBack, profile, showToast 
           mode embarqué dans l'onglet Planning, la nav vit dans la topbar. */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         {onBack && (
-          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}><Ico name="back" color={TX2} /></button>
+          <button onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", cursor: "pointer", padding: "8px", minWidth: 40, minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}><Ico name="back" color={TX2} /></button>
         )}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 17, fontWeight: 600, color: TX }}>{t("planning.title")}</div>

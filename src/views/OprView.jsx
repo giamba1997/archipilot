@@ -538,10 +538,10 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                       )}
                       {!isMobile && (
                         <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                          <button onClick={() => { setEditingId(r.id); setMode("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                          <button onClick={() => { setEditingId(r.id); setMode("edit"); }} aria-label="Modifier la réserve" title="Modifier" style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
                             <Ico name="edit" size={13} color={TX3} />
                           </button>
-                          <button onClick={() => deleteReserve(r.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                          <button onClick={() => deleteReserve(r.id)} aria-label="Supprimer la réserve" title="Supprimer" style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
                             <Ico name="x" size={13} color={TX3} />
                           </button>
                         </div>

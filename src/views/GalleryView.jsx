@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, BR, BRB, AM, AMB, SG, SGB } from "../constants/tokens";
 import { getReserveStatus, getReserveSeverity } from "../constants/statuses";
 import { isEnabled } from "../constants/featureFlags";
@@ -132,6 +132,18 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
 
   const lbPhoto = lightbox ? photos.find(ph => ph.id === lightbox) : null;
   const lbIdx = lightbox ? photos.findIndex(ph => ph.id === lightbox) : -1;
+
+  // Navigation clavier de la lightbox : Échap ferme, ←/→ naviguent.
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setLightbox(null);
+      else if (e.key === "ArrowLeft" && lbIdx > 0) setLightbox(photos[lbIdx - 1].id);
+      else if (e.key === "ArrowRight" && lbIdx >= 0 && lbIdx < photos.length - 1) setLightbox(photos[lbIdx + 1].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, lbIdx, photos]);
 
   return (
     <div style={{ animation: "fadeIn 0.2s ease" }}>
@@ -279,19 +291,19 @@ export function GalleryView({ project, setProjects, onBack, onAnnotatePhoto, aut
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>Supprimer</span>
                 </button>
               )}
-              <button onClick={() => setLightbox(null)} style={{ width: 36, height: 36, border: "none", borderRadius: 8, background: "rgba(255,255,255,0.15)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => setLightbox(null)} aria-label="Fermer" style={{ width: 36, height: 36, border: "none", borderRadius: 8, background: "rgba(255,255,255,0.15)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Ico name="x" size={16} color="#fff" />
               </button>
             </div>
           </div>
           {/* Prev / Next */}
           {lbIdx > 0 && (
-            <button onClick={e => { e.stopPropagation(); setLightbox(photos[lbIdx - 1].id); }} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+            <button onClick={e => { e.stopPropagation(); setLightbox(photos[lbIdx - 1].id); }} aria-label="Photo précédente" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
               <Ico name="back" size={18} color="#fff" />
             </button>
           )}
           {lbIdx < photos.length - 1 && (
-            <button onClick={e => { e.stopPropagation(); setLightbox(photos[lbIdx + 1].id); }} style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+            <button onClick={e => { e.stopPropagation(); setLightbox(photos[lbIdx + 1].id); }} aria-label="Photo suivante" style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
               <Ico name="arrowr" size={18} color="#fff" />
             </button>
           )}

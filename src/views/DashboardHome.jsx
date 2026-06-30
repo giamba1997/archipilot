@@ -112,6 +112,8 @@ function ProjectCard({ p, onOpen }) {
   const open = (p.actions || []).filter(a => a.open !== false).length;
   return (
     <div onClick={() => onOpen?.(p.id)} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      role="button" tabIndex={0} aria-label={`Ouvrir le projet ${p.name}`}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen?.(p.id); } }}
       style={{ background: C.neutral[0], border: `1px solid ${hover ? C.brand[200] : C.neutral[200]}`, borderRadius: tokens.radius.xl, padding: tokens.space[4], cursor: "pointer", transition: tokens.transition.base, transform: hover ? "translateY(-2px)" : "none", boxShadow: hover ? tokens.shadow.md : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <StatusPill statusId={p.statusId} />

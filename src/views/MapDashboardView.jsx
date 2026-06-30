@@ -99,6 +99,11 @@ export function MapDashboardView({ projects, setProjects, onBack, onSelectProjec
         return p;
       }));
       setGeocoding(g => ({ ...g, running: false }));
+    }).catch((e) => {
+      // Sans catch, un échec API laissait l'indicateur bloqué en « running ».
+      if (cancelled) return;
+      console.error("geocodeProjects error:", e);
+      setGeocoding(g => ({ ...g, running: false }));
     });
 
     return () => { cancelled = true; };
@@ -155,7 +160,7 @@ export function MapDashboardView({ projects, setProjects, onBack, onSelectProjec
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+          <button onClick={onBack} aria-label="Retour" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
             <Ico name="back" color={TX2} size={16} />
           </button>
           <div>
@@ -203,7 +208,7 @@ export function MapDashboardView({ projects, setProjects, onBack, onSelectProjec
           {selected ? (
             <div style={{ background: WH, border: `1px solid ${SBB}`, borderRadius: 14, padding: 16 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: getStatus(selected.statusId).bg, color: getStatus(selected.statusId).color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 999, background: getStatus(selected.statusId).bg, color: getStatus(selected.statusId).color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   {getStatus(selected.statusId).label}
                 </span>
                 <button onClick={() => setSelected(null)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}>

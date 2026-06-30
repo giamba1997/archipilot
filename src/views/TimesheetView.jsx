@@ -175,7 +175,7 @@ export function TimesheetView({ projects, profile, isOrgAdmin, activeContext, on
       {/* Header — aligné avec StatsView et PlanningDashboard pour cohérence */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={onBack} aria-label="Retour" style={{ background: "none", border: "none", cursor: "pointer", padding: 8, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Ico name="back" color={TX2} />
           </button>
           <div>

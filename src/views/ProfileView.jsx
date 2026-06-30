@@ -154,7 +154,7 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
             ) : (
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: AC, border: `3px solid ${ACL2}` }}>{initials}</div>
             )}
-            <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 0, right: 0, width: 24, height: 24, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+            <button onClick={() => fileRef.current.click()} aria-label="Changer la photo de profil" style={{ position: "absolute", bottom: 0, right: 0, width: 24, height: 24, borderRadius: "50%", background: "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
               <Ico name="edit" size={14} color={TX3} />
             </button>
           </div>
@@ -536,6 +536,9 @@ export function ProfileView({ profile, onSave, onOpenAgency }) {
             <button
               key={opt.id}
               type="button"
+              role="switch"
+              aria-checked={v}
+              aria-label={opt.label}
               onClick={() => set("alertSettings")({ ...(form.alertSettings || {}), [opt.id]: !v })}
               style={{
                 display: "flex", alignItems: "center", gap: 12,
@@ -1045,6 +1048,9 @@ function PushPreferencesSection({ form, set, refFor }) {
           <button
             key={opt.id}
             type="button"
+            role="switch"
+            aria-checked={v}
+            aria-label={opt.label}
             onClick={() => updateSetting(opt.id, !v)}
             style={{
               display: "flex", alignItems: "center", gap: 12,

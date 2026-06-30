@@ -21,12 +21,19 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
   const [role, setRole] = useState("contributor");
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(true); // 1er chargement de la liste
   const [error, setError] = useState("");
   const [agencyEmails, setAgencyEmails] = useState([]);
   const isAdmin = canManageMembers(project) || !project._shared; // owner or admin
 
   useEffect(() => {
-    loadProjectMembers(String(project.id), ownerId).then(setMembers);
+    let alive = true;
+    setMembersLoading(true);
+    loadProjectMembers(String(project.id), ownerId)
+      .then(list => { if (alive) setMembers(list || []); })
+      .catch(e => { if (alive) console.error("loadProjectMembers error:", e); })
+      .finally(() => { if (alive) setMembersLoading(false); });
+    return () => { alive = false; };
   }, [project.id, ownerId]);
 
   // When this project is shared via an organization, pre-load the agency
@@ -151,11 +158,13 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
 
         {/* Members list */}
         <div style={{ padding: "12px 24px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("collab.members")} ({members.length})</div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: TX3, marginBottom: 10 }}>{t("collab.members")}{membersLoading ? "" : ` (${members.length})`}</div>
           {error && members.length > 0 && <div style={{ fontSize: 11, color: RD, marginBottom: 8 }}>{error}</div>}
-          {members.length === 0 && (
+          {membersLoading ? (
+            <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>Chargement…</div>
+          ) : members.length === 0 ? (
             <div style={{ fontSize: 13, color: TX3, padding: "8px 0" }}>{t("collab.noMembers")}</div>
-          )}
+          ) : null}
           {members.map(m => (
             <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${SBB}` }}>
               <div style={{ width: 32, height: 32, borderRadius: "50%", background: ACL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: AC, flexShrink: 0 }}>

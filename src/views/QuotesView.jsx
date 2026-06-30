@@ -30,6 +30,7 @@ const STATUSES = {
 export function QuotesView({ project, profile, showToast, onBack }) {
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // erreur de chargement distincte de l'état vide
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [comparingLot, setComparingLot] = useState(null);
@@ -42,14 +43,14 @@ export function QuotesView({ project, profile, showToast, onBack }) {
   useEffect(() => {
     let cancelled = false;
     loadQuotes({ projectId: project.id })
-      .then(rows => { if (!cancelled) { setQuotes(rows); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .then(rows => { if (!cancelled) { setQuotes(rows); setLoadError(false); setLoading(false); } })
+      .catch((e) => { if (!cancelled) { console.error("loadQuotes error:", e); setLoadError(true); setLoading(false); } });
     return () => { cancelled = true; };
   }, [project.id]);
 
   const refresh = async () => {
-    const rows = await loadQuotes({ projectId: project.id });
-    setQuotes(rows);
+    try { const rows = await loadQuotes({ projectId: project.id }); setQuotes(rows); setLoadError(false); }
+    catch (e) { console.error("loadQuotes error:", e); setLoadError(true); }
   };
 
   // Group quotes par lot
@@ -171,7 +172,7 @@ export function QuotesView({ project, profile, showToast, onBack }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {onBack && (
-            <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+            <button onClick={onBack} aria-label="Retour" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
               <Ico name="back" color={TX2} size={16} />
             </button>
           )}
@@ -256,9 +257,14 @@ export function QuotesView({ project, profile, showToast, onBack }) {
       {/* Liste groupée par lot */}
       {loading ? (
         <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>
+      ) : loadError ? (
+        <div style={{ padding: "32px 20px", textAlign: "center", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, color: TX2, fontSize: 13 }}>
+          <div style={{ marginBottom: 12 }}>Impossible de charger les devis. Vérifie ta connexion.</div>
+          <button onClick={() => { setLoading(true); refresh().finally(() => setLoading(false)); }} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Réessayer</button>
+        </div>
       ) : quotes.length === 0 ? (
         <div style={{ padding: "20px", textAlign: "center", color: TX3, fontSize: 13 }}>
-          Aucun devis pour l'instant. Drag-and-drop un PDF pour commencer.
+          Aucun devis pour l'instant. {isMobile ? "Importe un PDF pour commencer." : "Drag-and-drop un PDF pour commencer."}
         </div>
       ) : (
         Object.entries(quotesByLot).map(([lotKey, lotQuotes]) => {
@@ -288,7 +294,7 @@ export function QuotesView({ project, profile, showToast, onBack }) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: TX }}>{q.contractor_name}</span>
-                          <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                             {s.label}
                           </span>
                           {q.contractor_email && (

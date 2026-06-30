@@ -34,6 +34,7 @@ const getStatus = (id) => INVOICE_STATUSES.find(s => s.id === id) || INVOICE_STA
 export function InvoicesView({ project, profile, showToast, onBack }) {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // erreur de chargement distincte de l'état vide
   const [statusFilter, setStatusFilter] = useState("all");
   const [editing, setEditing] = useState(null); // invoice object ou "new"
   const [downloadingId, setDownloadingId] = useState(null);
@@ -43,14 +44,14 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
   useEffect(() => {
     let cancelled = false;
     loadInvoices({ projectId: project.id })
-      .then(rows => { if (!cancelled) { setInvoices(rows); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .then(rows => { if (!cancelled) { setInvoices(rows); setLoadError(false); setLoading(false); } })
+      .catch((e) => { if (!cancelled) { console.error("loadInvoices error:", e); setLoadError(true); setLoading(false); } });
     return () => { cancelled = true; };
   }, [project.id]);
 
   const refresh = async () => {
-    const rows = await loadInvoices({ projectId: project.id });
-    setInvoices(rows);
+    try { const rows = await loadInvoices({ projectId: project.id }); setInvoices(rows); setLoadError(false); }
+    catch (e) { console.error("loadInvoices error:", e); setLoadError(true); }
   };
 
   // KPIs : on calcule sur TOUTES les factures, pas seulement le filtre actif
@@ -127,7 +128,7 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {onBack && (
-            <button onClick={onBack} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
+            <button onClick={onBack} aria-label="Retour" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 7, minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8 }}>
               <Ico name="back" color={TX2} size={16} />
             </button>
           )}
@@ -181,6 +182,11 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
       {/* Liste */}
       {loading ? (
         <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>
+      ) : loadError ? (
+        <div style={{ padding: "32px 20px", textAlign: "center", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, color: TX2, fontSize: 13 }}>
+          <div style={{ marginBottom: 12 }}>Impossible de charger les factures. Vérifie ta connexion.</div>
+          <button onClick={() => { setLoading(true); refresh().finally(() => setLoading(false)); }} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Réessayer</button>
+        </div>
       ) : filtered.length === 0 ? (
         <div style={{ padding: "32px 20px", textAlign: "center", background: WH, border: `1px dashed ${SBB}`, borderRadius: 14, color: TX3, fontSize: 13 }}>
           {invoices.length === 0
@@ -203,7 +209,7 @@ export function InvoicesView({ project, profile, showToast, onBack }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: TX, fontFamily: "ui-monospace, monospace" }}>{inv.number}</span>
-                    <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 999, background: s.bg, color: s.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                       {isLate && inv.status === "sent" ? "EN RETARD" : s.label}
                     </span>
                     {inv.phase_label && (

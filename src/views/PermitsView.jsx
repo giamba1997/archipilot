@@ -86,20 +86,21 @@ const fmtDate = (iso) => {
 export function PermitsView({ project, profile, showToast, onBack }) {
   const [permits, setPermits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // erreur de chargement distincte de l'état vide
   const [editing, setEditing] = useState(null);
   const isMobile = useIsMobile();
 
   useEffect(() => {
     let cancelled = false;
     loadPermits({ projectId: project.id })
-      .then(rows => { if (!cancelled) { setPermits(rows); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .then(rows => { if (!cancelled) { setPermits(rows); setLoadError(false); setLoading(false); } })
+      .catch((e) => { if (!cancelled) { console.error("loadPermits error:", e); setLoadError(true); setLoading(false); } });
     return () => { cancelled = true; };
   }, [project.id]);
 
   const refresh = async () => {
-    const rows = await loadPermits({ projectId: project.id });
-    setPermits(rows);
+    try { const rows = await loadPermits({ projectId: project.id }); setPermits(rows); setLoadError(false); }
+    catch (e) { console.error("loadPermits error:", e); setLoadError(true); }
   };
 
   const handleSave = async (draft) => {
@@ -159,6 +160,11 @@ export function PermitsView({ project, profile, showToast, onBack }) {
       {/* Liste de permis */}
       {loading ? (
         <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>
+      ) : loadError ? (
+        <div style={{ padding: "32px 20px", textAlign: "center", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, color: TX2, fontSize: 13 }}>
+          <div style={{ marginBottom: 12 }}>Impossible de charger les permis. Vérifie ta connexion.</div>
+          <button onClick={() => { setLoading(true); refresh().finally(() => setLoading(false)); }} style={{ padding: "8px 16px", border: `1px solid ${SBB}`, borderRadius: 8, background: WH, color: TX, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Réessayer</button>
+        </div>
       ) : permits.length === 0 ? (
         <div style={{ padding: "32px 20px", textAlign: "center", background: WH, border: `1px dashed ${SBB}`, borderRadius: 14, color: TX3, fontSize: 13 }}>
           Aucun permis pour ce projet. Crée-en un pour traquer le dépôt, l'AR et l'échéance de décision.

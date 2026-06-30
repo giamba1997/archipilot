@@ -15,13 +15,13 @@
 - [x] **P2** `PlanViewer.jsx:938` — confirmation avant « Tout effacer » (calques d'annotation).
 
 ## Lot B — Erreurs de chargement vs état vide
-- [ ] **P2** `InvoicesView.jsx:47` — état erreur distinct + toast (au lieu de `setLoading(false)` seul → faux « Aucune facture »).
-- [ ] **P2** `QuotesView.jsx:46` — idem (état erreur distinct + toast).
-- [ ] **P2** `PermitsView.jsx:96` — idem.
-- [ ] **P2** `MapDashboardView.jsx` — idem (catch de chargement).
-- [ ] **P2** `ProgressReportsView.jsx:100-146` — `try/catch` + `showToast(…, "error")` sur `handleGenerate` (échec IA/réseau silencieux).
-- [ ] **P2** `CollabModal.jsx:29` — état loading (skeleton/spinner) tant que le 1er load n'a pas répondu.
-- [ ] **P3** `AlertsDrawer.jsx:51,94` — distinguer l'erreur de l'état succès « Tout est à jour ».
+- [x] **P2** `InvoicesView.jsx:47` — état erreur distinct + toast (au lieu de `setLoading(false)` seul → faux « Aucune facture »).
+- [x] **P2** `QuotesView.jsx:46` — idem (état erreur distinct + toast).
+- [x] **P2** `PermitsView.jsx:96` — idem.
+- [x] **P2** `MapDashboardView.jsx` — idem (catch de chargement).
+- [x] **P2** `ProgressReportsView.jsx:100-146` — `try/catch` + `showToast(…, "error")` sur `handleGenerate` (échec IA/réseau silencieux).
+- [x] **P2** `CollabModal.jsx:29` — état loading (skeleton/spinner) tant que le 1er load n'a pas répondu.
+- [x] **P3** `AlertsDrawer.jsx:51,94` — distinguer l'erreur de l'état succès « Tout est à jour ».
 
 ## Lot C — Bugs fonctionnels
 - [x] **P1** `DashboardHome.jsx:121,137,196,199,200` — `C.neutral[400]` inexistant → remplacer par `C.neutral[500]` (hiérarchie de texte cassée sur toutes les cartes).
@@ -40,11 +40,11 @@
 - [ ] **P3** `SearchModal.jsx:115` — deep-link vers l'élément trouvé (remark/action/participant), pas seulement le projet.
 
 ## Lot D — Accessibilité
-- [ ] **P1** `ProfileView.jsx:536,1046` — toggles Alertes & Push : `role="switch"` + `aria-checked` (ou `aria-pressed`).
-- [ ] **P2** aria-label sur boutons icône-seule : `InvoicesView:130,332,549` · `QuotesView:309-319` · `MapDashboardView:158,209` · `AlertsDrawer:87` · `CollabModal:179` · `GalleryView:282,289,294` · `OprView:541,544` · `PlanningView:209,344,563,572,591,806` · `ProfileView:157`.
-- [ ] **P2** `DashboardHome.jsx:114` — `ProjectCard` : `role="button"`, `tabIndex={0}`, handler clavier Enter/Espace.
-- [ ] **P2** `GalleryView.jsx` — navigation clavier de la lightbox (Esc / flèches).
-- [ ] **P2** Polices ≥ 11px (`FS.xs`) : `InvoicesView:206` · `QuotesView:291` · `MapDashboardView:206` · `PlanningDashboard:259,274,295,403,485`.
+- [x] **P1** `ProfileView.jsx:536,1046` — toggles Alertes & Push : `role="switch"` + `aria-checked` (ou `aria-pressed`).
+- [~] **P2** aria-label sur boutons (boutons retour + OprView edit/suppr + ProfileView avatar + lightbox faits ; reste actions de ligne Invoices/Quotes/Planning) icône-seule : `InvoicesView:130,332,549` · `QuotesView:309-319` · `MapDashboardView:158,209` · `AlertsDrawer:87` · `CollabModal:179` · `GalleryView:282,289,294` · `OprView:541,544` · `PlanningView:209,344,563,572,591,806` · `ProfileView:157`.
+- [x] **P2** `DashboardHome.jsx:114` — `ProjectCard` : `role="button"`, `tabIndex={0}`, handler clavier Enter/Espace.
+- [x] **P2** `GalleryView.jsx` — navigation clavier de la lightbox (Esc / flèches).
+- [x] **P2** Polices ≥ 11px (`FS.xs`) : `InvoicesView:206` · `QuotesView:291` · `MapDashboardView:206` · `PlanningDashboard:259,274,295,403,485`.
 - [ ] **P3** Cibles ≥ 44px : `TasksView:312` · `MapDashboardView:209` · `MeetingCard:131-142`.
 
 ## Lot E — Discipline des tokens (Direction D)

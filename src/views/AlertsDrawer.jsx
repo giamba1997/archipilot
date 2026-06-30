@@ -38,6 +38,7 @@ export function AlertsDrawer({ projects, profile, onClose, onSelectProject }) {
   const [permits, setPermits] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState(false); // distingue l'échec du calcul de l'état « tout à jour »
 
   useEffect(() => {
     let cancelled = false;
@@ -46,9 +47,10 @@ export function AlertsDrawer({ projects, profile, onClose, onSelectProject }) {
         if (cancelled) return;
         setPermits(perms);
         setInvoices(invs);
+        setLoadErr(false);
         setLoading(false);
       })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .catch((e) => { if (!cancelled) { console.error("AlertsDrawer load error:", e); setLoadErr(true); setLoading(false); } });
     return () => { cancelled = true; };
   }, []);
 
@@ -84,13 +86,17 @@ export function AlertsDrawer({ projects, profile, onClose, onSelectProject }) {
               {loading ? "Calcul…" : `${alerts.length} alerte${alerts.length > 1 ? "s" : ""} active${alerts.length > 1 ? "s" : ""}`}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
             <Ico name="x" size={14} color={TX2} />
           </button>
         </div>
 
         {loading ? (
           <div style={{ padding: "30px 0", textAlign: "center", color: TX3, fontSize: 13 }}>Chargement…</div>
+        ) : loadErr ? (
+          <div style={{ padding: "32px 20px", textAlign: "center", background: WH, border: `1px solid ${SBB}`, borderRadius: 14, color: TX2, fontSize: 13 }}>
+            Impossible de calculer les échéances (permis/factures non chargés). Vérifie ta connexion.
+          </div>
         ) : alerts.length === 0 ? (
           <div style={{ padding: "32px 20px", textAlign: "center", background: SGB, border: `1px solid ${SG}33`, borderRadius: 14 }}>
             <Ico name="check" size={32} color={GR} />

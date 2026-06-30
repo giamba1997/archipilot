@@ -247,7 +247,7 @@ export function PlanningDashboard({ projects, onBack, onSelectProject, onSwitchT
                       <Ico name={typeIcon[ev.type] || "file"} size={15} color={ev.color} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: ev.color }}>{typeLabel[ev.type]}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: ev.color }}>{typeLabel[ev.type]}</div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: TX }}>{ev.title}</div>
                     </div>
                   </div>
