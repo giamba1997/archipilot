@@ -189,6 +189,9 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   // de la visite via onEndVisit qui récupère le blob et déclenche
   // la transcription Whisper.
   const [transcribing, setTranscribing] = useState(false);
+  // Écran de confirmation post-visite : { pvNumber, stats } — brouillon créé,
+  // à finaliser/envoyer depuis le desktop (mobile = capture only).
+  const [visitDone, setVisitDone] = useState(null);
   // Recorder hissé dans App (survit à la navigation). Erreur micro idem.
   const conv = meetingRec;
   const recorderErrorMsg = meetingRecError;
@@ -391,9 +394,15 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
       _fromVisit: true,
     };
     savePvDraftLocal(draft);
+    const stats = {
+      reserves: (finalVisit.newReserveIds || []).length,
+      photos: (finalVisit.photoIds || []).length,
+      notes: (finalVisit.decisions || []).length,
+    };
     clearVisit();
-    showToast?.(`Visite terminée — brouillon PV n°${pvNumber} créé`);
-    onBack?.();
+    // Confirmation visible : le brouillon est en sécurité, à finaliser sur desktop.
+    setActiveSheet(null);
+    setVisitDone({ pvNumber, stats });
   };
 
   // Annule la visite sans créer de PV (mais les mutations métier
@@ -433,6 +442,11 @@ export function ChantierModeView({ project, setProjects, profile, onBack, showTo
   const namedPresents = (visit.presents || []).filter(p => p.name && String(p.name).trim());
   const presentsShown = namedPresents.slice(0, 4);
   const presentsMore = namedPresents.length - presentsShown.length;
+
+  // Écran de confirmation : visite terminée, brouillon créé → à finaliser sur desktop.
+  if (visitDone) {
+    return <VisitDoneScreen project={project} pvNumber={visitDone.pvNumber} stats={visitDone.stats} onDone={() => { setVisitDone(null); onBack?.(); }} />;
+  }
 
   return (
     <div style={{ maxWidth: "none", margin: "0 auto", animation: "fadeIn 0.2s ease", paddingBottom: 100 }}>
@@ -1256,6 +1270,54 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
       {/* CTA pleine largeur (comme le mockup) */}
       <button onClick={() => onSubmit(form)} disabled={!canSubmit} style={{ width: "100%", height: 48, marginTop: 14, border: "none", borderRadius: 14, background: canSubmit ? AC : DIS, color: canSubmit ? "#fff" : DIST, fontSize: 15, fontWeight: 700, cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: canSubmit ? "0 8px 20px rgba(184,92,44,0.25)" : "none" }}>Ajouter la réserve</button>
     </SheetWrapper>
+  );
+}
+
+// ── Écran de confirmation : visite terminée → brouillon créé ──
+// Mobile = capture. La finalisation + l'envoi du PV (acte sortant, document
+// quasi-contractuel) se font au bureau. On cadre ça comme une promesse de
+// continuité ("ça t'attend, déjà structuré"), jamais comme un cul-de-sac.
+function VisitDoneScreen({ project, pvNumber, stats, onDone }) {
+  const recapPill = (icon, bg, fg, n, word) => n > 0 ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: WH, border: "1px solid #EFEDEB", borderRadius: 999, padding: "5px 12px 5px 6px", fontSize: 13, color: TX, fontWeight: 600 }}>
+      <span style={{ width: 22, height: 22, borderRadius: 7, background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name={icon} size={13} color={fg} /></span>
+      {n} {word}{n > 1 ? "s" : ""}
+    </span>
+  ) : null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "#FCFBFA", display: "flex", flexDirection: "column", fontFamily: "inherit" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "calc(44px + env(safe-area-inset-top, 0px)) 22px 20px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+        <div style={{ width: 82, height: 82, borderRadius: "50%", background: "linear-gradient(135deg,#34D399,#059669)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 30px rgba(5,150,105,0.28)", marginBottom: 22 }}>
+          <Ico name="check" size={38} color="#fff" />
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: TX, letterSpacing: "-0.4px", marginBottom: 7 }}>Visite terminée</div>
+        <div style={{ fontSize: 14.5, color: TX2, lineHeight: 1.5, maxWidth: 320, marginBottom: 20 }}>
+          Brouillon <strong style={{ color: TX }}>PV n°{pvNumber}</strong>{project?.name ? <> créé pour <strong style={{ color: TX }}>{project.name}</strong></> : " créé"}. Tout ce que tu as capturé est assemblé.
+        </div>
+        {(stats.photos > 0 || stats.reserves > 0 || stats.notes > 0) && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 22 }}>
+            {recapPill("camera", "#EFF6FF", "#1E40AF", stats.photos, "photo")}
+            {recapPill("alert", "#FEF2F2", "#991B1B", stats.reserves, "réserve")}
+            {recapPill("pen2", "#FDF6F1", "#A04C20", stats.notes, "note")}
+          </div>
+        )}
+        <div style={{ width: "100%", maxWidth: 360, background: WH, border: "1px solid #EFEDEB", borderRadius: 16, padding: 16, display: "flex", alignItems: "flex-start", gap: 13, textAlign: "left", marginBottom: 14 }}>
+          <span style={{ width: 40, height: 40, borderRadius: 11, background: "#FDF6F1", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A04C20" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+          </span>
+          <div>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: TX, marginBottom: 3 }}>Finalise sur ton ordinateur</div>
+            <div style={{ fontSize: 13, color: TX2, lineHeight: 1.5 }}>Relecture, mise en forme et <strong style={{ color: TX }}>envoi du PV</strong> se font au bureau — le brouillon t'y attend déjà structuré.</div>
+          </div>
+        </div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "#059669", fontWeight: 600 }}>
+          <Ico name="check" size={14} color="#059669" />Synchronisé sur ton espace ArchiPilot
+        </div>
+      </div>
+      <div style={{ padding: "12px 22px max(20px, env(safe-area-inset-bottom, 20px))", borderTop: "1px solid #EFEDEB", background: "#FCFBFA" }}>
+        <button onClick={onDone} style={{ width: "100%", height: 52, borderRadius: 14, border: "none", background: AC, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 8px 20px rgba(184,92,44,0.25)" }}>Retour à l'accueil</button>
+      </div>
+    </div>
   );
 }
 
