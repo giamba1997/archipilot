@@ -81,11 +81,27 @@ Cohérent avec la décision PV (brouillon mobile → finalisation desktop).
   que le PV brouillon. Non bloquant.
 
 ### P4 — QA sur device réel (non vérifiable en headless)
-- Enregistrement réunion en arrière-plan + Wake Lock sur **vrai téléphone**
-  (iOS Safari peut suspendre l'audio au verrouillage écran — limite navigateur).
-- Installation **PWA** (manifest, icône, splash).
+
+**Préparation PWA côté code — ✅ faite :**
+- **Icônes régénérées carrées** (le `icon-512.png` faisait 361×353 non carré →
+  install déformée). Désormais `icon-192.png` (192²), `icon-512.png` (512²),
+  `icon-maskable-512.png` (512², zone de sécurité ~22 %), `apple-touch-180.png`
+  (180², fond blanc solide pour iOS). Manifest `icons[]` mis à jour (192/512/
+  maskable, bonnes `sizes`). `apple-touch-icon` → `/apple-touch-180.png`.
+  Favicon SVG corrigé (pointait vers un `.png` avec `type=svg+xml`).
+- **theme_color** aligné sur le terracotta de marque `#B85C2C` (manifest +
+  `index.html`).
+- SW (`src/sw.js`) déjà OK : precache + runtime cache (CacheFirst JS/CSS/images)
+  + push + notificationclick. `injectManifest`, `registerType: autoUpdate`.
+
+**À tester sur vrai téléphone (ton terrain) :**
+- **Installation PWA** (Ajouter à l'écran d'accueil) : icône nette, nom, splash.
+- Enregistrement réunion en arrière-plan + Wake Lock (iOS Safari peut suspendre
+  l'audio au verrouillage écran — limite navigateur connue).
 - Comportement **hors-ligne** réel + file de synchro photos.
-- **Cache du service worker** (forcer un hard-refresh après déploiement).
+- **Cache du service worker** : forcer un hard-refresh après déploiement.
+- **Splash screens iOS** (`apple-touch-startup-image`) : *non fournis* (option) —
+  iOS affiche un splash blanc par défaut. À générer si on veut un splash brandé.
 - Toggles, chips, FAB : vérifier qu'aucun petit bouton n'est ré-étiré à 44px
   (règle tactile globale) sur les écrans non audités.
 

@@ -28,13 +28,13 @@ export default defineConfig({
         // Whisper client, et html2canvas dans le bundle principal.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
-      includeAssets: ['icon-512.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-180.png', 'icon-512.svg'],
       manifest: {
         name: 'ArchiPilot',
         short_name: 'ArchiPilot',
         description: 'Copilote IA pour architectes — gestion de chantier et génération de PV',
         lang: 'fr',
-        theme_color: '#C05A2C',
+        theme_color: '#B85C2C',
         background_color: '#FAFAF8',
         display: 'standalone',
         orientation: 'portrait-primary',
@@ -42,18 +42,9 @@ export default defineConfig({
         scope: '/',
         categories: ['business', 'productivity'],
         icons: [
-          {
-            src: 'icon-512.png',
-            sizes: 'any',
-            type: 'image/png',
-            purpose: 'any',
-          },
-          {
-            src: 'icon-512.png',
-            sizes: 'any',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       devOptions: {
