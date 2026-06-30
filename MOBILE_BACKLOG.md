@@ -49,21 +49,14 @@
 
 ## 🔜 Recommandé (restant)
 
-### P1 — Cohérence des marges
-La réduction globale des marges (4-8px sur les onglets) a laissé la
-**Consultation projet** à 8px alors que son mockup et les autres écrans de
-détail sont à **16px** → elle détonne légèrement.
-- **Action** : repasser `MobileProjectConsult` à 16px (sections) pour homogénéiser.
-- **Risque** : faible (fichier 100 % mobile).
+### ✅ P1 — Cohérence des marges *(fait — commit `8c51bbc`+)*
+`MobileProjectConsult` repassé à **16px** (sections) / 20px (titre, labels),
+aligné sur son mockup et les autres écrans de détail.
 
-### P2 — Safe-area (encoche) sur les en-têtes manquants
-Depuis le retrait de la topbar, chaque écran démarre tout en haut. `Chantiers`,
-`Consultation`, `PV`, `Réserve`, `Profil` ont `env(safe-area-inset-top)`, mais
-**Accueil** et **Notifs** ne l'ont pas → sur iPhone à encoche, le titre passe
-sous la barre d'état.
-- **Action** : ajouter `env(safe-area-inset-top)` au padding haut de
-  `MobileHome` et `MobileNotifs`.
-- **Invisible en navigateur, important sur device réel.**
+### ✅ P2 — Safe-area (encoche) sur les en-têtes *(fait — commit `8c51bbc`+)*
+`env(safe-area-inset-top)` ajouté au padding haut de **`MobileHome`** et
+**`MobileNotifs`** : le titre ne passe plus sous la barre d'état sur device à
+encoche. (Invisible en navigateur, vérifié par build + tests.)
 
 ### P3 — Création de projet sur mobile
 En remplaçant le « + » par le pin carte sur Chantiers, la création n'est plus

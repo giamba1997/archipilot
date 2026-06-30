@@ -160,7 +160,7 @@ export function MobileNotifs({
   return (
     <div style={{ maxWidth: "none", margin: "0 auto", paddingBottom: SP.xl * 4 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 6px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "calc(8px + env(safe-area-inset-top, 0px)) 6px 14px" }}>
         <h1 style={{ flex: 1, fontSize: 26, fontWeight: 700, color: TX, margin: 0, letterSpacing: "-0.5px" }}>Notifications</h1>
         {unread.length > 0 && (
           <button onClick={onMarkAllRead} aria-label="Tout marquer lu" style={{ background: "none", border: "none", padding: 6, cursor: "pointer", fontSize: 13, color: "#A04C20", fontWeight: 600, fontFamily: "inherit" }}>
