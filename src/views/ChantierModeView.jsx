@@ -1190,17 +1190,23 @@ function NewReserveSheet({ contractors, onClose, onSubmit }) {
 
   return (
     <SheetWrapper title="Nouvelle réserve" onClose={onClose}>
-      {/* Photos (capture d'abord) */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        {form.photos.map((p, i) => (
-          <div key={i} style={{ position: "relative" }}>
-            <img src={p} alt="" style={{ width: 54, height: 54, borderRadius: 12, objectFit: "cover", border: `1px solid ${SBB}` }} />
-            <button onClick={() => setForm(f => ({ ...f, photos: f.photos.filter((_, j) => j !== i) }))} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, minHeight: 22, borderRadius: "50%", background: BR, border: "2px solid #fff", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="x" size={11} color="#fff" /></button>
+      {/* Photo — grande zone de capture (mockup) */}
+      <div style={{ marginBottom: 14 }}>
+        {form.photos.length === 0 ? (
+          <button onClick={() => fileRef.current?.click()} style={{ width: "100%", height: 150, borderRadius: 16, border: "none", cursor: "pointer", fontFamily: "inherit", background: "repeating-linear-gradient(45deg,#EDE4DA,#EDE4DA 10px,#E5D9CC 10px,#E5D9CC 20px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 9, color: "#8B5A3C" }}>
+            <span style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="camera" size={24} color="#A04C20" /></span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Ajouter une photo</span>
+          </button>
+        ) : (
+          <div style={{ position: "relative", height: 150, borderRadius: 16, overflow: "hidden", border: "1px solid #EFEDEB" }}>
+            <img src={form.photos[form.photos.length - 1]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <span style={{ position: "absolute", top: 10, right: 10, fontSize: 11, background: "rgba(28,25,23,0.7)", color: "#fff", borderRadius: 999, padding: "3px 9px", fontWeight: 500 }}>{form.photos.length} photo{form.photos.length > 1 ? "s" : ""}</span>
+            <div style={{ position: "absolute", bottom: 10, left: 10, display: "flex", gap: 6 }}>
+              <button onClick={() => fileRef.current?.click()} aria-label="Ajouter une photo" style={{ width: 44, height: 44, minHeight: 44, borderRadius: 10, background: "rgba(28,25,23,0.7)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="camera" size={20} color="#fff" /></button>
+              <button onClick={() => setForm(f => ({ ...f, photos: f.photos.slice(0, -1) }))} aria-label="Retirer la dernière photo" style={{ width: 44, height: 44, minHeight: 44, borderRadius: 10, background: "rgba(28,25,23,0.7)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Ico name="trash" size={18} color="#fff" /></button>
+            </div>
           </div>
-        ))}
-        <button onClick={() => fileRef.current?.click()} style={{ width: 54, height: 54, borderRadius: 12, border: `1.5px dashed ${SBB}`, background: "#FCFBFA", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "#A04C20", fontFamily: "inherit" }}>
-          <Ico name="camera" size={20} color="#A04C20" /><span style={{ fontSize: 10, fontWeight: 600 }}>Photo</span>
-        </button>
+        )}
         <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={addPhoto} />
       </div>
 
