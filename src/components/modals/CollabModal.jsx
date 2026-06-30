@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useT } from "../../i18n";
-import { AC, ACL, SB, SBB, TX, TX2, TX3, WH, RD, GR } from "../../constants/tokens";
+import { AC, ACL, SB, SBB, TX, TX2, TX3, WH, RD, GR, AM } from "../../constants/tokens";
 import { Ico } from "../ui";
 import { inviteMember, loadProjectMembers, updateMemberRole, removeMember, track, loadOrgMembers } from "../../db";
 import { getLimit, hasFeature } from "../../constants/config";
@@ -103,7 +103,7 @@ export function CollabModal({ project, ownerId, onClose, showToast, profile, onU
     { id: "reader", label: t("collab.roleReader"), desc: t("collab.roleReaderDesc") },
   ];
 
-  const statusColors = { pending: "#E8A317", accepted: GR, declined: RD };
+  const statusColors = { pending: AM, accepted: GR, declined: RD };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 500 }} onClick={onClose}>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, SP, FS, RAD, DIS, DIST, REDBG, REDBRD, GRBG, BG, AM } from "../constants/tokens";
 import { RESERVE_STATUSES, RESERVE_SEVERITIES, getReserveStatus, getReserveSeverity, nextReserveStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -296,7 +296,7 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 }}>
           <KpiBox label="Total" value={total} color={TX} />
           <KpiBox label="Non levées" value={nonLevees} color={RD} />
-          <KpiBox label="En cours" value={partielles} color="#D97706" />
+          <KpiBox label="En cours" value={partielles} color={AM} />
           <KpiBox label="Levées" value={levees} color={GR} />
           {critiques > 0 && <KpiBox label="Critiques" value={critiques} color={RD} accent />}
         </div>
@@ -402,7 +402,7 @@ export function OprView({ project, setProjects, profile, showToast, onBack }) {
                       const stColor = r.status === "signed" ? GR
                         : r.status === "declined" ? RD
                         : isExpired ? RD
-                        : "#D97706";
+                        : AM;
                       const stLabel = r.status === "signed" ? "Signé"
                         : r.status === "declined" ? "Refusé"
                         : isExpired ? "Expiré"
@@ -996,7 +996,7 @@ function ReserveForm({ reserve, contractors, nextCode, templates = [], onTemplat
                   padding: "4px 10px",
                   border: `1px solid ${templateSaved ? GR : SBB}`,
                   borderRadius: 8,
-                  background: templateSaved ? "#F0F9F1" : WH,
+                  background: templateSaved ? GRBG : WH,
                   color: templateSaved ? GR : TX2,
                   fontSize: 10,
                   fontWeight: 600,

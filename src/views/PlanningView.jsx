@@ -560,7 +560,7 @@ export function PlanningView({ project, setProjects, onBack, profile, showToast 
                     </div>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: st.color, background: st.bg, padding: "2px 7px", borderRadius: 6, flexShrink: 0 }}>{st.label}</span>
-                  <button onClick={() => { setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", duration: calcDuration(lot.startDate, lot.endDate), progress: lot.progress || 0, color: lot.color || "amber", steps: lot.steps || [], postId: lot.postId || "", phaseId: lot.phaseId || "" }); setEditingId(lot.id); setModal("edit"); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
+                  <button onClick={() => { setEditLot({ name: lot.name, contractor: lot.contractor || "", startDate: lot.startDate || "", endDate: lot.endDate || "", duration: calcDuration(lot.startDate, lot.endDate), progress: lot.progress || 0, color: lot.color || "amber", steps: lot.steps || [], postId: lot.postId || "", phaseId: lot.phaseId || "" }); setEditingId(lot.id); setModal("edit"); }} aria-label="Modifier le lot" title="Modifier le lot" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                     <Ico name="edit" size={14} color={TX3} />
                   </button>
                   {confirmDeleteLot === lot.id ? (
@@ -569,7 +569,7 @@ export function PlanningView({ project, setProjects, onBack, profile, showToast 
                       <button onClick={() => setConfirmDeleteLot(null)} style={{ fontSize: 11, color: TX2, background: SB, border: `1px solid ${SBB}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" }}>{t("cancel")}</button>
                     </div>
                   ) : (
-                    <button onClick={() => setConfirmDeleteLot(lot.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
+                    <button onClick={() => setConfirmDeleteLot(lot.id)} aria-label="Supprimer le lot" title="Supprimer le lot" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                       <Ico name="trash" size={14} color={TX3} />
                     </button>
                   )}
@@ -803,7 +803,7 @@ export function PlanningView({ project, setProjects, onBack, profile, showToast 
                 const dur = step.startDate ? calcDuration(step.startDate, end) : "";
                 setEditLot(p => ({ ...p, steps: p.steps.map((s, j) => j === si ? { ...s, endDate: end, duration: dur } : s) }));
               }} style={{ width: 120, padding: "6px 6px", border: `1px solid ${SBB}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", background: WH, color: TX }} />
-              <button onClick={() => setEditLot(p => ({ ...p, steps: p.steps.filter((_, j) => j !== si) }))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
+              <button onClick={() => setEditLot(p => ({ ...p, steps: p.steps.filter((_, j) => j !== si) }))} aria-label="Supprimer l'étape" title="Supprimer l'étape" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}>
                 <Ico name="x" size={10} color={TX3} />
               </button>
             </div>

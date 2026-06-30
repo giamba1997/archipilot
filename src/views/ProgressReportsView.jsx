@@ -252,14 +252,6 @@ export function ProgressReportsView({ project, profile, showToast, onBack }) {
   );
 }
 
-function KpiSmall({ label, value }) {
-  return (
-    <div style={{ background: SB, border: `1px solid ${SBB}`, borderRadius: 8, padding: "8px 10px" }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: TX3, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: TX, marginTop: 2 }}>{value}</div>
-    </div>
-  );
-}
 
 // Liste des rapports générés (ligne = fichier + titre + statut, cliquable).
 function ReportsList({ reports, loading, selectedId, onSelect, onDelete }) {
@@ -323,7 +315,7 @@ function ReportEditorModal({ report, onClose, onSave }) {
             <div style={{ fontSize: 17, fontWeight: 700, color: TX }}>Rapport — {fmtDate(report.period_start)} → {fmtDate(report.period_end)}</div>
             <div style={{ fontSize: 11, color: TX3, marginTop: 2 }}>Édite le markdown à ta guise. L'export PDF/copier suivra ces modifications.</div>
           </div>
-          <button onClick={onClose} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
             <Ico name="x" size={14} color={TX2} />
           </button>
         </div>
@@ -371,7 +363,7 @@ function ReportEditorModal({ report, onClose, onSave }) {
         </div>
 
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "11px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <button onClick={onClose} aria-label="Fermer" style={{ flex: 1, padding: "11px 16px", border: `1px solid ${SBB}`, borderRadius: 10, background: WH, color: TX2, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             Annuler
           </button>
           <button
@@ -398,7 +390,3 @@ const inputStyle = {
   outline: "none", boxSizing: "border-box",
 };
 
-const iconBtnStyle = {
-  background: "transparent", border: "none", cursor: "pointer", padding: 6,
-  display: "flex", alignItems: "center", justifyContent: "center",
-};

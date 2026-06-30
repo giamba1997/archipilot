@@ -417,8 +417,3 @@ const inputStyle = {
   fontSize: 13, fontFamily: "inherit", background: WH, color: TX,
   outline: "none", boxSizing: "border-box",
 };
-
-const iconBtnStyle = {
-  background: "transparent", border: "none", cursor: "pointer", padding: 6,
-  display: "flex", alignItems: "center", justifyContent: "center",
-};

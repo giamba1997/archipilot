@@ -312,15 +312,15 @@ export function QuotesView({ project, profile, showToast, onBack }) {
                         {q.total_ttc != null && <div style={{ fontSize: 10, color: TX3, fontWeight: 500 }}>{fmtEur(q.total_ttc)} TTC</div>}
                       </div>
                       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                        <button onClick={() => setEditingId(q.id)} title="Détails" style={iconBtnStyle}>
+                        <button onClick={() => setEditingId(q.id)} aria-label="Détails" title="Détails" style={iconBtnStyle}>
                           <Ico name="eye" size={14} color={TX2} />
                         </button>
                         {q.status !== "awarded" && (
-                          <button onClick={() => handleAward(q)} title="Attribuer ce lot" style={iconBtnStyle}>
+                          <button onClick={() => handleAward(q)} aria-label="Attribuer ce lot" title="Attribuer ce lot" style={iconBtnStyle}>
                             <Ico name="check" size={14} color={GR} />
                           </button>
                         )}
-                        <button onClick={() => handleDelete(q)} title="Supprimer" style={iconBtnStyle}>
+                        <button onClick={() => handleDelete(q)} aria-label="Supprimer" title="Supprimer" style={iconBtnStyle}>
                           <Ico name="trash" size={14} color={RD} />
                         </button>
                       </div>
@@ -370,7 +370,7 @@ function QuoteDetailModal({ quote, onClose }) {
               {quote.total_ttc != null && ` · ${fmtEur(quote.total_ttc)} TTC`}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
             <Ico name="x" size={14} color={TX2} />
           </button>
         </div>
@@ -467,7 +467,7 @@ function ComparisonModal({ lotLabel, quotes, onClose }) {
               {quotes.length} devis · {rows.length} postes uniques · écarts {">20%"} en rouge/vert
             </div>
           </div>
-          <button onClick={onClose} style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
+          <button onClick={onClose} aria-label="Fermer" style={{ background: SB, border: `1px solid ${SBB}`, cursor: "pointer", padding: 6, borderRadius: 8 }}>
             <Ico name="x" size={14} color={TX2} />
           </button>
         </div>

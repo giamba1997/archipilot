@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, BL, BLB, SP, FS, RAD } from "../constants/tokens";
+import { AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, BL, BLB, SP, FS, RAD, REDBG } from "../constants/tokens";
 import { calcLotStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
 
@@ -45,7 +45,7 @@ export function PlanningDashboard({ projects, onBack, onSelectProject, onSwitchT
 
     // Actions with deadlines (use `since` as context, no explicit deadline field — show open urgent ones)
     (p.actions || []).filter(a => a.open).forEach(a => {
-      events.push({ type: "action", title: a.text, project: p, date: md || today, who: a.who, urgent: a.urgent, since: a.since, icon: "alert", color: a.urgent ? RD : AC, bg: a.urgent ? "#FEF2F2" : ACL, actionData: a });
+      events.push({ type: "action", title: a.text, project: p, date: md || today, who: a.who, urgent: a.urgent, since: a.since, icon: "alert", color: a.urgent ? RD : AC, bg: a.urgent ? REDBG : ACL, actionData: a });
     });
 
     // Lots
@@ -60,10 +60,10 @@ export function PlanningDashboard({ projects, onBack, onSelectProject, onSwitchT
 
     // Alerts: lot delayed, meeting past without PV
     (p.lots || []).filter(l => calcLotStatus(l).id === "delayed").forEach(l => {
-      events.push({ type: "alert", title: `${l.name} — en retard`, project: p, date: parseDate(l.endDate) || today, icon: "alert", color: RD, bg: "#FEF2F2" });
+      events.push({ type: "alert", title: `${l.name} — en retard`, project: p, date: parseDate(l.endDate) || today, icon: "alert", color: RD, bg: REDBG });
     });
     if (md && md < today && (!p.pvHistory?.length || p.pvHistory[0].status === "draft")) {
-      events.push({ type: "alert", title: "Réunion passée sans PV finalisé", project: p, date: md, icon: "file", color: RD, bg: "#FEF2F2" });
+      events.push({ type: "alert", title: "Réunion passée sans PV finalisé", project: p, date: md, icon: "file", color: RD, bg: REDBG });
     }
   });
 
@@ -226,7 +226,7 @@ export function PlanningDashboard({ projects, onBack, onSelectProject, onSwitchT
                   </div>
                 </div>
                 {ev.urgent && <div style={{ width: 5, height: 5, borderRadius: "50%", background: RD, flexShrink: 0 }} />}
-                {ev.lotStatus && ev.lotStatus.id === "delayed" && <span style={{ fontSize: 7, fontWeight: 700, color: RD, background: "#FEF2F2", padding: "1px 4px", borderRadius: 3, flexShrink: 0 }}>!</span>}
+                {ev.lotStatus && ev.lotStatus.id === "delayed" && <span style={{ fontSize: 7, fontWeight: 700, color: RD, background: REDBG, padding: "1px 4px", borderRadius: 3, flexShrink: 0 }}>!</span>}
                 <Ico name="arrowr" size={8} color={SBB} />
               </button>
             ))}

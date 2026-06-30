@@ -205,7 +205,7 @@ export function TasksView({ project, setProjects, onBack, profile }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 4px" }}>
             {g.lot ? (
               <>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: AC, opacity: 0.7 }} />
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: TX3 }} />
                 <span style={{ fontSize: FS.sm, fontWeight: 700, color: TX }}>{g.lot.name}</span>
                 {g.lot.contractor && <span style={{ fontSize: FS.xs, color: TX3 }}>· {g.lot.contractor}</span>}
               </>
@@ -310,8 +310,8 @@ function TaskRow({ task, project, isLast, onClick, onAdvance }) {
       {/* Avancer le statut — bouton discret */}
       {!closed && (
         <button onClick={(e) => { e.stopPropagation(); onAdvance(); }}
-          title="Avancer au statut suivant"
-          style={{ padding: 5, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", flexShrink: 0 }}>
+          title="Avancer au statut suivant" aria-label="Avancer au statut suivant"
+          style={{ padding: 5, minWidth: 32, minHeight: 32, justifyContent: "center", border: `1px solid ${SBB}`, borderRadius: 6, background: WH, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", flexShrink: 0 }}>
           <Ico name="arrowr" size={11} color={TX3} />
         </button>
       )}

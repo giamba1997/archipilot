@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
-  AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR,
+  AC, ACL, ACL2, SB, SB2, SBB, TX, TX2, TX3, WH, RD, GR, AM, AMB,
 } from "../constants/tokens";
 import { STATUSES, getStatus } from "../constants/statuses";
 import { Ico } from "../components/ui";
@@ -211,7 +211,7 @@ export function MapDashboardView({ projects, setProjects, onBack, onSelectProjec
                 <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 999, background: getStatus(selected.statusId).bg, color: getStatus(selected.statusId).color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   {getStatus(selected.statusId).label}
                 </span>
-                <button onClick={() => setSelected(null)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4 }}>
+                <button onClick={() => setSelected(null)} aria-label="Fermer" style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, minWidth: 32, minHeight: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Ico name="x" size={12} color={TX3} />
                 </button>
               </div>
@@ -264,5 +264,5 @@ function FilterChip({ active, onClick, label, dot }) {
 }
 
 // Aliases locaux pour rester lisible (les noms de tokens varient légèrement)
-const AMB_BG_FROM_TOKENS = "#F8E5BD";
-const AM_FROM_TOKENS = "#C0791A";
+const AMB_BG_FROM_TOKENS = AMB;
+const AM_FROM_TOKENS = AM;

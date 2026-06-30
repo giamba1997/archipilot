@@ -128,17 +128,17 @@ export function MeetingCard({ project, setProjects, rec }) {
 
           {/* Action buttons */}
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button onClick={() => { setDateVal(project.nextMeeting || ""); setEditing(true); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={() => { setDateVal(project.nextMeeting || ""); setEditing(true); }} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 10px", minHeight: 34, border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
               <Ico name="edit" size={11} color={AC} />{project.nextMeeting ? "Modifier" : "Planifier"}
             </button>
             {project.nextMeeting && getGoogleCalendarUrl(project) && (
-              <a href={getGoogleCalendarUrl(project)} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, textDecoration: "none" }}>
-                <Ico name="calendar" size={10} color={AC} />Cal
+              <a href={getGoogleCalendarUrl(project)} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "8px 10px", minHeight: 34, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: TX2, textDecoration: "none" }}>
+                <Ico name="calendar" size={10} color={TX2} />Cal
               </a>
             )}
             {project.nextMeeting && (
-              <button onClick={() => downloadICS(project)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "6px 10px", border: `1px solid ${ACL2}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: AC, cursor: "pointer", fontFamily: "inherit" }}>
-                <Ico name="download" size={10} color={AC} />.ics
+              <button onClick={() => downloadICS(project)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "8px 10px", minHeight: 34, border: `1px solid ${SBB}`, borderRadius: 6, background: WH, fontSize: 10, fontWeight: 600, color: TX2, cursor: "pointer", fontFamily: "inherit" }}>
+                <Ico name="download" size={10} color={TX2} />.ics
               </button>
             )}
           </div>

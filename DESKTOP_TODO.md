@@ -41,31 +41,31 @@
 
 ## Lot D — Accessibilité
 - [x] **P1** `ProfileView.jsx:536,1046` — toggles Alertes & Push : `role="switch"` + `aria-checked` (ou `aria-pressed`).
-- [~] **P2** aria-label sur boutons (boutons retour + OprView edit/suppr + ProfileView avatar + lightbox faits ; reste actions de ligne Invoices/Quotes/Planning) icône-seule : `InvoicesView:130,332,549` · `QuotesView:309-319` · `MapDashboardView:158,209` · `AlertsDrawer:87` · `CollabModal:179` · `GalleryView:282,289,294` · `OprView:541,544` · `PlanningView:209,344,563,572,591,806` · `ProfileView:157`.
+- [x] **P2** aria-label sur boutons (boutons retour + OprView edit/suppr + ProfileView avatar + lightbox faits ; reste actions de ligne Invoices/Quotes/Planning) icône-seule : `InvoicesView:130,332,549` · `QuotesView:309-319` · `MapDashboardView:158,209` · `AlertsDrawer:87` · `CollabModal:179` · `GalleryView:282,289,294` · `OprView:541,544` · `PlanningView:209,344,563,572,591,806` · `ProfileView:157`.
 - [x] **P2** `DashboardHome.jsx:114` — `ProjectCard` : `role="button"`, `tabIndex={0}`, handler clavier Enter/Espace.
 - [x] **P2** `GalleryView.jsx` — navigation clavier de la lightbox (Esc / flèches).
 - [x] **P2** Polices ≥ 11px (`FS.xs`) : `InvoicesView:206` · `QuotesView:291` · `MapDashboardView:206` · `PlanningDashboard:259,274,295,403,485`.
-- [ ] **P3** Cibles ≥ 44px : `TasksView:312` · `MapDashboardView:209` · `MeetingCard:131-142`.
+- [x] **P3** Cibles ≥ 44px : `TasksView:312` · `MapDashboardView:209` · `MeetingCard:131-142`.
 
 ## Lot E — Discipline des tokens (Direction D)
-- [ ] **P2** `MeetingCard.jsx:47-48,86,131-141` — réduire le sur-usage terracotta (1 seule action AC, secondaires en TX2/SBB).
-- [ ] **P2** `MapDashboardView.jsx:262-263` — `#F8E5BD/#C0791A` → `AMB/AM`.
-- [ ] **P2** `Overview.jsx:496,1466` + `CdcBanner.jsx:109` — bordures `#E8E1DA` → `SBB`.
-- [ ] **P2** `OprView.jsx:299,405` — orange « En cours » `#D97706` → `AM` ; `:232,713,739,769,999` → `SB2/SB/GRBG`.
+- [x] **P2** `MeetingCard.jsx:47-48,86,131-141` — réduire le sur-usage terracotta (1 seule action AC, secondaires en TX2/SBB).
+- [x] **P2** `MapDashboardView.jsx:262-263` — `#F8E5BD/#C0791A` → `AMB/AM`.
+- [x] **P2** `Overview.jsx:496,1466` + `CdcBanner.jsx:109` — bordures `#E8E1DA` → `SBB`.
+- [x] **P2** `OprView.jsx:299,405` — orange « En cours » `#D97706` → `AM` ; `:232,713,739,769,999` → `SB2/SB/GRBG`.
 - [ ] **P2** `MfaSection.jsx:70,71,98` — `#EAF3DE/#C6E9B4`, `#FEF2F2/#FECACA`, `#D3D1C7` → `SGB/SG`, `BRB/REDBRD`, `DIS`.
 - [ ] **P2** `PricingSection.jsx:55,59,93,135` — `#FDF4E7`, `#EAF3DE/#C6E9B4`, `#FEF2F2/#FECACA`, `#D3D1C7` → `ACL/SGB/BRB/DIS`.
-- [ ] **P2** `CollabModal.jsx:98` — pending `#E8A317` → `AM`.
-- [ ] **P2** `PlanningDashboard.jsx:48,63,66,274` — `#FEF2F2` → `REDBG/BRB`.
+- [x] **P2** `CollabModal.jsx:98` — pending `#E8A317` → `AM`.
+- [x] **P2** `PlanningDashboard.jsx:48,63,66,274` — `#FEF2F2` → `REDBG/BRB`.
 - [ ] **P2** `ReserveLibrarySection.jsx:304-305` — badge « Perso » vert `#EBF3E8/#5A8C3F` → paire de tokens.
 - [ ] **P3** `"#fff"/"#000"` littéraux → `WH` (`NoteEditor:658,778`, `GalleryView`, `OprView`…).
 - [ ] **P3** `ResultView.jsx:273` — « Rédigé par gpt-4o » externalisé + typo en `FS` (17,9).
-- [ ] **P3** `TasksView.jsx:208` — pastilles de groupe terracotta → neutre/couleur du lot.
+- [x] **P3** `TasksView.jsx:208` — pastilles de groupe terracotta → neutre/couleur du lot.
 - [ ] **P3** `CdcBanner.jsx:211` — boxShadow terracotta `rgba(184,92,44,0.18)` (retirer/dériver d'AC).
 - [ ] **DÉCISION** — converger les deux systèmes de tokens (`constants/tokens.js` v1 vs `design/tokens.js` v2) — racine du bug `neutral[400]`.
 
 ## Lot F — Nettoyage
 - [ ] **P3** Imports inutilisés : `Overview` (MEETING_MODES, AskAiButton, BL/BLB/TE/TEB, QT_*) · `ResultView` (DIS/DIST/PB/PvStatusBadge/PV_STATUSES/getPvStatus/nextPvStatus/loadPvSends/formatAddress) · `TasksView` (BL/BLB/REDBG/REDBRD/LH/SB2) · `PlanningView` (useMemo, VI*/TE*/PU*/GRY*/OR*) · `MapDashboardView` (SB2/RD/GR) · `ProfileView` (BL/BLB/AM/SB2).
-- [ ] **P3** Code mort : `PermitsView.jsx:415` (`iconBtnStyle`) · `ProgressReportsView.jsx:248-255,394-397` (`KpiSmall`, `iconBtnStyle`).
+- [x] **P3** Code mort : `PermitsView.jsx:415` (`iconBtnStyle`) · `ProgressReportsView.jsx:248-255,394-397` (`KpiSmall`, `iconBtnStyle`).
 
 ---
 
