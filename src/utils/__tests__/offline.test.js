@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, savePvDraft, removePvDraft } from "../offline";
+import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, savePvDraft, removePvDraft, syncReservePhotosToStorage } from "../offline";
 
 beforeEach(() => {
   localStorage.clear();
@@ -75,5 +75,39 @@ describe("PV Drafts", () => {
   it("handles corrupted localStorage gracefully", () => {
     localStorage.setItem("archipilot_pv_drafts", "{bad}");
     expect(getPvDrafts()).toEqual([]);
+  });
+});
+
+describe("syncReservePhotosToStorage", () => {
+  const upOk = async (d) => ({ url: `https://cdn/${d.length}` });
+  const upFail = async () => { throw new Error("offline"); };
+
+  it("returns null when no reserve has a dataURL photo", async () => {
+    const projects = [{ id: 1, reserves: [{ id: "r", photos: ["https://cdn/x"] }] }];
+    expect(await syncReservePhotosToStorage(projects, upOk)).toBeNull();
+  });
+
+  it("returns null for invalid inputs", async () => {
+    expect(await syncReservePhotosToStorage(null, upOk)).toBeNull();
+    expect(await syncReservePhotosToStorage([{ reserves: [{ photos: ["data:x"] }] }], null)).toBeNull();
+  });
+
+  it("re-uploads dataURL photos and replaces them with the returned URL", async () => {
+    const projects = [{ id: 1, reserves: [{ id: "r1", photos: ["data:abc", "https://cdn/keep"] }] }];
+    const out = await syncReservePhotosToStorage(projects, upOk);
+    expect(out).not.toBeNull();
+    expect(out[0].reserves[0].photos[0]).toBe("https://cdn/8"); // "data:abc".length
+    expect(out[0].reserves[0].photos[1]).toBe("https://cdn/keep"); // non-data laissé tel quel
+  });
+
+  it("keeps the dataURL when the upload fails (never loses the photo)", async () => {
+    const projects = [{ id: 1, reserves: [{ id: "r1", photos: ["data:abc"] }] }];
+    expect(await syncReservePhotosToStorage(projects, upFail)).toBeNull(); // rien migré => null
+  });
+
+  it("does not mutate the input projects", async () => {
+    const projects = [{ id: 1, reserves: [{ id: "r1", photos: ["data:abc"] }] }];
+    await syncReservePhotosToStorage(projects, upOk);
+    expect(projects[0].reserves[0].photos[0]).toBe("data:abc"); // original intact
   });
 });

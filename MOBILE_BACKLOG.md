@@ -98,8 +98,20 @@ Cohérent avec la décision PV (brouillon mobile → finalisation desktop).
 - **Installation PWA** (Ajouter à l'écran d'accueil) : icône nette, nom, splash.
 - Enregistrement réunion en arrière-plan + Wake Lock (iOS Safari peut suspendre
   l'audio au verrouillage écran — limite navigateur connue).
-- Comportement **hors-ligne** réel + file de synchro photos.
+- Comportement **hors-ligne** réel (couvert côté code, cf. ci-dessous — reste à
+  valider sur une vraie coupure réseau).
 - **Cache du service worker** : forcer un hard-refresh après déploiement.
+
+**Hors-ligne côté code — ✅ fait :**
+- **Indicateur hors-ligne** : bannière globale (déjà présente) au message
+  recentré capture — mobile « Hors-ligne · Captures enregistrées » (au-dessus de
+  la bottom bar). Toast « reconnecté » au retour réseau.
+- **File de synchro photos** : les photos de réserves capturées hors-ligne
+  persistent en dataURL dans le projet (jamais perdues) et, au retour du réseau,
+  `syncReservePhotosToStorage(projects, uploadPhoto)` les **ré-uploade vers le
+  storage** et remplace les dataURL par leurs URLs publiques (puis re-save).
+  Garde-fou : tout échec laisse le dataURL en place. Couvert par 5 tests unitaires
+  (101 tests au total).
 - **Splash screens iOS** — ✅ **faits** : 14 images brandées (logo + wordmark
   « ARCHIPILOT » sur fond blanc) générées pour la gamme iPhone/iPad courante
   (`public/splash/*.png`), avec les balises `apple-touch-startup-image` par

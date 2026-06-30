@@ -51,7 +51,7 @@ import { PROJECT_TEMPLATES, getProjectTemplate } from "./constants/projectTempla
 import { PARTICIPANT_ROLES } from "./constants/participantRoles";
 import { getProjectPhases, getProjectPhase } from "./utils/phases";
 
-import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, savePvDraft, removePvDraft } from "./utils/offline";
+import { getOfflineQueue, addToOfflineQueue, clearOfflineQueue, getPvDrafts, savePvDraft, removePvDraft, syncReservePhotosToStorage } from "./utils/offline";
 import { relativeDate, parseDateFR, formatDateFR, calcNextMeeting, daysUntil } from "./utils/dates";
 import { formatAddress, parseAddress } from "./utils/address";
 import { parseNotesToRemarks, getDocCurrent } from "./utils/helpers";
@@ -142,7 +142,6 @@ const INIT_PROJECTS = [
     actions: [{ id: 1, text: "Plans étage 3 à valider", who: "Architecte", urgent: true, open: true, since: "PV 15" }],
   },
 ];
-
 
 export default function App() {
   // ── Workspace context (extracted hook) ──────────────────────
@@ -629,6 +628,16 @@ export default function App() {
         if (activeContext === "personal") dbSaveProjects(projects, activeId);
         else saveOrgProjects(activeContext.slice(4), projects, activeId);
       }
+      // File de synchro photos : ré-upload des dataURL capturés hors-ligne
+      // (réserves) vers le storage, puis persistance des URLs nettoyées.
+      syncReservePhotosToStorage(projects, uploadPhoto)
+        .then(updated => {
+          if (!updated || !dbLoaded) return;
+          setProjects(updated);
+          if (activeContext === "personal") dbSaveProjects(updated, activeId);
+          else saveOrgProjects(activeContext.slice(4), updated, activeId);
+        })
+        .catch(() => { /* échec : les dataURL restent persistés, rien n'est perdu */ });
     };
     const goOffline = () => setIsOnline(false);
     window.addEventListener("online", goOnline);
@@ -2586,10 +2595,10 @@ Règles :
           fontSize: 12, zIndex: 999,
         }}>
           <Ico name="wifioff" size={14} color="#fff" />
-          <span>Hors-ligne</span>
+          <span style={{ fontWeight: 600 }}>Hors-ligne</span>
           <span style={{ opacity: 0.6 }}>·</span>
-          <span style={{ opacity: 0.7 }}>
-            {isMobile ? "sync au retour" : "Notes et photos sauvegardées localement"}
+          <span style={{ opacity: 0.8 }}>
+            {isMobile ? "Captures enregistrées" : "Notes et photos sauvegardées localement"}
           </span>
           {!isMobile && (
             <>
