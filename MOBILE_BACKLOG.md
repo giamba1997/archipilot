@@ -100,8 +100,11 @@ Cohérent avec la décision PV (brouillon mobile → finalisation desktop).
   l'audio au verrouillage écran — limite navigateur connue).
 - Comportement **hors-ligne** réel + file de synchro photos.
 - **Cache du service worker** : forcer un hard-refresh après déploiement.
-- **Splash screens iOS** (`apple-touch-startup-image`) : *non fournis* (option) —
-  iOS affiche un splash blanc par défaut. À générer si on veut un splash brandé.
+- **Splash screens iOS** — ✅ **faits** : 14 images brandées (logo + wordmark
+  « ARCHIPILOT » sur fond blanc) générées pour la gamme iPhone/iPad courante
+  (`public/splash/*.png`), avec les balises `apple-touch-startup-image` par
+  appareil dans `index.html` (portrait). Servis en statique, **non précachés**
+  (le SW reste à 18 entrées). À confirmer visuellement sur device à l'installation.
 - Toggles, chips, FAB : vérifier qu'aucun petit bouton n'est ré-étiré à 44px
   (règle tactile globale) sur les écrans non audités.
 
